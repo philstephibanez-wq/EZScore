@@ -6535,7 +6535,7 @@ def _print_icon(key_suffix, print_document):
               width:34px; height:34px; margin:0; padding:0;
               display:inline-flex; align-items:center; justify-content:center;
               border:1px solid rgba(120,120,120,.45);
-              border-radius:7px; background:transparent; color:currentColor;
+              border-radius:7px; background:transparent; color:#f2f2f2;
               cursor:pointer;
             }}
             button:hover {{ background:rgba(127,127,127,.10); }}
@@ -7116,7 +7116,7 @@ if (
 
     st.sidebar.markdown(
         SCORE.render(
-            "ezscore_templates/left-panel.score",
+            "templates/left-panel.score",
             {
                 "panel": {
                     "editor_visible": bool(_sidebar_editor),
@@ -7526,7 +7526,7 @@ if (
 
         st.markdown(
             SCORE.render(
-                "ezscore_templates/header.score",
+                "templates/header.score",
                 {
                     "song": {
                         "title": _title_left,
@@ -8123,7 +8123,7 @@ if (
                     with block_grid_col:
                         st.markdown(
                             SCORE.render(
-                                "ezscore_templates/views/grid.score",
+                                "templates/views/grid.score",
                                 {
                                     "view": {
                                         "rows_html": "".join(rows_html),
@@ -8481,7 +8481,7 @@ if (
 
             st.markdown(
                 SCORE.render(
-                    "ezscore_templates/views/lyrics.score",
+                    "templates/views/lyrics.score",
                     {
                         "view": {
                             "body_html": "".join(html_lyrics),
@@ -8670,7 +8670,7 @@ if (
         if song_view == "Blocs" and sections_enabled_user:
             st.markdown(
                 SCORE.render(
-                    "ezscore_templates/views/blocks.score",
+                    "templates/views/blocks.score",
                     {
                         "view": {
                             "title": "Structure du morceau",
@@ -8783,7 +8783,7 @@ if (
             with col2:
                 st.markdown(
                     SCORE.render(
-                        "ezscore_templates/views/analytic.score",
+                        "templates/views/analytic.score",
                         {
                             "view": {
                                 "title": "Analyse",

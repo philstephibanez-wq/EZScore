@@ -5707,7 +5707,7 @@ EZScoreTemplate.py
 EZScore.score
 = layout HTML générique, actuellement utilisé pour les documents autonomes d'impression
 
-ezscore_templates/
+templates/
 = templates de régions et de vues
 ```
 
@@ -5755,7 +5755,7 @@ Arborescence retenue :
 EZScore.score                       layout document
 EZScoreTemplate.py                 renderer SCORE Python
 
-ezscore_templates/
+templates/
 ├─ header.score                    entête chanson
 ├─ left-panel.score                informations de marge / sidebar
 └─ views/
@@ -5847,4 +5847,45 @@ Le contrat musical reste :
 ### Suite
 
 La prochaine extraction de représentation doit continuer vue par vue, sans modulariser le métier tant que ce chantier n'est pas explicitement décidé.
+
+## V50 — Correctif R2 templating / base existante / impression
+
+### Source de reprise
+
+Tout nouveau livrable doit repartir de l’état poussé par le propriétaire et ne doit jamais remplacer silencieusement ses modifications locales ou GitHub.
+
+### Base SQLite
+
+La base historique utilisée par EZScore reste :
+
+```text
+data/chordstation.sqlite3
+```
+
+Le templating ne doit jamais modifier ce choix de persistance.
+
+### Répertoire de templates
+
+Le répertoire est simplifié :
+
+```text
+templates/
+├─ header.score
+├─ left-panel.score
+└─ views/
+   ├─ grid.score
+   ├─ lyrics.score
+   ├─ blocks.score
+   └─ analytic.score
+```
+
+Le nom `ezscore_templates` est abandonné.
+
+### Impression
+
+L’icône d’impression SVG utilise maintenant une couleur explicite afin de rester visible sur le thème sombre Streamlit.
+
+Le rendu Paroles + accords conserve le contrat papier V43/V50 : A4 portrait, marges 9 mm, police monospace et alignement accords/paroles.
+
+Aucun changement de logique musicale, d’analyse, de structure, de paroles ou de version n’est introduit dans ce correctif.
 
