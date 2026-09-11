@@ -6060,3 +6060,42 @@ song_editorial_versions
 ```
 
 La base reste `data/EZScore.sqlite3`.
+
+## R7 — Statuts visibles dans le Répertoire
+
+Le Répertoire distingue maintenant clairement l’état d’analyse de l’état
+éditorial de chaque chanson.
+
+Libellés visibles :
+
+```text
+○ À analyser
+✓ Analysée
+● Modification en cours
+✓ Version validée
+🌍 Version publiée
+```
+
+Exemples :
+
+```text
+La Bohême — Charles Aznavour
+✓ Analysée   ● Modification en cours
+```
+
+```text
+La Bohême — Charles Aznavour
+✓ Analysée   ✓ Version validée · V1 · 11/09/2026
+```
+
+```text
+La Bohême — Charles Aznavour
+✓ Analysée   🌍 Version publiée · V1 · R1 · 11/09/2026
+```
+
+Le statut `Analysée` dépend de la présence d’au moins une analyse enregistrée.
+Les statuts `Modification en cours`, `Version validée` et `Version publiée`
+proviennent du workflow éditorial persistant.
+
+Aucune modification du schéma SQLite n’est nécessaire pour R7.
+La base reste `data/EZScore.sqlite3`.

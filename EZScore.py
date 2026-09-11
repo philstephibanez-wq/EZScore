@@ -29,13 +29,13 @@ SCORE = ScoreTemplateRenderer(Path(__file__).resolve().parent)
 # ============================================================
 
 st.set_page_config(
-    page_title="Chordstation",
+    page_title="EZScore",
     page_icon="🎸",
     layout="wide"
 )
 
 st.markdown(
-    '<div class="app-title">🎸 Chordstation — V50 iframe Streamlit</div>',
+    '<div class="app-title">🎸 EZScore — V1.1</div>',
     unsafe_allow_html=True,
 )
 st.markdown(
@@ -138,6 +138,49 @@ st.markdown(
 
     .catalog-secondary {
         opacity: 0.78;
+    }
+
+    .catalog-status-line {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.32rem;
+        margin-top: 0.24rem;
+        line-height: 1.1;
+    }
+
+    .catalog-status-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.16rem 0.42rem;
+        border-radius: 999px;
+        border: 1px solid rgba(140, 150, 165, 0.32);
+        font-size: 0.76rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .catalog-status-analyzed {
+        background: rgba(46, 157, 87, 0.11);
+        border-color: rgba(46, 157, 87, 0.46);
+    }
+
+    .catalog-status-working {
+        background: rgba(230, 167, 0, 0.11);
+        border-color: rgba(230, 167, 0, 0.48);
+    }
+
+    .catalog-status-validated {
+        background: rgba(77, 163, 255, 0.11);
+        border-color: rgba(77, 163, 255, 0.46);
+    }
+
+    .catalog-status-published {
+        background: rgba(132, 91, 194, 0.12);
+        border-color: rgba(132, 91, 194, 0.50);
+    }
+
+    .catalog-status-pending {
+        opacity: 0.76;
     }
 
     .lyrics-block-title {
@@ -951,7 +994,7 @@ def preparer_mesures_affichage(mesures, signature, capo):
 
 
 # ============================================================
-# PERSISTANCE CHORDSTATION — SQLITE
+# PERSISTANCE EZScore — SQLITE
 # ============================================================
 
 PERSISTENCE_SCHEMA_VERSION = 1
@@ -3362,7 +3405,7 @@ def accord_reel_depuis_forme_capo(accord_forme, capo):
 
 def parser_notation_mesure(notation, expected_positions):
     """
-    Parse la notation Chordstation d'UNE mesure.
+    Parse la notation EZScore d'UNE mesure.
 
     Exemples :
       Am---           -> 4 positions
@@ -3508,7 +3551,7 @@ def appliquer_editions_mesures_aux_beats(
 ):
     """
     Les corrections de grille sont appliquées aux beats internes,
-    puis le reste de Chordstation reconstruit ses mesures normalement.
+    puis le reste de EZScore reconstruit ses mesures normalement.
     """
     edits = load_measure_edits(audio_hash)
 
@@ -6892,7 +6935,7 @@ def _print_css_text(kind):
     """
 
 
-def _make_print_document(kind, body_html, title="Chordstation"):
+def _make_print_document(kind, body_html, title="EZScore"):
     """
     Document HTML autonome.
     L'impression ne dépend plus du DOM Streamlit.
@@ -7162,11 +7205,76 @@ if main_menu == "Répertoire":
                         _catalog_editorial = latest_song_editorial_version(
                             item["audio_hash"]
                         )
-                    st.caption(
-                        editorial_status_label(
-                            _catalog_workflow,
-                            _catalog_editorial,
+
+                    _status_badges = []
+
+                    if version_numbers:
+                        _status_badges.append(
+                            '<span class="catalog-status-badge '
+                            'catalog-status-analyzed">✓ Analysée</span>'
                         )
+                    else:
+                        _status_badges.append(
+                            '<span class="catalog-status-badge '
+                            'catalog-status-pending">○ À analyser</span>'
+                        )
+
+                    if version_numbers:
+                        _catalog_state = str(
+                            _catalog_workflow.get("state", "working")
+                        )
+
+                        if (
+                            _catalog_state == "published"
+                            and _catalog_editorial is not None
+                        ):
+                            _published_date = _editorial_date_fr(
+                                _catalog_editorial.get("published_at")
+                            )
+                            _status_badges.append(
+                                '<span class="catalog-status-badge '
+                                'catalog-status-published">'
+                                f'🌍 Version publiée · '
+                                f'V{_catalog_editorial["version_no"]} · '
+                                f'R{_catalog_editorial["release_no"]}'
+                                + (
+                                    f' · {_published_date}'
+                                    if _published_date else ''
+                                )
+                                + '</span>'
+                            )
+
+                        elif (
+                            _catalog_state == "validated"
+                            and _catalog_editorial is not None
+                        ):
+                            _validated_date = _editorial_date_fr(
+                                _catalog_editorial.get("validated_at")
+                            )
+                            _status_badges.append(
+                                '<span class="catalog-status-badge '
+                                'catalog-status-validated">'
+                                f'✓ Version validée · '
+                                f'V{_catalog_editorial["version_no"]}'
+                                + (
+                                    f' · {_validated_date}'
+                                    if _validated_date else ''
+                                )
+                                + '</span>'
+                            )
+
+                        else:
+                            _status_badges.append(
+                                '<span class="catalog-status-badge '
+                                'catalog-status-working">'
+                                '● Modification en cours</span>'
+                            )
+
+                    st.markdown(
+                        '<div class="catalog-status-line">'
+                        + ''.join(_status_badges)
+                        + '</div>',
+                        unsafe_allow_html=True,
                     )
 
                 with c2:
@@ -8826,7 +8934,7 @@ if (
 
                 st.caption(
                     "Édition musicale : une case = une mesure. "
-                    "Notation Chordstation conservée (Am---, Am-Em-, D.C-, etc.)."
+                    "Notation EZScore conservée (Am---, Am-Em-, D.C-, etc.)."
                 )
 
                 st.markdown(
