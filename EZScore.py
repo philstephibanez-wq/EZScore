@@ -22,6 +22,48 @@ from difflib import SequenceMatcher
 from collections import Counter
 
 # ============================================================
+# EZSCORE.SCORE — TEMPLATING MINIMAL
+# ============================================================
+
+_SCORE_TOKEN_RE = re.compile(
+    r"\\{\\{\\s*([A-Za-z_][A-Za-z0-9_.]*)\\s*\\}\\}"
+)
+
+
+def render_score(template_name, context):
+    """
+    Rend un template .score avec interpolation HTML échappée.
+
+    Périmètre volontairement minimal :
+        {{ value }}
+        {{ object.value }}
+
+    Aucune logique métier, aucun accès BDD, aucune expression Python.
+    """
+    template_path = Path(__file__).resolve().parent / template_name
+    source = template_path.read_text(encoding="utf-8")
+
+    def resolve(path):
+        value = context
+
+        for part in path.split("."):
+            if isinstance(value, dict):
+                value = value[part]
+            else:
+                value = getattr(value, part)
+
+        return value
+
+    return _SCORE_TOKEN_RE.sub(
+        lambda match: html.escape(
+            str(resolve(match.group(1)) or "")
+        ),
+        source,
+    )
+
+
+
+# ============================================================
 # CHORDSTATION
 # ============================================================
 
@@ -7519,11 +7561,16 @@ if (
         )
 
         st.markdown(
-            '<div class="song-compact-header">'
-            f'<div class="song-compact-title">{html.escape(_title_left)}</div>'
-            f'<div class="song-compact-meta">· {html.escape(_version_label)}'
-            f' · {html.escape(_source_status)}</div>'
-            '</div>',
+            render_score(
+                "EZScore.score",
+                {
+                    "song": {
+                        "title": _title_left,
+                        "version_label": _version_label,
+                        "source_status": _source_status,
+                    }
+                },
+            ),
             unsafe_allow_html=True,
         )
 
