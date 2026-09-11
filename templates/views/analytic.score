@@ -1,6 +1,10 @@
 <div class="ez-view-heading ez-view-analytic-heading">
-  <div style="font-size:1.45rem;font-weight:760;line-height:1.2;margin:.25rem 0 .35rem 0;">🧠 {{ view.title }}</div>
+  <div style="font-size:1.45rem;font-weight:760;line-height:1.2;margin:.25rem 0 .35rem 0;">
+    🧠 {{ view.title }}
+  </div>
   [[ if: view.caption_visible ]]
-  <div style="opacity:.72;font-size:.90rem;margin-bottom:.55rem;">{{ view.caption }}</div>
+  <div style="opacity:.72;font-size:.90rem;margin-bottom:.55rem;">
+    {{ view.caption }}
+  </div>
   [[ endif ]]
 </div>

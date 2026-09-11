@@ -5959,3 +5959,104 @@ analyse harmonique
 versions
 templates de l'interface écran
 ```
+
+## V50 — R5 Vue Analyse autonome
+
+### Navigation
+
+La vue analytique devient une vue de premier niveau :
+
+```text
+Grille
+Paroles + accords
+Blocs
+Analyse
+```
+
+Modes :
+
+```text
+Grille              -> Vue / Éditer / Jouer
+Paroles + accords   -> Vue / Éditer / Jouer
+Blocs               -> Vue / Éditer
+Analyse              -> Vue
+```
+
+### Déroulé harmonique
+
+Le libellé `Frise chronologique` est abandonné au profit de :
+
+```text
+Déroulé harmonique
+```
+
+Le graphe Plotly est zoomable :
+
+```text
+molette
+sélection
+barre de navigation
+outils Plotly
+double-clic pour revenir à l'ensemble
+```
+
+### Blocs sur le graphe
+
+Les blocs structurels sont superposés au déroulé avec leurs bornes temporelles
+et leur libellé courant (`Intro`, `Couplet`, `Refrain`, etc.).
+
+### Diagnostics
+
+La vue regroupe les informations analytiques auparavant placées sous
+`Grille > Éditer` : signature, tonalité, confiances, vocabulaire harmonique,
+alternance, silences, points d'orgue, changements harmoniques, sections,
+corrections, GPU et persistance.
+
+### Non-régression
+
+R5 ne modifie pas SQLite, le nom de la base, Demucs, Whisper, l'analyse
+harmonique, le capo, les versions, les blocs persistés, les paroles, la grille
+ni la pagination d'impression R4.
+
+## R6 — Cycle éditorial des chansons
+
+Le cycle visible par le musicien est :
+
+```text
+Modification en cours
+→ Version validée
+→ Version publiée
+```
+
+La validation crée une version éditoriale `V1`, `V2`, etc.
+La publication ajoute une release `R1` et une date de publication.
+
+Une **note de l’éditeur**, pour et par l’éditeur, est disponible dans les trois
+états. Elle est modifiable sans modifier le contenu musical validé.
+
+Actions visibles :
+
+```text
+Valider cette version
+Publier cette version
+Reprendre les modifications
+Enregistrer la note
+```
+
+Le Répertoire et le header exposent le statut métier, par exemple :
+
+```text
+Modification en cours
+V2 · Version validée · 11/09/2026
+V2 · R1 · Version publiée · 11/09/2026
+```
+
+Les snapshots techniques `analysis_versions` restent séparés. Deux tables
+éditoriales sont ajoutées :
+
+```text
+song_workflow
+song_editorial_versions
+```
+
+La base reste `data/EZScore.sqlite3`.

@@ -1123,6 +1123,36 @@ def init_persistence():
                 )
 
         conn.execute("""
+            CREATE TABLE IF NOT EXISTS song_editorial_versions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                audio_hash TEXT NOT NULL,
+                version_no INTEGER NOT NULL,
+                release_no INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'validated',
+                source_analysis_version_no INTEGER,
+                note TEXT NOT NULL DEFAULT '',
+                validated_at TEXT NOT NULL,
+                published_at TEXT,
+                updated_at TEXT NOT NULL,
+                UNIQUE(audio_hash, version_no),
+                FOREIGN KEY (audio_hash) REFERENCES songs(audio_hash)
+                    ON DELETE CASCADE
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS song_workflow (
+                audio_hash TEXT PRIMARY KEY,
+                state TEXT NOT NULL DEFAULT 'working',
+                current_version_no INTEGER,
+                working_note TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (audio_hash) REFERENCES songs(audio_hash)
+                    ON DELETE CASCADE
+            )
+        """)
+
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS beat_edits (
                 audio_hash TEXT NOT NULL,
                 beat_index INTEGER NOT NULL,
@@ -4024,6 +4054,301 @@ def _song_version_snapshot_payload(audio_hash):
     }
 
 
+
+def _editorial_date_fr(value):
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    try:
+        return datetime.fromisoformat(
+            raw.replace("Z", "+00:00")
+        ).strftime("%d/%m/%Y")
+    except Exception:
+        return raw[:10]
+
+
+def get_song_workflow(audio_hash):
+    now = _utc_now_iso()
+    with sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute(
+            """
+            SELECT state, current_version_no, working_note, updated_at
+            FROM song_workflow
+            WHERE audio_hash = ?
+            """,
+            (audio_hash,),
+        ).fetchone()
+
+        if row is None:
+            conn.execute(
+                """
+                INSERT INTO song_workflow (
+                    audio_hash, state, current_version_no,
+                    working_note, updated_at
+                )
+                VALUES (?, 'working', NULL, '', ?)
+                """,
+                (audio_hash, now),
+            )
+            conn.commit()
+            return {
+                "state": "working",
+                "current_version_no": None,
+                "working_note": "",
+                "updated_at": now,
+            }
+
+    return {
+        "state": str(row[0] or "working"),
+        "current_version_no": (
+            int(row[1]) if row[1] is not None else None
+        ),
+        "working_note": str(row[2] or ""),
+        "updated_at": str(row[3] or ""),
+    }
+
+
+def list_song_editorial_versions(audio_hash):
+    with sqlite3.connect(DB_PATH) as conn:
+        rows = conn.execute(
+            """
+            SELECT version_no, release_no, status,
+                   source_analysis_version_no, note,
+                   validated_at, published_at, updated_at
+            FROM song_editorial_versions
+            WHERE audio_hash = ?
+            ORDER BY version_no DESC
+            """,
+            (audio_hash,),
+        ).fetchall()
+
+    return [
+        {
+            "version_no": int(row[0]),
+            "release_no": int(row[1] or 0),
+            "status": str(row[2] or "validated"),
+            "source_analysis_version_no": (
+                int(row[3]) if row[3] is not None else None
+            ),
+            "note": str(row[4] or ""),
+            "validated_at": str(row[5] or ""),
+            "published_at": str(row[6] or "") if row[6] else "",
+            "updated_at": str(row[7] or ""),
+        }
+        for row in rows
+    ]
+
+
+def latest_song_editorial_version(audio_hash):
+    versions = list_song_editorial_versions(audio_hash)
+    return versions[0] if versions else None
+
+
+def get_song_editorial_version(audio_hash, version_no):
+    if version_no is None:
+        return None
+    for item in list_song_editorial_versions(audio_hash):
+        if int(item["version_no"]) == int(version_no):
+            return item
+    return None
+
+
+def save_working_note(audio_hash, note):
+    now = _utc_now_iso()
+    workflow = get_song_workflow(audio_hash)
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            UPDATE song_workflow
+            SET working_note = ?, updated_at = ?
+            WHERE audio_hash = ?
+            """,
+            (str(note or ""), now, audio_hash),
+        )
+        conn.commit()
+
+
+def update_song_editorial_note(audio_hash, version_no, note):
+    now = _utc_now_iso()
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            UPDATE song_editorial_versions
+            SET note = ?, updated_at = ?
+            WHERE audio_hash = ? AND version_no = ?
+            """,
+            (str(note or ""), now, audio_hash, int(version_no)),
+        )
+        conn.execute(
+            """
+            UPDATE song_workflow
+            SET working_note = ?, updated_at = ?
+            WHERE audio_hash = ?
+            """,
+            (str(note or ""), now, audio_hash),
+        )
+        conn.commit()
+
+
+def validate_song_editorial_version(
+    audio_hash,
+    source_analysis_version_no,
+    note,
+):
+    versions = list_song_editorial_versions(audio_hash)
+    version_no = (
+        max(v["version_no"] for v in versions) + 1
+        if versions else 1
+    )
+    now = _utc_now_iso()
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            INSERT INTO song_editorial_versions (
+                audio_hash, version_no, release_no, status,
+                source_analysis_version_no, note,
+                validated_at, published_at, updated_at
+            )
+            VALUES (?, ?, 0, 'validated', ?, ?, ?, NULL, ?)
+            """,
+            (
+                audio_hash,
+                int(version_no),
+                int(source_analysis_version_no),
+                str(note or ""),
+                now,
+                now,
+            ),
+        )
+        conn.execute(
+            """
+            INSERT INTO song_workflow (
+                audio_hash, state, current_version_no,
+                working_note, updated_at
+            )
+            VALUES (?, 'validated', ?, ?, ?)
+            ON CONFLICT(audio_hash)
+            DO UPDATE SET
+                state = 'validated',
+                current_version_no = excluded.current_version_no,
+                working_note = excluded.working_note,
+                updated_at = excluded.updated_at
+            """,
+            (
+                audio_hash,
+                int(version_no),
+                str(note or ""),
+                now,
+            ),
+        )
+        conn.commit()
+
+    return version_no
+
+
+def publish_song_editorial_version(audio_hash, version_no, note):
+    current = get_song_editorial_version(audio_hash, version_no)
+    if current is None:
+        return None
+
+    release_no = max(1, int(current.get("release_no", 0) or 0))
+    now = _utc_now_iso()
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            UPDATE song_editorial_versions
+            SET release_no = ?,
+                status = 'published',
+                note = ?,
+                published_at = ?,
+                updated_at = ?
+            WHERE audio_hash = ? AND version_no = ?
+            """,
+            (
+                release_no,
+                str(note or ""),
+                now,
+                now,
+                audio_hash,
+                int(version_no),
+            ),
+        )
+        conn.execute(
+            """
+            UPDATE song_workflow
+            SET state = 'published',
+                current_version_no = ?,
+                working_note = ?,
+                updated_at = ?
+            WHERE audio_hash = ?
+            """,
+            (
+                int(version_no),
+                str(note or ""),
+                now,
+                audio_hash,
+            ),
+        )
+        conn.commit()
+
+    return release_no
+
+
+def resume_song_modifications(audio_hash):
+    workflow = get_song_workflow(audio_hash)
+    current = get_song_editorial_version(
+        audio_hash,
+        workflow.get("current_version_no"),
+    )
+    note = (
+        current.get("note", "")
+        if current is not None
+        else workflow.get("working_note", "")
+    )
+    now = _utc_now_iso()
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            UPDATE song_workflow
+            SET state = 'working',
+                working_note = ?,
+                updated_at = ?
+            WHERE audio_hash = ?
+            """,
+            (str(note or ""), now, audio_hash),
+        )
+        conn.commit()
+
+
+def editorial_status_label(workflow, version=None):
+    state = str((workflow or {}).get("state", "working"))
+
+    if state == "published" and version is not None:
+        return (
+            f"V{version['version_no']} · R{version['release_no']} · "
+            f"Version publiée · "
+            f"{_editorial_date_fr(version.get('published_at'))}"
+        )
+
+    if state == "validated" and version is not None:
+        return (
+            f"V{version['version_no']} · Version validée · "
+            f"{_editorial_date_fr(version.get('validated_at'))}"
+        )
+
+    if version is not None:
+        suffix = f" · à partir de V{version['version_no']}"
+        if int(version.get("release_no", 0) or 0) > 0:
+            suffix += f" · R{version['release_no']}"
+        return "Modification en cours" + suffix
+
+    return "Modification en cours"
+
+
+
 def save_analysis_version(
     audio_hash,
     analysis_key,
@@ -6826,6 +7151,23 @@ if main_menu == "Répertoire":
                     )
                     prefix = "▶ " if is_current else ""
                     st.markdown(f"**{prefix}{primary}**")
+                    _catalog_workflow = get_song_workflow(
+                        item["audio_hash"]
+                    )
+                    _catalog_editorial = get_song_editorial_version(
+                        item["audio_hash"],
+                        _catalog_workflow.get("current_version_no"),
+                    )
+                    if _catalog_editorial is None:
+                        _catalog_editorial = latest_song_editorial_version(
+                            item["audio_hash"]
+                        )
+                    st.caption(
+                        editorial_status_label(
+                            _catalog_workflow,
+                            _catalog_editorial,
+                        )
+                    )
 
                 with c2:
                     st.caption(
@@ -6916,6 +7258,9 @@ if main_menu == "Répertoire":
                                 key=f"edit_v_{item['audio_hash']}_{selected_version}",
                             ):
                                 selected_audio_hash = item["audio_hash"]
+                                resume_song_modifications(
+                                    selected_audio_hash
+                                )
                                 st.session_state["active_song_hash"] = selected_audio_hash
                                 set_app_state("last_song_hash", selected_audio_hash)
                                 prepare_song_preferences_for_open(selected_audio_hash)
@@ -7099,18 +7444,20 @@ if (
     with nav_col:
         song_view = st.radio(
             "Vue",
-            ["Grille", "Paroles + accords", "Blocs"],
+            ["Grille", "Paroles + accords", "Blocs", "Analyse"],
             horizontal=True,
             key=_view_key,
             label_visibility="collapsed",
         )
 
     with mode_col:
-        _mode_options = (
-            ["👁 Vue", "✏️ Éditer", "▶ Jouer"]
-            if song_view in ("Grille", "Paroles + accords")
-            else ["👁 Vue", "✏️ Éditer"]
-        )
+        if song_view in ("Grille", "Paroles + accords"):
+            _mode_options = ["👁 Vue", "✏️ Éditer", "▶ Jouer"]
+        elif song_view == "Blocs":
+            _mode_options = ["👁 Vue", "✏️ Éditer"]
+        else:
+            # Analyse est une vue de consultation uniquement.
+            _mode_options = ["👁 Vue"]
 
         _current_mode = st.session_state.get(_mode_key, "Vue")
         if _current_mode == "Édition":
@@ -7139,6 +7486,11 @@ if (
         }[song_mode_label]
 
         st.session_state[_mode_key] = song_mode
+
+        if song_mode == "Édition":
+            _workflow_edit = get_song_workflow(audio_hash)
+            if _workflow_edit.get("state") != "working":
+                resume_song_modifications(audio_hash)
 
     with print_col:
         print_slot = st.empty()
@@ -7570,10 +7922,17 @@ if (
             else str(titre_affiche)
         )
 
-        _version_label = (
-            f"Version {_version_no}"
-            if _version_no is not None
-            else "Analyse courante"
+        _editorial_workflow = get_song_workflow(audio_hash)
+        _editorial_version = get_song_editorial_version(
+            audio_hash,
+            _editorial_workflow.get("current_version_no"),
+        )
+        if _editorial_version is None:
+            _editorial_version = latest_song_editorial_version(audio_hash)
+
+        _version_label = editorial_status_label(
+            _editorial_workflow,
+            _editorial_version,
         )
 
         st.markdown(
@@ -7644,6 +8003,156 @@ if (
                     f"**Alternatif** : {_strum_secondary_header}"
                 )
             st.info("🎸 " + "  ·  ".join(_header_parts))
+
+        _workflow = get_song_workflow(audio_hash)
+        _workflow_version = get_song_editorial_version(
+            audio_hash,
+            _workflow.get("current_version_no"),
+        )
+        if _workflow_version is None:
+            _workflow_version = latest_song_editorial_version(audio_hash)
+
+        with st.expander(
+            "📝 Version de la chanson · "
+            + editorial_status_label(_workflow, _workflow_version),
+            expanded=False,
+        ):
+            _note_initial = (
+                _workflow_version.get("note", "")
+                if (
+                    _workflow.get("state") in ("validated", "published")
+                    and _workflow_version is not None
+                )
+                else _workflow.get("working_note", "")
+            )
+
+            _editor_note = st.text_area(
+                "Note de l’éditeur",
+                value=str(_note_initial or ""),
+                placeholder=(
+                    "Ex. Refrain corrigé, structure validée pour la scène, "
+                    "version préparée pour le set acoustique…"
+                ),
+                key=(
+                    f"editor_note_{audio_hash[:12]}_"
+                    f"{_workflow.get('state')}_"
+                    f"{_workflow.get('current_version_no')}"
+                ),
+                help=(
+                    "Note pour et par l’éditeur. "
+                    "Elle reste modifiable."
+                ),
+            )
+
+            note_col, action_col, resume_col = st.columns(
+                [1.0, 1.2, 1.2]
+            )
+
+            with note_col:
+                if st.button(
+                    "💾 Enregistrer la note",
+                    key=f"save_editor_note_{audio_hash[:12]}",
+                ):
+                    if (
+                        _workflow.get("state") in ("validated", "published")
+                        and _workflow_version is not None
+                    ):
+                        update_song_editorial_note(
+                            audio_hash,
+                            _workflow_version["version_no"],
+                            _editor_note,
+                        )
+                    else:
+                        save_working_note(
+                            audio_hash,
+                            _editor_note,
+                        )
+                    st.success("Note de l’éditeur enregistrée.")
+                    st.rerun()
+
+            with action_col:
+                if _workflow.get("state") == "working":
+                    if st.button(
+                        "✅ Valider cette version",
+                        type="primary",
+                        key=f"validate_song_version_{audio_hash[:12]}",
+                    ):
+                        _technical_version_no = save_analysis_version(
+                            audio_hash=audio_hash,
+                            analysis_key=analysis_key,
+                            parameters=analysis_parameters,
+                            musique=musique,
+                            resultat=resultat,
+                        )
+                        _editorial_version_no = validate_song_editorial_version(
+                            audio_hash=audio_hash,
+                            source_analysis_version_no=_technical_version_no,
+                            note=_editor_note,
+                        )
+                        st.session_state[
+                            "active_analysis_version_no"
+                        ] = _technical_version_no
+                        st.success(
+                            f"Version V{_editorial_version_no} validée."
+                        )
+                        st.rerun()
+
+                elif (
+                    _workflow.get("state") == "validated"
+                    and _workflow_version is not None
+                ):
+                    if st.button(
+                        "🌍 Publier cette version",
+                        type="primary",
+                        key=f"publish_song_version_{audio_hash[:12]}",
+                    ):
+                        _release_no = publish_song_editorial_version(
+                            audio_hash,
+                            _workflow_version["version_no"],
+                            _editor_note,
+                        )
+                        st.success(
+                            f"V{_workflow_version['version_no']} · "
+                            f"R{_release_no} publiée."
+                        )
+                        st.rerun()
+                else:
+                    st.caption("Cette version est publiée.")
+
+            with resume_col:
+                if _workflow.get("state") in ("validated", "published"):
+                    if st.button(
+                        "✏ Reprendre les modifications",
+                        key=f"resume_song_{audio_hash[:12]}",
+                    ):
+                        resume_song_modifications(audio_hash)
+                        st.session_state[_mode_key] = "Édition"
+                        st.rerun()
+
+            _editorial_history = list_song_editorial_versions(
+                audio_hash
+            )
+            if _editorial_history:
+                st.markdown("**Historique**")
+                for _entry in _editorial_history:
+                    if _entry["status"] == "published":
+                        _entry_label = (
+                            f"V{_entry['version_no']} · "
+                            f"R{_entry['release_no']} · Publiée · "
+                            f"{_editorial_date_fr(_entry['published_at'])}"
+                        )
+                    else:
+                        _entry_label = (
+                            f"V{_entry['version_no']} · Validée · "
+                            f"{_editorial_date_fr(_entry['validated_at'])}"
+                        )
+
+                    if _entry.get("note"):
+                        st.caption(
+                            f"{_entry_label} — {_entry['note']}"
+                        )
+                    else:
+                        st.caption(_entry_label)
 
         versions = list_analysis_versions(audio_hash)
 
@@ -8853,69 +9362,120 @@ if (
                 )
                 st.code(resume, language="text")
 
-        if song_view == "Grille" and song_mode == "Édition":
-            # ----------------------------------------------------
-            # TIMELINE + INFOS
-            # ----------------------------------------------------
+        # ----------------------------------------------------
+        # ANALYSE — VUE AUTONOME
+        # ----------------------------------------------------
 
-            col1, col2 = st.columns([2, 1])
-
-            with col1:
-                st.subheader("📊 Frise chronologique")
-
-                df = creer_dataframe_timeline(beats)
-
-                if not df.empty:
-                    origine = pd.Timestamp("1970-01-01")
-                    df["Début_dt"] = origine + pd.to_timedelta(df["Début"], unit="s")
-                    df["Fin_dt"] = origine + pd.to_timedelta(df["Fin"], unit="s")
-                    df["Morceau"] = "Audio"
-
-                    fig = px.timeline(
-                        df,
-                        x_start="Début_dt",
-                        x_end="Fin_dt",
-                        y="Morceau",
-                        color="Accord",
-                        text="Accord",
-                        hover_data={
-                            "Début": ":.2f",
-                            "Fin": ":.2f"
+        if song_view == "Analyse":
+            st.markdown(
+                SCORE.render(
+                    "templates/views/analytic.score",
+                    {
+                        "view": {
+                            "title": "Analyse",
+                            "caption_visible": True,
+                            "caption": (
+                                "Déroulé harmonique interactif : zoom à la molette, "
+                                "sélection d'une zone ou barre de navigation. "
+                                "Les blocs structurels sont superposés au graphe."
+                            ),
                         }
-                    )
+                    },
+                ),
+                unsafe_allow_html=True,
+            )
 
-                    fig.update_layout(
-                        xaxis=dict(
-                            title="Temps",
-                            tickformat="%M:%S"
-                        ),
-                        yaxis=dict(
-                            title="",
-                            showticklabels=False
-                        ),
-                        height=280
-                    )
+            st.subheader("📊 Déroulé harmonique")
 
-                    st.plotly_chart(
-                        fig,
-                        width="stretch"
-                    )
+            df = creer_dataframe_timeline(beats)
 
-            with col2:
-                st.markdown(
-                    SCORE.render(
-                        "templates/views/analytic.score",
-                        {
-                            "view": {
-                                "title": "Analyse",
-                                "caption_visible": False,
-                                "caption": "",
-                            }
-                        },
-                    ),
-                    unsafe_allow_html=True,
+            if df.empty:
+                st.info("Aucune donnée harmonique disponible pour cette analyse.")
+            else:
+                origine = pd.Timestamp("1970-01-01")
+                df["Début_dt"] = origine + pd.to_timedelta(
+                    df["Début"],
+                    unit="s",
+                )
+                df["Fin_dt"] = origine + pd.to_timedelta(
+                    df["Fin"],
+                    unit="s",
+                )
+                df["Morceau"] = "Audio"
+
+                fig = px.timeline(
+                    df,
+                    x_start="Début_dt",
+                    x_end="Fin_dt",
+                    y="Morceau",
+                    color="Accord",
+                    text="Accord",
+                    hover_data={
+                        "Début": ":.2f",
+                        "Fin": ":.2f",
+                    },
                 )
 
+                for section in sections_structurelles:
+                    section_start = origine + pd.to_timedelta(
+                        float(section["time_start"]),
+                        unit="s",
+                    )
+                    section_end = origine + pd.to_timedelta(
+                        float(section["time_end"]),
+                        unit="s",
+                    )
+                    fig.add_vrect(
+                        x0=section_start,
+                        x1=section_end,
+                        opacity=0.08,
+                        line_width=1,
+                        annotation_text=libelle_bloc_affiche(section),
+                        annotation_position="top left",
+                    )
+
+                fig.update_layout(
+                    xaxis=dict(
+                        title="Temps",
+                        tickformat="%M:%S",
+                        fixedrange=False,
+                        rangeslider=dict(visible=True),
+                    ),
+                    yaxis=dict(
+                        title="",
+                        showticklabels=False,
+                        fixedrange=True,
+                    ),
+                    dragmode="zoom",
+                    height=430,
+                    uirevision=(
+                        f"analyse-{audio_hash[:12]}-"
+                        f"{_version_no if _version_no is not None else 'current'}"
+                    ),
+                    margin=dict(l=10, r=10, t=35, b=25),
+                )
+
+                st.plotly_chart(
+                    fig,
+                    width="stretch",
+                    config={
+                        "scrollZoom": True,
+                        "displaylogo": False,
+                        "responsive": True,
+                    },
+                )
+
+                st.caption(
+                    "Zoom : molette sur le graphe, sélection rectangulaire, "
+                    "barre inférieure ou outils Plotly. Double-clic pour revenir "
+                    "à l'ensemble du morceau."
+                )
+
+            st.markdown("### Diagnostics")
+
+            diag_left, diag_right = st.columns(2)
+
+            with diag_left:
                 st.write(
                     f"Langue détectée : **{resultat.get('language', '?')}**"
                 )
@@ -8933,26 +9493,13 @@ if (
                     "Capodastre (affichage seulement) : "
                     f"**{capo_user}**"
                 )
-                st.write(
-                    "Persistance : "
-                    + (
-                        "**analyse rechargée depuis SQLite**"
-                        if analyse_source in ("persisted_exact", "persisted_latest")
-                        else "**analyse calculée puis sauvegardée dans SQLite**"
+                st.write(f"Tonalité estimée : **{tonalite_nom}**")
+
+                if tonalite:
+                    st.write(
+                        "Confiance tonalité : "
+                        f"**{100.0 * tonalite.get('confidence', 0.0):.0f} %**"
                     )
-                )
-                st.caption(
-                    f"Identité audio : {audio_hash[:16]}… · "
-                    f"moteur : {ANALYSIS_ENGINE_VERSION}"
-                )
-                st.caption(
-                    "Bibliothèque : métadonnées + analyse en SQLite, "
-                    "audio archivé dans data/audio."
-                )
-                st.write(
-                    "Corrections de grille : "
-                    f"**{len(load_measure_edits(audio_hash))} mesure(s) éditée(s)**"
-                )
 
                 if signature_mode_effective == "Auto" and signature_auto:
                     st.write(
@@ -8974,17 +9521,14 @@ if (
                             "Scores métriques (diagnostic) — "
                             + scores_txt
                         )
+
                     st.caption(
                         "Auto-mètre expérimental : il estime un groupement "
                         "d'accents, pas encore un downbeat musicologique complet."
                     )
+
+            with diag_right:
                 st.write("Source accords : **Demucs no_vocals + moteur V9**")
-                st.write(f"Tonalité estimée : **{tonalite_nom}**")
-                if tonalite:
-                    st.write(
-                        f"Confiance tonalité : "
-                        f"**{100.0 * tonalite.get('confidence', 0.0):.0f} %**"
-                    )
 
                 if accords_dominants:
                     st.write(
@@ -9010,23 +9554,14 @@ if (
                         f"**{accords_dominants[0]} ↔ {accords_dominants[1]}** "
                         f"({etat_alternance})"
                     )
-
                     st.write(
                         "Couverture du couple : "
                         f"**{100.0 * couverture_pair:.0f} %**"
                     )
-
                     st.write(
                         "Taux d'alternance : "
                         f"**{100.0 * taux_alternance_pair:.0f} %**"
                     )
-
-                if DEVICE == "cuda":
-                    st.write(
-                        f"GPU : **{torch.cuda.get_device_name(0)}**"
-                    )
-                    memoire_gpu = torch.cuda.memory_allocated(0) / 1024**2
-                    st.write(f"VRAM utilisée : **{memoire_gpu:.0f} Mo**")
 
                 nb_silences = sum(
                     1 for b in beats if b["accord"] == "."
@@ -9034,10 +9569,6 @@ if (
                 nb_fermata = sum(
                     1 for m in mesures if m["fermata"]
                 )
-
-                st.write(f"Beats non joués détectés : **{nb_silences}**")
-                st.write(f"Points d'orgue détectés : **{nb_fermata}**")
-
                 changements = sum(
                     1
                     for i in range(1, len(beats))
@@ -9046,17 +9577,45 @@ if (
                     and beats[i - 1]["accord"] != "."
                 )
 
+                st.write(f"Beats non joués détectés : **{nb_silences}**")
+                st.write(f"Points d'orgue détectés : **{nb_fermata}**")
                 st.write(f"Changements harmoniques : **{changements}**")
+                st.write(
+                    "Sections structurelles : "
+                    f"**{len(sections_structurelles)}**"
+                )
+                st.write(
+                    "Corrections de grille : "
+                    f"**{len(load_measure_edits(audio_hash))} mesure(s) éditée(s)**"
+                )
 
-                if sections_enabled_user:
+                if DEVICE == "cuda":
                     st.write(
-                        "Sections structurelles : "
-                        f"**{len(sections_structurelles)}**"
+                        f"GPU : **{torch.cuda.get_device_name(0)}**"
                     )
+                    memoire_gpu = torch.cuda.memory_allocated(0) / 1024**2
+                    st.write(f"VRAM utilisée : **{memoire_gpu:.0f} Mo**")
 
+            st.markdown("### Source et persistance")
+            st.write(
+                "Persistance : "
+                + (
+                    "**analyse rechargée depuis SQLite**"
+                    if analyse_source in (
+                        "persisted_version",
+                        "persisted_exact",
+                        "persisted_latest",
+                    )
+                    else "**analyse calculée puis sauvegardée dans SQLite**"
+                )
+            )
             st.caption(
-                "Étapes restantes : impression (Grille ou Paroles + accords), "
-                "puis player synchronisé (Grille ou Paroles + accords)."
+                f"Identité audio : {audio_hash[:16]}… · "
+                f"moteur : {ANALYSIS_ENGINE_VERSION}"
+            )
+            st.caption(
+                "Bibliothèque : métadonnées + analyse en SQLite, "
+                "audio archivé dans data/audio."
             )
 
     except Exception as e:
