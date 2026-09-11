@@ -1,0 +1,21 @@
+[[ if: panel.editor_visible ]]
+<div class="ez-left-editor">✏️ Éditeur : {{ panel.editor }}</div>
+[[ endif ]]
+
+[[ if: panel.structure_dirty ]]
+<div style="margin-top:.35rem;padding:.48rem .58rem;border-left:4px solid #e6a700;background:rgba(230,167,0,.10);border-radius:0 6px 6px 0;font-size:.92rem;line-height:1.25;">
+  <strong>● Modifications non validées</strong><br>
+  <span style="opacity:.8">Découpage du morceau</span>
+</div>
+[[ endif ]]
+
+[[ if: panel.has_validated ]]
+<div style="margin-top:.35rem;padding:.48rem .58rem;border-left:4px solid #2e9d57;background:rgba(46,157,87,.08);border-radius:0 6px 6px 0;font-size:.92rem;line-height:1.25;">
+  <strong>✓ Modifications validées</strong><br>
+  <span style="opacity:.8">{{ panel.validated_summary }}</span>
+</div>
+[[ endif ]]
+
+[[ if: panel.no_validated ]]
+<div class="ez-left-empty" style="margin-top:.35rem;opacity:.75;font-size:.86rem;">○ Aucune correction validée</div>
+[[ endif ]]

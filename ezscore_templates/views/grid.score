@@ -1,0 +1,3 @@
+<div class="chord-grid-wrap">
+  <table class="chord-grid"><tbody>{{{ view.rows_html }}}</tbody></table>
+</div>

@@ -20,48 +20,9 @@ import whisper
 from concurrent.futures import ThreadPoolExecutor
 from difflib import SequenceMatcher
 from collections import Counter
+from EZScoreTemplate import ScoreTemplateRenderer
 
-# ============================================================
-# EZSCORE.SCORE — TEMPLATING MINIMAL
-# ============================================================
-
-_SCORE_TOKEN_RE = re.compile(
-    r"\\{\\{\\s*([A-Za-z_][A-Za-z0-9_.]*)\\s*\\}\\}"
-)
-
-
-def render_score(template_name, context):
-    """
-    Rend un template .score avec interpolation HTML échappée.
-
-    Périmètre volontairement minimal :
-        {{ value }}
-        {{ object.value }}
-
-    Aucune logique métier, aucun accès BDD, aucune expression Python.
-    """
-    template_path = Path(__file__).resolve().parent / template_name
-    source = template_path.read_text(encoding="utf-8")
-
-    def resolve(path):
-        value = context
-
-        for part in path.split("."):
-            if isinstance(value, dict):
-                value = value[part]
-            else:
-                value = getattr(value, part)
-
-        return value
-
-    return _SCORE_TOKEN_RE.sub(
-        lambda match: html.escape(
-            str(resolve(match.group(1)) or "")
-        ),
-        source,
-    )
-
-
+SCORE = ScoreTemplateRenderer(Path(__file__).resolve().parent)
 
 # ============================================================
 # CHORDSTATION
@@ -6534,14 +6495,24 @@ def _make_print_document(kind, body_html, title="Chordstation"):
     L'impression ne dépend plus du DOM Streamlit.
     """
     css = _print_css_text(kind)
-    return (
-        "<!doctype html>"
-        '<html lang="fr"><head><meta charset="utf-8">'
-        f"<title>{html.escape(str(title))}</title>"
-        f"<sdef _print_icon(key_suffix, print_document):
+    return SCORE.render(
+        "EZScore.score",
+        {
+            "document": {
+                "lang": "fr",
+                "title": str(title),
+                "css": css,
+                "body_class": f"ezscore-print ezscore-print-{kind}",
+                "body": str(body_html),
+            }
+        },
+    )
+
+
+def _print_icon(key_suffix, print_document):
     """
-    Bouton d'impression compact sans emoji ni scrollbar d'iframe.
-    Ouvre un document HTML autonome et attend son chargement avant print().
+    Icône SVG compacte : ouvre une fenêtre HTML autonome puis le dialogue
+    d'impression. Aucun masquage CSS de la page Streamlit.
     """
     import json
 
@@ -6556,43 +6527,21 @@ def _make_print_document(kind, body_html, title="Chordstation"):
           <meta charset="utf-8">
           <style>
             html, body {{
-              width: 40px;
-              height: 40px;
-              margin: 0;
-              padding: 0;
-              overflow: hidden;
-              background: transparent;
+              width:40px; height:40px; margin:0; padding:0;
+              overflow:hidden; background:transparent;
             }}
-            body {{
-              display: flex;
-              align-items: center;
-              justify-content: center;
-            }}
+            body {{ display:flex; align-items:center; justify-content:center; }}
             button {{
-              width: 34px;
-              height: 34px;
-              margin: 0;
-              padding: 0;
-              display: inline-flex;
-              align-items: center;
-              justify-content: center;
-              border: 1px solid rgba(120,120,120,.45);
-              border-radius: 7px;
-              background: transparent;
-              color: currentColor;
-              cursor: pointer;
+              width:34px; height:34px; margin:0; padding:0;
+              display:inline-flex; align-items:center; justify-content:center;
+              border:1px solid rgba(120,120,120,.45);
+              border-radius:7px; background:transparent; color:currentColor;
+              cursor:pointer;
             }}
-            button:hover {{
-              background: rgba(127,127,127,.10);
-            }}
+            button:hover {{ background:rgba(127,127,127,.10); }}
             svg {{
-              width: 18px;
-              height: 18px;
-              fill: none;
-              stroke: currentColor;
-              stroke-width: 1.8;
-              stroke-linecap: round;
-              stroke-linejoin: round;
+              width:18px; height:18px; fill:none; stroke:currentColor;
+              stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round;
             }}
           </style>
         </head>
@@ -6603,21 +6552,24 @@ def _make_print_document(kind, body_html, title="Chordstation"):
             aria-label="Imprimer cette vue"
             onclick='
               const doc = {payload};
-              const blob = new Blob([doc], {{ type: "text/html;charset=utf-8" }});
-              const url = URL.createObjectURL(blob);
-              const w = window.open(url, "_blank");
+              const w = window.open("", "_blank");
               if (!w) {{
-                URL.revokeObjectURL(url);
                 alert("Le navigateur a bloqué la fenêtre d’impression.");
                 return;
               }}
-              w.addEventListener("load", () => {{
+              w.document.open();
+              w.document.write(doc);
+              w.document.close();
+              const launchPrint = () => {{
                 w.focus();
-                setTimeout(() => {{
-                  w.print();
-                  setTimeout(() => URL.revokeObjectURL(url), 1000);
-                }}, 100);
-              }}, {{ once: true }});
+                setTimeout(() => w.print(), 120);
+              }};
+              if (w.document.readyState === "complete") {{
+                launchPrint();
+              }} else {{
+                w.addEventListener("load", launchPrint, {{ once:true }});
+                setTimeout(launchPrint, 350);
+              }}
             '
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -6632,12 +6584,6 @@ def _make_print_document(kind, body_html, title="Chordstation"):
         """,
         width=40,
         height=40,
-    )
-        >🖨️</button>
-        </div>
-        """,
-        width="stretch",
-        height=38,
     )
 
 
@@ -7157,66 +7103,33 @@ if (
     metadata_key = audio_hash[:16]
 
     _sidebar_editor = str(song.get("editor", "") or "").strip()
-    if _sidebar_editor:
-        st.sidebar.caption(f"✏️ Éditeur : {_sidebar_editor}")
-
     _validated_mods = validated_partition_modifications(audio_hash)
     _structure_dirty = _structure_draft_is_dirty(audio_hash)
 
-    if _structure_dirty:
-        st.sidebar.markdown(
-            """
-            <div style="
-                margin-top:.35rem;
-                padding:.48rem .58rem;
-                border-left:4px solid #e6a700;
-                background:rgba(230,167,0,.10);
-                border-radius:0 6px 6px 0;
-                font-size:.92rem;
-                line-height:1.25;
-            ">
-              <strong>● Modifications non validées</strong><br>
-              <span style="opacity:.8">Découpage du morceau</span>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+    _validated_parts = []
+    if _validated_mods["grid"]:
+        _validated_parts.append(f'Grille : {_validated_mods["grid"]}')
+    if _validated_mods["lyrics"]:
+        _validated_parts.append(f'Paroles : {_validated_mods["lyrics"]}')
+    if _validated_mods["blocks"]:
+        _validated_parts.append(f'Blocs : {_validated_mods["blocks"]}')
 
-    if _validated_mods["has_any"]:
-        st.sidebar.markdown(
-            """
-            <div style="
-                margin-top:.35rem;
-                padding:.48rem .58rem;
-                border-left:4px solid #2e9d57;
-                background:rgba(46,157,87,.08);
-                border-radius:0 6px 6px 0;
-                font-size:.92rem;
-                line-height:1.25;
-            ">
-              <strong>✓ Modifications validées</strong>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-        _validated_parts = []
-        if _validated_mods["grid"]:
-            _validated_parts.append(
-                f'Grille : {_validated_mods["grid"]}'
-            )
-        if _validated_mods["lyrics"]:
-            _validated_parts.append(
-                f'Paroles : {_validated_mods["lyrics"]}'
-            )
-        if _validated_mods["blocks"]:
-            _validated_parts.append(
-                f'Blocs : {_validated_mods["blocks"]}'
-            )
-
-        st.sidebar.caption(" · ".join(_validated_parts))
-    else:
-        st.sidebar.caption("○ Aucune correction validée")
+    st.sidebar.markdown(
+        SCORE.render(
+            "ezscore_templates/left-panel.score",
+            {
+                "panel": {
+                    "editor_visible": bool(_sidebar_editor),
+                    "editor": _sidebar_editor,
+                    "structure_dirty": bool(_structure_dirty),
+                    "has_validated": bool(_validated_mods["has_any"]),
+                    "no_validated": not bool(_validated_mods["has_any"]),
+                    "validated_summary": " · ".join(_validated_parts),
+                }
+            },
+        ),
+        unsafe_allow_html=True,
+    )
 
     if song_mode == "Édition":
         st.subheader("📝 Morceau")
@@ -7612,8 +7525,8 @@ if (
         )
 
         st.markdown(
-            render_score(
-                "EZScore.score",
+            SCORE.render(
+                "ezscore_templates/header.score",
                 {
                     "song": {
                         "title": _title_left,
@@ -8209,10 +8122,14 @@ if (
 
                     with block_grid_col:
                         st.markdown(
-                            '<div class="chord-grid-wrap">'
-                            '<table class="chord-grid"><tbody>'
-                            + "".join(rows_html)
-                            + '</tbody></table></div>',
+                            SCORE.render(
+                                "ezscore_templates/views/grid.score",
+                                {
+                                    "view": {
+                                        "rows_html": "".join(rows_html),
+                                    }
+                                },
+                            ),
                             unsafe_allow_html=True,
                         )
 
@@ -8501,7 +8418,7 @@ if (
 
             edits_by_block = load_lyric_block_edits(audio_hash)
             editor_blocks = []
-            html_lyrics = ['<div class="lyrics-sheet">']
+            html_lyrics = []
             has_lyrics = False
 
             def render_one_block(title, t0, t1):
@@ -8559,13 +8476,18 @@ if (
                 t1 = float(mesures_affichees[-1]["fin"]) + 0.001
                 has_lyrics = render_one_block("Morceau", t0, t1)
 
-            html_lyrics.append("</div>")
-
             if not has_lyrics:
                 st.warning("Aucune parole horodatée n'a été détectée.")
 
             st.markdown(
-                "".join(html_lyrics),
+                SCORE.render(
+                    "ezscore_templates/views/lyrics.score",
+                    {
+                        "view": {
+                            "body_html": "".join(html_lyrics),
+                        }
+                    },
+                ),
                 unsafe_allow_html=True,
             )
 
@@ -8746,19 +8668,29 @@ if (
         # ----------------------------------------------------
 
         if song_view == "Blocs" and sections_enabled_user:
-            st.subheader("🧩 Structure du morceau")
+            st.markdown(
+                SCORE.render(
+                    "ezscore_templates/views/blocks.score",
+                    {
+                        "view": {
+                            "title": "Structure du morceau",
+                            "caption_visible": bool(sections_structurelles),
+                            "caption": (
+                                "La détection propose les blocs initiaux ; les bornes "
+                                "éditées, scissions et fusions constituent ensuite la "
+                                "structure persistante du morceau."
+                            ),
+                        }
+                    },
+                ),
+                unsafe_allow_html=True,
+            )
 
             if not sections_structurelles:
                 st.info(
                     "Aucune structure suffisamment exploitable n'a été détectée."
                 )
             else:
-                st.caption(
-                    "La détection propose les blocs initiaux ; les bornes "
-                    "éditées, scissions et fusions constituent ensuite la "
-                    "structure persistante du morceau."
-                )
-
                 rows_structure = []
 
                 for section in sections_structurelles:
@@ -8849,7 +8781,19 @@ if (
                     )
 
             with col2:
-                st.subheader("🧠 Analyse")
+                st.markdown(
+                    SCORE.render(
+                        "ezscore_templates/views/analytic.score",
+                        {
+                            "view": {
+                                "title": "Analyse",
+                                "caption_visible": False,
+                                "caption": "",
+                            }
+                        },
+                    ),
+                    unsafe_allow_html=True,
+                )
 
                 st.write(
                     f"Langue détectée : **{resultat.get('language', '?')}**"
