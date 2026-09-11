@@ -1,0 +1,4 @@
+<div class="song-compact-header">
+    <div class="song-compact-title">{{ song.title }}</div>
+    <div class="song-compact-meta">· {{ song.version_label }} · {{ song.source_status }}</div>
+</div>
