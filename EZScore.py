@@ -6431,8 +6431,8 @@ def _print_css_text(kind):
         gap: 6px;
         align-items: start;
         margin: 0 0 8px 0;
-        break-inside: avoid;
-        page-break-inside: avoid;
+        break-inside: auto;
+        page-break-inside: auto;
         break-before: auto;
         page-break-before: auto;
     }
@@ -6450,6 +6450,11 @@ def _print_css_text(kind):
         table-layout: fixed;
         width: 100%;
         font-family: Consolas, "Courier New", monospace;
+    }
+
+    table.print-chord-grid tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
     }
 
     table.print-chord-grid td {
@@ -6533,17 +6538,10 @@ def _make_print_document(kind, body_html, title="Chordstation"):
         "<!doctype html>"
         '<html lang="fr"><head><meta charset="utf-8">'
         f"<title>{html.escape(str(title))}</title>"
-        f"<style>{css}</style>"
-        "</head><body>"
-        f"{body_html}"
-        "</body></html>"
-    )
-
-
-def _print_icon(key_suffix, print_document):
+        f"<sdef _print_icon(key_suffix, print_document):
     """
-    Icône compacte : ouvre une fenêtre HTML autonome puis le dialogue
-    d'impression. Aucun masquage CSS de la page Streamlit.
+    Bouton d'impression compact sans emoji ni scrollbar d'iframe.
+    Ouvre un document HTML autonome et attend son chargement avant print().
     """
     import json
 
@@ -6552,37 +6550,90 @@ def _print_icon(key_suffix, print_document):
 
     st.iframe(
         f"""
-        <div style="font-family:system-ui,sans-serif;text-align:center">
+        <!doctype html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            html, body {{
+              width: 40px;
+              height: 40px;
+              margin: 0;
+              padding: 0;
+              overflow: hidden;
+              background: transparent;
+            }}
+            body {{
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }}
+            button {{
+              width: 34px;
+              height: 34px;
+              margin: 0;
+              padding: 0;
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+              border: 1px solid rgba(120,120,120,.45);
+              border-radius: 7px;
+              background: transparent;
+              color: currentColor;
+              cursor: pointer;
+            }}
+            button:hover {{
+              background: rgba(127,127,127,.10);
+            }}
+            svg {{
+              width: 18px;
+              height: 18px;
+              fill: none;
+              stroke: currentColor;
+              stroke-width: 1.8;
+              stroke-linecap: round;
+              stroke-linejoin: round;
+            }}
+          </style>
+        </head>
+        <body>
           <button
             id="print-{html.escape(str(key_suffix))}"
+            title="Imprimer cette vue"
+            aria-label="Imprimer cette vue"
             onclick='
               const doc = {payload};
-              const w = window.open("", "_blank");
+              const blob = new Blob([doc], {{ type: "text/html;charset=utf-8" }});
+              const url = URL.createObjectURL(blob);
+              const w = window.open(url, "_blank");
               if (!w) {{
+                URL.revokeObjectURL(url);
                 alert("Le navigateur a bloqué la fenêtre d’impression.");
                 return;
               }}
-              w.document.open();
-              w.document.write(doc);
-              w.document.close();
-              w.focus();
-              setTimeout(() => w.print(), 350);
+              w.addEventListener("load", () => {{
+                w.focus();
+                setTimeout(() => {{
+                  w.print();
+                  setTimeout(() => URL.revokeObjectURL(url), 1000);
+                }}, 100);
+              }}, {{ once: true }});
             '
-            title="Imprimer cette vue"
-            aria-label="Imprimer cette vue"
-            style="
-              width:34px;
-              height:34px;
-              padding:0;
-              border:1px solid rgba(120,120,120,.45);
-              border-radius:7px;
-              background:transparent;
-              color:inherit;
-              cursor:pointer;
-              font-size:18px;
-              line-height:32px;
-            "
-          >🖨️</button>
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 8V3h10v5"/>
+              <rect x="6" y="14" width="12" height="7" rx="1"/>
+              <path d="M6 17H4a2 2 0 0 1-2-2v-4a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v4a2 2 0 0 1-2 2h-2"/>
+              <path d="M17 11h.01"/>
+            </svg>
+          </button>
+        </body>
+        </html>
+        """,
+        width=40,
+        height=40,
+    )
+        >🖨️</button>
         </div>
         """,
         width="stretch",
