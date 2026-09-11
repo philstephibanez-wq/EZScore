@@ -1,8 +1,18 @@
-# Chordstation — README / CONTRAT / HANDOFF
+# EZScore — README / CONTRAT / HANDOFF
 
 ## Objet
 
-Chordstation analyse un fichier audio afin de produire une grille métrique d'accords et des paroles synchronisées.
+> **Nom du projet : EZScore.** Le projet a été renommé depuis Chordstation. Les anciens noms de fichiers versionnés et certains identifiants internes historiques peuvent encore contenir `chordstation` ; ils sont conservés tant qu'une migration technique n'est pas nécessaire.
+
+### Lancement courant
+
+```powershell
+cd H:\EZScore
+python -m streamlit run .\EZScore.py
+```
+
+
+EZScore analyse un fichier audio afin de produire une grille métrique d'accords et des paroles synchronisées.
 
 Le principe directeur est :
 
@@ -148,7 +158,7 @@ Objectif : conserver une lecture guitaristique naturelle.
 
 ## Balance fondamentale / accompagnement
 
-Chordstation calcule deux évidences distinctes :
+EZScore calcule deux évidences distinctes :
 
 1. **accompagnement** : accord majeur/mineur déduit du spectre harmonique ;
 2. **fondamentale** : racine probable extraite dans les deux octaves graves.
@@ -308,7 +318,7 @@ Optimisations courantes :
 ## Lancement
 
 ```powershell
-cd H:\ChordStation
+cd H:\EZScore
 python -m streamlit run .\chordstation_v19.py
 ```
 
@@ -416,7 +426,7 @@ Validation à effectuer sur plusieurs morceaux :
 ### Lancement V20
 
 ```powershell
-cd H:\ChordStation
+cd H:\EZScore
 python -m streamlit run .\chordstation_v20.py
 ```
 
@@ -531,7 +541,7 @@ Validation obligatoire :
 ### Lancement V21
 
 ```powershell
-cd H:\ChordStation
+cd H:\EZScore
 python -m streamlit run .\chordstation_v21.py
 ```
 
@@ -737,7 +747,7 @@ Validation :
 ### Lancement
 
 ```powershell
-cd H:\ChordStation
+cd H:\EZScore
 python -m streamlit run .\chordstation_v23.py
 ```
 
@@ -868,7 +878,7 @@ Validation :
 ### Lancement
 
 ```powershell
-cd H:\ChordStation
+cd H:\EZScore
 python -m streamlit run .\chordstation_v24.py
 ```
 
@@ -1012,7 +1022,7 @@ Signature
 ### Lancement
 
 ```powershell
-cd H:\ChordStation
+cd H:\EZScore
 python -m streamlit run .\chordstation_v25.py
 ```
 
@@ -1132,7 +1142,7 @@ Progression
 5. enregistrer ;
 6. vérifier que la grille est mise à jour sans réanalyse ;
 7. vérifier la mise à jour de `Paroles + accords` ;
-8. relancer Chordstation ;
+8. relancer EZScore ;
 9. recharger le même audio ;
 10. vérifier que nom et bornes sont conservés ;
 11. vérifier que les bornes détectées originales restent visibles séparément.
@@ -1140,7 +1150,7 @@ Progression
 ### Lancement
 
 ```powershell
-cd H:\ChordStation
+cd H:\EZScore
 python -m streamlit run .\chordstation_v26.py
 ```
 
@@ -1307,7 +1317,7 @@ Le player devra utiliser un playhead unique pour synchroniser :
 5. importer une nouvelle chanson ;
 6. vérifier qu'elle apparaît dans le catalogue ;
 7. vérifier le tri alphabétique ;
-8. fermer puis relancer Chordstation ;
+8. fermer puis relancer EZScore ;
 9. sélectionner le morceau depuis le catalogue sans réimport ;
 10. vérifier que l'analyse persistante est rechargée sans Demucs / Whisper ;
 11. modifier titre / auteur puis cliquer `Enregistrer` ;
@@ -1316,7 +1326,7 @@ Le player devra utiliser un playhead unique pour synchroniser :
 ### Lancement
 
 ```powershell
-cd H:\ChordStation
+cd H:\EZScore
 python -m streamlit run .\chordstation_v28.py
 ```
 
@@ -1428,7 +1438,7 @@ Le catalogue peut ensuite le rouvrir directement avec `Charger la chanson`.
 
 ### Validation V29
 
-1. vérifier que le titre Chordstation n'est plus tronqué ;
+1. vérifier que le titre EZScore n'est plus tronqué ;
 2. choisir `Catalogue` ;
 3. sélectionner `Tri alphabétique : Titre` ;
 4. vérifier l'ordre des chansons ;
@@ -1457,7 +1467,7 @@ Player synchronisé
 ### Lancement
 
 ```powershell
-cd H:\ChordStation
+cd H:\EZScore
 python -m streamlit run .\chordstation_v29.py
 ```
 
@@ -1630,7 +1640,7 @@ Les corrections manuelles :
 10. modifier un décalage temporel ;
 11. vérifier que la projection paroles / grille reste synchronisée ;
 12. faire la même correction depuis l'éditeur du parolier et vérifier la grille ;
-13. relancer Chordstation et vérifier que les corrections persistent ;
+13. relancer EZScore et vérifier que les corrections persistent ;
 14. vérifier les titres de blocs en bleu ;
 15. vérifier que l'en-tête principal n'est plus tronqué.
 
@@ -1653,7 +1663,7 @@ La persistance des corrections manuelles constitue désormais la base commune po
 ### Lancement
 
 ```powershell
-cd H:\ChordStation
+cd H:\EZScore
 python -m streamlit run .\chordstation_v30.py
 ```
 
@@ -1693,7 +1703,7 @@ catalog_sort
 Ainsi, après avoir ouvert un morceau depuis le catalogue :
 
 ```text
-fermer Chordstation
+fermer EZScore
 → relancer
 → le dernier morceau est rouvert automatiquement
 ```
@@ -1780,7 +1790,7 @@ Player synchronisé
 ### Lancement
 
 ```powershell
-cd H:\ChordStation
+cd H:\EZScore
 python -m streamlit run .\chordstation_v31.py
 ```
 
@@ -1921,7 +1931,7 @@ Exemple :
 7. tester la recherche `Aznavour` ;
 8. ouvrir une chanson ;
 9. vérifier l'indicateur `▶` ;
-10. relancer Chordstation ;
+10. relancer EZScore ;
 11. vérifier que la chanson courante reste sélectionnée ;
 12. importer un nouveau morceau et vérifier son apparition immédiate dans le répertoire.
 
@@ -1940,7 +1950,7 @@ Player synchronisé
 ### Lancement
 
 ```powershell
-cd H:\ChordStation
+cd H:\EZScore
 python -m streamlit run .\chordstation_v32.py
 ```
 
@@ -2011,7 +2021,7 @@ doit :
 
 ### Validation V32b
 
-1. lancer Chordstation ;
+1. lancer EZScore ;
 2. ouvrir `Répertoire` ;
 3. cliquer `Ouvrir` sur La Bohème ;
 4. vérifier l'absence d'erreur `StreamlitWidgetAlreadyInstantiatedError` ;
@@ -2023,7 +2033,7 @@ doit :
 ### Lancement
 
 ```powershell
-cd H:\ChordStation
+cd H:\EZScore
 python -m streamlit run .\chordstation_v32b.py
 ```
 
@@ -2128,7 +2138,7 @@ Player synchronisé
 ### Lancement
 
 ```powershell
-cd H:\ChordStation
+cd H:\EZScore
 python -m streamlit run .\chordstation_v33.py
 ```
 
@@ -2203,7 +2213,7 @@ modifier les paramètres
 ### Lancement
 
 ```powershell
-cd H:\ChordStation
+cd H:\EZScore
 python -m streamlit run .\chordstation_v33b.py
 ```
 
@@ -2368,7 +2378,7 @@ analyse harmonique
 8. vérifier l'apparition immédiate du nouveau bloc ;
 9. le renommer ;
 10. fusionner deux blocs ;
-11. relancer Chordstation ;
+11. relancer EZScore ;
 12. vérifier que toute la structure éditée est conservée.
 
 ### Roadmap
@@ -2388,7 +2398,7 @@ Player synchronisé
 ### Lancement
 
 ```powershell
-cd H:\ChordStation
+cd H:\EZScore
 python -m streamlit run .\chordstation_v34.py
 ```
 
@@ -2405,7 +2415,7 @@ Le principe d'édition devient explicitement musical :
 
 Les champs `Beat 1 / Beat 2 / Décalage ms` disparaissent de l'interface principale.
 
-Chaque mesure est éditée directement avec la notation Chordstation :
+Chaque mesure est éditée directement avec la notation EZScore :
 
 ```text
 Am---
@@ -2443,7 +2453,7 @@ capo 3
 forme affichée / éditée : Am
 ```
 
-À la sauvegarde, Chordstation reconvertit la forme capo vers l'accord réel avant persistance.
+À la sauvegarde, EZScore reconvertit la forme capo vers l'accord réel avant persistance.
 
 Ainsi :
 
@@ -2604,7 +2614,7 @@ futur player
 9. modifier une case de grille ;
 10. enregistrer le bloc ;
 11. vérifier la correction dans le parolier ;
-12. relancer Chordstation ;
+12. relancer EZScore ;
 13. vérifier la persistance des blocs et des mesures éditées ;
 14. vérifier qu'aucune réanalyse audio n'est lancée.
 
@@ -2623,7 +2633,7 @@ Player synchronisé
 ### Lancement
 
 ```powershell
-cd H:\ChordStation
+cd H:\EZScore
 python -m streamlit run .\chordstation_v35.py
 ```
 
@@ -2730,7 +2740,7 @@ futur player
 ### Lancement
 
 ```powershell
-cd H:\ChordStation
+cd H:\EZScore
 python -m streamlit run .\chordstation_v36.py
 ```
 
@@ -2820,7 +2830,7 @@ futur player
 Contrat maintenu :
 
 - 1 cellule = 1 mesure ;
-- notation Chordstation conservée ;
+- notation EZScore conservée ;
 - pas de notation ChordU ;
 - pas de retour vers un éditeur beat-par-beat visible.
 
@@ -2850,7 +2860,7 @@ Le capo reste un post-traitement d'affichage et ne doit jamais modifier l'analys
 
 Le parolier doit ressembler à une vraie feuille `paroles + accords`.
 
-Point essentiel : on conserve la notation métrique Chordstation (`Am---`, `Em--`, etc.) ET on décale les paroles / syllabes horizontalement afin qu'elles tombent sous les accords au bon moment.
+Point essentiel : on conserve la notation métrique EZScore (`Am---`, `Em--`, etc.) ET on décale les paroles / syllabes horizontalement afin qu'elles tombent sous les accords au bon moment.
 
 Exemple de principe :
 
@@ -3057,7 +3067,7 @@ Les améliorations UI, structurelles et de persistance ne doivent jamais contour
 
 ### Objectif
 
-À l'ouverture d'une chanson depuis le Répertoire, Chordstation doit restaurer :
+À l'ouverture d'une chanson depuis le Répertoire, EZScore doit restaurer :
 
 ```text
 Capo
@@ -3177,7 +3187,7 @@ alignement paroles / syllabes sur timestamps accords
 
 ### Objectif
 
-Chordstation ne doit plus présenter toute la chanson sur une seule longue page verticale.
+EZScore ne doit plus présenter toute la chanson sur une seule longue page verticale.
 
 La page principale `Chanson` doit devenir une interface de **partition lisible, éditable et jouable**, pas seulement une interface de correction.
 
@@ -3233,7 +3243,7 @@ Contrat maintenu :
 
 ```text
 1 cellule = 1 mesure
-notation Chordstation conservée
+notation EZScore conservée
 Am---
 Am-Em-
 D.C-
@@ -3265,7 +3275,7 @@ Contrat visuel :
 - police monospace ;
 - accords positionnés selon leur timeline ;
 - paroles alignées sous les accords ;
-- notation complète Chordstation conservée ;
+- notation complète EZScore conservée ;
 - retours à la ligne par vers ;
 - corrections de paroles persistantes ;
 - accords inchangés lors d'une correction textuelle ;
@@ -3368,7 +3378,7 @@ Le futur player n'est donc pas un outil séparé : il prolonge directement les v
 
 ### Positionnement produit
 
-Chordstation doit être pensé comme :
+EZScore doit être pensé comme :
 
 ```text
 analyse audio
@@ -3618,7 +3628,7 @@ ne supprime jamais le fichier audio
 ne supprime jamais la chanson si d'autres versions existent
 ```
 
-Si la version supprimée est la version courante, Chordstation doit sélectionner automatiquement une autre version persistée, de préférence la plus récente.
+Si la version supprimée est la version courante, EZScore doit sélectionner automatiquement une autre version persistée, de préférence la plus récente.
 
 Si une chanson ne possède plus aucune version, le morceau reste dans le Répertoire tant que son audio / entrée `songs` existe.
 
@@ -4075,7 +4085,7 @@ Le contrat d'alignement reste inchangé :
 ```text
 accords = référence temporelle
 paroles = alignées dessous
-notation Chordstation conservée
+notation EZScore conservée
 ```
 
 ### Entête guitariste
@@ -4340,7 +4350,7 @@ But :
 quadrillage compact type Excel
 1 case = 1 mesure
 nom de bloc visible
-notation Chordstation conservée
+notation EZScore conservée
 police suffisamment grande
 ```
 
@@ -4615,7 +4625,7 @@ La grille utilise :
 
 ```text
 4 mesures par ligne
-notation Chordstation
+notation EZScore
 noms de blocs
 corrections persistées
 capo courant
@@ -4746,7 +4756,7 @@ Toujours :
 4 mesures par ligne
 1 case = 1 mesure
 nom du bloc à gauche
-notation Chordstation conservée
+notation EZScore conservée
 ```
 
 mais le gabarit est recalculé pour tenir sur A4 portrait :
@@ -5667,14 +5677,14 @@ Objectif :
 
 ## Base de reprise
 
-Script :
+Entrée courante du dépôt public :
 
 ```text
-chordstation_v50_streamlit_iframe.py
+EZScore.py
 ```
 
-Handoff :
+Documentation courante :
 
 ```text
-ChordStation_v50_README_HANDOFF.md
+README.md
 ```
