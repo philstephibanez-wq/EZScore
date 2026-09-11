@@ -6099,3 +6099,96 @@ proviennent du workflow éditorial persistant.
 
 Aucune modification du schéma SQLite n’est nécessaire pour R7.
 La base reste `data/EZScore.sqlite3`.
+
+## R8 — Édition des blocs avec contrôle live Paroles + accords
+
+### Source de reprise
+
+Ce livrable repart strictement du GitHub poussé au commit :
+
+```text
+f3a52c14ea08da279653b281f116c403e80730a3
+ezscore v1.1
+staut des chanson ok
+```
+
+Les fichiers applicatifs ont été vérifiés par leur Git blob SHA avant toute
+modification R8.
+
+La base SQLite GitHub n'est pas modifiée par ce lot et n'est pas embarquée dans
+le ZIP afin de ne jamais écraser `data/EZScore.sqlite3`.
+
+### Blocs > Éditer
+
+La page est divisée verticalement :
+
+```text
+40 % — Découpage du morceau
+60 % — Paroles + accords
+```
+
+La colonne gauche conserve l'éditeur de blocs existant :
+
+```text
+Nom
+Début
+Fin
+Nb mesures
+suppression multiple
+ajout
+validation
+annulation
+réinitialisation
+```
+
+La colonne droite affiche en continu le découpage courant avec :
+
+```text
+nom du bloc
+plage de mesures
+accords
+paroles
+```
+
+Chaque modification de `Nom` ou de `Fin` provoque le rerun Streamlit déjà prévu
+par l'éditeur ; l'aperçu est donc reconstruit à partir du brouillon courant,
+avant toute persistance.
+
+Principe :
+
+```text
+modifier une borne
+→ recalcul immédiat du brouillon
+→ aperçu Paroles + accords mis à jour
+→ contrôle musical
+→ Valider ce découpage seulement lorsque le résultat convient
+```
+
+L'aperçu utilise les mesures affichées avec le capo courant, exactement comme la
+vue `Paroles + accords`. Une correction de paroles déjà associée aux mêmes bornes
+temporelles est réutilisée ; sinon l'aperçu revient au texte Whisper correspondant
+à la nouvelle plage.
+
+### Non-régression
+
+R8 ne modifie pas :
+
+```text
+analyse audio
+Demucs
+Whisper
+moteur harmonique
+SQLite
+workflow éditorial
+statuts du Répertoire
+vue Analyse
+zoom Analyse
+pagination d'impression
+corrections de grille
+corrections de paroles
+capodastre
+validation existante des blocs
+```
+
+Le mini-player / boucle de bloc n'est volontairement pas ajouté dans ce premier
+test. Il pourra être ajouté après validation ergonomique du split 40/60.

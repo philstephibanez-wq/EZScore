@@ -183,6 +183,75 @@ st.markdown(
         opacity: 0.76;
     }
 
+    .block-live-preview {
+        max-height: 72vh;
+        overflow-y: auto;
+        padding: 0.55rem 0.70rem;
+        border: 1px solid rgba(120, 130, 145, 0.28);
+        border-radius: 8px;
+        background: rgba(120, 130, 145, 0.035);
+    }
+
+    .block-live-preview-caption {
+        font-size: 0.82rem;
+        opacity: 0.72;
+        margin: 0 0 0.60rem 0;
+    }
+
+    .block-live-card {
+        border-left: 3px solid rgba(77, 163, 255, 0.72);
+        padding: 0.28rem 0 0.46rem 0.70rem;
+        margin: 0 0 0.85rem 0;
+        background: rgba(77, 163, 255, 0.035);
+    }
+
+    .block-live-title {
+        font-size: 1.02rem;
+        font-weight: 800;
+        color: #4da3ff;
+        margin: 0 0 0.36rem 0;
+    }
+
+    .block-live-range {
+        font-size: 0.74rem;
+        font-weight: 600;
+        opacity: 0.62;
+        margin-left: 0.35rem;
+    }
+
+    .block-live-line {
+        margin: 0 0 0.38rem 0;
+        padding: 0;
+        overflow-x: auto;
+    }
+
+    .block-live-chords,
+    .block-live-text {
+        white-space: pre;
+        font-family: Consolas, "Courier New", ui-monospace, monospace;
+        letter-spacing: 0;
+        font-variant-ligatures: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .block-live-chords {
+        font-size: 1.00rem;
+        font-weight: 800;
+        line-height: 1.05;
+    }
+
+    .block-live-text {
+        font-size: 1.08rem;
+        font-weight: 520;
+        line-height: 1.12;
+    }
+
+    .block-live-instrumental {
+        opacity: 0.58;
+        font-size: 0.90rem;
+    }
+
     .lyrics-block-title {
         font-size: 1.85rem;
         font-weight: 820;
@@ -8437,320 +8506,441 @@ if (
             and sections_enabled_user
             and sections_structurelles
         ):
-            with st.expander("✏️ Découpage du morceau", expanded=True):
-                st.caption(
-                    "Édition séquentielle : modifiez Nom ou Fin puis faites Entrée "
-                    "ou cliquez dans une autre cellule. Début et Nb mesures sont "
-                    "recalculés immédiatement. Pour supprimer, cochez plusieurs lignes "
-                    "si besoin puis cliquez « Supprimer ». Rien n'est persisté avant validation."
-                )
-
-                total_measures = len(mesures)
-                persisted_blocks = load_structure_blocks(audio_hash)
-
-                # Réinitialiser un vieux brouillon devenu incompatible avec le morceau.
-                draft_blocks = _get_structure_draft(audio_hash)
-                if not draft_blocks:
-                    draft_blocks = _structure_draft_from_persisted(audio_hash)
-
-                draft_blocks = _normalize_structure_draft(
-                    draft_blocks,
-                    total_measures,
-                )
-                st.session_state[
-                    _structure_draft_key(audio_hash)
-                ] = [dict(b) for b in draft_blocks]
-
-                action_msg = st.session_state.pop(
-                    _structure_action_message_key(audio_hash),
-                    None,
-                )
-                if action_msg:
-                    st.info(action_msg)
-
-                rows = []
-                for block in draft_blocks:
-                    start_value = int(block["measure_start"])
-                    end_value = int(block["measure_end"])
-                    rows.append({
-                        "Nom": (
-                            str(block.get("custom_label", "") or "").strip()
-                            or "Nouveau bloc"
-                        ),
-                        "Début": start_value,
-                        "Fin": end_value,
-                        "Nb mesures": end_value - start_value + 1,
-                        "Supprimer": False,
-                    })
-
-                revision = int(
-                    st.session_state.get(
-                        _structure_editor_revision_key(audio_hash),
-                        0,
-                    )
-                )
-
-                edited_df = st.data_editor(
-                    pd.DataFrame(
-                        rows,
-                        columns=[
-                            "Nom",
-                            "Début",
-                            "Fin",
-                            "Nb mesures",
-                            "Supprimer",
-                        ],
-                    ),
-                    width="stretch",
-                    hide_index=True,
-                    num_rows="fixed",
-                    disabled=["Début", "Nb mesures"],
-                    column_config={
-                        "Nom": st.column_config.TextColumn(
-                            "Nom",
-                            required=True,
-                            width="large",
-                        ),
-                        "Début": st.column_config.NumberColumn(
-                            "Début",
-                            min_value=1,
-                            step=1,
-                            width="small",
-                        ),
-                        "Fin": st.column_config.NumberColumn(
-                            "Fin",
-                            min_value=1,
-                            max_value=total_measures,
-                            step=1,
-                            required=True,
-                            width="small",
-                            help=(
-                                "Entrée ou clic ailleurs : la suite est "
-                                "recalculée immédiatement."
+            st.markdown(
+                SCORE.render(
+                    "templates/views/blocks.score",
+                    {
+                        "view": {
+                            "title": "Structure du morceau",
+                            "caption_visible": True,
+                            "caption": (
+                                "À gauche, modifiez le découpage. À droite, "
+                                "contrôlez immédiatement les paroles et accords "
+                                "correspondant aux bornes du brouillon."
                             ),
-                        ),
-                        "Nb mesures": st.column_config.NumberColumn(
-                            "Nb mesures",
-                            min_value=1,
-                            step=1,
-                            width="small",
-                        ),
-                        "Supprimer": st.column_config.CheckboxColumn(
-                            "🗑",
-                            width="small",
-                            help=(
-                                "Cochez un ou plusieurs blocs, puis utilisez "
-                                "« Supprimer la sélection »."
-                            ),
-                        ),
+                        }
                     },
-                    key=(
-                        f"structure_live_table_{audio_hash[:12]}_"
-                        f"{revision}"
-                    ),
-                )
+                ),
+                unsafe_allow_html=True,
+            )
 
-                edited_rows = edited_df.to_dict("records")
+            edit_col, preview_col = st.columns(
+                [2, 3],
+                gap="large",
+            )
 
-                # Nom / Fin : recalcul immédiat après commit de cellule.
-                live_draft = _apply_structure_table_live_edit(
-                    draft_blocks,
-                    edited_rows,
-                    total_measures,
-                )
+            with edit_col:
+                with st.expander("✏️ Découpage du morceau", expanded=True):
+                    st.caption(
+                        "Édition séquentielle : modifiez Nom ou Fin puis faites Entrée "
+                        "ou cliquez dans une autre cellule. Début et Nb mesures sont "
+                        "recalculés immédiatement. Pour supprimer, cochez plusieurs lignes "
+                        "si besoin puis cliquez « Supprimer ». Rien n'est persisté avant validation."
+                    )
 
-                if (
-                    _canonical_structure_rows(live_draft)
-                    != _canonical_structure_rows(draft_blocks)
-                ):
-                    # Modification de cellule : conserver la même clé de tableau
-                    # afin de ne pas perdre les cases cochées ni le focus.
+                    total_measures = len(mesures)
+                    persisted_blocks = load_structure_blocks(audio_hash)
+
+                    # Réinitialiser un vieux brouillon devenu incompatible avec le morceau.
+                    draft_blocks = _get_structure_draft(audio_hash)
+                    if not draft_blocks:
+                        draft_blocks = _structure_draft_from_persisted(audio_hash)
+
+                    draft_blocks = _normalize_structure_draft(
+                        draft_blocks,
+                        total_measures,
+                    )
                     st.session_state[
                         _structure_draft_key(audio_hash)
-                    ] = [dict(b) for b in live_draft]
-                    st.rerun()
+                    ] = [dict(b) for b in draft_blocks]
 
-                assigned = sum(
-                    int(b["measure_end"]) - int(b["measure_start"]) + 1
-                    for b in draft_blocks
-                )
-                is_complete = (
-                    bool(draft_blocks)
-                    and int(draft_blocks[0]["measure_start"]) == 1
-                    and int(draft_blocks[-1]["measure_end"]) == total_measures
-                    and assigned == total_measures
+                    action_msg = st.session_state.pop(
+                        _structure_action_message_key(audio_hash),
+                        None,
+                    )
+                    if action_msg:
+                        st.info(action_msg)
+
+                    rows = []
+                    for block in draft_blocks:
+                        start_value = int(block["measure_start"])
+                        end_value = int(block["measure_end"])
+                        rows.append({
+                            "Nom": (
+                                str(block.get("custom_label", "") or "").strip()
+                                or "Nouveau bloc"
+                            ),
+                            "Début": start_value,
+                            "Fin": end_value,
+                            "Nb mesures": end_value - start_value + 1,
+                            "Supprimer": False,
+                        })
+
+                    revision = int(
+                        st.session_state.get(
+                            _structure_editor_revision_key(audio_hash),
+                            0,
+                        )
+                    )
+
+                    edited_df = st.data_editor(
+                        pd.DataFrame(
+                            rows,
+                            columns=[
+                                "Nom",
+                                "Début",
+                                "Fin",
+                                "Nb mesures",
+                                "Supprimer",
+                            ],
+                        ),
+                        width="stretch",
+                        hide_index=True,
+                        num_rows="fixed",
+                        disabled=["Début", "Nb mesures"],
+                        column_config={
+                            "Nom": st.column_config.TextColumn(
+                                "Nom",
+                                required=True,
+                                width="large",
+                            ),
+                            "Début": st.column_config.NumberColumn(
+                                "Début",
+                                min_value=1,
+                                step=1,
+                                width="small",
+                            ),
+                            "Fin": st.column_config.NumberColumn(
+                                "Fin",
+                                min_value=1,
+                                max_value=total_measures,
+                                step=1,
+                                required=True,
+                                width="small",
+                                help=(
+                                    "Entrée ou clic ailleurs : la suite est "
+                                    "recalculée immédiatement."
+                                ),
+                            ),
+                            "Nb mesures": st.column_config.NumberColumn(
+                                "Nb mesures",
+                                min_value=1,
+                                step=1,
+                                width="small",
+                            ),
+                            "Supprimer": st.column_config.CheckboxColumn(
+                                "🗑",
+                                width="small",
+                                help=(
+                                    "Cochez un ou plusieurs blocs, puis utilisez "
+                                    "« Supprimer la sélection »."
+                                ),
+                            ),
+                        },
+                        key=(
+                            f"structure_live_table_{audio_hash[:12]}_"
+                            f"{revision}"
+                        ),
+                    )
+
+                    edited_rows = edited_df.to_dict("records")
+
+                    # Nom / Fin : recalcul immédiat après commit de cellule.
+                    live_draft = _apply_structure_table_live_edit(
+                        draft_blocks,
+                        edited_rows,
+                        total_measures,
+                    )
+
+                    if (
+                        _canonical_structure_rows(live_draft)
+                        != _canonical_structure_rows(draft_blocks)
+                    ):
+                        # Modification de cellule : conserver la même clé de tableau
+                        # afin de ne pas perdre les cases cochées ni le focus.
+                        st.session_state[
+                            _structure_draft_key(audio_hash)
+                        ] = [dict(b) for b in live_draft]
+                        st.rerun()
+
+                    assigned = sum(
+                        int(b["measure_end"]) - int(b["measure_start"]) + 1
+                        for b in draft_blocks
+                    )
+                    is_complete = (
+                        bool(draft_blocks)
+                        and int(draft_blocks[0]["measure_start"]) == 1
+                        and int(draft_blocks[-1]["measure_end"]) == total_measures
+                        and assigned == total_measures
+                    )
+
+                    status_col, delete_col, add_col = st.columns(
+                        [2.2, 1.15, 1.15]
+                    )
+
+                    selected_delete_indices = [
+                        i
+                        for i, row in enumerate(edited_rows)
+                        if bool(row.get("Supprimer"))
+                    ]
+
+                    with status_col:
+                        if is_complete:
+                            st.success(
+                                f"✓ {assigned} / {total_measures} mesures affectées "
+                                "— séquence continue."
+                            )
+                        else:
+                            st.warning(
+                                f"⚠ {assigned} / {total_measures} mesures affectées."
+                            )
+
+                        if _structure_draft_is_dirty(audio_hash):
+                            st.warning(
+                                "● Modifications non validées — le tableau visible "
+                                "diffère de la dernière version persistée."
+                            )
+                        else:
+                            st.caption(
+                                "Aucune modification non validée dans le découpage."
+                            )
+
+                    with delete_col:
+                        if st.button(
+                            (
+                                f"🗑 Supprimer ({len(selected_delete_indices)})"
+                                if selected_delete_indices
+                                else "🗑 Supprimer"
+                            ),
+                            key=f"delete_structure_selected_{audio_hash[:12]}",
+                            width="stretch",
+                            disabled=not bool(selected_delete_indices),
+                            help=(
+                                "Supprime en une seule opération tous les blocs "
+                                "cochés dans le tableau."
+                            ),
+                        ):
+                            # Appliquer d'abord les éventuelles modifications Nom/Fin
+                            # visibles dans le tableau, puis supprimer la sélection.
+                            current_draft = _apply_structure_table_live_edit(
+                                draft_blocks,
+                                edited_rows,
+                                total_measures,
+                            )
+                            new_draft, message = _delete_structure_draft_rows(
+                                current_draft,
+                                selected_delete_indices,
+                                total_measures,
+                            )
+                            _set_structure_draft(
+                                audio_hash,
+                                new_draft,
+                                message,
+                            )
+                            st.rerun()
+
+                    with add_col:
+                        if st.button(
+                            "＋ Ajouter un bloc en fin",
+                            key=f"append_structure_{audio_hash[:12]}",
+                            width="stretch",
+                            help=(
+                                "Crée un nouveau bloc final d'une mesure. "
+                                "Ajustez ensuite la Fin du bloc précédent pour "
+                                "agrandir le nouveau bloc."
+                            ),
+                        ):
+                            new_draft, message = _append_structure_draft(
+                                draft_blocks,
+                                total_measures,
+                            )
+                            _set_structure_draft(
+                                audio_hash,
+                                new_draft,
+                                message,
+                            )
+                            st.rerun()
+
+                    validate_col, cancel_col, reset_col = st.columns(
+                        [1.2, 1.2, 1.7]
+                    )
+
+                    with validate_col:
+                        if st.button(
+                            "✅ Valider ce découpage",
+                            type="primary",
+                            key=f"validate_structure_draft_{audio_hash[:12]}",
+                            disabled=not _structure_draft_is_dirty(audio_hash),
+                            help=(
+                                "Persiste exactement le découpage visible et crée "
+                                "une nouvelle version de la partition."
+                            ),
+                        ):
+                            ok, message = _persist_structure_draft(
+                                audio_hash,
+                                draft_blocks,
+                                total_measures,
+                            )
+
+                            if ok:
+                                version_no = save_analysis_version(
+                                    audio_hash=audio_hash,
+                                    analysis_key=analysis_key,
+                                    parameters=analysis_parameters,
+                                    musique=musique,
+                                    resultat=resultat,
+                                )
+                                st.session_state[
+                                    "active_analysis_version_no"
+                                ] = version_no
+                                st.success(
+                                    f"{message} Nouvelle version V{version_no} créée."
+                                )
+                                st.rerun()
+                            else:
+                                st.error(message)
+
+                    with cancel_col:
+                        if st.button(
+                            "↩ Annuler les changements",
+                            key=f"cancel_structure_draft_{audio_hash[:12]}",
+                            disabled=not _structure_draft_is_dirty(audio_hash),
+                            help="Revient au dernier découpage validé.",
+                        ):
+                            _set_structure_draft(
+                                audio_hash,
+                                persisted_blocks,
+                                "Brouillon annulé ; retour au dernier découpage validé.",
+                            )
+                            st.rerun()
+
+                    with reset_col:
+                        with st.popover("⚙ Réinitialiser depuis l’analyse"):
+                            st.warning(
+                                "Supprime le découpage validé et les noms de blocs "
+                                "personnalisés. L’analyse audio, Whisper et les "
+                                "accords corrigés restent intacts."
+                            )
+
+                            if st.button(
+                                "Confirmer la réinitialisation",
+                                key=f"reset_structure_analysis_{audio_hash[:12]}",
+                            ):
+                                reset_structure_blocks_from_analysis(audio_hash)
+                                st.session_state.pop(
+                                    _structure_draft_key(audio_hash),
+                                    None,
+                                )
+                                st.session_state[
+                                    _structure_editor_revision_key(audio_hash)
+                                ] = int(
+                                    st.session_state.get(
+                                        _structure_editor_revision_key(audio_hash),
+                                        0,
+                                    )
+                                ) + 1
+                                st.success(
+                                    "Découpage supprimé. La structure sera "
+                                    "reconstruite depuis l’analyse persistée."
+                                )
+                                st.rerun()
+
+
+            with preview_col:
+                st.markdown("### 🎤 Paroles + accords")
+                st.caption(
+                    "Aperçu live du découpage en cours. Les paroles et accords "
+                    "suivent immédiatement les bornes du brouillon ; rien n'est "
+                    "persisté avant « Valider ce découpage »."
                 )
 
-                status_col, delete_col, add_col = st.columns(
-                    [2.2, 1.15, 1.15]
-                )
-
-                selected_delete_indices = [
-                    i
-                    for i, row in enumerate(edited_rows)
-                    if bool(row.get("Supprimer"))
+                _preview_measure_by_no = {
+                    int(m["numero"]): m
+                    for m in mesures_affichees
+                }
+                _preview_lyric_edits = load_lyric_block_edits(audio_hash)
+                _preview_parts = [
+                    '<div class="block-live-preview">',
+                    '<div class="block-live-preview-caption">'
+                    'Découpage courant — aperçu non persistant'
+                    '</div>',
                 ]
 
-                with status_col:
-                    if is_complete:
-                        st.success(
-                            f"✓ {assigned} / {total_measures} mesures affectées "
-                            "— séquence continue."
-                        )
+                for _preview_index, _preview_block in enumerate(draft_blocks):
+                    _preview_m0 = int(_preview_block["measure_start"])
+                    _preview_m1 = int(_preview_block["measure_end"])
+                    _preview_first = _preview_measure_by_no.get(_preview_m0)
+                    _preview_last = _preview_measure_by_no.get(_preview_m1)
+
+                    if _preview_first is None or _preview_last is None:
+                        continue
+
+                    _preview_t0 = float(_preview_first["debut"])
+                    _preview_t1 = float(_preview_last["fin"]) + 0.001
+                    _preview_title = (
+                        str(
+                            _preview_block.get("custom_label", "") or ""
+                        ).strip()
+                        or f"Bloc {_preview_index + 1}"
+                    )
+                    _preview_key = _lyric_block_key(
+                        _preview_t0,
+                        _preview_t1,
+                    )
+                    _preview_edit = _preview_lyric_edits.get(
+                        _preview_key,
+                        {},
+                    )
+                    _preview_corrected = str(
+                        _preview_edit.get("corrected_text", "") or ""
+                    ).strip()
+
+                    _preview_lines = construire_lignes_paroles_intervalle(
+                        mesures=mesures_affichees,
+                        resultat=resultat,
+                        t0=_preview_t0,
+                        t1=_preview_t1,
+                        max_chars=52,
+                        corrected_block_text=_preview_corrected,
+                    )
+
+                    _preview_parts.append(
+                        '<div class="block-live-card">'
+                        '<div class="block-live-title">'
+                        f'{html.escape(_preview_title)}'
+                        '<span class="block-live-range">'
+                        f'Mesures {_preview_m0}–{_preview_m1}'
+                        '</span>'
+                        '</div>'
+                    )
+
+                    if _preview_lines:
+                        for _preview_line in _preview_lines:
+                            _preview_parts.append(
+                                '<div class="block-live-line">'
+                                '<div class="block-live-chords">'
+                                f'{html.escape(str(_preview_line.get("accords", "")))}'
+                                '</div>'
+                                '<div class="block-live-text">'
+                                f'{html.escape(str(_preview_line.get("paroles", "")))}'
+                                '</div>'
+                                '</div>'
+                            )
                     else:
-                        st.warning(
-                            f"⚠ {assigned} / {total_measures} mesures affectées."
+                        _preview_parts.append(
+                            '<div class="block-live-instrumental">'
+                            '[instrumental]'
+                            '</div>'
                         )
 
-                    if _structure_draft_is_dirty(audio_hash):
-                        st.warning(
-                            "● Modifications non validées — le tableau visible "
-                            "diffère de la dernière version persistée."
-                        )
-                    else:
-                        st.caption(
-                            "Aucune modification non validée dans le découpage."
-                        )
+                    _preview_parts.append('</div>')
 
-                with delete_col:
-                    if st.button(
-                        (
-                            f"🗑 Supprimer ({len(selected_delete_indices)})"
-                            if selected_delete_indices
-                            else "🗑 Supprimer"
-                        ),
-                        key=f"delete_structure_selected_{audio_hash[:12]}",
-                        width="stretch",
-                        disabled=not bool(selected_delete_indices),
-                        help=(
-                            "Supprime en une seule opération tous les blocs "
-                            "cochés dans le tableau."
-                        ),
-                    ):
-                        # Appliquer d'abord les éventuelles modifications Nom/Fin
-                        # visibles dans le tableau, puis supprimer la sélection.
-                        current_draft = _apply_structure_table_live_edit(
-                            draft_blocks,
-                            edited_rows,
-                            total_measures,
-                        )
-                        new_draft, message = _delete_structure_draft_rows(
-                            current_draft,
-                            selected_delete_indices,
-                            total_measures,
-                        )
-                        _set_structure_draft(
-                            audio_hash,
-                            new_draft,
-                            message,
-                        )
-                        st.rerun()
+                _preview_parts.append('</div>')
 
-                with add_col:
-                    if st.button(
-                        "＋ Ajouter un bloc en fin",
-                        key=f"append_structure_{audio_hash[:12]}",
-                        width="stretch",
-                        help=(
-                            "Crée un nouveau bloc final d'une mesure. "
-                            "Ajustez ensuite la Fin du bloc précédent pour "
-                            "agrandir le nouveau bloc."
-                        ),
-                    ):
-                        new_draft, message = _append_structure_draft(
-                            draft_blocks,
-                            total_measures,
-                        )
-                        _set_structure_draft(
-                            audio_hash,
-                            new_draft,
-                            message,
-                        )
-                        st.rerun()
-
-                validate_col, cancel_col, reset_col = st.columns(
-                    [1.2, 1.2, 1.7]
+                st.markdown(
+                    ''.join(_preview_parts),
+                    unsafe_allow_html=True,
                 )
-
-                with validate_col:
-                    if st.button(
-                        "✅ Valider ce découpage",
-                        type="primary",
-                        key=f"validate_structure_draft_{audio_hash[:12]}",
-                        disabled=not _structure_draft_is_dirty(audio_hash),
-                        help=(
-                            "Persiste exactement le découpage visible et crée "
-                            "une nouvelle version de la partition."
-                        ),
-                    ):
-                        ok, message = _persist_structure_draft(
-                            audio_hash,
-                            draft_blocks,
-                            total_measures,
-                        )
-
-                        if ok:
-                            version_no = save_analysis_version(
-                                audio_hash=audio_hash,
-                                analysis_key=analysis_key,
-                                parameters=analysis_parameters,
-                                musique=musique,
-                                resultat=resultat,
-                            )
-                            st.session_state[
-                                "active_analysis_version_no"
-                            ] = version_no
-                            st.success(
-                                f"{message} Nouvelle version V{version_no} créée."
-                            )
-                            st.rerun()
-                        else:
-                            st.error(message)
-
-                with cancel_col:
-                    if st.button(
-                        "↩ Annuler les changements",
-                        key=f"cancel_structure_draft_{audio_hash[:12]}",
-                        disabled=not _structure_draft_is_dirty(audio_hash),
-                        help="Revient au dernier découpage validé.",
-                    ):
-                        _set_structure_draft(
-                            audio_hash,
-                            persisted_blocks,
-                            "Brouillon annulé ; retour au dernier découpage validé.",
-                        )
-                        st.rerun()
-
-                with reset_col:
-                    with st.popover("⚙ Réinitialiser depuis l’analyse"):
-                        st.warning(
-                            "Supprime le découpage validé et les noms de blocs "
-                            "personnalisés. L’analyse audio, Whisper et les "
-                            "accords corrigés restent intacts."
-                        )
-
-                        if st.button(
-                            "Confirmer la réinitialisation",
-                            key=f"reset_structure_analysis_{audio_hash[:12]}",
-                        ):
-                            reset_structure_blocks_from_analysis(audio_hash)
-                            st.session_state.pop(
-                                _structure_draft_key(audio_hash),
-                                None,
-                            )
-                            st.session_state[
-                                _structure_editor_revision_key(audio_hash)
-                            ] = int(
-                                st.session_state.get(
-                                    _structure_editor_revision_key(audio_hash),
-                                    0,
-                                )
-                            ) + 1
-                            st.success(
-                                "Découpage supprimé. La structure sera "
-                                "reconstruite depuis l’analyse persistée."
-                            )
-                            st.rerun()
 
         if song_view == "Grille":
             st.subheader("🎼 Grille")
@@ -9405,7 +9595,11 @@ if (
         # STRUCTURE DU MORCEAU
         # ----------------------------------------------------
 
-        if song_view == "Blocs" and sections_enabled_user:
+        if (
+            song_view == "Blocs"
+            and sections_enabled_user
+            and song_mode == "Vue"
+        ):
             st.markdown(
                 SCORE.render(
                     "templates/views/blocks.score",
