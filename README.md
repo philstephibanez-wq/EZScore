@@ -5889,3 +5889,73 @@ Le rendu Paroles + accords conserve le contrat papier V43/V50 : A4 portrait, mar
 
 Aucun changement de logique musicale, d’analyse, de structure, de paroles ou de version n’est introduit dans ce correctif.
 
+## V50 — R4 pagination musicale calculée pour impression
+
+### Source de reprise
+
+Ce livrable repart du `origin/master` poussé au commit :
+
+```text
+8fbceaafd1bf53c25c5f54998d3d724eaed55ed0
+templating pas mal
+```
+
+Aucune écriture GitHub n'est effectuée par le livrable.
+
+### Principe
+
+La pagination papier n'est plus abandonnée aux seules heuristiques du navigateur.
+EZScore estime la hauteur de chaque bloc musical avant de générer le document
+d'impression et insère explicitement un saut de page avant un bloc qui ne tient
+plus dans l'espace restant.
+
+Contrat commun :
+
+```text
+si le bloc tient dans l'espace restant
+-> imprimer le bloc
+
+sinon
+-> saut de page AVANT le bloc
+-> imprimer le bloc entier sur la page suivante
+```
+
+Si un bloc exceptionnel est plus grand qu'une page A4 utile, il commence sur une
+page neuve et peut alors être coupé intérieurement.
+
+### Grille
+
+L'unité de hauteur calculée est la rangée de 4 mesures. Les blocs qui tiennent sur
+une page restent insécables. Cela évite notamment de commencer un Couplet en bas
+de page et de terminer ce même Couplet sur la page suivante.
+
+### Paroles + accords
+
+L'unité de hauteur calculée est une paire :
+
+```text
+ligne d'accords
+ligne de paroles
+```
+
+Le calcul ajoute le titre et la marge du bloc. Un Couplet/Refrain qui tient sur
+une page reste donc entier. Une ligne d'accords ne peut pas être séparée de sa
+ligne de paroles.
+
+### Non-régression
+
+Ce lot ne modifie pas :
+
+```text
+SQLite
+structure persistée
+timestamps
+paroles corrigées
+accords
+capodastre
+Demucs
+Whisper
+analyse harmonique
+versions
+templates de l'interface écran
+```

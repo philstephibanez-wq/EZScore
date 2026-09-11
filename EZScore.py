@@ -6314,6 +6314,69 @@ def _print_song_header_html(
     )
 
 
+
+# ============================================================
+# PAGINATION PAPIER — BLOCS MUSICAUX
+# ============================================================
+
+_PRINT_PAGE_CONTENT_MM = 279.0
+_PRINT_FIRST_PAGE_HEADER_MM = 32.0
+_PRINT_GRID_ROW_MM = 7.0
+_PRINT_GRID_BLOCK_MARGIN_MM = 3.0
+_PRINT_LYRICS_TITLE_MM = 7.0
+_PRINT_LYRICS_LINE_MM = 9.6
+_PRINT_LYRICS_BLOCK_MARGIN_MM = 3.0
+
+
+def _print_paginate_blocks(blocks, first_page_used_mm=0.0):
+    """
+    Insère un saut AVANT tout bloc qui ne tient plus sur la page courante.
+
+    Un bloc qui tient sur une page est gardé entier. Un bloc exceptionnellement
+    plus haut qu'une page commence sur une page neuve puis peut être coupé par
+    le navigateur.
+    """
+    rendered = []
+    used_mm = max(0.0, float(first_page_used_mm or 0.0))
+
+    for block in blocks:
+        block_html = str(block.get("html", ""))
+        block_height_mm = max(0.0, float(block.get("height_mm", 0.0)))
+        fits_one_page = block_height_mm <= _PRINT_PAGE_CONTENT_MM
+
+        if used_mm > 0.0 and (
+            (fits_one_page and used_mm + block_height_mm > _PRINT_PAGE_CONTENT_MM)
+            or not fits_one_page
+        ):
+            rendered.append(
+                '<div class="print-page-break" aria-hidden="true"></div>'
+            )
+            used_mm = 0.0
+
+        rendered.append(block_html)
+        used_mm = (
+            used_mm + block_height_mm
+            if fits_one_page
+            else _PRINT_PAGE_CONTENT_MM
+        )
+
+    return "".join(rendered)
+
+
+def _print_grid_block_height_mm(row_count):
+    return (
+        max(1, int(row_count)) * _PRINT_GRID_ROW_MM
+        + _PRINT_GRID_BLOCK_MARGIN_MM
+    )
+
+
+def _print_lyrics_block_height_mm(line_count):
+    return (
+        _PRINT_LYRICS_TITLE_MM
+        + max(1, int(line_count)) * _PRINT_LYRICS_LINE_MM
+        + _PRINT_LYRICS_BLOCK_MARGIN_MM
+    )
+
 def _print_css_text(kind):
     """
     CSS autonome pour la fenêtre d'impression.
@@ -6386,16 +6449,31 @@ def _print_css_text(kind):
         margin-top: 5px;
     }
 
+    .print-page-break {
+        display: block;
+        height: 0;
+        margin: 0;
+        padding: 0;
+        break-before: page;
+        page-break-before: always;
+    }
+
     .print-grid-block {
         display: grid;
         grid-template-columns: 82px minmax(0, 1fr);
         gap: 6px;
         align-items: start;
         margin: 0 0 8px 0;
-        break-inside: auto;
-        page-break-inside: auto;
+        break-inside: avoid;
+        page-break-inside: avoid;
         break-before: auto;
         page-break-before: auto;
+    }
+
+    .print-grid-block.print-allow-split,
+    .print-lyrics-block.print-allow-split {
+        break-inside: auto;
+        page-break-inside: auto;
     }
 
     .print-grid-block-name {
@@ -6434,8 +6512,8 @@ def _print_css_text(kind):
 
     .print-lyrics-block {
         margin: 0 0 8px 0;
-        break-inside: auto;
-        page-break-inside: auto;
+        break-inside: avoid;
+        page-break-inside: avoid;
     }
 
     .print-lyrics-block-title {
@@ -8159,6 +8237,8 @@ if (
                     )
                 )
 
+                grid_print_blocks = []
+
                 for section in sections_for_print:
                     m0 = int(section["measure_start"])
                     m1 = int(section["measure_end"])
@@ -8187,15 +8267,33 @@ if (
                             "<tr>" + "".join(cells) + "</tr>"
                         )
 
-                    print_parts.append(
-                        '<div class="print-grid-block">'
+                    estimated_height_mm = _print_grid_block_height_mm(
+                        len(rows_html)
+                    )
+                    split_class = (
+                        " print-allow-split"
+                        if estimated_height_mm > _PRINT_PAGE_CONTENT_MM
+                        else ""
+                    )
+                    block_html = (
+                        f'<div class="print-grid-block{split_class}">'
                         f'<div class="print-grid-block-name">{html.escape(str(title))}</div>'
                         '<table class="print-chord-grid"><tbody>'
                         + "".join(rows_html)
                         + "</tbody></table>"
                         "</div>"
                     )
+                    grid_print_blocks.append({
+                        "html": block_html,
+                        "height_mm": estimated_height_mm,
+                    })
 
+                print_parts.append(
+                    _print_paginate_blocks(
+                        grid_print_blocks,
+                        first_page_used_mm=_PRINT_FIRST_PAGE_HEADER_MM,
+                    )
+                )
                 print_parts.append("</div>")
 
                 grid_print_document = _make_print_document(
@@ -8510,6 +8608,8 @@ if (
                     )
                 )
 
+                lyrics_print_blocks = []
+
                 for section in (
                     sections_structurelles
                     if sections_structurelles
@@ -8551,11 +8651,22 @@ if (
                         corrected_block_text=corrected_print,
                     )
 
-                    print_lyrics.append(
-                        '<div class="print-lyrics-block">'
-                        f'<div class="print-lyrics-block-title">'
-                        f'{html.escape(str(block_title))}</div>'
+                    line_count = max(1, len(lines_print))
+                    estimated_height_mm = _print_lyrics_block_height_mm(
+                        line_count
                     )
+                    split_class = (
+                        " print-allow-split"
+                        if estimated_height_mm > _PRINT_PAGE_CONTENT_MM
+                        else ""
+                    )
+
+                    block_parts = [
+                        f'<div class="print-lyrics-block{split_class}">',
+                        '<div class="print-lyrics-block-title">',
+                        html.escape(str(block_title)),
+                        '</div>',
+                    ]
 
                     if lines_print:
                         for line_index, line in enumerate(lines_print):
@@ -8564,7 +8675,7 @@ if (
                                 if line_index == 0
                                 else "print-lyrics-line"
                             )
-                            print_lyrics.append(
+                            block_parts.append(
                                 f'<div class="{_line_class}">'
                                 f'<div class="print-lyrics-chords">'
                                 f'{html.escape(str(line.get("accords", "")))}</div>'
@@ -8573,14 +8684,24 @@ if (
                                 '</div>'
                             )
                     else:
-                        print_lyrics.append(
+                        block_parts.append(
                             '<div class="print-lyrics-line">'
                             '<div class="print-lyrics-text">[instrumental]</div>'
                             '</div>'
                         )
 
-                    print_lyrics.append("</div>")
+                    block_parts.append("</div>")
+                    lyrics_print_blocks.append({
+                        "html": "".join(block_parts),
+                        "height_mm": estimated_height_mm,
+                    })
 
+                print_lyrics.append(
+                    _print_paginate_blocks(
+                        lyrics_print_blocks,
+                        first_page_used_mm=_PRINT_FIRST_PAGE_HEADER_MM,
+                    )
+                )
                 print_lyrics.append("</div>")
 
                 lyrics_print_document = _make_print_document(
