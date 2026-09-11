@@ -5688,3 +5688,109 @@ Documentation courante :
 ```text
 README.md
 ```
+
+## V50 — Introduction du templating `.score`
+
+### Objectif
+
+Introduire une séparation minimale entre :
+
+```text
+EZScore.py
+= fonctionnement courant
+= Streamlit
+= métier
+= persistance
+= analyse
+
+EZScore.score
+= représentation HTML templatable
+```
+
+Cette étape ne constitue pas encore une modularisation du métier.
+
+Le but immédiat est uniquement de sortir progressivement la représentation HTML inline de `EZScore.py` vers un fichier `.score`, sans modifier le fonctionnement validé de V50.
+
+### Préparation de la migration future vers OPUS / PHP
+
+Le format retenu reste volontairement proche du templating SCORE d'OPUS afin de réduire les transformations nécessaires lors d'une future migration PHP.
+
+Contrat initial :
+
+```text
+{{ song.title }}
+{{ song.version_label }}
+{{ song.source_status }}
+```
+
+Le renderer Python courant reste volontairement minimal :
+
+```text
+{{ value }}
+{{ object.value }}
+```
+
+Les valeurs sont échappées HTML par défaut.
+
+Aucune logique métier n'est autorisée dans le template :
+
+```text
+pas d'accès SQLite
+pas d'appel Demucs
+pas d'appel Whisper
+pas de calcul harmonique
+pas d'expression Python
+```
+
+### Premier rendu migré
+
+Le premier élément transféré vers `EZScore.score` est l'entête compact de la chanson :
+
+```text
+Titre — Auteur / Interprète
+· Version N · statut
+```
+
+Les classes CSS existantes sont conservées afin de ne pas modifier la présentation V50.
+
+### Contrat de non-régression
+
+Cette introduction du templating ne doit modifier aucun de ces éléments :
+
+```text
+analyse audio
+Demucs
+Whisper
+moteur harmonique
+signature rythmique
+capodastre
+SQLite
+versions
+blocs
+corrections de grille
+corrections de paroles
+navigation Streamlit
+Session State
+impression
+```
+
+Le principe musical reste inchangé :
+
+> **Interpréter le signal audio, ne pas inventer une progression.**
+
+### Base de reprise
+
+Entrée application :
+
+```text
+EZScore.py
+```
+
+Template de représentation :
+
+```text
+EZScore.score
+```
+
+La migration de nouvelles zones visuelles vers `EZScore.score` doit rester progressive et validée sans changement fonctionnel.
+
