@@ -957,7 +957,7 @@ ANALYSIS_ENGINE_VERSION = "V25_V9_DEMUCS_STRUCTURE_PROGRESSIONS"
 APP_DIR = Path(__file__).resolve().parent
 DATA_DIR = APP_DIR / "data"
 AUDIO_DIR = DATA_DIR / "audio"
-DB_PATH = DATA_DIR / "chordstation.sqlite3"
+DB_PATH = DATA_DIR / "EZScore.sqlite3"
 
 
 def _utc_now_iso():
