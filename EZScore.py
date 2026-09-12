@@ -8821,7 +8821,7 @@ def _make_print_document(kind, body_html, title="EZScore"):
     """
     css = _print_css_text(kind)
     return SCORE.render(
-        "EZScore.score",
+        "templates/EZScore.score",
         {
             "document": {
                 "lang": "fr",
