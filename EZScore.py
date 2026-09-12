@@ -731,6 +731,11 @@ st.sidebar.caption(
     "et ne relance jamais l'analyse."
 )
 
+# Zone réservée à la progression d'analyse.
+# Elle reste visible quelle que soit la vue active.
+analysis_progress_slot = st.sidebar.container()
+
+
 # ============================================================
 # WHISPER
 # ============================================================
@@ -1080,7 +1085,7 @@ def preparer_mesures_affichage(mesures, signature, capo):
 # ============================================================
 
 PERSISTENCE_SCHEMA_VERSION = 1
-ANALYSIS_ENGINE_VERSION = "V27_R12_HARMONIC_ENSEMBLE_PHONETIC"
+ANALYSIS_ENGINE_VERSION = "V28_R13_HYSTERESIS_SIDEBAR_PROGRESS"
 
 APP_DIR = Path(__file__).resolve().parent
 DATA_DIR = APP_DIR / "data"
@@ -6792,6 +6797,144 @@ def analyser_musique_cache(
                     local_evidence_overrides += 1
 
         # ----------------------------------------------------
+        # R13 — HYSTÉRÉSIS DE CHANGEMENT D'ACCORD
+        # ----------------------------------------------------
+        # R12 a rendu la grille assez fine pour retrouver des accords courts,
+        # mais cela peut produire trop de micro-régions. R13 conserve l'accord
+        # courant tant qu'un nouvel accord n'a pas accumulé assez de preuve.
+        #
+        # Deux voies permettent un changement :
+        #   1. accord très fortement soutenu -> changement immédiat ;
+        #   2. même candidat soutenu sur plusieurs beats -> changement validé.
+        #
+        # Lorsqu'un changement est validé après plusieurs beats, les beats
+        # candidats sont rétroactivement affectés au nouvel accord afin de
+        # conserver la vraie frontière temporelle.
+        hysteresis_switches = 0
+        hysteresis_rejected_candidates = 0
+        strong_short_chords_kept = 0
+
+        if len(beats) >= 2:
+            current_chord = None
+            pending_chord = None
+            pending_start = None
+            pending_count = 0
+            pending_log_advantage = 0.0
+
+            for i, beat in enumerate(beats):
+                chord_now = str(beat.get("accord", "") or "")
+
+                if chord_now == ".":
+                    current_chord = None
+                    pending_chord = None
+                    pending_start = None
+                    pending_count = 0
+                    pending_log_advantage = 0.0
+                    continue
+
+                if current_chord is None:
+                    current_chord = chord_now
+                    continue
+
+                if i >= len(beat_score_matrix):
+                    continue
+
+                row = beat_score_matrix[i]
+                order = np.argsort(row)
+                candidate_idx = int(order[-1])
+                second_idx = int(order[-2])
+                candidate = dictionnaire_accords[candidate_idx]
+
+                try:
+                    current_idx = dictionnaire_accords.index(current_chord)
+                except ValueError:
+                    current_idx = candidate_idx
+
+                candidate_score = float(row[candidate_idx])
+                current_score = float(row[current_idx])
+                second_score = float(row[second_idx])
+
+                local_ratio = candidate_score / (second_score + 1e-12)
+                local_margin = candidate_score - second_score
+                versus_current = candidate_score / (current_score + 1e-12)
+                log_advantage = float(
+                    np.log(candidate_score + 1e-12)
+                    - np.log(current_score + 1e-12)
+                )
+
+                if candidate == current_chord:
+                    if pending_chord is not None:
+                        hysteresis_rejected_candidates += 1
+                    pending_chord = None
+                    pending_start = None
+                    pending_count = 0
+                    pending_log_advantage = 0.0
+                    beat["accord"] = current_chord
+                    continue
+
+                # Accord bref mais spectralement très clair :
+                # il peut être conservé immédiatement.
+                strong_change = (
+                    local_ratio >= 1.34
+                    and local_margin >= 0.032
+                    and versus_current >= 1.20
+                )
+
+                if strong_change:
+                    current_chord = candidate
+                    pending_chord = None
+                    pending_start = None
+                    pending_count = 0
+                    pending_log_advantage = 0.0
+                    beat["accord"] = candidate
+                    beat["hysteresis_strong_change"] = True
+                    strong_short_chords_kept += 1
+                    hysteresis_switches += 1
+                    continue
+
+                if candidate != pending_chord:
+                    if pending_chord is not None:
+                        hysteresis_rejected_candidates += 1
+                    pending_chord = candidate
+                    pending_start = i
+                    pending_count = 1
+                    pending_log_advantage = max(0.0, log_advantage)
+                else:
+                    pending_count += 1
+                    pending_log_advantage += max(0.0, log_advantage)
+
+                if beat_grid_refinement.get("accepted", False):
+                    enough_duration = pending_count >= 2
+                    enough_evidence = (
+                        pending_log_advantage >= 0.18
+                        and versus_current >= 1.07
+                    )
+                else:
+                    enough_duration = pending_count >= 2
+                    enough_evidence = (
+                        pending_log_advantage >= 0.24
+                        and versus_current >= 1.09
+                    )
+
+                if enough_duration and enough_evidence:
+                    for j in range(int(pending_start), i + 1):
+                        if beats[j].get("accord") != ".":
+                            beats[j]["accord"] = pending_chord
+                            beats[j]["hysteresis_region_change"] = True
+
+                    current_chord = pending_chord
+                    hysteresis_switches += 1
+                    pending_chord = None
+                    pending_start = None
+                    pending_count = 0
+                    pending_log_advantage = 0.0
+                else:
+                    beat["accord"] = current_chord
+
+            if pending_chord is not None:
+                hysteresis_rejected_candidates += 1
+
+        # ----------------------------------------------------
         # STABILISATION CONSERVATIVE DES MICRO-VARIATIONS
         # ----------------------------------------------------
         # Riffstation montre des régions harmoniques longues. EZScore garde
@@ -6821,6 +6964,8 @@ def analyser_musique_cache(
                     or next_accord in ("", ".")
                     or prev_accord != next_accord
                     or accord == prev_accord
+                    or beats[i].get("hysteresis_strong_change", False)
+                    or beats[i].get("hysteresis_region_change", False)
                 ):
                     continue
 
@@ -6923,6 +7068,11 @@ def analyser_musique_cache(
             "poids_accompagnement": 1.0 - poids_fondamentale,
             "micro_variations_stabilisees": micro_variations_stabilisees,
             "local_evidence_overrides": int(local_evidence_overrides),
+            "hysteresis_switches": int(hysteresis_switches),
+            "hysteresis_rejected_candidates": int(
+                hysteresis_rejected_candidates
+            ),
+            "strong_short_chords_kept": int(strong_short_chords_kept),
             "harmonic_source_mix": {
                 "no_vocals": 0.72,
                 "original_mix": 0.28,
@@ -9143,117 +9293,118 @@ if (
 
             _analysis_total_started = time.perf_counter()
 
-            with st.status(
-                spinner_message,
-                expanded=True,
-            ) as analysis_status:
-                progress = st.progress(
-                    5,
-                    text="Préparation de l'analyse…",
-                )
-
-                # CPU et GPU peuvent travailler simultanément.
-                with ThreadPoolExecutor(max_workers=2) as executor:
-                    _music_task_started = time.perf_counter()
-                    future_musique = executor.submit(
-                        analyser_musique_cache,
-                        audio_bytes,
-                        extension,
-                        signature_mode,
-                        analyse_sr_user,
-                        hop_length_user,
-                        silence_rms_user,
-                        silence_chroma_user,
-                        poids_fondamentale_user,
-                        fermata_enabled_user,
-                        fermata_gap_user,
+            with analysis_progress_slot:
+                with st.status(
+                    spinner_message,
+                    expanded=True,
+                ) as analysis_status:
+                    progress = st.progress(
+                        5,
+                        text="Analyse en cours — préparation…",
                     )
-
-                    _whisper_task_started = time.perf_counter()
-                    future_whisper = executor.submit(
-                        transcrire_cache,
-                        audio_bytes,
-                        extension,
-                        DEVICE
-                    )
-
-                    progress.progress(
-                        10,
-                        text="Demucs / rythme / harmonie + Whisper en parallèle…",
-                    )
-
-                    _music_done = False
-                    _whisper_done = False
-                    _music_seconds = None
-                    _whisper_seconds = None
-
-                    while not (_music_done and _whisper_done):
-                        changed = False
-
-                        if future_musique.done() and not _music_done:
-                            musique = future_musique.result()
-                            _music_seconds = (
-                                time.perf_counter()
-                                - _music_task_started
-                            )
-                            _music_done = True
-                            changed = True
-
-                        if future_whisper.done() and not _whisper_done:
-                            resultat = future_whisper.result()
-                            _whisper_seconds = (
-                                time.perf_counter()
-                                - _whisper_task_started
-                            )
-                            _whisper_done = True
-                            changed = True
-
-                        _pct = 10
-                        if _music_done:
-                            _pct += 45
-                        if _whisper_done:
-                            _pct += 30
-
-                        if changed:
-                            _done_labels = []
+    
+                    # CPU et GPU peuvent travailler simultanément.
+                    with ThreadPoolExecutor(max_workers=2) as executor:
+                        _music_task_started = time.perf_counter()
+                        future_musique = executor.submit(
+                            analyser_musique_cache,
+                            audio_bytes,
+                            extension,
+                            signature_mode,
+                            analyse_sr_user,
+                            hop_length_user,
+                            silence_rms_user,
+                            silence_chroma_user,
+                            poids_fondamentale_user,
+                            fermata_enabled_user,
+                            fermata_gap_user,
+                        )
+    
+                        _whisper_task_started = time.perf_counter()
+                        future_whisper = executor.submit(
+                            transcrire_cache,
+                            audio_bytes,
+                            extension,
+                            DEVICE
+                        )
+    
+                        progress.progress(
+                            10,
+                            text="Demucs + rythme + harmonie · Whisper/cache en parallèle…",
+                        )
+    
+                        _music_done = False
+                        _whisper_done = False
+                        _music_seconds = None
+                        _whisper_seconds = None
+    
+                        while not (_music_done and _whisper_done):
+                            changed = False
+    
+                            if future_musique.done() and not _music_done:
+                                musique = future_musique.result()
+                                _music_seconds = (
+                                    time.perf_counter()
+                                    - _music_task_started
+                                )
+                                _music_done = True
+                                changed = True
+    
+                            if future_whisper.done() and not _whisper_done:
+                                resultat = future_whisper.result()
+                                _whisper_seconds = (
+                                    time.perf_counter()
+                                    - _whisper_task_started
+                                )
+                                _whisper_done = True
+                                changed = True
+    
+                            _pct = 10
                             if _music_done:
-                                _done_labels.append("analyse musicale ✓")
+                                _pct += 45
                             if _whisper_done:
-                                _done_labels.append("paroles Whisper ✓")
-
-                            progress.progress(
-                                min(_pct, 85),
-                                text=" · ".join(_done_labels),
-                            )
-
-                        if not (_music_done and _whisper_done):
-                            time.sleep(0.12)
-
-                progress.progress(
-                    88,
-                    text="Finalisation et persistance…",
-                )
-
-                _parallel_seconds = (
-                    time.perf_counter()
-                    - _analysis_total_started
-                )
-
-                perf = dict(
-                    musique.get("performance", {}) or {}
-                )
-                perf.update({
-                    "music_future_seconds": float(
-                        _music_seconds or 0.0
-                    ),
-                    "whisper_seconds": float(
-                        _whisper_seconds or 0.0
-                    ),
-                    "parallel_seconds": float(
-                        _parallel_seconds
-                    ),
-                })
-                musique["performance"] = perf
+                                _pct += 30
+    
+                            if changed:
+                                _done_labels = []
+                                if _music_done:
+                                    _done_labels.append("analyse musicale ✓")
+                                if _whisper_done:
+                                    _done_labels.append("paroles Whisper ✓")
+    
+                                progress.progress(
+                                    min(_pct, 85),
+                                    text=" · ".join(_done_labels),
+                                )
+    
+                            if not (_music_done and _whisper_done):
+                                time.sleep(0.12)
+    
+                    progress.progress(
+                        88,
+                        text="Finalisation et sauvegarde…",
+                    )
+    
+                    _parallel_seconds = (
+                        time.perf_counter()
+                        - _analysis_total_started
+                    )
+    
+                    perf = dict(
+                        musique.get("performance", {}) or {}
+                    )
+                    perf.update({
+                        "music_future_seconds": float(
+                            _music_seconds or 0.0
+                        ),
+                        "whisper_seconds": float(
+                            _whisper_seconds or 0.0
+                        ),
+                        "parallel_seconds": float(
+                            _parallel_seconds
+                        ),
+                    })
+                    musique["performance"] = perf
 
             save_persisted_analysis(
                 audio_hash=audio_hash,
@@ -11347,6 +11498,18 @@ if (
             st.write(
                 "Micro-variations harmoniques stabilisées : "
                 f"**{_micro_stab}**"
+            )
+            st.write(
+                "Changements validés par hystérésis : "
+                f"**{int(musique.get('hysteresis_switches', 0) or 0)}**"
+            )
+            st.write(
+                "Candidats harmoniques rejetés : "
+                f"**{int(musique.get('hysteresis_rejected_candidates', 0) or 0)}**"
+            )
+            st.write(
+                "Accords courts conservés par preuve forte : "
+                f"**{int(musique.get('strong_short_chords_kept', 0) or 0)}**"
             )
 
             st.markdown("### Source et persistance")

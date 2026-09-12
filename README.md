@@ -6562,3 +6562,103 @@ Le changement de version empêche de confondre une analyse R11 et une analyse R1
 
 La BDD n'est pas incluse dans le ZIP et aucun changement de schéma SQLite
 n'est nécessaire.
+
+## R13 — Hystérésis harmonique / progression sidebar
+
+### Source de reprise
+
+R13 repart strictement du GitHub poussé :
+
+```text
+e875d24c866dff64d84252beac520c0998b2c6ed
+EZSCORE_R12
+```
+
+Les fichiers applicatifs ont été vérifiés par Git blob SHA avant modification.
+
+### Progression de réanalyse
+
+Une zone de progression dédiée est maintenant placée dans la barre latérale,
+juste sous les réglages avancés.
+
+Elle reste visible pendant la réanalyse depuis n'importe quelle vue :
+
+```text
+Grille
+Paroles + accords
+Blocs
+Analyse
+```
+
+La progression reste liée aux tâches réelles introduites précédemment :
+analyse musicale, Whisper/cache, finalisation et persistance.
+
+### Hystérésis harmonique
+
+R12 a apporté une grille assez fine pour retrouver les accords courts mais
+pouvait générer trop de micro-régions.
+
+R13 conserve l'accord courant tant qu'un nouveau candidat n'a pas accumulé une
+preuve suffisante.
+
+Deux chemins valident un changement :
+
+```text
+preuve locale très forte
+→ changement immédiat
+
+même candidat persistant sur plusieurs beats
++ avantage cumulé suffisant
+→ changement validé
+```
+
+Quand un changement persistant est validé, sa frontière est replacée au premier
+beat candidat afin de ne pas décaler la progression musicale.
+
+### Accords courts réels
+
+Un accord bref reste accepté immédiatement si :
+
+```text
+ratio top2 >= 1.34
+marge >= 0.032
+avantage sur l'accord courant >= 1.20
+```
+
+Le but est de garder les vrais `A`, `D`, `G`, `C` courts tout en supprimant les
+oscillations faibles visibles dans R12.
+
+### Éditions manuelles
+
+La réanalyse ne supprime pas :
+
+```text
+beat_edits
+measure_edits
+structure_blocks
+lyric_block_edits
+lyric_line_edits
+```
+
+Les corrections restent une couche au-dessus de l'analyse automatique.
+
+### Diagnostics
+
+La vue Analyse ajoute :
+
+```text
+changements validés par hystérésis
+candidats harmoniques rejetés
+accords courts conservés par preuve forte
+```
+
+Le déroulé type Riffstation et l'analyse phonétique expérimentale R12 sont
+conservés.
+
+### Moteur
+
+```text
+V28_R13_HYSTERESIS_SIDEBAR_PROGRESS
+```
+
+Aucune migration SQLite n'est nécessaire. La BDD n'est pas incluse dans le ZIP.
