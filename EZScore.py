@@ -1338,6 +1338,38 @@ def init_persistence():
                 "ADD COLUMN target_edition_label TEXT NOT NULL DEFAULT 'Standard'"
             )
 
+        # Migration R15 -> R16 :
+        # une ancienne version seulement « validée » redevient un travail
+        # courant. Son numéro visible sert de version cible, sans publication.
+        conn.execute(
+            """
+            UPDATE song_workflow
+            SET target_version_label = COALESCE(
+                (
+                    SELECT version_label
+                    FROM song_editorial_versions
+                    WHERE song_editorial_versions.audio_hash =
+                          song_workflow.audio_hash
+                      AND song_editorial_versions.version_no =
+                          song_workflow.current_version_no
+                ),
+                target_version_label
+            )
+            WHERE current_version_no IS NOT NULL
+              AND (
+                  TRIM(target_version_label) = ''
+                  OR target_version_label = '1.0'
+              )
+            """
+        )
+        conn.execute(
+            """
+            UPDATE song_workflow
+            SET state = 'working'
+            WHERE state = 'validated'
+            """
+        )
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS beat_edits (
                 audio_hash TEXT NOT NULL,
@@ -10584,12 +10616,18 @@ if (
                             )
                             st.rerun()
 
-            if _editorial_history:
+            _published_history = [
+                _entry
+                for _entry in _editorial_history
+                if _entry.get("status") == "published"
+            ]
+
+            if _published_history:
                 with st.expander(
                     "Historique des publications",
                     expanded=False,
                 ):
-                    for _entry in _editorial_history:
+                    for _entry in _published_history:
                         _entry_date = (
                             _entry.get("published_at")
                             or _entry.get("validated_at")
