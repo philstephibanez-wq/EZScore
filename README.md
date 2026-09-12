@@ -6662,3 +6662,101 @@ V28_R13_HYSTERESIS_SIDEBAR_PROGRESS
 ```
 
 Aucune migration SQLite n'est nécessaire. La BDD n'est pas incluse dans le ZIP.
+
+## R14 — Workflow éditorial clair / harmonie équilibrée / MIDI synchronisé
+
+### Source de reprise
+
+R14 repart strictement du GitHub poussé :
+
+```text
+be49d72268d9e4bd1e215adebb2202b8dab1861c
+EZSCORE_R13
+```
+
+Les fichiers applicatifs ont été vérifiés par Git blob SHA avant modification.
+
+### Workflow éditorial
+
+Le workflow n'est plus caché dans un expander fermé.
+
+Un panneau permanent affiche :
+
+```text
+État
+Version
+Release
+Date
+Note de l'éditeur
+```
+
+Les actions indiquent explicitement leur effet :
+
+```text
+Valider en Vn
+Publier Vn en R1
+Reprendre les modifications depuis Vn · Rn
+```
+
+La numérotation des versions reste automatique.
+
+### Analyse harmonique R14
+
+R14 repart de l'hystérésis R13 mais devient volontairement un peu plus riche :
+
+```text
+accord court net -> conservé
+candidat moyen persistant 2 beats -> accepté
+oscillation faible -> rejetée
+```
+
+Seuils accord court fort :
+
+```text
+ratio top2 >= 1.26
+marge >= 0.024
+avantage sur l'accord courant >= 1.14
+```
+
+L'objectif est de préférer légèrement trop d'accords à une intro appauvrie,
+puis de laisser l'éditeur simplifier manuellement.
+
+### MIDI des accords
+
+La vue Analyse peut exporter un fichier `.mid` des régions harmoniques.
+
+Le MIDI est construit depuis les accords effectifs après application des
+corrections manuelles.
+
+### Player synchronisé
+
+Un player de comparaison ajoute :
+
+```text
+audio original
++ synthèse des accords
++ même horloge
++ seek commun
++ volume chanson
++ volume accords
+```
+
+Il permet de contrôler directement à l'oreille la pertinence d'une région
+harmonique puis de la corriger manuellement.
+
+### Conservé depuis R13
+
+- progression de réanalyse dans la sidebar ;
+- grille ×2 ;
+- ensemble no_vocals + mix original ;
+- réanalyse explicite ;
+- déroulé type Riffstation ;
+- analyse phonétique expérimentale ;
+- éditions manuelles ;
+- SQLite inchangée.
+
+### Moteur
+
+```text
+V29_R14_BALANCED_MIDI_EDITORIAL
+```

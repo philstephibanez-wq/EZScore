@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import html
 import numpy as np
 import librosa
@@ -16,6 +17,8 @@ import hashlib
 import re
 import warnings
 import time
+import base64
+import struct
 from datetime import datetime, timezone
 from pathlib import Path
 import torch
@@ -1085,7 +1088,7 @@ def preparer_mesures_affichage(mesures, signature, capo):
 # ============================================================
 
 PERSISTENCE_SCHEMA_VERSION = 1
-ANALYSIS_ENGINE_VERSION = "V28_R13_HYSTERESIS_SIDEBAR_PROGRESS"
+ANALYSIS_ENGINE_VERSION = "V29_R14_BALANCED_MIDI_EDITORIAL"
 
 APP_DIR = Path(__file__).resolve().parent
 DATA_DIR = APP_DIR / "data"
@@ -6875,9 +6878,9 @@ def analyser_musique_cache(
                 # Accord bref mais spectralement très clair :
                 # il peut être conservé immédiatement.
                 strong_change = (
-                    local_ratio >= 1.34
-                    and local_margin >= 0.032
-                    and versus_current >= 1.20
+                    local_ratio >= 1.26
+                    and local_margin >= 0.024
+                    and versus_current >= 1.14
                 )
 
                 if strong_change:
@@ -6906,14 +6909,14 @@ def analyser_musique_cache(
                 if beat_grid_refinement.get("accepted", False):
                     enough_duration = pending_count >= 2
                     enough_evidence = (
-                        pending_log_advantage >= 0.18
-                        and versus_current >= 1.07
+                        pending_log_advantage >= 0.12
+                        and versus_current >= 1.04
                     )
                 else:
                     enough_duration = pending_count >= 2
                     enough_evidence = (
-                        pending_log_advantage >= 0.24
-                        and versus_current >= 1.09
+                        pending_log_advantage >= 0.18
+                        and versus_current >= 1.06
                     )
 
                 if enough_duration and enough_evidence:
@@ -7816,6 +7819,223 @@ def creer_regions_harmoniques(beats):
         regions.append(current)
 
     return regions
+
+
+
+def _midi_vlq(value):
+    value = max(0, int(value))
+    chunks = [value & 0x7F]
+    value >>= 7
+    while value:
+        chunks.append((value & 0x7F) | 0x80)
+        value >>= 7
+    return bytes(reversed(chunks))
+
+
+def _chord_symbol_to_midi_notes(symbol):
+    symbol = str(symbol or "").strip()
+    if not symbol or symbol in (".", "-", "?", "^"):
+        return []
+
+    match = re.match(r"^([A-G])([#b]?)(.*)$", symbol)
+    if not match:
+        return []
+
+    note_name = match.group(1) + match.group(2)
+    suffix = match.group(3).lower()
+
+    pc_map = {
+        "C": 0, "C#": 1, "Db": 1,
+        "D": 2, "D#": 3, "Eb": 3,
+        "E": 4, "Fb": 4, "E#": 5,
+        "F": 5, "F#": 6, "Gb": 6,
+        "G": 7, "G#": 8, "Ab": 8,
+        "A": 9, "A#": 10, "Bb": 10,
+        "B": 11, "Cb": 11,
+    }
+
+    if note_name not in pc_map:
+        return []
+
+    root = 48 + pc_map[note_name]
+    if root > 59:
+        root -= 12
+
+    is_minor = suffix.startswith("m") and not suffix.startswith("maj")
+    return [root, root + (3 if is_minor else 4), root + 7]
+
+
+def creer_midi_accords(beats, tempo):
+    regions = creer_regions_harmoniques(beats)
+    ppq = 480
+    tempo = max(20.0, float(tempo or 120.0))
+    us_per_quarter = int(round(60_000_000.0 / tempo))
+    ticks_per_second = ppq * tempo / 60.0
+
+    events = [
+        (0, 0, b"\xFF\x51\x03" + us_per_quarter.to_bytes(3, "big")),
+        (0, 0, b"\xFF\x03\x0eEZScore Chords"),
+        (0, 0, bytes([0xC0, 24])),
+    ]
+
+    for region in regions:
+        notes = _chord_symbol_to_midi_notes(region["accord"])
+        if not notes:
+            continue
+
+        start_tick = max(
+            0,
+            int(round(float(region["debut"]) * ticks_per_second)),
+        )
+        end_tick = max(
+            start_tick + 1,
+            int(round(float(region["fin"]) * ticks_per_second)),
+        )
+
+        for note in notes:
+            events.append((start_tick, 2, bytes([0x90, int(note), 66])))
+        for note in notes:
+            events.append((end_tick, 1, bytes([0x80, int(note), 0])))
+
+    events.sort(key=lambda item: (item[0], item[1]))
+
+    track = bytearray()
+    previous_tick = 0
+    for tick, _priority, payload in events:
+        track.extend(_midi_vlq(int(tick) - previous_tick))
+        track.extend(payload)
+        previous_tick = int(tick)
+
+    track.extend(b"\x00\xFF\x2F\x00")
+
+    return (
+        b"MThd"
+        + struct.pack(">IHHH", 6, 0, 1, ppq)
+        + b"MTrk"
+        + struct.pack(">I", len(track))
+        + bytes(track)
+    )
+
+
+def _audio_mime_from_extension(extension):
+    return {
+        ".mp3": "audio/mpeg",
+        ".wav": "audio/wav",
+        ".ogg": "audio/ogg",
+        ".m4a": "audio/mp4",
+        ".aac": "audio/aac",
+        ".flac": "audio/flac",
+    }.get(str(extension or "").lower(), "audio/mpeg")
+
+
+def render_synced_chord_player(audio_bytes, extension, beats):
+    regions = []
+    for region in creer_regions_harmoniques(beats):
+        notes = _chord_symbol_to_midi_notes(region["accord"])
+        if notes:
+            regions.append({
+                "accord": str(region["accord"]),
+                "debut": float(region["debut"]),
+                "fin": float(region["fin"]),
+                "notes": notes,
+            })
+
+    if not regions:
+        st.info("Aucune région d'accord exploitable pour la comparaison.")
+        return
+
+    audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
+    mime = _audio_mime_from_extension(extension)
+    regions_json = json.dumps(regions, ensure_ascii=False)
+
+    template = r'''<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+html,body{margin:0;padding:0;background:transparent;color:#ddd;font-family:Arial,Helvetica,sans-serif}
+.wrap{border:1px solid rgba(130,140,160,.32);border-radius:10px;padding:12px 14px;background:rgba(120,130,145,.05)}
+audio{width:100%}.controls{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+label{font-size:12px;opacity:.9;display:flex;flex-direction:column;gap:4px}
+input[type=range]{width:100%}.now{margin-top:9px;font-size:15px;font-weight:700}
+.hint{margin-top:5px;font-size:11px;opacity:.7}
+</style></head><body>
+<div class="wrap">
+<audio id="song" controls preload="metadata" src="data:__MIME__;base64,__AUDIO__"></audio>
+<div class="controls">
+<label>Volume chanson<input id="songVol" type="range" min="0" max="1" step="0.01" value="0.85"></label>
+<label>Volume accords synthétiques<input id="chordVol" type="range" min="0" max="0.35" step="0.01" value="0.10"></label>
+</div>
+<div class="now" id="now">Accord : —</div>
+<div class="hint">Le synthé suit exactement la position du lecteur.</div>
+</div>
+<script>
+const regions=__REGIONS__;
+const audio=document.getElementById('song');
+const songVol=document.getElementById('songVol');
+const chordVol=document.getElementById('chordVol');
+const now=document.getElementById('now');
+let ctx=null,gain=null,oscillators=[],activeChord=null;
+function midiToHz(n){return 440*Math.pow(2,(n-69)/12);}
+function ensureCtx(){
+  if(!ctx){
+    ctx=new (window.AudioContext||window.webkitAudioContext)();
+    gain=ctx.createGain();
+    gain.gain.value=parseFloat(chordVol.value);
+    gain.connect(ctx.destination);
+  }
+  if(ctx.state==='suspended')ctx.resume();
+}
+function stopChord(){
+  oscillators.forEach(o=>{
+    try{o.stop()}catch(e){}
+    try{o.disconnect()}catch(e){}
+  });
+  oscillators=[];
+  activeChord=null;
+}
+function playChord(r){
+  if(!r){stopChord();now.textContent='Accord : —';return;}
+  if(activeChord===r.accord){now.textContent='Accord : '+r.accord;return;}
+  ensureCtx();
+  stopChord();
+  activeChord=r.accord;
+  r.notes.forEach((n,i)=>{
+    const o=ctx.createOscillator(),g=ctx.createGain();
+    o.type=i===0?'triangle':'sine';
+    o.frequency.value=midiToHz(n);
+    g.gain.value=i===0?.80:.50;
+    o.connect(g);g.connect(gain);o.start();oscillators.push(o);
+  });
+  now.textContent='Accord : '+r.accord;
+}
+function regionAt(t){
+  for(let i=0;i<regions.length;i++){
+    const r=regions[i];
+    if(t>=r.debut&&t<r.fin)return r;
+  }
+  return null;
+}
+function sync(){
+  if(audio.paused||audio.ended){stopChord();return;}
+  playChord(regionAt(audio.currentTime));
+}
+audio.volume=parseFloat(songVol.value);
+songVol.addEventListener('input',()=>audio.volume=parseFloat(songVol.value));
+chordVol.addEventListener('input',()=>{if(gain)gain.gain.value=parseFloat(chordVol.value)});
+audio.addEventListener('play',()=>{ensureCtx();sync()});
+audio.addEventListener('pause',stopChord);
+audio.addEventListener('ended',stopChord);
+audio.addEventListener('seeked',sync);
+audio.addEventListener('timeupdate',sync);
+setInterval(sync,90);
+</script></body></html>'''
+
+    html_doc = (
+        template
+        .replace("__MIME__", mime)
+        .replace("__AUDIO__", audio_b64)
+        .replace("__REGIONS__", regions_json)
+    )
+    components.html(html_doc, height=205, scrolling=False)
 
 
 @st.cache_data(show_spinner=False)
@@ -9680,68 +9900,96 @@ if (
         if _workflow_version is None:
             _workflow_version = latest_song_editorial_version(audio_hash)
 
-        with st.expander(
-            "📝 Version de la chanson · "
-            + editorial_status_label(_workflow, _workflow_version),
-            expanded=False,
-        ):
-            _note_initial = (
-                _workflow_version.get("note", "")
-                if (
-                    _workflow.get("state") in ("validated", "published")
-                    and _workflow_version is not None
+        _editorial_history = list_song_editorial_versions(audio_hash)
+        _next_editorial_version = (
+            max(int(v["version_no"]) for v in _editorial_history) + 1
+            if _editorial_history
+            else 1
+        )
+        _latest_published = next(
+            (v for v in _editorial_history if v.get("status") == "published"),
+            None,
+        )
+        _state = str(_workflow.get("state", "working"))
+        _note_initial = (
+            _workflow_version.get("note", "")
+            if _state in ("validated", "published") and _workflow_version is not None
+            else _workflow.get("working_note", "")
+        )
+
+        with st.container(border=True):
+            st.markdown("### 📝 Version de la chanson")
+
+            if _state == "working":
+                _state_label = "● Modification en cours"
+                _version_display = f"V{_next_editorial_version} (prochaine)"
+                _release_display = "—"
+                _date_display = "—"
+            elif _state == "validated" and _workflow_version is not None:
+                _state_label = "✓ Version validée"
+                _version_display = f"V{_workflow_version['version_no']}"
+                _release_display = "R1 prévue"
+                _date_display = _editorial_date_fr(
+                    _workflow_version.get("validated_at")
                 )
-                else _workflow.get("working_note", "")
-            )
+            elif _state == "published" and _workflow_version is not None:
+                _state_label = "🌍 Version publiée"
+                _version_display = f"V{_workflow_version['version_no']}"
+                _release_display = f"R{_workflow_version['release_no']}"
+                _date_display = _editorial_date_fr(
+                    _workflow_version.get("published_at")
+                )
+            else:
+                _state_label = "● Modification en cours"
+                _version_display = f"V{_next_editorial_version} (prochaine)"
+                _release_display = "—"
+                _date_display = "—"
+
+            _wf_cols = st.columns(4)
+            _wf_cols[0].metric("État", _state_label)
+            _wf_cols[1].metric("Version", _version_display)
+            _wf_cols[2].metric("Release", _release_display)
+            _wf_cols[3].metric("Date", _date_display)
+
+            if _state == "working":
+                st.caption(
+                    f"Numérotation automatique : la prochaine validation "
+                    f"créera V{_next_editorial_version}."
+                )
+                if _latest_published is not None:
+                    st.caption(
+                        f"Dernière publication : "
+                        f"V{_latest_published['version_no']} · "
+                        f"R{_latest_published['release_no']} · "
+                        f"{_editorial_date_fr(_latest_published.get('published_at'))}"
+                    )
 
             _editor_note = st.text_area(
                 "Note de l’éditeur",
                 value=str(_note_initial or ""),
                 placeholder=(
-                    "Ex. Refrain corrigé, structure validée pour la scène, "
-                    "version préparée pour le set acoustique…"
+                    "Ex. Intro corrigée après comparaison audio, "
+                    "grille simplifiée pour la scène…"
                 ),
                 key=(
                     f"editor_note_{audio_hash[:12]}_"
-                    f"{_workflow.get('state')}_"
-                    f"{_workflow.get('current_version_no')}"
-                ),
-                help=(
-                    "Note pour et par l’éditeur. "
-                    "Elle reste modifiable."
+                    f"{_state}_{_workflow.get('current_version_no')}"
                 ),
             )
 
-            note_col, action_col, resume_col = st.columns(
-                [1.0, 1.2, 1.2]
-            )
-
-            with note_col:
-                if st.button(
-                    "💾 Enregistrer la note",
-                    key=f"save_editor_note_{audio_hash[:12]}",
-                ):
-                    if (
-                        _workflow.get("state") in ("validated", "published")
-                        and _workflow_version is not None
-                    ):
-                        update_song_editorial_note(
-                            audio_hash,
-                            _workflow_version["version_no"],
-                            _editor_note,
-                        )
-                    else:
-                        save_working_note(
-                            audio_hash,
-                            _editor_note,
-                        )
-                    st.success("Note de l’éditeur enregistrée.")
-                    st.rerun()
-
-            with action_col:
-                if _workflow.get("state") == "working":
+            if _state == "working":
+                c_note, c_action = st.columns([1.0, 1.6])
+                with c_note:
                     if st.button(
-                        "✅ Valider cette version",
+                        "💾 Enregistrer la note",
+                        key=f"save_editor_note_{audio_hash[:12]}",
+                    ):
+                        save_working_note(audio_hash, _editor_note)
+                        st.rerun()
+
+                with c_action:
+                    if st.button(
+                        f"✅ Valider en V{_next_editorial_version}",
                         type="primary",
                         key=f"validate_song_version_{audio_hash[:12]}",
                     ):
@@ -9757,20 +10005,32 @@ if (
                             source_analysis_version_no=_technical_version_no,
                             note=_editor_note,
                         )
-                        st.session_state[
-                            "active_analysis_version_no"
-                        ] = _technical_version_no
+                        st.session_state["active_analysis_version_no"] = (
+                            _technical_version_no
+                        )
                         st.success(
-                            f"Version V{_editorial_version_no} validée."
+                            f"V{_editorial_version_no} validée."
                         )
                         st.rerun()
 
-                elif (
-                    _workflow.get("state") == "validated"
-                    and _workflow_version is not None
-                ):
+            elif _state == "validated" and _workflow_version is not None:
+                c_note, c_pub, c_resume = st.columns([1.0, 1.5, 1.5])
+
+                with c_note:
                     if st.button(
-                        "🌍 Publier cette version",
+                        "💾 Enregistrer la note",
+                        key=f"save_editor_note_{audio_hash[:12]}",
+                    ):
+                        update_song_editorial_note(
+                            audio_hash,
+                            _workflow_version["version_no"],
+                            _editor_note,
+                        )
+                        st.rerun()
+
+                with c_pub:
+                    if st.button(
+                        f"🌍 Publier V{_workflow_version['version_no']} en R1",
                         type="primary",
                         key=f"publish_song_version_{audio_hash[:12]}",
                     ):
@@ -9784,43 +10044,62 @@ if (
                             f"R{_release_no} publiée."
                         )
                         st.rerun()
-                else:
-                    st.caption("Cette version est publiée.")
 
-            with resume_col:
-                if _workflow.get("state") in ("validated", "published"):
+                with c_resume:
                     if st.button(
-                        "✏ Reprendre les modifications",
+                        f"✏ Reprendre les modifications depuis "
+                        f"V{_workflow_version['version_no']}",
                         key=f"resume_song_{audio_hash[:12]}",
                     ):
                         resume_song_modifications(audio_hash)
                         st.session_state[_mode_key] = "Édition"
                         st.rerun()
 
-            _editorial_history = list_song_editorial_versions(
-                audio_hash
-            )
-            if _editorial_history:
-                st.markdown("**Historique**")
-                for _entry in _editorial_history:
-                    if _entry["status"] == "published":
-                        _entry_label = (
-                            f"V{_entry['version_no']} · "
-                            f"R{_entry['release_no']} · Publiée · "
-                            f"{_editorial_date_fr(_entry['published_at'])}"
-                        )
-                    else:
-                        _entry_label = (
-                            f"V{_entry['version_no']} · Validée · "
-                            f"{_editorial_date_fr(_entry['validated_at'])}"
-                        )
+            elif _state == "published" and _workflow_version is not None:
+                c_note, c_resume = st.columns([1.0, 1.7])
 
-                    if _entry.get("note"):
-                        st.caption(
-                            f"{_entry_label} — {_entry['note']}"
+                with c_note:
+                    if st.button(
+                        "💾 Enregistrer la note",
+                        key=f"save_editor_note_{audio_hash[:12]}",
+                    ):
+                        update_song_editorial_note(
+                            audio_hash,
+                            _workflow_version["version_no"],
+                            _editor_note,
                         )
-                    else:
-                        st.caption(_entry_label)
+                        st.rerun()
+
+                with c_resume:
+                    if st.button(
+                        f"✏ Reprendre les modifications depuis "
+                        f"V{_workflow_version['version_no']} · "
+                        f"R{_workflow_version['release_no']}",
+                        key=f"resume_song_{audio_hash[:12]}",
+                    ):
+                        resume_song_modifications(audio_hash)
+                        st.session_state[_mode_key] = "Édition"
+                        st.rerun()
+
+            if _editorial_history:
+                with st.expander("Historique des versions", expanded=False):
+                    for _entry in _editorial_history:
+                        if _entry["status"] == "published":
+                            _label = (
+                                f"V{_entry['version_no']} · "
+                                f"R{_entry['release_no']} · Publiée · "
+                                f"{_editorial_date_fr(_entry['published_at'])}"
+                            )
+                        else:
+                            _label = (
+                                f"V{_entry['version_no']} · Validée · "
+                                f"{_editorial_date_fr(_entry['validated_at'])}"
+                            )
+
+                        if _entry.get("note"):
+                            st.write(f"**{_label}** — {_entry['note']}")
+                        else:
+                            st.write(f"**{_label}**")
 
         versions = list_analysis_versions(audio_hash)
 
@@ -11214,6 +11493,44 @@ if (
                     "manuelles d'accords sont reflétées automatiquement."
                 )
 
+                st.markdown("### 🎧 Comparaison audio / accords")
+
+                _midi_bytes = creer_midi_accords(
+                    beats=beats,
+                    tempo=tempo,
+                )
+                _midi_filename = (
+                    re.sub(
+                        r"[^A-Za-z0-9._-]+",
+                        "_",
+                        str(titre_affiche or "EZScore"),
+                    ).strip("_")
+                    or "EZScore"
+                ) + "_accords.mid"
+
+                midi_col, midi_info_col = st.columns([1.1, 2.0])
+
+                with midi_col:
+                    st.download_button(
+                        "⬇ Télécharger le MIDI des accords",
+                        data=_midi_bytes,
+                        file_name=_midi_filename,
+                        mime="audio/midi",
+                        key=f"midi_{audio_hash[:12]}",
+                    )
+
+                with midi_info_col:
+                    st.caption(
+                        "Le MIDI et le player utilisent les accords effectifs, "
+                        "y compris les corrections manuelles."
+                    )
+
+                render_synced_chord_player(
+                    audio_bytes=audio_bytes,
+                    extension=extension,
+                    beats=beats,
+                )
+
             _phonetic_timeline = construire_timeline_phonetique(
                 resultat
             )
@@ -11500,15 +11817,15 @@ if (
                 f"**{_micro_stab}**"
             )
             st.write(
-                "Changements validés par hystérésis : "
+                "Changements harmoniques validés : "
                 f"**{int(musique.get('hysteresis_switches', 0) or 0)}**"
             )
             st.write(
-                "Candidats harmoniques rejetés : "
+                "Candidats faibles rejetés : "
                 f"**{int(musique.get('hysteresis_rejected_candidates', 0) or 0)}**"
             )
             st.write(
-                "Accords courts conservés par preuve forte : "
+                "Accords courts conservés : "
                 f"**{int(musique.get('strong_short_chords_kept', 0) or 0)}**"
             )
 
