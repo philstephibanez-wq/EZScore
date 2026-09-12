@@ -9506,6 +9506,14 @@ if (
     if _mode_key not in st.session_state:
         st.session_state[_mode_key] = "Vue"
 
+    _pending_edit_hash = st.session_state.pop(
+        "_pending_song_edit_hash",
+        None,
+    )
+    if _pending_edit_hash == audio_hash:
+        st.session_state[_mode_key] = "Édition"
+        st.session_state[f"{_mode_key}_radio"] = "✏️ Éditer"
+
     nav_col, mode_col, print_col = st.columns([1.85, 1.05, 0.12])
 
     with nav_col:
@@ -10048,7 +10056,7 @@ if (
                 resultat=resultat,
             )
             st.success(
-                f"Métadonnées enregistrées — nouvelle version V{version_no}. "
+                f"Métadonnées enregistrées — snapshot technique S{version_no}. "
                 "Aucune analyse n'a été relancée."
             )
             st.session_state["active_analysis_version_no"] = version_no
@@ -10127,8 +10135,8 @@ if (
                     )
             else:
                 st.success(
-                    f"Analyse terminée et sauvegardée comme version "
-                    f"{saved_version_no}."
+                    f"Analyse terminée et sauvegardée comme snapshot "
+                    f"S{saved_version_no}."
                 )
 
         # ----------------------------------------------------
@@ -10577,8 +10585,8 @@ if (
                                 )
                             )
                             st.session_state[
-                                _mode_key
-                            ] = "Édition"
+                                "_pending_song_edit_hash"
+                            ] = audio_hash
                             st.success(
                                 "Copie de travail ouverte : "
                                 f"V{next_v} · {next_e}."
@@ -10608,8 +10616,8 @@ if (
                                 )
                             )
                             st.session_state[
-                                _mode_key
-                            ] = "Édition"
+                                "_pending_song_edit_hash"
+                            ] = audio_hash
                             st.success(
                                 "Copie de travail ouverte : "
                                 f"V{next_v} · {next_e}."
@@ -10658,20 +10666,20 @@ if (
         if song_mode == "Édition":
             with st.expander("🗂️ Snapshots techniques", expanded=False):
                 st.caption(
-                    "Gestion / restauration des versions. "
+                    "Gestion / restauration des snapshots internes. "
                     "Ce panneau est volontairement masqué en mode Vue."
                 )
 
                 if not versions:
                     st.caption(
-                        "Aucune version explicite enregistrée pour ce morceau."
+                        "Aucun snapshot explicite enregistré pour ce morceau."
                     )
                 else:
                     rows_versions = []
                     for version in versions:
                         p = version["parameters"]
                         rows_versions.append({
-                            "Version": version["version_no"],
+                            "Snapshot": version["version_no"],
                             "Éditeur": version.get("editor", "") or "—",
                             "Signature": p.get("signature_mode", "?"),
                             "Fréquence": p.get("analyse_sr", "?"),
@@ -10685,7 +10693,7 @@ if (
                     )
 
                 if st.button(
-                    "💾 Sauver l'analyse courante comme nouvelle version",
+                    "💾 Sauver l'analyse courante comme snapshot",
                     key=f"save_analysis_version_{audio_hash[:12]}",
                 ):
                     version_no = save_analysis_version(
@@ -10695,7 +10703,7 @@ if (
                         musique=musique,
                         resultat=resultat,
                     )
-                    st.success(f"Version {version_no} enregistrée.")
+                    st.success(f"Snapshot S{version_no} enregistré.")
                     st.rerun()
 
         # ----------------------------------------------------
