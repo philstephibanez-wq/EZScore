@@ -1,0 +1,1 @@
+"""EZScore application package."""
