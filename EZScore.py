@@ -13,6 +13,7 @@ import sqlite3
 import json
 import hashlib
 import re
+import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 import torch
@@ -21,6 +22,15 @@ from concurrent.futures import ThreadPoolExecutor
 from difflib import SequenceMatcher
 from collections import Counter
 from EZScoreTemplate import ScoreTemplateRenderer
+
+# Whisper/CUDA : Triton est optionnel sous Windows.
+# Ces warnings indiquent uniquement un fallback plus lent.
+warnings.filterwarnings(
+    "ignore",
+    message=r"Failed to launch Triton kernels.*",
+    category=UserWarning,
+    module=r"whisper\.timing",
+)
 
 SCORE = ScoreTemplateRenderer(Path(__file__).resolve().parent)
 
@@ -4136,7 +4146,7 @@ def construire_lignes_paroles_completes_intervalle(
     Une chanson dont toutes les mesures sont déjà représentées ne reçoit
     aucune ligne supplémentaire.
     """
-    vocal_lines = construire_lignes_paroles_completes_intervalle(
+    vocal_lines = construire_lignes_paroles_intervalle(
         mesures=mesures,
         resultat=resultat,
         t0=t0,
@@ -7939,24 +7949,26 @@ elif main_menu == "Import":
             audio_filename,
         )
 
-        st.session_state[
-            "active_song_hash"
-        ] = audio_hash
-
-        set_app_state(
-            "last_song_hash",
-            audio_hash,
+        st.success(
+            f"« {audio_filename} » a été copié dans data/audio "
+            "et ajouté au Répertoire."
+        )
+        st.info(
+            "Aucune analyse n'a démarré. Réglez d'abord les paramètres "
+            "avancés dans la barre latérale, puis ouvrez la chanson "
+            "pour lancer explicitement l'analyse."
         )
 
-        prepare_song_preferences_for_open(
-            audio_hash
-        )
-
-        st.session_state[
-            "_pending_main_menu"
-        ] = "Chanson"
-
-        st.rerun()
+        if st.button(
+            "🎛 Ouvrir et préparer l'analyse",
+            key=f"prepare_first_analysis_{audio_hash[:12]}",
+            type="primary",
+        ):
+            st.session_state["active_song_hash"] = audio_hash
+            set_app_state("last_song_hash", audio_hash)
+            prepare_song_preferences_for_open(audio_hash)
+            st.session_state["_pending_main_menu"] = "Chanson"
+            st.rerun()
 
 # ------------------------------------------------------------
 # CHANSON
@@ -8273,8 +8285,9 @@ if (
         #    "Appliquer les paramètres", on charge la dernière analyse
         #    persistée du morceau.
         # 4. Une nouvelle analyse n'est calculée que :
-        #       - pour un morceau jamais analysé ;
-        #       - ou après validation explicite de paramètres nouveaux.
+        #       - après clic explicite sur « Analyser » pour un morceau neuf ;
+        #       - ou après validation explicite de paramètres nouveaux
+        #         pour un morceau déjà analysé.
 
         selected_version_no = st.session_state.get(
             "active_analysis_version_no"
@@ -8297,7 +8310,16 @@ if (
             audio_hash
         )
 
-        force_analysis = bool(appliquer_reglages)
+        _first_analysis_key = f"_explicit_first_analysis_{audio_hash[:12]}"
+        _explicit_first_analysis = bool(
+            st.session_state.pop(_first_analysis_key, False)
+        )
+
+        _has_existing_analysis = bool(
+            selected_version_data is not None
+            or persisted is not None
+            or latest_persisted is not None
+        )
 
         if appliquer_reglages:
             save_song_preferences(
@@ -8305,6 +8327,38 @@ if (
                 capo=capo_user,
                 settings=current_song_settings_payload(),
             )
+
+            if not _has_existing_analysis:
+                st.success(
+                    "Paramètres mémorisés. Aucune analyse n'a été lancée."
+                )
+
+        if not _has_existing_analysis and not _explicit_first_analysis:
+            st.info(
+                "Cette chanson n'a pas encore été analysée. "
+                "Ajustez les paramètres avancés dans la barre latérale, "
+                "puis lancez l'analyse explicitement."
+            )
+
+            if st.button(
+                "▶ Analyser avec ces paramètres",
+                key=f"run_first_analysis_{audio_hash[:12]}",
+                type="primary",
+            ):
+                save_song_preferences(
+                    audio_hash=audio_hash,
+                    capo=capo_user,
+                    settings=current_song_settings_payload(),
+                )
+                st.session_state[_first_analysis_key] = True
+                st.rerun()
+
+            st.stop()
+
+        force_analysis = bool(
+            _explicit_first_analysis
+            or (appliquer_reglages and _has_existing_analysis)
+        )
 
         if selected_version_data is not None and not force_analysis:
             musique = selected_version_data["musique"]
@@ -8333,7 +8387,7 @@ if (
             spinner_message = (
                 "Nouvelle analyse avec les paramètres validés..."
                 if latest_persisted is not None
-                else "Première analyse : accords, beats, mesures et paroles..."
+                else "Analyse demandée : accords, beats, mesures et paroles..."
             )
 
             with st.spinner(spinner_message):

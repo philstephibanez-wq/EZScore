@@ -6294,3 +6294,17 @@ R10 ne modifie pas :
 
 La BDD n'est pas incluse dans le ZIP afin de ne jamais écraser
 `data/EZScore.sqlite3`.
+
+
+## R10b — Analyse explicite / correction récursion / fallback Triton
+
+Source GitHub : `d3a0f1cd91884a2d63a2849ce0fa695a4d3d2360` (`R10`).
+
+- correction de la récursion du wrapper instrumental ;
+- upload sans analyse automatique ;
+- première analyse uniquement après clic sur `Analyser avec ces paramètres` ;
+- réglages avancés ajustables avant la première analyse ;
+- `Appliquer les paramètres` mémorise seulement les réglages sur une chanson neuve ;
+- warnings Triton de `whisper.timing` masqués, sans désactiver CUDA ;
+- suppression complète, nom audio original, mesures instrumentales, Blocs,
+  Analyse, workflow éditorial et base SQLite conservés.
