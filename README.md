@@ -1,34 +1,48 @@
-# EZScore R17
+# EZScore R18
 
-## Base
-R17 part de EZSCORE_R16 sur master.
-Le moteur reste V29_R14_BALANCED_MIDI_EDITORIAL.
+## Correction
+Le template racine d'impression est désormais rangé avec les autres templates :
 
-## Répertoire
-Les snapshots techniques S1, S2, etc. ne sont plus affichés dans le Répertoire.
+```text
+templates/EZScore.score
+```
 
-Le sélecteur affiche désormais les versions éditoriales, par exemple :
-- V2.1 · Standard · Travail
-- V2.0 · Simplifiée · R1
-- V2.0 · Avancée · R1
-- V2.0 · Avancée · R2
+EZScore.py appelle maintenant :
 
-Chaque entrée utilise en interne le snapshot technique correspondant.
-Les snapshots Sx restent accessibles uniquement dans Éditer > Snapshots techniques.
+```python
+SCORE.render("templates/EZScore.score", ...)
+```
 
-## Player de comparaison
-Jouer > Grille utilise maintenant le player de comparaison harmonique :
-- MP3 original ;
-- accords synthétiques synchronisés ;
-- volumes indépendants ;
-- seek synchronisé ;
-- accord courant ;
-- MIDI téléchargeable ;
-- corrections manuelles prises en compte.
+Le renderer reste inchangé :
 
-Ce player reste distinct du futur player Jouer > Paroles + accords avec affichage synchronisé des paroles et accords.
+```python
+SCORE = ScoreTemplateRenderer(Path(__file__).resolve().parent)
+```
 
-## Livrable
-Le ZIP contient exactement :
+Il n'y a aucun retour à une architecture Python monolithique.
+
+## Fichiers modifiés / ajoutés
 - EZScore.py
+- templates/EZScore.score
 - readme.md
+
+## Structure
+```text
+EZScore/
+├─ EZScore.py
+├─ EZScoreTemplate.py
+├─ templates/
+│  ├─ EZScore.score
+│  ├─ header.score
+│  ├─ left-panel.score
+│  └─ views/
+└─ data/
+```
+
+## Mise à jour locale
+```bat
+cd /d H:\EZScore
+git pull
+python -m py_compile EZScore.py
+streamlit run EZScore.py
+```
