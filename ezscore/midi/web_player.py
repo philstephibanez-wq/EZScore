@@ -10,7 +10,7 @@ import streamlit.components.v1 as components
 
 # GeneralUser GS is GM/GS compatible and can be cached by the browser/CDN.
 DEFAULT_SOUNDFONT_URL = (
-    "https://cdn.jsdelivr.net/gh/mrbumpy409/GeneralUser-GS@master/"
+    "https://cdn.jsdelivr.net/gh/mrbumpy409/GeneralUser-GS@main/"
     "GeneralUser-GS.sf2"
 )
 
