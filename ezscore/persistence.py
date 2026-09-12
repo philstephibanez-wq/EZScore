@@ -13,6 +13,7 @@ import numpy as np
 import streamlit as st
 
 from .notation import accord_forme_capo, formatter_mesure_signature
+from .transcription import extraire_mots, _normaliser_pattern_mesure
 
 __all__ = [
     'PERSISTENCE_SCHEMA_VERSION',
