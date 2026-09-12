@@ -3234,7 +3234,7 @@ if (
     # depuis les widgets actuellement restaurés (eux-mêmes issus de la
     # dernière analyse persistée).
     if not _stored_settings:
-        _stored_settings = current_song_settings_payload()
+        _stored_settings = current_song_settings_payload(DEVICE)
 
     _stored_capo = (
         int(_stored_preferences.get("capo", 0))
@@ -3418,6 +3418,7 @@ if (
             poids_fondamentale=poids_fondamentale_user,
             fermata_enabled=fermata_enabled_user,
             fermata_gap_ratio=fermata_gap_user,
+            whisper_device=DEVICE,
         )
         analysis_key = make_analysis_key(analysis_parameters)
 
@@ -3467,7 +3468,7 @@ if (
             save_song_preferences(
                 audio_hash=audio_hash,
                 capo=capo_user,
-                settings=current_song_settings_payload(),
+                settings=current_song_settings_payload(DEVICE),
             )
 
         if not _has_existing_analysis and not appliquer_reglages:
@@ -3687,7 +3688,7 @@ if (
             save_song_preferences(
                 audio_hash=audio_hash,
                 capo=capo_user,
-                settings=current_song_settings_payload(),
+                settings=current_song_settings_payload(DEVICE),
             )
 
         _snapshot_metadata_key = (
