@@ -1079,7 +1079,7 @@ def preparer_mesures_affichage(mesures, signature, capo):
 # ============================================================
 
 PERSISTENCE_SCHEMA_VERSION = 1
-ANALYSIS_ENGINE_VERSION = "V25_V9_DEMUCS_STRUCTURE_PROGRESSIONS"
+ANALYSIS_ENGINE_VERSION = "V26_R11_HARMONIC_GRID_X2"
 
 APP_DIR = Path(__file__).resolve().parent
 DATA_DIR = APP_DIR / "data"
@@ -5805,6 +5805,173 @@ def detecter_signature_tentative(
     }
 
 
+
+def proposer_grille_rythmique_doublee(
+    y_perc,
+    sr,
+    hop_length,
+    beat_frames,
+    tempo,
+    signature_mode,
+    signature_initiale,
+):
+    """
+    R11 — teste une ambiguïté d'octave du beat tracker.
+
+    Cas visé :
+        ~80 BPM + 2/4 détecté
+    alors que le signal porte une pulsation intermédiaire stable pouvant
+    correspondre à ~160 BPM + 4/4.
+
+    La grille n'est doublée que si :
+    - la signature est en Auto ;
+    - le tempo brut est dans une zone prudente ;
+    - la signature brute est 2/4 ;
+    - les milieux entre beats portent réellement des attaques récurrentes ;
+    - la grille doublée produit une hypothèse 4/4 exploitable.
+    """
+    frames = np.asarray(beat_frames, dtype=int)
+
+    result = {
+        "accepted": False,
+        "reason": "not_candidate",
+        "raw_tempo": float(tempo),
+        "effective_tempo": float(tempo),
+        "midpoint_strength_ratio": 0.0,
+        "midpoint_coverage": 0.0,
+        "raw_signature": str(signature_initiale.get("signature", "?")),
+        "effective_signature": str(signature_initiale.get("signature", "?")),
+        "raw_beat_count": int(len(frames)),
+        "effective_beat_count": int(len(frames)),
+        "signature_candidate": None,
+    }
+
+    if (
+        signature_mode != "Auto"
+        or len(frames) < 12
+        or not (55.0 <= float(tempo) <= 105.0)
+        or str(signature_initiale.get("signature", "")) != "2/4"
+    ):
+        return frames, float(tempo), signature_initiale, result
+
+    midpoint_frames = []
+    for left, right in zip(frames[:-1], frames[1:]):
+        if right - left < 2:
+            continue
+        midpoint = int(round((int(left) + int(right)) / 2.0))
+        if midpoint > int(left) and midpoint < int(right):
+            midpoint_frames.append(midpoint)
+
+    if len(midpoint_frames) < 8:
+        result["reason"] = "not_enough_midpoints"
+        return frames, float(tempo), signature_initiale, result
+
+    onset_env = librosa.onset.onset_strength(
+        y=y_perc,
+        sr=sr,
+        hop_length=hop_length,
+    )
+
+    beat_idx = np.clip(
+        frames,
+        0,
+        max(len(onset_env) - 1, 0),
+    )
+    mid_idx = np.clip(
+        np.asarray(midpoint_frames, dtype=int),
+        0,
+        max(len(onset_env) - 1, 0),
+    )
+
+    beat_strengths = onset_env[beat_idx].astype(np.float64)
+    midpoint_strengths = onset_env[mid_idx].astype(np.float64)
+
+    beat_reference = float(
+        np.median(beat_strengths[beat_strengths > 0])
+    ) if np.any(beat_strengths > 0) else 0.0
+
+    midpoint_reference = float(
+        np.median(midpoint_strengths[midpoint_strengths > 0])
+    ) if np.any(midpoint_strengths > 0) else 0.0
+
+    strength_ratio = (
+        midpoint_reference / (beat_reference + 1e-12)
+        if beat_reference > 0
+        else 0.0
+    )
+
+    threshold = 0.42 * beat_reference
+    midpoint_coverage = (
+        float(np.mean(midpoint_strengths >= threshold))
+        if beat_reference > 0 and len(midpoint_strengths)
+        else 0.0
+    )
+
+    doubled = []
+    for i, frame in enumerate(frames):
+        doubled.append(int(frame))
+        if i < len(frames) - 1:
+            left = int(frame)
+            right = int(frames[i + 1])
+            midpoint = int(round((left + right) / 2.0))
+            if left < midpoint < right:
+                doubled.append(midpoint)
+
+    doubled = np.asarray(sorted(set(doubled)), dtype=int)
+
+    signature_candidate = detecter_signature_tentative(
+        y_perc=y_perc,
+        sr=sr,
+        hop_length=hop_length,
+        beat_frames=doubled,
+    )
+
+    candidate_confidence = float(
+        signature_candidate.get("confiance", 0.0)
+    )
+    raw_confidence = float(
+        signature_initiale.get("confiance", 0.0)
+    )
+
+    signal_support = (
+        strength_ratio >= 0.52
+        and midpoint_coverage >= 0.58
+    )
+
+    metric_support = (
+        str(signature_candidate.get("signature", "")) == "4/4"
+        and candidate_confidence >= max(0.42, raw_confidence - 0.12)
+    )
+
+    result.update({
+        "reason": (
+            "accepted"
+            if signal_support and metric_support
+            else "insufficient_signal_or_meter"
+        ),
+        "midpoint_strength_ratio": float(strength_ratio),
+        "midpoint_coverage": float(midpoint_coverage),
+        "signature_candidate": signature_candidate,
+    })
+
+    if not (signal_support and metric_support):
+        return frames, float(tempo), signature_initiale, result
+
+    effective_tempo = float(tempo) * 2.0
+
+    result.update({
+        "accepted": True,
+        "effective_tempo": effective_tempo,
+        "effective_signature": str(
+            signature_candidate.get("signature", "4/4")
+        ),
+        "effective_beat_count": int(len(doubled)),
+    })
+
+    return doubled, effective_tempo, signature_candidate, result
+
+
+
 def separer_accompagnement_demucs(audio_bytes, extension):
     """
     Sépare uniquement la voix du reste.
@@ -5912,13 +6079,43 @@ def analyser_musique_cache(
         # HPSS de no_vocals pour l'harmonie.
         y_harm, _ = librosa.effects.hpss(y_accomp)
 
-        # Tempo + beats
+        # Tempo + beats bruts
         tempo, beat_frames = librosa.beat.beat_track(
             y=y_perc,
             sr=sr,
             hop_length=hop_length
         )
         tempo = float(np.asarray(tempo).squeeze())
+        tempo_brut = float(tempo)
+        beat_frames_bruts = np.asarray(
+            beat_frames,
+            dtype=int,
+        )
+
+        if len(beat_frames_bruts) < 2:
+            raise RuntimeError("Pas assez de beats détectés.")
+
+        signature_auto_brute = detecter_signature_tentative(
+            y_perc=y_perc,
+            sr=sr,
+            hop_length=hop_length,
+            beat_frames=beat_frames_bruts,
+        )
+
+        (
+            beat_frames,
+            tempo,
+            signature_auto,
+            beat_grid_refinement,
+        ) = proposer_grille_rythmique_doublee(
+            y_perc=y_perc,
+            sr=sr,
+            hop_length=hop_length,
+            beat_frames=beat_frames_bruts,
+            tempo=tempo_brut,
+            signature_mode=signature_mode,
+            signature_initiale=signature_auto_brute,
+        )
 
         beat_times = librosa.frames_to_time(
             beat_frames,
@@ -5928,17 +6125,6 @@ def analyser_musique_cache(
 
         if len(beat_times) < 2:
             raise RuntimeError("Pas assez de beats détectés.")
-
-        # ----------------------------------------------------
-        # SIGNATURE RYTHMIQUE — TENTATIVE
-        # ----------------------------------------------------
-
-        signature_auto = detecter_signature_tentative(
-            y_perc=y_perc,
-            sr=sr,
-            hop_length=hop_length,
-            beat_frames=beat_frames,
-        )
 
         signature_map = {
             "2/4": 2,
@@ -6321,16 +6507,26 @@ def analyser_musique_cache(
         #   Am Am Em Em  =>  Am-Em-
         # sans transformer chaque fluctuation de chroma en nouvel accord.
 
-        durees = (1, 2, 3, 4)
-        bonus_duree = {
-            1: -1.25,
-            2:  0.58,
-            3: -0.45,
-            4:  0.18,
-        }
-
-        # Changement harmonique générique.
-        penalite_changement = 0.38
+        if beat_grid_refinement.get("accepted", False):
+            durees = (1, 2, 3, 4, 6, 8)
+            bonus_duree = {
+                1: -0.38,
+                2:  0.34,
+                3: -0.06,
+                4:  0.30,
+                6:  0.10,
+                8:  0.16,
+            }
+            penalite_changement = 0.24
+        else:
+            durees = (1, 2, 3, 4)
+            bonus_duree = {
+                1: -1.25,
+                2:  0.58,
+                3: -0.45,
+                4:  0.18,
+            }
+            penalite_changement = 0.38
 
         # Si un couple dominant alterné est détecté, son basculement
         # A <-> B reçoit un bonus spécifique.
@@ -6530,10 +6726,16 @@ def analyser_musique_cache(
                 ratio = float(beats[i].get("ratio_top2", 999.0))
                 marge = float(beats[i].get("marge_top2", 999.0))
 
-                faible_preuve = (
-                    ratio < 1.18
-                    or marge < 0.045
-                )
+                if beat_grid_refinement.get("accepted", False):
+                    faible_preuve = (
+                        ratio < 1.08
+                        and marge < 0.020
+                    )
+                else:
+                    faible_preuve = (
+                        ratio < 1.18
+                        or marge < 0.045
+                    )
 
                 if faible_preuve:
                     beats[i]["accord"] = prev_accord
@@ -6596,6 +6798,8 @@ def analyser_musique_cache(
         return {
             "sr": sr,
             "tempo": tempo,
+            "tempo_brut": tempo_brut,
+            "beat_grid_refinement": beat_grid_refinement,
             "beats": beats,
             "mesures": mesures,
             "median_interval": median_interval,
@@ -6617,6 +6821,19 @@ def analyser_musique_cache(
             "poids_fondamentale": poids_fondamentale,
             "poids_accompagnement": 1.0 - poids_fondamentale,
             "micro_variations_stabilisees": micro_variations_stabilisees,
+            "harmonic_regions": int(
+                sum(
+                    1
+                    for i, beat in enumerate(beats)
+                    if (
+                        beat.get("accord") != "."
+                        and (
+                            i == 0
+                            or beats[i - 1].get("accord") != beat.get("accord")
+                        )
+                    )
+                )
+            ),
             "performance": {
                 "demucs_seconds": float(_demucs_seconds),
                 "rhythm_seconds": float(_rhythm_seconds),
@@ -10456,7 +10673,7 @@ if (
                     )
 
             with diag_right:
-                st.write("Source accords : **Demucs no_vocals + moteur V9**")
+                st.write("Source accords : **Demucs no_vocals + moteur R11 à grille adaptative**")
 
                 if accords_dominants:
                     st.write(
@@ -10523,6 +10740,59 @@ if (
                     )
                     memoire_gpu = torch.cuda.memory_allocated(0) / 1024**2
                     st.write(f"VRAM utilisée : **{memoire_gpu:.0f} Mo**")
+
+            _grid_refinement = dict(
+                musique.get("beat_grid_refinement", {}) or {}
+            )
+
+            st.markdown("### Résolution rythmique / harmonique")
+
+            rhythm_cols = st.columns(4)
+
+            with rhythm_cols[0]:
+                st.metric(
+                    "Tempo brut",
+                    f"{float(musique.get('tempo_brut', tempo)):.1f} BPM",
+                )
+            with rhythm_cols[1]:
+                st.metric(
+                    "Tempo effectif",
+                    f"{float(musique.get('tempo', tempo)):.1f} BPM",
+                )
+            with rhythm_cols[2]:
+                st.metric(
+                    "Grille ×2",
+                    (
+                        "Active"
+                        if _grid_refinement.get("accepted", False)
+                        else "Non"
+                    ),
+                )
+            with rhythm_cols[3]:
+                st.metric(
+                    "Régions harmoniques",
+                    str(int(musique.get("harmonic_regions", 0) or 0)),
+                )
+
+            if _grid_refinement:
+                st.caption(
+                    "Preuve subdivision intermédiaire : "
+                    f"{100.0 * float(_grid_refinement.get('midpoint_coverage', 0.0)):.0f} % "
+                    "des milieux soutenus · "
+                    "force médiane "
+                    f"{float(_grid_refinement.get('midpoint_strength_ratio', 0.0)):.2f}× "
+                    "les beats bruts."
+                )
+
+                if _grid_refinement.get("accepted", False):
+                    st.success(
+                        "Ambiguïté d'octave validée par le signal : "
+                        f"{_grid_refinement.get('raw_tempo', 0.0):.1f} BPM / "
+                        f"{_grid_refinement.get('raw_signature', '?')} → "
+                        f"{_grid_refinement.get('effective_tempo', 0.0):.1f} BPM / "
+                        f"{_grid_refinement.get('effective_signature', '?')}. "
+                        "L'éditeur manuel utilise automatiquement cette grille plus fine."
+                    )
 
             _perf = dict(
                 musique.get("performance", {}) or {}

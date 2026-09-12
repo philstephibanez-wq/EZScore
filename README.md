@@ -6391,3 +6391,67 @@ beat ni le contrat :
 - workflow éditorial ;
 - impression ;
 - `data/EZScore.sqlite3` inchangée.
+
+## R11 — Grille harmonique adaptative ×2
+
+### Source de reprise
+
+R11 repart strictement du GitHub poussé :
+
+```text
+9c13dd7db545d03b6b652823fafdb5f1bdf880ec
+R10D
+```
+
+### Principe
+
+R11 traite explicitement l'ambiguïté observée :
+
+```text
+EZScore : ~80 BPM / 2/4
+Riffstation : ~160 BPM
+```
+
+Le double tempo n'est jamais forcé. Il est accepté seulement si le signal
+confirme des attaques intermédiaires suffisamment récurrentes et si la grille
+doublée produit une hypothèse 4/4 crédible.
+
+### Effet musical
+
+Quand la grille ×2 est validée, l'analyse harmonique dispose de deux fois plus
+de positions temporelles. Les changements courts réellement joués peuvent donc
+survivre, par exemple :
+
+```text
+Em → A → Em → D
+```
+
+au lieu d'être absorbés dans un long `Em`.
+
+### Édition manuelle
+
+L'éditeur manuel reste disponible. Une grille ×2 acceptée fournit simplement
+plus de positions éditables dans chaque mesure ; `save_beat_edit()` et les
+corrections de mesures restent inchangés.
+
+### Non-régression
+
+Pour un morceau ne satisfaisant pas les conditions de raffinement, le décodeur
+historique R10D reste utilisé avec les mêmes durées et pénalités.
+
+La stabilisation des micro-variations devient plus stricte sur une grille ×2
+afin de ne pas effacer un accord court réellement joué.
+
+### Diagnostics
+
+La vue Analyse affiche :
+
+- tempo brut ;
+- tempo effectif ;
+- état de la grille ×2 ;
+- nombre de régions harmoniques ;
+- couverture et force des attaques intermédiaires ;
+- performances R10D.
+
+Le moteur passe à `V26_R11_HARMONIC_GRID_X2`, ce qui force une nouvelle
+`analysis_key` sans modifier le schéma SQLite.
