@@ -9084,6 +9084,11 @@ if main_menu == "Répertoire":
                     _catalog_workflow = get_song_workflow(
                         item["audio_hash"]
                     )
+                    _catalog_editorial_history = (
+                        list_song_editorial_versions(
+                            item["audio_hash"]
+                        )
+                    )
                     _catalog_editorial = get_song_editorial_version(
                         item["audio_hash"],
                         _catalog_workflow.get("current_version_no"),
@@ -9226,19 +9231,134 @@ if main_menu == "Répertoire":
                         )
                     )
 
+                _catalog_choices = []
+
+                if version_numbers:
+                    _latest_snapshot_no = int(version_numbers[0])
+                    _catalog_state_for_choices = str(
+                        _catalog_workflow.get(
+                            "state",
+                            "working",
+                        )
+                    )
+
+                    if _catalog_state_for_choices != "published":
+                        _catalog_choices.append({
+                            "key": "working",
+                            "kind": "working",
+                            "snapshot_no": _latest_snapshot_no,
+                            "label": (
+                                f"V{_normalize_version_label(
+                                    _catalog_workflow.get(
+                                        'target_version_label',
+                                        '1.0',
+                                    )
+                                )} · "
+                                f"{_normalize_edition_label(
+                                    _catalog_workflow.get(
+                                        'target_edition_label',
+                                        'Standard',
+                                    )
+                                )} · Travail"
+                            ),
+                        })
+
+                    _known_snapshot_nos = set(version_numbers)
+
+                    for _publication in _catalog_editorial_history:
+                        if _publication.get("status") != "published":
+                            continue
+
+                        _source_snapshot = _publication.get(
+                            "source_analysis_version_no"
+                        )
+                        if (
+                            _source_snapshot is None
+                            or int(_source_snapshot)
+                            not in _known_snapshot_nos
+                        ):
+                            continue
+
+                        _catalog_choices.append({
+                            "key": (
+                                f"published:"
+                                f"{_publication['version_no']}"
+                            ),
+                            "kind": "published",
+                            "snapshot_no": int(_source_snapshot),
+                            "editorial": _publication,
+                            "label": (
+                                f"V{_publication['version_label']} · "
+                                f"{_publication['edition_label']} · "
+                                f"R{_publication['release_no']}"
+                            ),
+                        })
+
+                    if (
+                        not _catalog_choices
+                        and _catalog_state_for_choices == "published"
+                        and _catalog_editorial is not None
+                    ):
+                        _fallback_snapshot = (
+                            _catalog_editorial.get(
+                                "source_analysis_version_no"
+                            )
+                        )
+                        if (
+                            _fallback_snapshot is not None
+                            and int(_fallback_snapshot)
+                            in _known_snapshot_nos
+                        ):
+                            _catalog_choices.append({
+                                "key": "published-current",
+                                "kind": "published",
+                                "snapshot_no": int(
+                                    _fallback_snapshot
+                                ),
+                                "editorial": _catalog_editorial,
+                                "label": (
+                                    f"V{_catalog_editorial['version_label']} · "
+                                    f"{_catalog_editorial['edition_label']} · "
+                                    f"R{_catalog_editorial['release_no']}"
+                                ),
+                            })
+
                 with c4:
-                    if version_numbers:
-                        selected_version = st.selectbox(
-                            "Snapshot",
-                            version_numbers,
+                    if _catalog_choices:
+                        _selected_catalog_key = st.selectbox(
+                            "Version",
+                            [
+                                choice["key"]
+                                for choice in _catalog_choices
+                            ],
                             index=0,
-                            format_func=lambda n: f"S{n}",
-                            key=f"catalog_version_{item['audio_hash']}",
+                            format_func=lambda key: next(
+                                choice["label"]
+                                for choice in _catalog_choices
+                                if choice["key"] == key
+                            ),
+                            key=(
+                                f"catalog_editorial_"
+                                f"{item['audio_hash']}"
+                            ),
                             label_visibility="collapsed",
                         )
+
+                        _selected_catalog_choice = next(
+                            choice
+                            for choice in _catalog_choices
+                            if choice["key"]
+                            == _selected_catalog_key
+                        )
+                        selected_version = int(
+                            _selected_catalog_choice[
+                                "snapshot_no"
+                            ]
+                        )
                     else:
+                        _selected_catalog_choice = None
                         selected_version = None
-                        st.caption("Sans snapshot")
+                        st.caption("Sans version")
 
                 with c3:
                     selected_version_data = next(
@@ -9323,9 +9443,15 @@ if main_menu == "Répertoire":
                                 key=f"edit_v_{item['audio_hash']}_{selected_version}",
                             ):
                                 selected_audio_hash = item["audio_hash"]
-                                resume_song_modifications(
-                                    selected_audio_hash
-                                )
+                                if (
+                                    _selected_catalog_choice is not None
+                                    and _selected_catalog_choice.get(
+                                        "kind"
+                                    ) == "published"
+                                ):
+                                    resume_song_modifications(
+                                        selected_audio_hash
+                                    )
                                 st.session_state["active_song_hash"] = selected_audio_hash
                                 set_app_state("last_song_hash", selected_audio_hash)
                                 prepare_song_preferences_for_open(selected_audio_hash)
@@ -9344,35 +9470,6 @@ if main_menu == "Répertoire":
 
                         with a3:
                             with st.popover("🗑"):
-                                st.markdown("**Snapshot technique sélectionné**")
-                                st.warning(
-                                    f"Supprimer uniquement le snapshot S{selected_version} ?"
-                                )
-                                if st.button(
-                                    "Supprimer cette version",
-                                    key=f"delete_v_{item['audio_hash']}_{selected_version}",
-                                ):
-                                    delete_analysis_version(
-                                        item["audio_hash"],
-                                        selected_version,
-                                    )
-                                    if (
-                                        item["audio_hash"]
-                                        == st.session_state.get("active_song_hash")
-                                        and int(selected_version)
-                                        == int(
-                                            st.session_state.get(
-                                                "active_analysis_version_no",
-                                                -1,
-                                            )
-                                        )
-                                    ):
-                                        st.session_state.pop(
-                                            "active_analysis_version_no",
-                                            None,
-                                        )
-                                    st.rerun()
-
                                 render_delete_song_controls(
                                     audio_hash=item["audio_hash"],
                                     display_name=catalog_display_name(
@@ -10707,18 +10804,51 @@ if (
                     st.rerun()
 
         # ----------------------------------------------------
-        # MODE JOUER — présentation volontairement différée
+        # MODE JOUER
         # ----------------------------------------------------
         if song_mode == "Jouer":
             if song_view == "Grille":
-                st.info(
-                    "▶ Player Grille synchronisé : emplacement réservé. "
-                    "Présentation à définir."
+                st.markdown(
+                    "### 🎧 Comparaison harmonique — chanson + accords"
                 )
+                st.caption(
+                    "Outil de contrôle à l’oreille de la grille. "
+                    "Ce player est distinct du futur player synchronisé "
+                    "Paroles + accords."
+                )
+
+                _play_midi_bytes = creer_midi_accords(
+                    beats=beats,
+                    tempo=tempo,
+                )
+                _play_midi_filename = (
+                    re.sub(
+                        r"[^A-Za-z0-9._-]+",
+                        "_",
+                        str(titre_affiche or "EZScore"),
+                    ).strip("_")
+                    or "EZScore"
+                ) + "_accords.mid"
+
+                st.download_button(
+                    "⬇ Télécharger le MIDI des accords",
+                    data=_play_midi_bytes,
+                    file_name=_play_midi_filename,
+                    mime="audio/midi",
+                    key=f"play_midi_{audio_hash[:12]}",
+                )
+
+                render_synced_chord_player(
+                    audio_bytes=audio_bytes,
+                    extension=extension,
+                    beats=beats,
+                )
+
             elif song_view == "Paroles + accords":
                 st.info(
-                    "▶ Player Paroles + accords synchronisé : emplacement réservé. "
-                    "Présentation à définir."
+                    "▶ Player Paroles + accords synchronisé : "
+                    "fonction séparée, non remplacée par le player "
+                    "de comparaison MIDI."
                 )
 
         # Structure calculée sur les accords RÉELS, avant toute représentation capo.
