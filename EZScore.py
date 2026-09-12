@@ -8896,6 +8896,24 @@ if main_menu == "Répertoire":
                         unsafe_allow_html=True,
                     )
 
+                    _catalog_state = str(
+                        _catalog_workflow.get("state", "working")
+                    )
+                    if (
+                        _catalog_state in ("validated", "published")
+                        and _catalog_editorial is not None
+                    ):
+                        _catalog_note = str(
+                            _catalog_editorial.get("note", "") or ""
+                        ).strip()
+                    else:
+                        _catalog_note = str(
+                            _catalog_workflow.get("working_note", "") or ""
+                        ).strip()
+
+                    if _catalog_note:
+                        st.caption(f"💬 {_catalog_note}")
+
                 with c2:
                     st.caption(
                         catalog_secondary_text(
@@ -9964,69 +9982,83 @@ if (
                         f"{_editorial_date_fr(_latest_published.get('published_at'))}"
                     )
 
-            _editor_note = st.text_area(
-                "Note de l’éditeur",
-                value=str(_note_initial or ""),
-                placeholder=(
-                    "Ex. Intro corrigée après comparaison audio, "
-                    "grille simplifiée pour la scène…"
-                ),
-                key=(
-                    f"editor_note_{audio_hash[:12]}_"
-                    f"{_state}_{_workflow.get('current_version_no')}"
-                ),
-            )
+            if song_mode == "Édition":
+                _editor_note = st.text_area(
+                    "Note de l’éditeur",
+                    value=str(_note_initial or ""),
+                    placeholder=(
+                        "Ex. Couplet 2 non terminé, intro corrigée, "
+                        "grille simplifiée pour la scène…"
+                    ),
+                    key=(
+                        f"editor_note_{audio_hash[:12]}_"
+                        f"{_state}_{_workflow.get('current_version_no')}"
+                    ),
+                    help=(
+                        "Ce commentaire est visible en mode Voir et dans "
+                        "le Répertoire, mais modifiable uniquement ici."
+                    ),
+                )
+            else:
+                _editor_note = str(_note_initial or "").strip()
+                st.markdown("**Commentaire**")
+                if _editor_note:
+                    st.info(_editor_note)
+                else:
+                    st.caption("— Aucun commentaire —")
 
             if _state == "working":
-                c_note, c_action = st.columns([1.0, 1.6])
-                with c_note:
-                    if st.button(
-                        "💾 Enregistrer la note",
-                        key=f"save_editor_note_{audio_hash[:12]}",
-                    ):
-                        save_working_note(audio_hash, _editor_note)
-                        st.rerun()
+                if song_mode == "Édition":
+                    c_note, c_action = st.columns([1.0, 1.6])
+                    with c_note:
+                        if st.button(
+                            "💾 Enregistrer la note",
+                            key=f"save_editor_note_{audio_hash[:12]}",
+                        ):
+                            save_working_note(audio_hash, _editor_note)
+                            st.rerun()
 
-                with c_action:
-                    if st.button(
-                        f"✅ Valider en V{_next_editorial_version}",
-                        type="primary",
-                        key=f"validate_song_version_{audio_hash[:12]}",
-                    ):
-                        _technical_version_no = save_analysis_version(
-                            audio_hash=audio_hash,
-                            analysis_key=analysis_key,
-                            parameters=analysis_parameters,
-                            musique=musique,
-                            resultat=resultat,
-                        )
-                        _editorial_version_no = validate_song_editorial_version(
-                            audio_hash=audio_hash,
-                            source_analysis_version_no=_technical_version_no,
-                            note=_editor_note,
-                        )
-                        st.session_state["active_analysis_version_no"] = (
-                            _technical_version_no
-                        )
-                        st.success(
-                            f"V{_editorial_version_no} validée."
-                        )
-                        st.rerun()
+                    with c_action:
+                        if st.button(
+                            f"✅ Valider en V{_next_editorial_version}",
+                            type="primary",
+                            key=f"validate_song_version_{audio_hash[:12]}",
+                        ):
+                            _technical_version_no = save_analysis_version(
+                                audio_hash=audio_hash,
+                                analysis_key=analysis_key,
+                                parameters=analysis_parameters,
+                                musique=musique,
+                                resultat=resultat,
+                            )
+                            _editorial_version_no = validate_song_editorial_version(
+                                audio_hash=audio_hash,
+                                source_analysis_version_no=_technical_version_no,
+                                note=_editor_note,
+                            )
+                            st.session_state["active_analysis_version_no"] = (
+                                _technical_version_no
+                            )
+                            st.success(
+                                f"V{_editorial_version_no} validée."
+                            )
+                            st.rerun()
 
             elif _state == "validated" and _workflow_version is not None:
                 c_note, c_pub, c_resume = st.columns([1.0, 1.5, 1.5])
 
                 with c_note:
-                    if st.button(
-                        "💾 Enregistrer la note",
-                        key=f"save_editor_note_{audio_hash[:12]}",
-                    ):
-                        update_song_editorial_note(
-                            audio_hash,
-                            _workflow_version["version_no"],
-                            _editor_note,
-                        )
-                        st.rerun()
+                    if song_mode == "Édition":
+                        if st.button(
+                            "💾 Enregistrer la note",
+                            key=f"save_editor_note_{audio_hash[:12]}",
+                        ):
+                            update_song_editorial_note(
+                                audio_hash,
+                                _workflow_version["version_no"],
+                                _editor_note,
+                            )
+                            st.rerun()
 
                 with c_pub:
                     if st.button(
@@ -10059,16 +10091,17 @@ if (
                 c_note, c_resume = st.columns([1.0, 1.7])
 
                 with c_note:
-                    if st.button(
-                        "💾 Enregistrer la note",
-                        key=f"save_editor_note_{audio_hash[:12]}",
-                    ):
-                        update_song_editorial_note(
-                            audio_hash,
-                            _workflow_version["version_no"],
-                            _editor_note,
-                        )
-                        st.rerun()
+                    if song_mode == "Édition":
+                        if st.button(
+                            "💾 Enregistrer la note",
+                            key=f"save_editor_note_{audio_hash[:12]}",
+                        ):
+                            update_song_editorial_note(
+                                audio_hash,
+                                _workflow_version["version_no"],
+                                _editor_note,
+                            )
+                            st.rerun()
 
                 with c_resume:
                     if st.button(
