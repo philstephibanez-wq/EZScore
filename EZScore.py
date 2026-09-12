@@ -9965,7 +9965,7 @@ if (
         beats = appliquer_editions_mesures_aux_beats(
             audio_hash=audio_hash,
             beats=beats,
-            beats_per_measure=musique.get(
+            beats_par_mesure=musique.get(
                 "beats_par_mesure",
                 4,
             ),
@@ -9993,7 +9993,7 @@ if (
             beats=beats,
             original_mesures=mesures_detectees,
             signature=signature,
-            beats_per_measure=beats_par_mesure_effectif,
+            beats_par_mesure=beats_par_mesure_effectif,
         )
 
         # Le capo ne touche jamais l'analyse audio.
