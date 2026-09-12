@@ -1035,26 +1035,27 @@ def save_song_preferences(audio_hash, capo, settings):
         conn.commit()
 
 
-def current_song_settings_payload():
+def current_song_settings_payload(whisper_device="cpu"):
     """
-    Snapshot complet des réglages avancés visibles.
+    Snapshot des réglages avancés depuis Session State.
 
-    Important : cette fonction ne lance aucun calcul.
+    Aucun accès à une globale du module principal : toutes les valeurs
+    appartiennent au contexte Streamlit ou sont passées explicitement.
     """
     return {
-        "signature_mode": signature_mode,
-        "analyse_sr": int(analyse_sr_user),
-        "hop_length": int(hop_length_user),
-        "silence_rms_ratio": float(silence_rms_user),
-        "silence_chroma_ratio": float(silence_chroma_user),
-        "poids_fondamentale": float(poids_fondamentale_user),
-        "fermata_enabled": bool(fermata_enabled_user),
-        "fermata_gap_ratio": float(fermata_gap_user),
-        "sections_enabled": bool(sections_enabled_user),
-        "section_block_measures": int(section_block_measures_user),
-        "section_similarity": float(section_similarity_user),
+        "signature_mode": st.session_state.get("setting_signature_mode", "Auto"),
+        "analyse_sr": int(st.session_state.get("setting_analyse_sr", 22050)),
+        "hop_length": int(st.session_state.get("setting_hop_length", 2048)),
+        "silence_rms_ratio": float(st.session_state.get("setting_silence_rms", 0.22)),
+        "silence_chroma_ratio": float(st.session_state.get("setting_silence_chroma", 0.18)),
+        "poids_fondamentale": float(st.session_state.get("setting_poids_fondamentale", 0.22)),
+        "fermata_enabled": bool(st.session_state.get("setting_fermata_enabled", True)),
+        "fermata_gap_ratio": float(st.session_state.get("setting_fermata_gap", 1.85)),
+        "sections_enabled": bool(st.session_state.get("setting_sections_enabled", True)),
+        "section_block_measures": int(st.session_state.get("setting_section_block_measures", 4)),
+        "section_similarity": float(st.session_state.get("setting_section_similarity", 0.66)),
         "whisper_model": "small",
-        "whisper_device": DEVICE,
+        "whisper_device": str(whisper_device or "cpu"),
     }
 
 
@@ -3484,6 +3485,7 @@ def make_analysis_parameters(
     poids_fondamentale,
     fermata_enabled,
     fermata_gap_ratio,
+    whisper_device="cpu",
 ):
     return {
         "schema_version": PERSISTENCE_SCHEMA_VERSION,
@@ -3497,7 +3499,7 @@ def make_analysis_parameters(
         "fermata_enabled": bool(fermata_enabled),
         "fermata_gap_ratio": float(fermata_gap_ratio),
         "whisper_model": "small",
-        "whisper_device": DEVICE,
+        "whisper_device": str(whisper_device or "cpu"),
     }
 
 
