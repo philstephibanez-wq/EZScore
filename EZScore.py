@@ -8125,44 +8125,220 @@ def _chord_symbol_to_midi_notes(symbol):
     return [root, root + (3 if is_minor else 4), root + 7]
 
 
-def creer_midi_accords(beats, tempo):
-    regions = creer_regions_harmoniques(beats)
+def _midi_accent_velocity(beat_position, signature, beats_par_mesure):
+    """
+    Vélocité MIDI par temps.
+
+    Le premier temps est le plus marqué. Les temps forts secondaires
+    dépendent de la signature.
+    """
+    pos = int(beat_position)
+    signature = str(signature or "4/4")
+    beats_par_mesure = max(1, int(beats_par_mesure or 4))
+
+    patterns = {
+        "2/4": [112, 84],
+        "3/4": [112, 82, 82],
+        "4/4": [114, 82, 98, 82],
+        "6/8": [114, 76, 76, 98, 76, 76],
+        "12/8": [114, 74, 74, 98, 74, 74, 104, 74, 74, 98, 74, 74],
+    }
+
+    pattern = patterns.get(signature)
+    if pattern and len(pattern) == beats_par_mesure:
+        return int(pattern[pos % len(pattern)])
+
+    if pos == 0:
+        return 114
+
+    if beats_par_mesure >= 4 and pos == beats_par_mesure // 2:
+        return 98
+
+    return 82
+
+
+def construire_evenements_midi_accords(
+    beats,
+    signature="4/4",
+    beats_par_mesure=4,
+    program=27,
+    gate_ratio=0.48,
+    strum_ms=12.0,
+):
+    """
+    Construit les événements MIDI qui servent À LA FOIS :
+    - au fichier .mid ;
+    - au player synchronisé MP3 + MIDI.
+
+    Un accord est rejoué sur chaque temps ("down").
+    Les notes sont légèrement étagées grave -> aigu pour simuler un down
+    de guitare. Pour le piano, passer strum_ms=0.
+    """
+    events = [{
+        "time": 0.0,
+        "status": 0xC0,
+        "data1": int(program) & 0x7F,
+        "data2": None,
+        "kind": "program",
+    }]
+
+    beats_par_mesure = max(1, int(beats_par_mesure or 4))
+    gate_ratio = min(0.90, max(0.12, float(gate_ratio or 0.48)))
+    strum_seconds = max(0.0, float(strum_ms or 0.0)) / 1000.0
+    current_chord = None
+
+    for seq_index, beat in enumerate(beats):
+        symbol = str(beat.get("accord", "") or "").strip()
+
+        if symbol == ".":
+            current_chord = None
+            continue
+
+        if symbol == "-":
+            symbol = current_chord or ""
+        elif symbol:
+            current_chord = symbol
+
+        notes = _chord_symbol_to_midi_notes(symbol)
+        if not notes:
+            continue
+
+        start = max(0.0, float(beat.get("temps", 0.0)))
+        interval = max(
+            0.08,
+            float(
+                beat.get(
+                    "intervalle",
+                    float(beat.get("fin", start)) - start,
+                )
+                or 0.5
+            ),
+        )
+
+        beat_position = seq_index % beats_par_mesure
+        velocity = _midi_accent_velocity(
+            beat_position,
+            signature,
+            beats_par_mesure,
+        )
+
+        # Down : grave -> aigu, quelques ms entre les cordes/notes.
+        note_starts = []
+        for note_index, note in enumerate(notes):
+            note_start = start + note_index * strum_seconds
+            note_starts.append((int(note), note_start))
+
+            events.append({
+                "time": note_start,
+                "status": 0x90,
+                "data1": int(note),
+                "data2": int(velocity),
+                "kind": "note_on",
+                "chord": symbol,
+                "beat": int(seq_index),
+                "velocity": int(velocity),
+            })
+
+        gate_seconds = max(
+            0.06,
+            interval * gate_ratio,
+        )
+        common_end = start + gate_seconds
+
+        for note, note_start in note_starts:
+            note_end = max(
+                note_start + 0.04,
+                common_end,
+            )
+            events.append({
+                "time": note_end,
+                "status": 0x80,
+                "data1": int(note),
+                "data2": 0,
+                "kind": "note_off",
+                "chord": symbol,
+                "beat": int(seq_index),
+            })
+
+    def _event_priority(event):
+        if event["kind"] == "program":
+            return 0
+        if event["kind"] == "note_off":
+            return 1
+        return 2
+
+    events.sort(
+        key=lambda event: (
+            float(event["time"]),
+            _event_priority(event),
+            int(event.get("data1", 0)),
+        )
+    )
+    return events
+
+
+def creer_midi_accords(
+    beats,
+    tempo,
+    signature="4/4",
+    beats_par_mesure=4,
+    program=27,
+    gate_ratio=0.48,
+    strum_ms=12.0,
+):
+    """
+    Génère un vrai fichier MIDI GM à partir des mêmes événements que le player.
+    """
     ppq = 480
     tempo = max(20.0, float(tempo or 120.0))
     us_per_quarter = int(round(60_000_000.0 / tempo))
     ticks_per_second = ppq * tempo / 60.0
 
+    midi_events = construire_evenements_midi_accords(
+        beats=beats,
+        signature=signature,
+        beats_par_mesure=beats_par_mesure,
+        program=program,
+        gate_ratio=gate_ratio,
+        strum_ms=strum_ms,
+    )
+
     events = [
         (0, 0, b"\xFF\x51\x03" + us_per_quarter.to_bytes(3, "big")),
         (0, 0, b"\xFF\x03\x0eEZScore Chords"),
-        (0, 0, bytes([0xC0, 24])),
     ]
 
-    for region in regions:
-        notes = _chord_symbol_to_midi_notes(region["accord"])
-        if not notes:
-            continue
-
-        start_tick = max(
+    for event in midi_events:
+        tick = max(
             0,
-            int(round(float(region["debut"]) * ticks_per_second)),
-        )
-        end_tick = max(
-            start_tick + 1,
-            int(round(float(region["fin"]) * ticks_per_second)),
+            int(round(float(event["time"]) * ticks_per_second)),
         )
 
-        for note in notes:
-            events.append((start_tick, 2, bytes([0x90, int(note), 66])))
-        for note in notes:
-            events.append((end_tick, 1, bytes([0x80, int(note), 0])))
+        if event["kind"] == "program":
+            payload = bytes([
+                int(event["status"]) & 0xFF,
+                int(event["data1"]) & 0x7F,
+            ])
+            priority = 0
+        else:
+            payload = bytes([
+                int(event["status"]) & 0xFF,
+                int(event["data1"]) & 0x7F,
+                int(event.get("data2", 0) or 0) & 0x7F,
+            ])
+            priority = 1 if event["kind"] == "note_off" else 2
+
+        events.append((tick, priority, payload))
 
     events.sort(key=lambda item: (item[0], item[1]))
 
     track = bytearray()
     previous_tick = 0
+
     for tick, _priority, payload in events:
-        track.extend(_midi_vlq(int(tick) - previous_tick))
+        track.extend(
+            _midi_vlq(int(tick) - previous_tick)
+        )
         track.extend(payload)
         previous_tick = int(tick)
 
@@ -8188,114 +8364,286 @@ def _audio_mime_from_extension(extension):
     }.get(str(extension or "").lower(), "audio/mpeg")
 
 
-def render_synced_chord_player(audio_bytes, extension, beats):
-    regions = []
-    for region in creer_regions_harmoniques(beats):
-        notes = _chord_symbol_to_midi_notes(region["accord"])
-        if notes:
-            regions.append({
-                "accord": str(region["accord"]),
-                "debut": float(region["debut"]),
-                "fin": float(region["fin"]),
-                "notes": notes,
-            })
+def render_synced_midi_player(
+    audio_bytes,
+    extension,
+    midi_events,
+    instrument_label,
+):
+    """
+    Player MP3 + MIDI réel.
 
-    if not regions:
-        st.info("Aucune région d'accord exploitable pour la comparaison.")
+    Le MP3 est le transport maître.
+    Les messages du même flux MIDI que le fichier .mid sont envoyés à une
+    sortie Web MIDI sélectionnée par l'utilisateur.
+
+    Aucun oscillateur Web Audio n'est utilisé.
+    """
+    if not midi_events:
+        st.info("Aucun événement MIDI exploitable pour la comparaison.")
         return
 
-    audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
-    mime = _audio_mime_from_extension(extension)
-    regions_json = json.dumps(regions, ensure_ascii=False)
+    audio_b64 = base64.b64encode(
+        audio_bytes
+    ).decode("ascii")
+
+    mime = _audio_mime_from_extension(
+        extension
+    )
+    events_json = json.dumps(
+        midi_events,
+        ensure_ascii=False,
+    )
+    instrument_json = json.dumps(
+        str(instrument_label),
+        ensure_ascii=False,
+    )
 
     template = r'''<!doctype html>
-<html><head><meta charset="utf-8">
+<html>
+<head>
+<meta charset="utf-8">
 <style>
-html,body{margin:0;padding:0;background:transparent;color:#ddd;font-family:Arial,Helvetica,sans-serif}
-.wrap{border:1px solid rgba(130,140,160,.32);border-radius:10px;padding:12px 14px;background:rgba(120,130,145,.05)}
-audio{width:100%}.controls{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
+html,body{
+  margin:0;padding:0;background:transparent;color:#ddd;
+  font-family:Arial,Helvetica,sans-serif
+}
+.wrap{
+  border:1px solid rgba(130,140,160,.32);
+  border-radius:10px;padding:12px 14px;
+  background:rgba(120,130,145,.05)
+}
+audio{width:100%}
+.row{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:10px;
+  align-items:end;
+  margin-top:10px
+}
 label{font-size:12px;opacity:.9;display:flex;flex-direction:column;gap:4px}
-input[type=range]{width:100%}.now{margin-top:9px;font-size:15px;font-weight:700}
-.hint{margin-top:5px;font-size:11px;opacity:.7}
-</style></head><body>
+select,button{
+  min-height:32px;border-radius:6px;border:1px solid rgba(130,140,160,.5);
+  background:#20242a;color:#eee;padding:4px 8px
+}
+.state{margin-top:8px;font-size:12px;opacity:.86}
+.now{margin-top:6px;font-size:15px;font-weight:700}
+.hint{margin-top:5px;font-size:11px;opacity:.68}
+</style>
+</head>
+<body>
 <div class="wrap">
-<audio id="song" controls preload="metadata" src="data:__MIME__;base64,__AUDIO__"></audio>
-<div class="controls">
-<label>Volume chanson<input id="songVol" type="range" min="0" max="1" step="0.01" value="0.85"></label>
-<label>Volume accords synthétiques<input id="chordVol" type="range" min="0" max="0.35" step="0.01" value="0.10"></label>
+<audio id="song" controls preload="metadata"
+       src="data:__MIME__;base64,__AUDIO__"></audio>
+<div class="row">
+  <label>Sortie MIDI
+    <select id="midiOut">
+      <option value="">— Activer MIDI —</option>
+    </select>
+  </label>
+  <button id="enableMidi" type="button">Activer MIDI</button>
+</div>
+<div class="state" id="state">
+MIDI non initialisé · Instrument : __INSTRUMENT__
 </div>
 <div class="now" id="now">Accord : —</div>
-<div class="hint">Le synthé suit exactement la position du lecteur.</div>
+<div class="hint">
+Le MP3 est le transport maître. Les messages MIDI Note On/Off sont envoyés
+à la sortie choisie. Aucun synthé Web Audio n'est utilisé.
+</div>
 </div>
 <script>
-const regions=__REGIONS__;
+const events=__EVENTS__;
 const audio=document.getElementById('song');
-const songVol=document.getElementById('songVol');
-const chordVol=document.getElementById('chordVol');
+const outSelect=document.getElementById('midiOut');
+const enableBtn=document.getElementById('enableMidi');
+const state=document.getElementById('state');
 const now=document.getElementById('now');
-let ctx=null,gain=null,oscillators=[],activeChord=null;
-function midiToHz(n){return 440*Math.pow(2,(n-69)/12);}
-function ensureCtx(){
-  if(!ctx){
-    ctx=new (window.AudioContext||window.webkitAudioContext)();
-    gain=ctx.createGain();
-    gain.gain.value=parseFloat(chordVol.value);
-    gain.connect(ctx.destination);
+
+let midiAccess=null;
+let midiOut=null;
+let cursor=0;
+let timer=null;
+let lastTime=0;
+let currentChord='—';
+
+function bytesFor(e){
+  if(e.kind==='program'){
+    return [e.status,e.data1];
   }
-  if(ctx.state==='suspended')ctx.resume();
+  return [e.status,e.data1,e.data2||0];
 }
-function stopChord(){
-  oscillators.forEach(o=>{
-    try{o.stop()}catch(e){}
-    try{o.disconnect()}catch(e){}
-  });
-  oscillators=[];
-  activeChord=null;
-}
-function playChord(r){
-  if(!r){stopChord();now.textContent='Accord : —';return;}
-  if(activeChord===r.accord){now.textContent='Accord : '+r.accord;return;}
-  ensureCtx();
-  stopChord();
-  activeChord=r.accord;
-  r.notes.forEach((n,i)=>{
-    const o=ctx.createOscillator(),g=ctx.createGain();
-    o.type=i===0?'triangle':'sine';
-    o.frequency.value=midiToHz(n);
-    g.gain.value=i===0?.80:.50;
-    o.connect(g);g.connect(gain);o.start();oscillators.push(o);
-  });
-  now.textContent='Accord : '+r.accord;
-}
-function regionAt(t){
-  for(let i=0;i<regions.length;i++){
-    const r=regions[i];
-    if(t>=r.debut&&t<r.fin)return r;
+
+function allNotesOff(){
+  if(!midiOut)return;
+  for(let ch=0;ch<16;ch++){
+    try{midiOut.send([0xB0|ch,123,0]);}catch(e){}
   }
-  return null;
 }
-function sync(){
-  if(audio.paused||audio.ended){stopChord();return;}
-  playChord(regionAt(audio.currentTime));
+
+function findCursor(t){
+  let lo=0,hi=events.length;
+  while(lo<hi){
+    const mid=(lo+hi)>>1;
+    if(events[mid].time<t)lo=mid+1;else hi=mid;
+  }
+  return lo;
 }
-audio.volume=parseFloat(songVol.value);
-songVol.addEventListener('input',()=>audio.volume=parseFloat(songVol.value));
-chordVol.addEventListener('input',()=>{if(gain)gain.gain.value=parseFloat(chordVol.value)});
-audio.addEventListener('play',()=>{ensureCtx();sync()});
-audio.addEventListener('pause',stopChord);
-audio.addEventListener('ended',stopChord);
-audio.addEventListener('seeked',sync);
-audio.addEventListener('timeupdate',sync);
-setInterval(sync,90);
-</script></body></html>'''
+
+function resetAt(t){
+  allNotesOff();
+  cursor=findCursor(t);
+  currentChord='—';
+  now.textContent='Accord : —';
+
+  if(midiOut){
+    // Toujours réappliquer le Program Change après un seek.
+    const program=events.find(e=>e.kind==='program');
+    if(program){
+      try{midiOut.send(bytesFor(program));}catch(e){}
+    }
+  }
+}
+
+function pump(){
+  if(!midiOut || audio.paused || audio.ended)return;
+
+  const t=audio.currentTime;
+  if(t+0.08<lastTime || Math.abs(t-lastTime)>0.50){
+    resetAt(t);
+  }
+  lastTime=t;
+
+  const lookahead=0.055;
+  while(cursor<events.length && events[cursor].time<=t+lookahead){
+    const e=events[cursor++];
+    if(e.time>=t-0.10 || e.kind==='program'){
+      try{midiOut.send(bytesFor(e));}catch(err){}
+      if(e.kind==='note_on' && e.chord){
+        currentChord=e.chord;
+        now.textContent='Accord : '+currentChord;
+      }
+    }
+  }
+}
+
+function stopTimer(){
+  if(timer){clearInterval(timer);timer=null;}
+}
+
+function startTimer(){
+  stopTimer();
+  timer=setInterval(pump,18);
+  pump();
+}
+
+async function enableMidi(){
+  if(!navigator.requestMIDIAccess){
+    state.textContent='Web MIDI indisponible dans ce navigateur.';
+    return;
+  }
+
+  try{
+    midiAccess=await navigator.requestMIDIAccess({sysex:false});
+    refreshOutputs();
+    midiAccess.onstatechange=refreshOutputs;
+  }catch(err){
+    state.textContent='Accès MIDI refusé ou indisponible.';
+  }
+}
+
+function refreshOutputs(){
+  const previous=outSelect.value;
+  outSelect.innerHTML='';
+
+  const outputs=[...midiAccess.outputs.values()];
+  if(outputs.length===0){
+    const opt=document.createElement('option');
+    opt.value='';
+    opt.textContent='Aucune sortie MIDI';
+    outSelect.appendChild(opt);
+    midiOut=null;
+    state.textContent='Aucune sortie MIDI disponible.';
+    return;
+  }
+
+  outputs.forEach((output,idx)=>{
+    const opt=document.createElement('option');
+    opt.value=output.id;
+    opt.textContent=output.name||('Sortie MIDI '+(idx+1));
+    outSelect.appendChild(opt);
+  });
+
+  outSelect.value=outputs.some(o=>o.id===previous)
+    ? previous
+    : outputs[0].id;
+
+  selectOutput();
+}
+
+function selectOutput(){
+  allNotesOff();
+  midiOut=midiAccess
+    ? midiAccess.outputs.get(outSelect.value)
+    : null;
+
+  if(midiOut){
+    state.textContent='MIDI actif : '+midiOut.name+
+      ' · Instrument : '+__INSTRUMENT_JSON__;
+    resetAt(audio.currentTime);
+  }
+}
+
+enableBtn.addEventListener('click',enableMidi);
+outSelect.addEventListener('change',selectOutput);
+
+audio.addEventListener('play',()=>{
+  if(!midiOut){
+    audio.pause();
+    state.textContent='Activez et choisissez d’abord une sortie MIDI.';
+    return;
+  }
+  resetAt(audio.currentTime);
+  startTimer();
+});
+
+audio.addEventListener('pause',()=>{
+  stopTimer();
+  allNotesOff();
+});
+
+audio.addEventListener('ended',()=>{
+  stopTimer();
+  allNotesOff();
+});
+
+audio.addEventListener('seeking',()=>{
+  stopTimer();
+  allNotesOff();
+});
+
+audio.addEventListener('seeked',()=>{
+  resetAt(audio.currentTime);
+  if(!audio.paused)startTimer();
+});
+</script>
+</body>
+</html>'''
 
     html_doc = (
         template
         .replace("__MIME__", mime)
         .replace("__AUDIO__", audio_b64)
-        .replace("__REGIONS__", regions_json)
+        .replace("__EVENTS__", events_json)
+        .replace("__INSTRUMENT__", html.escape(str(instrument_label)))
+        .replace("__INSTRUMENT_JSON__", instrument_json)
     )
-    components.html(html_doc, height=205, scrolling=False)
+
+    components.html(
+        html_doc,
+        height=235,
+        scrolling=False,
+    )
 
 
 @st.cache_data(show_spinner=False)
@@ -10809,18 +11157,59 @@ if (
         if song_mode == "Jouer":
             if song_view == "Grille":
                 st.markdown(
-                    "### 🎧 Comparaison harmonique — chanson + accords"
+                    "### 🎧 Comparaison harmonique — MP3 + MIDI"
                 )
                 st.caption(
-                    "Outil de contrôle à l’oreille de la grille. "
-                    "Ce player est distinct du futur player synchronisé "
-                    "Paroles + accords."
+                    "Le MP3 pilote une vraie sortie MIDI. "
+                    "Un accord est rejoué à chaque temps, avec accentuation "
+                    "des temps forts. Aucun oscillateur Web Audio."
+                )
+
+                _midi_instruments = {
+                    "Electric Guitar (clean)": 27,
+                    "Acoustic Grand Piano": 0,
+                }
+
+                _midi_instrument_label = st.selectbox(
+                    "Instrument MIDI",
+                    list(_midi_instruments.keys()),
+                    index=0,
+                    key=f"midi_instrument_{audio_hash[:12]}",
+                )
+                _midi_program = _midi_instruments[
+                    _midi_instrument_label
+                ]
+                _midi_strum_ms = (
+                    12.0
+                    if _midi_program == 27
+                    else 0.0
+                )
+
+                _play_midi_events = (
+                    construire_evenements_midi_accords(
+                        beats=beats,
+                        signature=signature,
+                        beats_par_mesure=(
+                            beats_par_mesure_effectif
+                        ),
+                        program=_midi_program,
+                        gate_ratio=0.48,
+                        strum_ms=_midi_strum_ms,
+                    )
                 )
 
                 _play_midi_bytes = creer_midi_accords(
                     beats=beats,
                     tempo=tempo,
+                    signature=signature,
+                    beats_par_mesure=(
+                        beats_par_mesure_effectif
+                    ),
+                    program=_midi_program,
+                    gate_ratio=0.48,
+                    strum_ms=_midi_strum_ms,
                 )
+
                 _play_midi_filename = (
                     re.sub(
                         r"[^A-Za-z0-9._-]+",
@@ -10838,17 +11227,17 @@ if (
                     key=f"play_midi_{audio_hash[:12]}",
                 )
 
-                render_synced_chord_player(
+                render_synced_midi_player(
                     audio_bytes=audio_bytes,
                     extension=extension,
-                    beats=beats,
+                    midi_events=_play_midi_events,
+                    instrument_label=_midi_instrument_label,
                 )
 
             elif song_view == "Paroles + accords":
                 st.info(
                     "▶ Player Paroles + accords synchronisé : "
-                    "fonction séparée, non remplacée par le player "
-                    "de comparaison MIDI."
+                    "fonction séparée, non remplacée par le player MIDI."
                 )
 
         # Structure calculée sur les accords RÉELS, avant toute représentation capo.
@@ -12188,6 +12577,11 @@ if (
                 _midi_bytes = creer_midi_accords(
                     beats=beats,
                     tempo=tempo,
+                    signature=signature,
+                    beats_par_mesure=beats_par_mesure_effectif,
+                    program=27,
+                    gate_ratio=0.48,
+                    strum_ms=12.0,
                 )
                 _midi_filename = (
                     re.sub(
@@ -12215,10 +12609,9 @@ if (
                         "y compris les corrections manuelles."
                     )
 
-                render_synced_chord_player(
-                    audio_bytes=audio_bytes,
-                    extension=extension,
-                    beats=beats,
+                st.caption(
+                    "La lecture MIDI synchronisée est disponible dans "
+                    "Grille > Jouer."
                 )
 
             _phonetic_timeline = construire_timeline_phonetique(
