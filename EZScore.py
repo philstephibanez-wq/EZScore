@@ -1093,6 +1093,7 @@ ANALYSIS_ENGINE_VERSION = "V29_R14_BALANCED_MIDI_EDITORIAL"
 APP_DIR = Path(__file__).resolve().parent
 DATA_DIR = APP_DIR / "data"
 AUDIO_DIR = DATA_DIR / "audio"
+COVER_DIR = DATA_DIR / "covers"
 DB_PATH = DATA_DIR / "EZScore.sqlite3"
 
 
@@ -1118,6 +1119,7 @@ def _json_safe(value):
 def init_persistence():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+    COVER_DIR.mkdir(parents=True, exist_ok=True)
 
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("""
@@ -1153,6 +1155,12 @@ def init_persistence():
         if "strumming_secondary" not in song_columns:
             conn.execute(
                 "ALTER TABLE songs ADD COLUMN strumming_secondary "
+                "TEXT NOT NULL DEFAULT ''"
+            )
+
+        if "cover_path" not in song_columns:
+            conn.execute(
+                "ALTER TABLE songs ADD COLUMN cover_path "
                 "TEXT NOT NULL DEFAULT ''"
             )
 
@@ -1273,17 +1281,62 @@ def init_persistence():
             )
         """)
 
+        editorial_columns = {
+            row[1]
+            for row in conn.execute(
+                "PRAGMA table_info(song_editorial_versions)"
+            ).fetchall()
+        }
+
+        if "version_label" not in editorial_columns:
+            conn.execute(
+                "ALTER TABLE song_editorial_versions "
+                "ADD COLUMN version_label TEXT NOT NULL DEFAULT ''"
+            )
+            conn.execute(
+                "UPDATE song_editorial_versions "
+                "SET version_label = CAST(version_no AS TEXT) "
+                "WHERE TRIM(version_label) = ''"
+            )
+
+        if "edition_label" not in editorial_columns:
+            conn.execute(
+                "ALTER TABLE song_editorial_versions "
+                "ADD COLUMN edition_label TEXT NOT NULL DEFAULT 'Standard'"
+            )
+
         conn.execute("""
             CREATE TABLE IF NOT EXISTS song_workflow (
                 audio_hash TEXT PRIMARY KEY,
                 state TEXT NOT NULL DEFAULT 'working',
                 current_version_no INTEGER,
                 working_note TEXT NOT NULL DEFAULT '',
+                target_version_label TEXT NOT NULL DEFAULT '1.0',
+                target_edition_label TEXT NOT NULL DEFAULT 'Standard',
                 updated_at TEXT NOT NULL,
                 FOREIGN KEY (audio_hash) REFERENCES songs(audio_hash)
                     ON DELETE CASCADE
             )
         """)
+
+        workflow_columns = {
+            row[1]
+            for row in conn.execute(
+                "PRAGMA table_info(song_workflow)"
+            ).fetchall()
+        }
+
+        if "target_version_label" not in workflow_columns:
+            conn.execute(
+                "ALTER TABLE song_workflow "
+                "ADD COLUMN target_version_label TEXT NOT NULL DEFAULT '1.0'"
+            )
+
+        if "target_edition_label" not in workflow_columns:
+            conn.execute(
+                "ALTER TABLE song_workflow "
+                "ADD COLUMN target_edition_label TEXT NOT NULL DEFAULT 'Standard'"
+            )
 
         conn.execute("""
             CREATE TABLE IF NOT EXISTS beat_edits (
@@ -2113,7 +2166,7 @@ def list_song_catalog(sort_by="title"):
         rows = conn.execute(
             """
             SELECT audio_hash, original_filename, title, artist, editor,
-                   strumming_primary, strumming_secondary,
+                   strumming_primary, strumming_secondary, cover_path,
                    created_at, updated_at
             FROM songs
             """
@@ -2128,8 +2181,9 @@ def list_song_catalog(sort_by="title"):
             "editor": row[4] or "",
             "strumming_primary": row[5] or "",
             "strumming_secondary": row[6] or "",
-            "created_at": row[7],
-            "updated_at": row[8],
+            "cover_path": row[7] or "",
+            "created_at": row[8],
+            "updated_at": row[9],
         }
         for row in rows
     ]
@@ -2243,7 +2297,7 @@ def ensure_song(audio_hash, original_filename):
         row = conn.execute(
             """
             SELECT audio_hash, original_filename, title, artist, editor,
-                   strumming_primary, strumming_secondary,
+                   strumming_primary, strumming_secondary, cover_path,
                    created_at, updated_at
             FROM songs
             WHERE audio_hash = ?
@@ -2278,6 +2332,7 @@ def ensure_song(audio_hash, original_filename):
                 "editor": "",
                 "strumming_primary": "",
                 "strumming_secondary": "",
+                "cover_path": "",
                 "created_at": now,
                 "updated_at": now,
             }
@@ -2302,8 +2357,9 @@ def ensure_song(audio_hash, original_filename):
             "editor": row[4] or "",
             "strumming_primary": row[5] or "",
             "strumming_secondary": row[6] or "",
-            "created_at": row[7],
-            "updated_at": now if row[1] != original_filename else row[8],
+            "cover_path": row[7] or "",
+            "created_at": row[8],
+            "updated_at": now if row[1] != original_filename else row[9],
         }
 
 
@@ -2331,6 +2387,79 @@ def update_song_metadata(audio_hash, title, artist, editor, strumming_primary, s
         )
         conn.commit()
 
+
+
+def _cover_extension(filename):
+    suffix = Path(str(filename or "")).suffix.lower()
+    return suffix if suffix in (".jpg", ".jpeg", ".png", ".webp") else ".jpg"
+
+
+def save_song_cover(audio_hash, uploaded_file):
+    if uploaded_file is None:
+        return None
+
+    COVER_DIR.mkdir(parents=True, exist_ok=True)
+    ext = _cover_extension(getattr(uploaded_file, "name", "cover.jpg"))
+
+    for old in COVER_DIR.glob(f"{audio_hash}.*"):
+        try:
+            old.unlink()
+        except OSError:
+            pass
+
+    target = COVER_DIR / f"{audio_hash}{ext}"
+    target.write_bytes(uploaded_file.getvalue())
+    now = _utc_now_iso()
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            UPDATE songs
+            SET cover_path = ?, updated_at = ?
+            WHERE audio_hash = ?
+            """,
+            (str(target.relative_to(APP_DIR)), now, audio_hash),
+        )
+        conn.commit()
+
+    return target
+
+
+def delete_song_cover(audio_hash):
+    for old in COVER_DIR.glob(f"{audio_hash}.*"):
+        try:
+            old.unlink()
+        except OSError:
+            pass
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            UPDATE songs
+            SET cover_path = '', updated_at = ?
+            WHERE audio_hash = ?
+            """,
+            (_utc_now_iso(), audio_hash),
+        )
+        conn.commit()
+
+
+def song_cover_path(song):
+    raw = str((song or {}).get("cover_path", "") or "").strip()
+    if raw:
+        candidate = Path(raw)
+        if not candidate.is_absolute():
+            candidate = APP_DIR / candidate
+        if candidate.is_file():
+            return candidate
+
+    audio_hash = str((song or {}).get("audio_hash", "") or "").strip()
+    if audio_hash:
+        for candidate in COVER_DIR.glob(f"{audio_hash}.*"):
+            if candidate.is_file():
+                return candidate
+
+    return None
 
 
 def load_block_edits(audio_hash):
@@ -4392,24 +4521,50 @@ def _song_version_snapshot_payload(audio_hash):
 
 
 
-def _editorial_date_fr(value):
+def _editorial_date_fr(value, with_time=False):
     raw = str(value or "").strip()
     if not raw:
         return ""
     try:
-        return datetime.fromisoformat(
-            raw.replace("Z", "+00:00")
-        ).strftime("%d/%m/%Y")
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return dt.strftime("%d/%m/%Y %H:%M" if with_time else "%d/%m/%Y")
     except Exception:
-        return raw[:10]
+        return raw[:16] if with_time else raw[:10]
+
+
+def _normalize_version_label(value, fallback="1.0"):
+    label = str(value or "").strip()
+    if label.lower().startswith("v"):
+        label = label[1:].strip()
+    return label or str(fallback)
+
+
+def _normalize_edition_label(value):
+    label = str(value or "").strip()
+    return label or "Standard"
+
+
+def _next_version_label(value):
+    label = _normalize_version_label(value, "1.0")
+    match = re.fullmatch(r"(\d+)\.(\d+)", label)
+    if match:
+        return f"{int(match.group(1))}.{int(match.group(2)) + 1}"
+
+    match = re.fullmatch(r"(\d+)", label)
+    if match:
+        return f"{int(match.group(1)) + 1}.0"
+
+    return label
 
 
 def get_song_workflow(audio_hash):
     now = _utc_now_iso()
+
     with sqlite3.connect(DB_PATH) as conn:
         row = conn.execute(
             """
-            SELECT state, current_version_no, working_note, updated_at
+            SELECT state, current_version_no, working_note,
+                   target_version_label, target_edition_label, updated_at
             FROM song_workflow
             WHERE audio_hash = ?
             """,
@@ -4421,9 +4576,10 @@ def get_song_workflow(audio_hash):
                 """
                 INSERT INTO song_workflow (
                     audio_hash, state, current_version_no,
-                    working_note, updated_at
+                    working_note, target_version_label,
+                    target_edition_label, updated_at
                 )
-                VALUES (?, 'working', NULL, '', ?)
+                VALUES (?, 'working', NULL, '', '1.0', 'Standard', ?)
                 """,
                 (audio_hash, now),
             )
@@ -4432,16 +4588,18 @@ def get_song_workflow(audio_hash):
                 "state": "working",
                 "current_version_no": None,
                 "working_note": "",
+                "target_version_label": "1.0",
+                "target_edition_label": "Standard",
                 "updated_at": now,
             }
 
     return {
         "state": str(row[0] or "working"),
-        "current_version_no": (
-            int(row[1]) if row[1] is not None else None
-        ),
+        "current_version_no": int(row[1]) if row[1] is not None else None,
         "working_note": str(row[2] or ""),
-        "updated_at": str(row[3] or ""),
+        "target_version_label": _normalize_version_label(row[3], "1.0"),
+        "target_edition_label": _normalize_edition_label(row[4]),
+        "updated_at": str(row[5] or ""),
     }
 
 
@@ -4451,7 +4609,8 @@ def list_song_editorial_versions(audio_hash):
             """
             SELECT version_no, release_no, status,
                    source_analysis_version_no, note,
-                   validated_at, published_at, updated_at
+                   validated_at, published_at, updated_at,
+                   version_label, edition_label
             FROM song_editorial_versions
             WHERE audio_hash = ?
             ORDER BY version_no DESC
@@ -4463,7 +4622,7 @@ def list_song_editorial_versions(audio_hash):
         {
             "version_no": int(row[0]),
             "release_no": int(row[1] or 0),
-            "status": str(row[2] or "validated"),
+            "status": str(row[2] or "published"),
             "source_analysis_version_no": (
                 int(row[3]) if row[3] is not None else None
             ),
@@ -4471,6 +4630,8 @@ def list_song_editorial_versions(audio_hash):
             "validated_at": str(row[5] or ""),
             "published_at": str(row[6] or "") if row[6] else "",
             "updated_at": str(row[7] or ""),
+            "version_label": _normalize_version_label(row[8], str(row[0])),
+            "edition_label": _normalize_edition_label(row[9]),
         }
         for row in rows
     ]
@@ -4484,29 +4645,65 @@ def latest_song_editorial_version(audio_hash):
 def get_song_editorial_version(audio_hash, version_no):
     if version_no is None:
         return None
+
     for item in list_song_editorial_versions(audio_hash):
         if int(item["version_no"]) == int(version_no):
             return item
+
     return None
 
 
-def save_working_note(audio_hash, note):
+def save_song_working_state(
+    audio_hash,
+    note,
+    target_version_label,
+    target_edition_label,
+):
     now = _utc_now_iso()
-    workflow = get_song_workflow(audio_hash)
+    version_label = _normalize_version_label(target_version_label, "1.0")
+    edition_label = _normalize_edition_label(target_edition_label)
+
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             """
             UPDATE song_workflow
-            SET working_note = ?, updated_at = ?
+            SET state = 'working',
+                working_note = ?,
+                target_version_label = ?,
+                target_edition_label = ?,
+                updated_at = ?
             WHERE audio_hash = ?
             """,
-            (str(note or ""), now, audio_hash),
+            (
+                str(note or ""),
+                version_label,
+                edition_label,
+                now,
+                audio_hash,
+            ),
+        )
+        conn.execute(
+            "UPDATE songs SET updated_at = ? WHERE audio_hash = ?",
+            (now, audio_hash),
         )
         conn.commit()
+
+    return version_label, edition_label
+
+
+def save_working_note(audio_hash, note):
+    workflow = get_song_workflow(audio_hash)
+    return save_song_working_state(
+        audio_hash,
+        note,
+        workflow.get("target_version_label", "1.0"),
+        workflow.get("target_edition_label", "Standard"),
+    )
 
 
 def update_song_editorial_note(audio_hash, version_no, note):
     now = _utc_now_iso()
+
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             """
@@ -4517,26 +4714,38 @@ def update_song_editorial_note(audio_hash, version_no, note):
             (str(note or ""), now, audio_hash, int(version_no)),
         )
         conn.execute(
-            """
-            UPDATE song_workflow
-            SET working_note = ?, updated_at = ?
-            WHERE audio_hash = ?
-            """,
-            (str(note or ""), now, audio_hash),
+            "UPDATE songs SET updated_at = ? WHERE audio_hash = ?",
+            (now, audio_hash),
         )
         conn.commit()
 
 
-def validate_song_editorial_version(
+def publish_song_editorial_version(
     audio_hash,
     source_analysis_version_no,
     note,
+    version_label,
+    edition_label,
 ):
     versions = list_song_editorial_versions(audio_hash)
-    version_no = (
-        max(v["version_no"] for v in versions) + 1
-        if versions else 1
-    )
+    internal_version_no = max(
+        [v["version_no"] for v in versions] + [0]
+    ) + 1
+
+    version_label = _normalize_version_label(version_label, "1.0")
+    edition_label = _normalize_edition_label(edition_label)
+
+    same_publication = [
+        v for v in versions
+        if v.get("status") == "published"
+        and _normalize_version_label(v.get("version_label")) == version_label
+        and _normalize_edition_label(v.get("edition_label")) == edition_label
+    ]
+
+    release_no = max(
+        [int(v.get("release_no", 0) or 0) for v in same_publication] + [0]
+    ) + 1
+
     now = _utc_now_iso()
 
     with sqlite3.connect(DB_PATH) as conn:
@@ -4545,100 +4754,99 @@ def validate_song_editorial_version(
             INSERT INTO song_editorial_versions (
                 audio_hash, version_no, release_no, status,
                 source_analysis_version_no, note,
-                validated_at, published_at, updated_at
+                validated_at, published_at, updated_at,
+                version_label, edition_label
             )
-            VALUES (?, ?, 0, 'validated', ?, ?, ?, NULL, ?)
+            VALUES (?, ?, ?, 'published', ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 audio_hash,
-                int(version_no),
+                internal_version_no,
+                release_no,
                 int(source_analysis_version_no),
                 str(note or ""),
                 now,
                 now,
+                now,
+                version_label,
+                edition_label,
             ),
         )
+
         conn.execute(
             """
             INSERT INTO song_workflow (
                 audio_hash, state, current_version_no,
-                working_note, updated_at
+                working_note, target_version_label,
+                target_edition_label, updated_at
             )
-            VALUES (?, 'validated', ?, ?, ?)
+            VALUES (?, 'published', ?, ?, ?, ?, ?)
             ON CONFLICT(audio_hash)
             DO UPDATE SET
-                state = 'validated',
+                state = excluded.state,
                 current_version_no = excluded.current_version_no,
                 working_note = excluded.working_note,
+                target_version_label = excluded.target_version_label,
+                target_edition_label = excluded.target_edition_label,
                 updated_at = excluded.updated_at
             """,
             (
                 audio_hash,
-                int(version_no),
+                internal_version_no,
                 str(note or ""),
+                version_label,
+                edition_label,
                 now,
             ),
+        )
+
+        conn.execute(
+            "UPDATE songs SET updated_at = ? WHERE audio_hash = ?",
+            (now, audio_hash),
         )
         conn.commit()
 
-    return version_no
+    return {
+        "version_no": internal_version_no,
+        "version_label": version_label,
+        "edition_label": edition_label,
+        "release_no": release_no,
+    }
 
 
-def publish_song_editorial_version(audio_hash, version_no, note):
-    current = get_song_editorial_version(audio_hash, version_no)
-    if current is None:
-        return None
-
-    release_no = max(1, int(current.get("release_no", 0) or 0))
-    now = _utc_now_iso()
-
-    with sqlite3.connect(DB_PATH) as conn:
-        conn.execute(
-            """
-            UPDATE song_editorial_versions
-            SET release_no = ?,
-                status = 'published',
-                note = ?,
-                published_at = ?,
-                updated_at = ?
-            WHERE audio_hash = ? AND version_no = ?
-            """,
-            (
-                release_no,
-                str(note or ""),
-                now,
-                now,
-                audio_hash,
-                int(version_no),
-            ),
-        )
-        conn.execute(
-            """
-            UPDATE song_workflow
-            SET state = 'published',
-                current_version_no = ?,
-                working_note = ?,
-                updated_at = ?
-            WHERE audio_hash = ?
-            """,
-            (
-                int(version_no),
-                str(note or ""),
-                now,
-                audio_hash,
-            ),
-        )
-        conn.commit()
-
-    return release_no
-
-
-def resume_song_modifications(audio_hash):
+def resume_song_modifications(
+    audio_hash,
+    keep_version=False,
+    edition_label=None,
+):
     workflow = get_song_workflow(audio_hash)
     current = get_song_editorial_version(
         audio_hash,
         workflow.get("current_version_no"),
     )
+
+    current_version_label = (
+        current.get("version_label", "")
+        if current is not None
+        else workflow.get("target_version_label", "1.0")
+    )
+
+    target_version_label = (
+        _normalize_version_label(current_version_label)
+        if keep_version
+        else _next_version_label(current_version_label)
+    )
+
+    target_edition_label = _normalize_edition_label(
+        edition_label
+        if edition_label is not None
+        else (
+            current.get("edition_label", "Standard")
+            if current is not None
+            else workflow.get("target_edition_label", "Standard")
+        )
+    )
+
     note = (
         current.get("note", "")
         if current is not None
@@ -4652,12 +4860,26 @@ def resume_song_modifications(audio_hash):
             UPDATE song_workflow
             SET state = 'working',
                 working_note = ?,
+                target_version_label = ?,
+                target_edition_label = ?,
                 updated_at = ?
             WHERE audio_hash = ?
             """,
-            (str(note or ""), now, audio_hash),
+            (
+                str(note or ""),
+                target_version_label,
+                target_edition_label,
+                now,
+                audio_hash,
+            ),
+        )
+        conn.execute(
+            "UPDATE songs SET updated_at = ? WHERE audio_hash = ?",
+            (now, audio_hash),
         )
         conn.commit()
+
+    return target_version_label, target_edition_label
 
 
 def editorial_status_label(workflow, version=None):
@@ -4665,24 +4887,21 @@ def editorial_status_label(workflow, version=None):
 
     if state == "published" and version is not None:
         return (
-            f"V{version['version_no']} · R{version['release_no']} · "
-            f"Version publiée · "
+            f"V{version['version_label']} · {version['edition_label']} · "
+            f"R{version['release_no']} · Publiée · "
             f"{_editorial_date_fr(version.get('published_at'))}"
         )
 
-    if state == "validated" and version is not None:
-        return (
-            f"V{version['version_no']} · Version validée · "
-            f"{_editorial_date_fr(version.get('validated_at'))}"
-        )
+    version_label = _normalize_version_label(
+        (workflow or {}).get("target_version_label", "1.0")
+    )
+    edition_label = _normalize_edition_label(
+        (workflow or {}).get("target_edition_label", "Standard")
+    )
 
-    if version is not None:
-        suffix = f" · à partir de V{version['version_no']}"
-        if int(version.get("release_no", 0) or 0) > 0:
-            suffix += f" · R{version['release_no']}"
-        return "Modification en cours" + suffix
-
-    return "Modification en cours"
+    return (
+        f"Modification en cours · cible V{version_label} · {edition_label}"
+    )
 
 
 
@@ -4928,6 +5147,9 @@ def delete_song_completely(audio_hash):
     # Évite qu'un audio orphelin soit recréé au prochain démarrage par
     # migrate_archived_audio_catalog().
     audio_paths = _audio_paths_for_hash(audio_hash)
+    cover_paths = list(
+        COVER_DIR.glob(f"{audio_hash}.*")
+    )
 
     for path in audio_paths:
         try:
@@ -4938,6 +5160,12 @@ def delete_song_completely(audio_hash):
             raise RuntimeError(
                 f"Impossible de supprimer l'audio « {path.name} » : {exc}"
             ) from exc
+
+    for path in cover_paths:
+        try:
+            path.unlink()
+        except OSError:
+            pass
 
     now = _utc_now_iso()
 
@@ -8802,9 +9030,17 @@ if main_menu == "Répertoire":
                     int(v["version_no"]) for v in versions
                 ]
 
-                c1, c2, c3, c4, c5 = st.columns(
-                    [1.8, 1.25, 1.1, 0.8, 2.1]
+                cover_col, c1, c2, c3, c4, c5 = st.columns(
+                    [0.55, 1.8, 1.25, 1.1, 0.9, 2.1]
                 )
+
+                with cover_col:
+                    _catalog_cover = song_cover_path(item)
+
+                    if _catalog_cover is not None:
+                        st.image(str(_catalog_cover), width=64)
+                    else:
+                        st.caption("🎵")
 
                 with c1:
                     primary = catalog_primary_text(
@@ -8854,7 +9090,8 @@ if main_menu == "Répertoire":
                                 '<span class="catalog-status-badge '
                                 'catalog-status-published">'
                                 f'🌍 Version publiée · '
-                                f'V{_catalog_editorial["version_no"]} · '
+                                f'V{_catalog_editorial["version_label"]} · '
+                                f'{_catalog_editorial["edition_label"]} · '
                                 f'R{_catalog_editorial["release_no"]}'
                                 + (
                                     f' · {_published_date}'
@@ -8874,7 +9111,7 @@ if main_menu == "Répertoire":
                                 '<span class="catalog-status-badge '
                                 'catalog-status-validated">'
                                 f'✓ Version validée · '
-                                f'V{_catalog_editorial["version_no"]}'
+                                f'V{_catalog_editorial["version_label"]}'
                                 + (
                                     f' · {_validated_date}'
                                     if _validated_date else ''
@@ -8911,6 +9148,41 @@ if main_menu == "Répertoire":
                             _catalog_workflow.get("working_note", "") or ""
                         ).strip()
 
+                    _last_modified_candidates = [
+                        str(item.get("updated_at", "") or ""),
+                        str(_catalog_workflow.get("updated_at", "") or ""),
+                    ]
+
+                    if _catalog_editorial is not None:
+                        _last_modified_candidates.append(
+                            str(
+                                _catalog_editorial.get(
+                                    "updated_at",
+                                    "",
+                                ) or ""
+                            )
+                        )
+
+                    _last_modified = max(
+                        (
+                            x
+                            for x in _last_modified_candidates
+                            if x
+                        ),
+                        default="",
+                    )
+
+                    st.caption(
+                        "🕒 Dernière modification : "
+                        + (
+                            _editorial_date_fr(
+                                _last_modified,
+                                with_time=True,
+                            )
+                            or "—"
+                        )
+                    )
+
                     if _catalog_note:
                         st.caption(f"💬 {_catalog_note}")
 
@@ -8925,16 +9197,16 @@ if main_menu == "Répertoire":
                 with c4:
                     if version_numbers:
                         selected_version = st.selectbox(
-                            "Version",
+                            "Snapshot",
                             version_numbers,
                             index=0,
-                            format_func=lambda n: f"V{n}",
+                            format_func=lambda n: f"S{n}",
                             key=f"catalog_version_{item['audio_hash']}",
                             label_visibility="collapsed",
                         )
                     else:
                         selected_version = None
-                        st.caption("Sans version")
+                        st.caption("Sans snapshot")
 
                 with c3:
                     selected_version_data = next(
@@ -9040,9 +9312,9 @@ if main_menu == "Répertoire":
 
                         with a3:
                             with st.popover("🗑"):
-                                st.markdown("**Version sélectionnée**")
+                                st.markdown("**Snapshot technique sélectionné**")
                                 st.warning(
-                                    f"Supprimer uniquement la version V{selected_version} ?"
+                                    f"Supprimer uniquement le snapshot S{selected_version} ?"
                                 )
                                 if st.button(
                                     "Supprimer cette version",
@@ -9250,10 +9522,8 @@ if (
 
         st.session_state[_mode_key] = song_mode
 
-        if song_mode == "Édition":
-            _workflow_edit = get_song_workflow(audio_hash)
-            if _workflow_edit.get("state") != "working":
-                resume_song_modifications(audio_hash)
+        # Le passage en mode Édition ne modifie jamais implicitement
+        # l'état éditorial. La reprise est une action explicite.
 
     with print_col:
         print_slot = st.empty()
@@ -9406,6 +9676,46 @@ if (
             st.session_state[
                 f"_snapshot_metadata_{audio_hash[:12]}"
             ] = True
+
+        st.markdown("#### 🖼 Pochette")
+        _cover_now = song_cover_path(song)
+
+        if _cover_now is not None:
+            st.image(str(_cover_now), width=180)
+
+        _cover_upload = st.file_uploader(
+            "Importer / remplacer la pochette",
+            type=["jpg", "jpeg", "png", "webp"],
+            key=f"cover_upload_{metadata_key}",
+        )
+
+        _cover_a, _cover_b = st.columns([1.3, 1.0])
+
+        with _cover_a:
+            if st.button(
+                "💾 Enregistrer la pochette",
+                disabled=_cover_upload is None,
+                key=f"save_cover_{metadata_key}",
+            ):
+                saved_cover = save_song_cover(
+                    audio_hash,
+                    _cover_upload,
+                )
+                if saved_cover is not None:
+                    song["cover_path"] = str(
+                        saved_cover.relative_to(APP_DIR)
+                    )
+                st.rerun()
+
+        with _cover_b:
+            if _cover_now is not None and st.button(
+                "🗑 Supprimer la pochette",
+                key=f"delete_cover_{metadata_key}",
+            ):
+                delete_song_cover(audio_hash)
+                song["cover_path"] = ""
+                st.rerun()
+
     # En mode Vue, aucun entête anticipé ici :
     # l'entête unique est rendu après le chargement de l'analyse.
 
@@ -9915,229 +10225,400 @@ if (
             audio_hash,
             _workflow.get("current_version_no"),
         )
-        if _workflow_version is None:
-            _workflow_version = latest_song_editorial_version(audio_hash)
 
-        _editorial_history = list_song_editorial_versions(audio_hash)
-        _next_editorial_version = (
-            max(int(v["version_no"]) for v in _editorial_history) + 1
-            if _editorial_history
-            else 1
+        if _workflow_version is None:
+            _workflow_version = latest_song_editorial_version(
+                audio_hash
+            )
+
+        _editorial_history = list_song_editorial_versions(
+            audio_hash
         )
         _latest_published = next(
-            (v for v in _editorial_history if v.get("status") == "published"),
+            (
+                v
+                for v in _editorial_history
+                if v.get("status") == "published"
+            ),
             None,
         )
+
         _state = str(_workflow.get("state", "working"))
+
         _note_initial = (
             _workflow_version.get("note", "")
-            if _state in ("validated", "published") and _workflow_version is not None
+            if (
+                _state == "published"
+                and _workflow_version is not None
+            )
             else _workflow.get("working_note", "")
         )
 
-        with st.container(border=True):
-            st.markdown("### 📝 Version de la chanson")
+        _target_version_label = _normalize_version_label(
+            _workflow.get("target_version_label", "1.0")
+        )
+        _target_edition_label = _normalize_edition_label(
+            _workflow.get(
+                "target_edition_label",
+                "Standard",
+            )
+        )
 
-            if _state == "working":
-                _state_label = "● Modification en cours"
-                _version_display = f"V{_next_editorial_version} (prochaine)"
-                _release_display = "—"
-                _date_display = "—"
-            elif _state == "validated" and _workflow_version is not None:
-                _state_label = "✓ Version validée"
-                _version_display = f"V{_workflow_version['version_no']}"
-                _release_display = "R1 prévue"
-                _date_display = _editorial_date_fr(
-                    _workflow_version.get("validated_at")
+        with st.container(border=True):
+            st.markdown("### 📝 Publication de la chanson")
+
+            if (
+                _state == "published"
+                and _workflow_version is not None
+            ):
+                _state_label = "🌍 Publiée"
+                _version_display = (
+                    f"V{_workflow_version['version_label']}"
                 )
-            elif _state == "published" and _workflow_version is not None:
-                _state_label = "🌍 Version publiée"
-                _version_display = f"V{_workflow_version['version_no']}"
-                _release_display = f"R{_workflow_version['release_no']}"
+                _edition_display = (
+                    _workflow_version["edition_label"]
+                )
+                _release_display = (
+                    f"R{_workflow_version['release_no']}"
+                )
                 _date_display = _editorial_date_fr(
-                    _workflow_version.get("published_at")
+                    _workflow_version.get("published_at"),
+                    with_time=True,
                 )
             else:
                 _state_label = "● Modification en cours"
-                _version_display = f"V{_next_editorial_version} (prochaine)"
+                _version_display = f"V{_target_version_label}"
+                _edition_display = _target_edition_label
                 _release_display = "—"
-                _date_display = "—"
+                _date_display = _editorial_date_fr(
+                    _workflow.get("updated_at"),
+                    with_time=True,
+                )
 
-            _wf_cols = st.columns(4)
+            _wf_cols = st.columns(5)
             _wf_cols[0].metric("État", _state_label)
             _wf_cols[1].metric("Version", _version_display)
-            _wf_cols[2].metric("Release", _release_display)
-            _wf_cols[3].metric("Date", _date_display)
+            _wf_cols[2].metric("Édition", _edition_display)
+            _wf_cols[3].metric("Release", _release_display)
+            _wf_cols[4].metric(
+                (
+                    "Publication"
+                    if _state == "published"
+                    else "Dernière modif"
+                ),
+                _date_display or "—",
+            )
 
-            if _state == "working":
+            if (
+                _state != "published"
+                and _latest_published is not None
+            ):
                 st.caption(
-                    f"Numérotation automatique : la prochaine validation "
-                    f"créera V{_next_editorial_version}."
+                    "Dernière publication : "
+                    f"V{_latest_published['version_label']} · "
+                    f"{_latest_published['edition_label']} · "
+                    f"R{_latest_published['release_no']} · "
+                    f"{_editorial_date_fr(
+                        _latest_published.get('published_at'),
+                        with_time=True,
+                    )}"
                 )
-                if _latest_published is not None:
-                    st.caption(
-                        f"Dernière publication : "
-                        f"V{_latest_published['version_no']} · "
-                        f"R{_latest_published['release_no']} · "
-                        f"{_editorial_date_fr(_latest_published.get('published_at'))}"
+
+            if (
+                song_mode == "Édition"
+                and _state != "published"
+            ):
+                vcol, ecol = st.columns([1.0, 1.25])
+
+                with vcol:
+                    _target_version_label = st.text_input(
+                        "Version cible",
+                        value=_target_version_label,
+                        key=(
+                            f"target_version_"
+                            f"{audio_hash[:12]}"
+                        ),
+                        help=(
+                            "Libre : 1.8, 1.9, "
+                            "2.0, 1.8.1…"
+                        ),
                     )
 
-            if song_mode == "Édition":
+                with ecol:
+                    _edition_options = [
+                        "Simplifiée",
+                        "Standard",
+                        "Avancée",
+                        "Personnalisée",
+                    ]
+
+                    _edition_index = (
+                        _edition_options.index(
+                            _target_edition_label
+                        )
+                        if _target_edition_label
+                        in _edition_options
+                        else _edition_options.index(
+                            "Personnalisée"
+                        )
+                    )
+
+                    _edition_choice = st.selectbox(
+                        "Édition",
+                        _edition_options,
+                        index=_edition_index,
+                        key=(
+                            f"target_edition_"
+                            f"{audio_hash[:12]}"
+                        ),
+                    )
+
+                    if (
+                        _edition_choice
+                        == "Personnalisée"
+                    ):
+                        _target_edition_label = st.text_input(
+                            "Nom de l’édition",
+                            value=(
+                                _target_edition_label
+                                if _target_edition_label
+                                not in _edition_options
+                                else ""
+                            ),
+                            key=(
+                                f"custom_edition_"
+                                f"{audio_hash[:12]}"
+                            ),
+                            placeholder=(
+                                "Ex. Fingerstyle"
+                            ),
+                        )
+                    else:
+                        _target_edition_label = (
+                            _edition_choice
+                        )
+
                 _editor_note = st.text_area(
                     "Note de l’éditeur",
                     value=str(_note_initial or ""),
                     placeholder=(
-                        "Ex. Couplet 2 non terminé, intro corrigée, "
-                        "grille simplifiée pour la scène…"
+                        "Ex. Couplet 2 non terminé…"
                     ),
                     key=(
-                        f"editor_note_{audio_hash[:12]}_"
-                        f"{_state}_{_workflow.get('current_version_no')}"
-                    ),
-                    help=(
-                        "Ce commentaire est visible en mode Voir et dans "
-                        "le Répertoire, mais modifiable uniquement ici."
+                        f"editor_note_"
+                        f"{audio_hash[:12]}_working"
                     ),
                 )
-            else:
-                _editor_note = str(_note_initial or "").strip()
-                st.markdown("**Commentaire**")
-                if _editor_note:
-                    st.info(_editor_note)
-                else:
-                    st.caption("— Aucun commentaire —")
 
-            if _state == "working":
-                if song_mode == "Édition":
-                    c_note, c_action = st.columns([1.0, 1.6])
-                    with c_note:
-                        if st.button(
-                            "💾 Enregistrer la note",
-                            key=f"save_editor_note_{audio_hash[:12]}",
-                        ):
-                            save_working_note(audio_hash, _editor_note)
-                            st.rerun()
+                c_save, c_publish = st.columns(
+                    [1.2, 1.5]
+                )
 
-                    with c_action:
-                        if st.button(
-                            f"✅ Valider en V{_next_editorial_version}",
-                            type="primary",
-                            key=f"validate_song_version_{audio_hash[:12]}",
-                        ):
-                            _technical_version_no = save_analysis_version(
+                with c_save:
+                    if st.button(
+                        "💾 Enregistrer les modifications",
+                        type="primary",
+                        key=(
+                            f"save_work_"
+                            f"{audio_hash[:12]}"
+                        ),
+                    ):
+                        _technical_snapshot_no = (
+                            save_analysis_version(
                                 audio_hash=audio_hash,
                                 analysis_key=analysis_key,
-                                parameters=analysis_parameters,
+                                parameters=(
+                                    analysis_parameters
+                                ),
                                 musique=musique,
                                 resultat=resultat,
                             )
-                            _editorial_version_no = validate_song_editorial_version(
-                                audio_hash=audio_hash,
-                                source_analysis_version_no=_technical_version_no,
-                                note=_editor_note,
-                            )
-                            st.session_state["active_analysis_version_no"] = (
-                                _technical_version_no
-                            )
-                            st.success(
-                                f"V{_editorial_version_no} validée."
-                            )
-                            st.rerun()
-
-            elif _state == "validated" and _workflow_version is not None:
-                c_note, c_pub, c_resume = st.columns([1.0, 1.5, 1.5])
-
-                with c_note:
-                    if song_mode == "Édition":
-                        if st.button(
-                            "💾 Enregistrer la note",
-                            key=f"save_editor_note_{audio_hash[:12]}",
-                        ):
-                            update_song_editorial_note(
-                                audio_hash,
-                                _workflow_version["version_no"],
-                                _editor_note,
-                            )
-                            st.rerun()
-
-                with c_pub:
-                    if st.button(
-                        f"🌍 Publier V{_workflow_version['version_no']} en R1",
-                        type="primary",
-                        key=f"publish_song_version_{audio_hash[:12]}",
-                    ):
-                        _release_no = publish_song_editorial_version(
-                            audio_hash,
-                            _workflow_version["version_no"],
-                            _editor_note,
                         )
+
+                        saved_v, saved_e = (
+                            save_song_working_state(
+                                audio_hash,
+                                _editor_note,
+                                _target_version_label,
+                                _target_edition_label,
+                            )
+                        )
+
+                        st.session_state[
+                            "active_analysis_version_no"
+                        ] = _technical_snapshot_no
+
                         st.success(
-                            f"V{_workflow_version['version_no']} · "
-                            f"R{_release_no} publiée."
+                            "Modifications enregistrées "
+                            f"pour V{saved_v} · {saved_e}. "
+                            "La version éditoriale "
+                            "n’a pas été incrémentée."
                         )
                         st.rerun()
 
-                with c_resume:
+                with c_publish:
                     if st.button(
-                        f"✏ Reprendre les modifications depuis "
-                        f"V{_workflow_version['version_no']}",
-                        key=f"resume_song_{audio_hash[:12]}",
+                        (
+                            "🌍 Publier "
+                            f"V{_normalize_version_label(
+                                _target_version_label
+                            )} · "
+                            f"{_normalize_edition_label(
+                                _target_edition_label
+                            )}"
+                        ),
+                        key=(
+                            f"publish_song_version_"
+                            f"{audio_hash[:12]}"
+                        ),
                     ):
-                        resume_song_modifications(audio_hash)
-                        st.session_state[_mode_key] = "Édition"
+                        _technical_snapshot_no = (
+                            save_analysis_version(
+                                audio_hash=audio_hash,
+                                analysis_key=analysis_key,
+                                parameters=(
+                                    analysis_parameters
+                                ),
+                                musique=musique,
+                                resultat=resultat,
+                            )
+                        )
+
+                        published = (
+                            publish_song_editorial_version(
+                                audio_hash,
+                                _technical_snapshot_no,
+                                _editor_note,
+                                _target_version_label,
+                                _target_edition_label,
+                            )
+                        )
+
+                        st.session_state[
+                            "active_analysis_version_no"
+                        ] = _technical_snapshot_no
+
+                        st.success(
+                            f"V{published['version_label']} · "
+                            f"{published['edition_label']} · "
+                            f"R{published['release_no']} "
+                            "publiée."
+                        )
                         st.rerun()
 
-            elif _state == "published" and _workflow_version is not None:
-                c_note, c_resume = st.columns([1.0, 1.7])
+            else:
+                _editor_note = str(
+                    _note_initial or ""
+                ).strip()
 
-                with c_note:
-                    if song_mode == "Édition":
+                st.markdown("**Commentaire**")
+
+                if _editor_note:
+                    st.info(_editor_note)
+                else:
+                    st.caption(
+                        "— Aucun commentaire —"
+                    )
+
+                if (
+                    _state == "published"
+                    and _workflow_version is not None
+                ):
+                    a1, a2 = st.columns(2)
+
+                    with a1:
                         if st.button(
-                            "💾 Enregistrer la note",
-                            key=f"save_editor_note_{audio_hash[:12]}",
+                            (
+                                "✏ Nouvelle édition "
+                                "de cette version"
+                            ),
+                            key=(
+                                f"resume_same_version_"
+                                f"{audio_hash[:12]}"
+                            ),
                         ):
-                            update_song_editorial_note(
-                                audio_hash,
-                                _workflow_version["version_no"],
-                                _editor_note,
+                            next_v, next_e = (
+                                resume_song_modifications(
+                                    audio_hash,
+                                    keep_version=True,
+                                    edition_label="Standard",
+                                )
+                            )
+                            st.session_state[
+                                _mode_key
+                            ] = "Édition"
+                            st.success(
+                                "Copie de travail ouverte : "
+                                f"V{next_v} · {next_e}."
                             )
                             st.rerun()
 
-                with c_resume:
-                    if st.button(
-                        f"✏ Reprendre les modifications depuis "
-                        f"V{_workflow_version['version_no']} · "
-                        f"R{_workflow_version['release_no']}",
-                        key=f"resume_song_{audio_hash[:12]}",
-                    ):
-                        resume_song_modifications(audio_hash)
-                        st.session_state[_mode_key] = "Édition"
-                        st.rerun()
+                    with a2:
+                        if st.button(
+                            (
+                                "✏ Préparer une "
+                                "nouvelle version"
+                            ),
+                            key=(
+                                f"resume_next_version_"
+                                f"{audio_hash[:12]}"
+                            ),
+                        ):
+                            next_v, next_e = (
+                                resume_song_modifications(
+                                    audio_hash,
+                                    keep_version=False,
+                                    edition_label=(
+                                        _workflow_version[
+                                            "edition_label"
+                                        ]
+                                    ),
+                                )
+                            )
+                            st.session_state[
+                                _mode_key
+                            ] = "Édition"
+                            st.success(
+                                "Copie de travail ouverte : "
+                                f"V{next_v} · {next_e}."
+                            )
+                            st.rerun()
 
             if _editorial_history:
-                with st.expander("Historique des versions", expanded=False):
+                with st.expander(
+                    "Historique des publications",
+                    expanded=False,
+                ):
                     for _entry in _editorial_history:
-                        if _entry["status"] == "published":
-                            _label = (
-                                f"V{_entry['version_no']} · "
-                                f"R{_entry['release_no']} · Publiée · "
-                                f"{_editorial_date_fr(_entry['published_at'])}"
-                            )
-                        else:
-                            _label = (
-                                f"V{_entry['version_no']} · Validée · "
-                                f"{_editorial_date_fr(_entry['validated_at'])}"
-                            )
+                        _entry_date = (
+                            _entry.get("published_at")
+                            or _entry.get("validated_at")
+                        )
+
+                        _label = (
+                            f"V{_entry['version_label']} · "
+                            f"{_entry['edition_label']} · "
+                            f"R{_entry['release_no']} · "
+                            f"{_editorial_date_fr(
+                                _entry_date,
+                                with_time=True,
+                            )}"
+                        )
 
                         if _entry.get("note"):
-                            st.write(f"**{_label}** — {_entry['note']}")
+                            st.write(
+                                f"**{_label}** — "
+                                f"{_entry['note']}"
+                            )
                         else:
-                            st.write(f"**{_label}**")
+                            st.write(
+                                f"**{_label}**"
+                            )
 
         versions = list_analysis_versions(audio_hash)
 
         if song_mode == "Édition":
-            with st.expander("🗂️ Versions d'analyse", expanded=False):
+            with st.expander("🗂️ Snapshots techniques", expanded=False):
                 st.caption(
                     "Gestion / restauration des versions. "
                     "Ce panneau est volontairement masqué en mode Vue."
