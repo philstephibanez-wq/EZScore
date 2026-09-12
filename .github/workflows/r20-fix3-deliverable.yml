@@ -1,0 +1,50 @@
+name: EZScore R20 FIX3 Deliverable
+
+on:
+  push:
+    branches:
+      - r20-modular-web-soundfont-player
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compile Python
+        run: |
+          python -m py_compile EZScore.py
+          python -m py_compile ezscore/notation.py
+          python -m py_compile ezscore/persistence.py
+          python -m py_compile ezscore/printing.py
+          python -m py_compile ezscore/timeline.py
+          python -m py_compile ezscore/transcription.py
+          python -m py_compile ezscore/midi/events.py
+          python -m py_compile ezscore/midi/export.py
+          python -m py_compile ezscore/midi/web_player.py
+
+      - name: Build deliverable tree
+        run: |
+          mkdir -p deliverable/templates
+          mkdir -p deliverable/ezscore/midi
+          cp EZScore.py deliverable/EZScore.py
+          cp README.md deliverable/readme.md
+          cp templates/EZScore.score deliverable/templates/EZScore.score
+          cp ezscore/__init__.py deliverable/ezscore/__init__.py
+          cp ezscore/notation.py deliverable/ezscore/notation.py
+          cp ezscore/persistence.py deliverable/ezscore/persistence.py
+          cp ezscore/printing.py deliverable/ezscore/printing.py
+          cp ezscore/timeline.py deliverable/ezscore/timeline.py
+          cp ezscore/transcription.py deliverable/ezscore/transcription.py
+          cp ezscore/midi/__init__.py deliverable/ezscore/midi/__init__.py
+          cp ezscore/midi/events.py deliverable/ezscore/midi/events.py
+          cp ezscore/midi/export.py deliverable/ezscore/midi/export.py
+          cp ezscore/midi/web_player.py deliverable/ezscore/midi/web_player.py
+
+      - name: Upload deliverable
+        uses: actions/upload-artifact@v4
+        with:
+          name: EZSCORE_R20_FIX3
+          path: deliverable/
+          if-no-files-found: error
