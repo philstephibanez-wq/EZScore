@@ -1,99 +1,176 @@
-# EZScore R15 — visibilité du commentaire éditorial
+# EZScore R16 — publication par version, édition et release
 
-## Base exacte
+## Base
 
-R15 repart du master poussé le 12/09/2026 :
+R16 repart du master R15 poussé le 12/09/2026.
 
-```text
-baa047740c2ae944891d9545730e237a55c78381
-EZSCORE_R14_FROM_R13
-```
-
-Le moteur d'analyse reste :
+Le moteur d'analyse reste inchangé :
 
 ```text
 V29_R14_BALANCED_MIDI_EDITORIAL
 ```
 
-Aucune modification de l'analyse harmonique, Whisper, MIDI ou du schéma SQLite.
+Aucune modification de l'analyse harmonique, Whisper ou MIDI.
 
-## Problème corrigé
+## Nouveau contrat éditorial
 
-Le commentaire éditorial existait déjà dans le workflow R14 mais son UX prêtait à confusion :
-- le champ restait éditable en mode Voir ;
-- le commentaire n'était pas visible dans le Répertoire ;
-- la distinction Voir / Éditer n'était donc pas nette.
+Les snapshots techniques restent internes.
 
-## R15
-
-### Répertoire
-
-Le commentaire courant est affiché sous l'état du morceau :
+L'utilisateur manipule désormais trois notions distinctes :
 
 ```text
-● Modification en cours
-💬 Couplet 2 non terminé
+Version × Édition × Release
 ```
 
-Pour une version validée ou publiée, la note attachée à cette version est affichée.
-
-### Voir
-
-La zone Version de la chanson conserve :
-- état ;
-- V ;
-- R ;
-- date.
-
-Le commentaire est visible en lecture seule.
-
-Aucun champ de saisie ni bouton « Enregistrer la note » n'est présenté en mode Voir.
-
-### Éditer
-
-Le commentaire redevient un champ « Note de l’éditeur ».
-
-Il peut être enregistré puis repris lors de la validation de la prochaine version.
-
-Exemple :
+Exemples :
 
 ```text
-Couplet 2 non terminé
+V1.8 · Simplifiée · R1
+V1.8 · Avancée · R1
+V1.8 · Avancée · R2
+V1.9 · Simplifiée · R1
 ```
 
-### Workflow conservé
+### Enregistrer les modifications
+
+Le bouton :
+
+```text
+💾 Enregistrer les modifications
+```
+
+- sauvegarde un snapshot technique ;
+- met à jour la date de dernière modification ;
+- met à jour le commentaire ;
+- conserve la version cible ;
+- conserve l'édition cible ;
+- ne crée aucune publication ;
+- n'incrémente pas la version éditoriale.
+
+### Publier
+
+Le bouton :
+
+```text
+🌍 Publier Vx · Édition
+```
+
+crée une publication complète avec son propre snapshot.
+
+Le numéro de release est calculé par couple :
+
+```text
+Version + Édition
+```
+
+Une nouvelle publication de `V1.8 · Avancée` produit donc `R2` sans modifier `V1.8 · Simplifiée · R1`.
+
+## Éditions
+
+Éditions proposées :
+
+- Simplifiée
+- Standard
+- Avancée
+- Personnalisée
+
+Une édition personnalisée peut recevoir un nom libre, par exemple `Fingerstyle`.
+
+Après publication, deux actions sont distinguées :
+
+```text
+Nouvelle édition de cette version
+Préparer une nouvelle version
+```
+
+La première conserve la version publiée.
+La seconde propose la version suivante, qui reste modifiable manuellement.
+
+## Migration R15
+
+Une ancienne entrée R15 seulement « validée » n'est plus considérée comme une version publiée.
+
+Elle revient en état :
 
 ```text
 Modification en cours
-→ validation Vn
-→ version validée
-→ publication Rn
-→ reprise des modifications
 ```
 
-Le bouton Publier reste disponible sur une version validée.
+et son ancien numéro est repris comme version cible.
+
+Les anciennes publications restent visibles comme éditions `Standard`.
+
+## Répertoire
+
+Chaque morceau affiche maintenant :
+
+- une miniature de pochette si disponible ;
+- son état ;
+- sa version publiée/cible ;
+- son édition ;
+- son release ;
+- la date de dernière modification ;
+- le commentaire éditorial.
+
+Les numéros internes de `analysis_versions` sont affichés comme `Snapshots`, jamais comme versions éditoriales.
+
+## Pochette
+
+En mode Éditer :
+
+- aperçu de la pochette ;
+- upload JPG / JPEG / PNG / WEBP ;
+- remplacement ;
+- suppression.
+
+Les images sont stockées dans :
+
+```text
+data/covers/
+```
+
+SQLite ne contient que le chemin du fichier.
+
+La suppression complète d'une chanson supprime aussi sa pochette.
+
+## Schéma SQLite
+
+Migrations rétrocompatibles :
+
+### songs
+
+```text
+cover_path TEXT
+```
+
+### song_editorial_versions
+
+```text
+version_label TEXT
+edition_label TEXT
+```
+
+### song_workflow
+
+```text
+target_version_label TEXT
+target_edition_label TEXT
+```
 
 ## Livrable
 
+Le ZIP contient exactement :
+
 ```text
-EZScore_R15_EDITORIAL_NOTE_VISIBILITY.py
+EZScore.py
+readme.md
 ```
 
 ## Mise à jour locale
 
-Depuis la racine du dépôt local :
-
 ```bat
 cd /d H:\EZScore
 git pull
-copy /Y EZScore_R15_EDITORIAL_NOTE_VISIBILITY.py EZScore.py
 python -m py_compile EZScore.py
-```
-
-Adapter uniquement le chemin local si EZScore n'est pas installé dans `H:\EZScore`.
-
-## Base de reprise suivante
-
-```text
-EZScore_R15_EDITORIAL_NOTE_VISIBILITY.py
+streamlit run EZScore.py
 ```
