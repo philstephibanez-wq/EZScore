@@ -6,7 +6,7 @@ import base64
 import html
 import json
 
-import streamlit.components.v1 as components
+import streamlit as st
 
 # GeneralUser GS is GM/GS compatible and can be cached by the browser/CDN.
 DEFAULT_SOUNDFONT_URL = (
@@ -142,4 +142,4 @@ window.addEventListener('beforeunload',()=>{stopScheduler();silence();try{synth&
         .replace("__INSTRUMENT__", html.escape(str(instrument_label)))
         .replace("__INSTRUMENT_JSON__", instrument_json)
     )
-    components.html(html_doc, height=260, scrolling=False)
+    st.html(html_doc, width="stretch", unsafe_allow_javascript=True)
