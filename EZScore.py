@@ -1913,27 +1913,24 @@ def prepare_song_preferences_for_open(audio_hash):
 
 def migrate_archived_audio_catalog():
     """
-    Répare les cas où un audio est déjà archivé dans data/audio
-    mais ne possède pas encore d'entrée songs.
+    Répare les cas où un audio existe déjà dans data/audio mais ne possède
+    pas encore d'entrée songs.
 
-    Les fichiers archivés utilisent le SHA-256 comme nom.
-    Sans métadonnées historiques, le titre de secours reste le hash court.
+    R10 :
+    - les nouveaux fichiers conservent leur nom original ;
+    - les anciens fichiers nommés par SHA-256 restent compatibles ;
+    - l'identité technique reste toujours le SHA-256 du contenu réel.
     """
     with sqlite3.connect(DB_PATH) as conn:
         known_hashes = {
-            row[0]
+            str(row[0]).lower()
             for row in conn.execute(
                 "SELECT audio_hash FROM songs"
             ).fetchall()
         }
 
-    for path in AUDIO_DIR.glob("*.*"):
-        stem = path.stem.lower()
-
-        if len(stem) != 64:
-            continue
-
-        if stem in known_hashes:
+    for path in AUDIO_DIR.iterdir():
+        if not path.is_file():
             continue
 
         try:
@@ -1941,64 +1938,145 @@ def migrate_archived_audio_catalog():
         except OSError:
             continue
 
-        actual_hash = hashlib.sha256(raw).hexdigest()
-        if actual_hash != stem:
+        actual_hash = hashlib.sha256(raw).hexdigest().lower()
+
+        if actual_hash in known_hashes:
             continue
 
         ensure_song(
             actual_hash,
             path.name,
         )
+        known_hashes.add(actual_hash)
 
 
 def persist_audio_source(audio_hash, original_filename, audio_bytes):
     """
-    Archive localement le fichier audio importé afin qu'un morceau du
-    catalogue puisse être rouvert sans demander un nouvel upload.
-    """
-    suffix = Path(original_filename).suffix.lower() or ".audio"
-    target = AUDIO_DIR / f"{audio_hash}{suffix}"
+    Archive une COPIE CONFORME de l'audio importé.
 
-    if not target.exists():
-        target.write_bytes(audio_bytes)
+    - mêmes octets ;
+    - même nom de fichier ;
+    - SHA-256 utilisé uniquement comme identité interne.
+
+    Un fichier homonyme de contenu différent n'est jamais écrasé.
+    """
+    audio_hash = str(audio_hash or "").strip().lower()
+    safe_name = Path(str(original_filename or "")).name.strip()
+
+    if not safe_name:
+        raise RuntimeError("Nom de fichier audio invalide.")
+
+    incoming_hash = hashlib.sha256(audio_bytes).hexdigest().lower()
+
+    if incoming_hash != audio_hash:
+        raise RuntimeError(
+            "Le contenu audio ne correspond pas au SHA-256 attendu."
+        )
+
+    target = AUDIO_DIR / safe_name
+
+    if target.exists():
+        try:
+            existing_hash = hashlib.sha256(
+                target.read_bytes()
+            ).hexdigest().lower()
+        except OSError as exc:
+            raise RuntimeError(
+                f"Impossible de vérifier le fichier audio existant : {exc}"
+            ) from exc
+
+        if existing_hash != incoming_hash:
+            raise RuntimeError(
+                f'Un fichier nommé « {safe_name} » existe déjà dans data/audio '
+                "avec un contenu différent."
+            )
+
+        return target
+
+    target.write_bytes(audio_bytes)
+
+    # Contrôle après écriture : la copie doit être strictement conforme.
+    try:
+        written_hash = hashlib.sha256(
+            target.read_bytes()
+        ).hexdigest().lower()
+    except OSError as exc:
+        raise RuntimeError(
+            f"Impossible de vérifier la copie audio : {exc}"
+        ) from exc
+
+    if written_hash != incoming_hash:
+        try:
+            target.unlink()
+        except OSError:
+            pass
+        raise RuntimeError(
+            "La copie audio archivée n'est pas conforme au fichier importé."
+        )
 
     return target
 
 
 def find_persisted_audio(audio_hash):
     """
-    Résolution robuste de l'audio archivé.
+    Résout l'audio archivé par son SHA-256 réel.
 
-    1. nom canonique <sha256>.<ext>
-    2. nom exact sans extension
-    3. dernier recours : scan des fichiers de data/audio et vérification SHA-256
+    Priorité :
+    1. nom original enregistré dans songs ;
+    2. scan de data/audio avec vérification SHA-256.
 
-    Le scan permet de réparer automatiquement un ancien archivage dont
-    le nom de fichier ne respecte pas exactement le format courant.
+    Le scan maintient la compatibilité avec les anciens fichiers nommés
+    <sha256>.<ext>.
     """
     audio_hash = str(audio_hash or "").strip().lower()
 
     if not audio_hash:
         return None
 
-    candidates = sorted(AUDIO_DIR.glob(f"{audio_hash}.*"))
-    if candidates:
-        return candidates[0]
+    original_filename = ""
 
-    exact_no_ext = AUDIO_DIR / audio_hash
-    if exact_no_ext.exists() and exact_no_ext.is_file():
-        return exact_no_ext
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            row = conn.execute(
+                """
+                SELECT original_filename
+                FROM songs
+                WHERE audio_hash = ?
+                """,
+                (audio_hash,),
+            ).fetchone()
+        if row:
+            original_filename = Path(
+                str(row[0] or "")
+            ).name.strip()
+    except sqlite3.Error:
+        original_filename = ""
+
+    if original_filename:
+        candidate = AUDIO_DIR / original_filename
+        if candidate.exists() and candidate.is_file():
+            try:
+                digest = hashlib.sha256(
+                    candidate.read_bytes()
+                ).hexdigest().lower()
+            except OSError:
+                digest = ""
+
+            if digest == audio_hash:
+                return candidate
 
     for candidate in AUDIO_DIR.iterdir():
         if not candidate.is_file():
             continue
 
         try:
-            digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
+            digest = hashlib.sha256(
+                candidate.read_bytes()
+            ).hexdigest().lower()
         except OSError:
             continue
 
-        if digest.lower() == audio_hash:
+        if digest == audio_hash:
             return candidate
 
     return None
@@ -4020,9 +4098,135 @@ def construire_lignes_paroles_intervalle(
             "paroles": paroles,
             "debut": lt0,
             "fin": lt1,
+            # Métadonnée seulement : permet d'identifier les mesures déjà
+            # rendues sans modifier le rendu vocal historique.
+            "mesure_numeros": [
+                int(m.get("numero", 0) or 0)
+                for m in mesures_ligne
+                if int(m.get("numero", 0) or 0) > 0
+            ],
+            "instrumental": False,
         })
 
     return lignes
+
+
+
+
+def construire_lignes_paroles_completes_intervalle(
+    mesures,
+    resultat,
+    t0,
+    t1,
+    max_chars=74,
+    corrected_block_text=None,
+):
+    """
+    R10 — complète le rendu historique sans le remplacer.
+
+    Les lignes vocales sont produites exactement par
+    construire_lignes_paroles_intervalle().
+
+    On ajoute ensuite uniquement les mesures de l'intervalle qui n'ont été
+    représentées par AUCUNE ligne vocale. Cela rend visibles :
+    - l'introduction instrumentale ;
+    - les passages instrumentaux entre deux zones chantées ;
+    - la fin instrumentale.
+
+    Une chanson dont toutes les mesures sont déjà représentées ne reçoit
+    aucune ligne supplémentaire.
+    """
+    vocal_lines = construire_lignes_paroles_completes_intervalle(
+        mesures=mesures,
+        resultat=resultat,
+        t0=t0,
+        t1=t1,
+        max_chars=max_chars,
+        corrected_block_text=corrected_block_text,
+    )
+
+    represented = set()
+    for line in vocal_lines:
+        represented.update(
+            int(n)
+            for n in line.get("mesure_numeros", [])
+            if int(n) > 0
+        )
+
+    interval_measures = [
+        m
+        for m in mesures
+        if (
+            float(m["fin"]) > float(t0)
+            and float(m["debut"]) < float(t1)
+        )
+    ]
+
+    missing = [
+        m
+        for m in interval_measures
+        if int(m.get("numero", 0) or 0) not in represented
+    ]
+
+    instrumental_lines = []
+    group = []
+
+    def flush_group():
+        nonlocal group
+        if not group:
+            return
+
+        # Rendu compact, lisible, sans modifier la notation de mesure.
+        accords = "   ".join(
+            str(m.get("notation", "") or "")
+            for m in group
+        ).strip()
+
+        instrumental_lines.append({
+            "accords": accords,
+            "paroles": "[instrumental]",
+            "debut": max(float(t0), float(group[0]["debut"])),
+            "fin": min(float(t1), float(group[-1]["fin"])),
+            "mesure_numeros": [
+                int(m.get("numero", 0) or 0)
+                for m in group
+            ],
+            "instrumental": True,
+        })
+
+        group = []
+
+    previous_no = None
+
+    for measure in missing:
+        measure_no = int(measure.get("numero", 0) or 0)
+
+        if (
+            group
+            and (
+                previous_no is None
+                or measure_no != previous_no + 1
+                or len(group) >= 4
+            )
+        ):
+            flush_group()
+
+        group.append(measure)
+        previous_no = measure_no
+
+    flush_group()
+
+    completed = [dict(line) for line in vocal_lines] + instrumental_lines
+
+    completed.sort(
+        key=lambda line: (
+            float(line.get("debut", 0.0)),
+            0 if line.get("instrumental") else 1,
+        )
+    )
+
+    return completed
+
 
 
 
@@ -4645,6 +4849,199 @@ def delete_analysis_version(audio_hash, version_no):
             (audio_hash, int(version_no)),
         )
         conn.commit()
+
+
+def _audio_paths_for_hash(audio_hash):
+    """
+    Retourne tous les fichiers de data/audio dont le contenu correspond
+    réellement au SHA-256 du morceau.
+    """
+    audio_hash = str(audio_hash or "").strip().lower()
+    if not audio_hash:
+        return []
+
+    matches = []
+
+    preferred = find_persisted_audio(audio_hash)
+    if preferred is not None:
+        matches.append(preferred)
+
+    for candidate in AUDIO_DIR.iterdir():
+        if not candidate.is_file():
+            continue
+        if candidate in matches:
+            continue
+
+        try:
+            digest = hashlib.sha256(
+                candidate.read_bytes()
+            ).hexdigest().lower()
+        except OSError:
+            continue
+
+        if digest == audio_hash:
+            matches.append(candidate)
+
+    return matches
+
+
+def delete_song_completely(audio_hash):
+    """
+    Supprime une chanson entière.
+
+    La suppression est par audio_hash :
+    - audio archivé ;
+    - toutes les tables SQLite possédant une colonne audio_hash ;
+    - songs supprimé en dernier ;
+    - last_song_hash nettoyé si nécessaire.
+
+    Aucun autre morceau n'est touché.
+    """
+    audio_hash = str(audio_hash or "").strip().lower()
+    if not audio_hash:
+        return {
+            "deleted": False,
+            "audio_files_deleted": 0,
+        }
+
+    # Évite qu'un audio orphelin soit recréé au prochain démarrage par
+    # migrate_archived_audio_catalog().
+    audio_paths = _audio_paths_for_hash(audio_hash)
+
+    for path in audio_paths:
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            raise RuntimeError(
+                f"Impossible de supprimer l'audio « {path.name} » : {exc}"
+            ) from exc
+
+    now = _utc_now_iso()
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("BEGIN")
+        try:
+            tables = [
+                row[0]
+                for row in conn.execute(
+                    """
+                    SELECT name
+                    FROM sqlite_master
+                    WHERE type = 'table'
+                      AND name NOT LIKE 'sqlite_%'
+                    """
+                ).fetchall()
+            ]
+
+            # Dépendances d'abord ; songs en dernier.
+            for table_name in tables:
+                if table_name == "songs":
+                    continue
+
+                columns = {
+                    row[1]
+                    for row in conn.execute(
+                        f'PRAGMA table_info("{table_name}")'
+                    ).fetchall()
+                }
+
+                if "audio_hash" in columns:
+                    conn.execute(
+                        f'DELETE FROM "{table_name}" WHERE audio_hash = ?',
+                        (audio_hash,),
+                    )
+
+            conn.execute(
+                "DELETE FROM songs WHERE audio_hash = ?",
+                (audio_hash,),
+            )
+
+            last_song = conn.execute(
+                """
+                SELECT state_value
+                FROM app_state
+                WHERE state_key = 'last_song_hash'
+                """
+            ).fetchone()
+
+            if (
+                last_song
+                and str(last_song[0] or "").strip().lower() == audio_hash
+            ):
+                conn.execute(
+                    """
+                    INSERT INTO app_state (
+                        state_key, state_value, updated_at
+                    )
+                    VALUES ('last_song_hash', '', ?)
+                    ON CONFLICT(state_key)
+                    DO UPDATE SET
+                        state_value = excluded.state_value,
+                        updated_at = excluded.updated_at
+                    """,
+                    (now,),
+                )
+
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+
+    return {
+        "deleted": True,
+        "audio_files_deleted": len(audio_paths),
+    }
+
+
+def clear_deleted_song_session_state(audio_hash):
+    audio_hash = str(audio_hash or "").strip()
+    short_hash = audio_hash[:12]
+
+    if st.session_state.get("active_song_hash") == audio_hash:
+        st.session_state["active_song_hash"] = ""
+
+    st.session_state.pop("active_analysis_version_no", None)
+
+    for key in list(st.session_state.keys()):
+        key_text = str(key)
+        if (
+            (audio_hash and audio_hash in key_text)
+            or (short_hash and short_hash in key_text)
+        ):
+            st.session_state.pop(key, None)
+
+
+def render_delete_song_controls(
+    audio_hash,
+    display_name,
+    key_suffix,
+):
+    st.markdown("---")
+    st.markdown("**Chanson complète**")
+    st.warning(
+        f"Supprimer définitivement « {display_name} » ?"
+    )
+    st.caption(
+        "Supprime l'audio archivé, les analyses, versions, blocs, "
+        "corrections, préférences et données éditoriales."
+    )
+
+    confirmed = st.checkbox(
+        "Je confirme la suppression définitive",
+        key=f"confirm_full_delete_{key_suffix}",
+    )
+
+    if st.button(
+        "🗑 Supprimer définitivement la chanson",
+        disabled=not confirmed,
+        key=f"full_delete_{key_suffix}",
+    ):
+        delete_song_completely(audio_hash)
+        clear_deleted_song_session_state(audio_hash)
+        st.session_state["_pending_main_menu"] = "Répertoire"
+        st.rerun()
 
 
 def _restore_song_version_snapshot(audio_hash, version):
@@ -7393,17 +7790,33 @@ if main_menu == "Répertoire":
 
                 with c5:
                     if selected_version is None:
-                        if st.button(
-                            "Ouvrir",
-                            key=f"open_{sort_key}_{item['audio_hash']}",
-                        ):
-                            selected_audio_hash = item["audio_hash"]
-                            st.session_state["active_song_hash"] = selected_audio_hash
-                            st.session_state.pop("active_analysis_version_no", None)
-                            set_app_state("last_song_hash", selected_audio_hash)
-                            prepare_song_preferences_for_open(selected_audio_hash)
-                            st.session_state["_pending_main_menu"] = "Chanson"
-                            st.rerun()
+                        open_col, delete_col = st.columns([1.5, 0.6])
+
+                        with open_col:
+                            if st.button(
+                                "Ouvrir",
+                                key=f"open_{sort_key}_{item['audio_hash']}",
+                            ):
+                                selected_audio_hash = item["audio_hash"]
+                                st.session_state["active_song_hash"] = selected_audio_hash
+                                st.session_state.pop("active_analysis_version_no", None)
+                                set_app_state("last_song_hash", selected_audio_hash)
+                                prepare_song_preferences_for_open(selected_audio_hash)
+                                st.session_state["_pending_main_menu"] = "Chanson"
+                                st.rerun()
+
+                        with delete_col:
+                            with st.popover("🗑"):
+                                render_delete_song_controls(
+                                    audio_hash=item["audio_hash"],
+                                    display_name=catalog_display_name(
+                                        item,
+                                        sort_by="title",
+                                    ),
+                                    key_suffix=(
+                                        f"{sort_key}_{item['audio_hash']}_noversion"
+                                    ),
+                                )
                     else:
                         a1, a2, a3 = st.columns([1, 1, 1])
 
@@ -7456,11 +7869,12 @@ if main_menu == "Répertoire":
 
                         with a3:
                             with st.popover("🗑"):
+                                st.markdown("**Version sélectionnée**")
                                 st.warning(
                                     f"Supprimer uniquement la version V{selected_version} ?"
                                 )
                                 if st.button(
-                                    "Confirmer",
+                                    "Supprimer cette version",
                                     key=f"delete_v_{item['audio_hash']}_{selected_version}",
                                 ):
                                     delete_analysis_version(
@@ -7484,6 +7898,18 @@ if main_menu == "Répertoire":
                                         )
                                     st.rerun()
 
+                                render_delete_song_controls(
+                                    audio_hash=item["audio_hash"],
+                                    display_name=catalog_display_name(
+                                        item,
+                                        sort_by="title",
+                                    ),
+                                    key_suffix=(
+                                        f"{sort_key}_{item['audio_hash']}_"
+                                        f"{selected_version}"
+                                    ),
+                                )
+
 
 # ------------------------------------------------------------
 # IMPORT
@@ -7502,15 +7928,15 @@ elif main_menu == "Import":
         audio_filename = fichier_audio.name
         audio_hash = audio_sha256(audio_bytes)
 
-        song = ensure_song(
-            audio_hash,
-            audio_filename,
-        )
-
         persist_audio_source(
             audio_hash,
             audio_filename,
             audio_bytes,
+        )
+
+        song = ensure_song(
+            audio_hash,
+            audio_filename,
         )
 
         st.session_state[
@@ -8895,7 +9321,7 @@ if (
                         _preview_edit.get("corrected_text", "") or ""
                     ).strip()
 
-                    _preview_lines = construire_lignes_paroles_intervalle(
+                    _preview_lines = construire_lignes_paroles_completes_intervalle(
                         mesures=mesures_affichees,
                         resultat=resultat,
                         t0=_preview_t0,
@@ -9449,7 +9875,7 @@ if (
                         edit_print.get("corrected_text", "") or ""
                     ).strip()
 
-                    lines_print = construire_lignes_paroles_intervalle(
+                    lines_print = construire_lignes_paroles_completes_intervalle(
                         mesures=mesures_affichees,
                         resultat=resultat,
                         t0=t0_print,

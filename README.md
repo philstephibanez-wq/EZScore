@@ -6192,3 +6192,105 @@ validation existante des blocs
 
 Le mini-player / boucle de bloc n'est volontairement pas ajouté dans ce premier
 test. Il pourra être ajouté après validation ergonomique du split 40/60.
+
+## R10 — Suppression complète / audio conforme / mesures instrumentales
+
+### Source de reprise
+
+Base applicative vérifiée contre le GitHub courant :
+
+```text
+f8c3320b92a50eb47fef79e2e1e4475419a688d8
+cleanup
+```
+
+Les Git blob SHA de `EZScore.py`, `README.md`, du renderer et des templates
+ont été contrôlés avant modification.
+
+### 1. Suppression complète d'une chanson
+
+Le Répertoire distingue désormais :
+
+```text
+Supprimer cette version
+Supprimer définitivement la chanson
+```
+
+La suppression complète est également disponible pour une chanson `Sans version`.
+
+Elle supprime :
+- le ou les fichiers audio dont le SHA-256 correspond au morceau ;
+- toutes les lignes de toutes les tables SQLite possédant `audio_hash` ;
+- la ligne `songs` en dernier ;
+- `app_state.last_song_hash` si nécessaire ;
+- le Session State propre au morceau.
+
+### 2. Copie audio conforme
+
+Les nouveaux imports sont archivés sous :
+
+```text
+data/audio/<nom original du fichier>
+```
+
+Le contenu est recopié octet pour octet et vérifié par SHA-256.
+
+Le SHA-256 reste l'identité technique interne de la chanson mais n'est plus
+utilisé comme nom de fichier.
+
+Un fichier homonyme avec un contenu différent n'est jamais écrasé.
+
+Les anciens fichiers déjà nommés `<sha256>.<extension>` restent lisibles :
+`find_persisted_audio()` recherche par contenu réel.
+
+### 3. Mesures instrumentales dans Paroles + accords
+
+Le moteur vocal historique n'est pas remplacé.
+
+`construire_lignes_paroles_intervalle()` continue de produire exactement les
+lignes chantées. R10 ajoute uniquement les mesures de l'intervalle qui
+n'étaient couvertes par aucune ligne vocale.
+
+Elles apparaissent comme :
+
+```text
+Am---   Em---   Am---   Em---
+[instrumental]
+```
+
+Cela couvre :
+- intro instrumentale ;
+- passage instrumental interne ;
+- fin instrumentale.
+
+Les mêmes lignes sont utilisées dans :
+- `Paroles + accords` ;
+- l'aperçu live de `Blocs` ;
+- l'impression `Paroles + accords`.
+
+### Protection de La Bohème
+
+Si toutes les mesures d'un bloc sont déjà représentées par les lignes vocales
+existantes, R10 n'ajoute rien.
+
+Le calcul historique des paroles, des timestamps, des accords et de leur
+placement n'est pas modifié. Le changement est additif uniquement pour les
+mesures auparavant invisibles.
+
+### Non-régression
+
+R10 ne modifie pas :
+- beat tracking ;
+- analyse harmonique ;
+- Demucs ;
+- Whisper ;
+- détection des mesures ;
+- structure détectée/persistée ;
+- capodastre ;
+- workflow éditorial ;
+- vue Analyse ;
+- pagination papier ;
+- schéma SQLite.
+
+La BDD n'est pas incluse dans le ZIP afin de ne jamais écraser
+`data/EZScore.sqlite3`.
