@@ -1,48 +1,27 @@
-# EZScore R18
+# EZScore R19
 
-## Correction
-Le template racine d'impression est désormais rangé avec les autres templates :
+R19 remplace le synthé Web Audio par une vraie sortie MIDI synchronisée avec le MP3.
 
-```text
-templates/EZScore.score
-```
+## Instruments
+- Electric Guitar (clean) : GM 27, par défaut.
+- Acoustic Grand Piano : GM 0.
 
-EZScore.py appelle maintenant :
+## Pattern
+Un accord MIDI est rejoué à chaque temps.
+Les temps forts utilisent une vélocité plus élevée.
+La guitare applique un léger down grave vers aigu ; le piano joue les notes simultanément.
 
-```python
-SCORE.render("templates/EZScore.score", ...)
-```
+## Player
+Chemin : Chanson > Grille > Jouer.
 
-Le renderer reste inchangé :
+Le MP3 est le transport maître.
+Le player envoie Program Change, Note On et Note Off via Web MIDI.
+Cliquer sur Activer MIDI, choisir une sortie MIDI, puis lancer Play.
 
-```python
-SCORE = ScoreTemplateRenderer(Path(__file__).resolve().parent)
-```
+Aucun oscillateur Web Audio n'est utilisé.
 
-Il n'y a aucun retour à une architecture Python monolithique.
+Le futur player Jouer > Paroles + accords reste une fonction séparée.
 
-## Fichiers modifiés / ajoutés
+## Livrable
 - EZScore.py
-- templates/EZScore.score
 - readme.md
-
-## Structure
-```text
-EZScore/
-├─ EZScore.py
-├─ EZScoreTemplate.py
-├─ templates/
-│  ├─ EZScore.score
-│  ├─ header.score
-│  ├─ left-panel.score
-│  └─ views/
-└─ data/
-```
-
-## Mise à jour locale
-```bat
-cd /d H:\EZScore
-git pull
-python -m py_compile EZScore.py
-streamlit run EZScore.py
-```
