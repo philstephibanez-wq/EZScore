@@ -6455,3 +6455,110 @@ La vue Analyse affiche :
 
 Le moteur passe à `V26_R11_HARMONIC_GRID_X2`, ce qui force une nouvelle
 `analysis_key` sans modifier le schéma SQLite.
+
+## R12 — Réanalyse explicite / harmonie affinée / déroulé Riffstation / phonétique
+
+### Source de reprise
+
+R12 repart strictement du GitHub poussé :
+
+```text
+a8e8444259dcd20392a7897778b53b693de4c0d3
+EZSCORE_R11_HARMONIC
+```
+
+Les fichiers applicatifs ont été contrôlés par Git blob SHA.
+
+### 1. Réanalyse explicite
+
+`Appliquer les paramètres` force désormais réellement le recalcul musical,
+même si une analyse avec exactement la même `analysis_key` existe déjà.
+
+Le cache de `analyser_musique_cache()` est vidé uniquement lors de cette action
+explicite.
+
+Whisper reste en cache si l'audio et son modèle n'ont pas changé, afin d'éviter
+40 secondes de transcription inutiles lors d'un simple réglage harmonique.
+
+### 2. Harmonie R12
+
+La détection d'accords fusionne désormais :
+
+```text
+72 % Demucs no_vocals
+28 % composante harmonique du mix original
+```
+
+Raison : Demucs peut retirer avec la voix une partie des harmoniques de guitare.
+Riffstation travaille beaucoup plus directement sur le mix.
+
+Le prior global des accords dominants a été fortement adouci afin de ne plus
+écraser un accord local clair dans une intro.
+
+Sur la grille ×2 :
+
+- lissage inter-beats réduit ;
+- pénalité de changement réduite ;
+- accord d'un seul beat moins pénalisé ;
+- une preuve locale forte peut reprendre la main sur le décodeur régional ;
+- la stabilisation `X-Y-X` reste stricte.
+
+### 3. Déroulé harmonique type Riffstation
+
+La vue Analyse affiche maintenant :
+
+```text
+waveform
++ régions harmoniques continues
++ nom de l'accord dans chaque région
++ blocs structurels
++ zoom
++ barre overview
+```
+
+Les régions sont calculées depuis les beats effectifs : toute correction
+manuelle d'accord est donc immédiatement reflétée.
+
+### 4. Analyse phonétique expérimentale
+
+Pour le français, R12 crée une timeline phonétique estimée à partir :
+
+```text
+texte Whisper
++ timestamps de mots
++ règles françaises de liaison/enchaînement
+```
+
+Exemple de représentation :
+
+```text
+les amis
+le‿z ami
+```
+
+Cette première étape est volontairement nommée *expérimentale* :
+elle ne constitue pas encore une reconnaissance acoustique phonème par phonème.
+Elle prépare la couche future :
+
+```text
+Demucs vocals
+→ détection phonèmes acoustiques
+→ alignement phonèmes / mots Whisper
+→ timeline syllabique
+```
+
+### Édition manuelle
+
+L'éditeur d'accords et de battements est inchangé. Les corrections persistent
+dans `beat_edits` et alimentent grille, paroles et nouveau déroulé harmonique.
+
+### Moteur
+
+```text
+V27_R12_HARMONIC_ENSEMBLE_PHONETIC
+```
+
+Le changement de version empêche de confondre une analyse R11 et une analyse R12.
+
+La BDD n'est pas incluse dans le ZIP et aucun changement de schéma SQLite
+n'est nécessaire.

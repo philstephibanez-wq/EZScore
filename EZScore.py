@@ -3,6 +3,7 @@ import html
 import numpy as np
 import librosa
 import plotly.express as px
+import plotly.graph_objects as go
 import pandas as pd
 import tempfile
 import os
@@ -1079,7 +1080,7 @@ def preparer_mesures_affichage(mesures, signature, capo):
 # ============================================================
 
 PERSISTENCE_SCHEMA_VERSION = 1
-ANALYSIS_ENGINE_VERSION = "V26_R11_HARMONIC_GRID_X2"
+ANALYSIS_ENGINE_VERSION = "V27_R12_HARMONIC_ENSEMBLE_PHONETIC"
 
 APP_DIR = Path(__file__).resolve().parent
 DATA_DIR = APP_DIR / "data"
@@ -6076,8 +6077,14 @@ def analyser_musique_cache(
         # HPSS du mix original pour les beats.
         _, y_perc = librosa.effects.hpss(y_original)
 
-        # HPSS de no_vocals pour l'harmonie.
+        # HPSS de no_vocals pour l'harmonie principale.
         y_harm, _ = librosa.effects.hpss(y_accomp)
+
+        # R12 : on conserve aussi une composante harmonique du mix original.
+        # Demucs peut parfois retirer une partie utile de la guitare avec la
+        # voix. L'ensemble 72 % no_vocals + 28 % mix évite de perdre ces
+        # informations sans remettre la voix au premier plan.
+        y_harm_mix, _ = librosa.effects.hpss(y_original)
 
         # Tempo + beats bruts
         tempo, beat_frames = librosa.beat.beat_track(
@@ -6146,21 +6153,79 @@ def analyser_musique_cache(
         _rhythm_seconds = time.perf_counter() - _rhythm_started
         _harmony_started = time.perf_counter()
 
-        # Chroma CQT conservé pour la qualité
-        chroma = librosa.feature.chroma_cqt(
+        # R12 : deux vues harmoniques du même signal.
+        chroma_accomp = librosa.feature.chroma_cqt(
             y=y_harm,
             sr=sr,
             hop_length=hop_length
         )
+        chroma_mix = librosa.feature.chroma_cqt(
+            y=y_harm_mix,
+            sr=sr,
+            hop_length=hop_length
+        )
 
-        # Indice de fondamentale dans les deux octaves graves.
-        # Il sert uniquement de confirmation de racine.
-        chroma_fondamentale = librosa.feature.chroma_cqt(
+        fondamentale_accomp = librosa.feature.chroma_cqt(
             y=y_harm,
             sr=sr,
             hop_length=hop_length,
             fmin=librosa.note_to_hz("E1"),
             n_octaves=2,
+        )
+        fondamentale_mix = librosa.feature.chroma_cqt(
+            y=y_harm_mix,
+            sr=sr,
+            hop_length=hop_length,
+            fmin=librosa.note_to_hz("E1"),
+            n_octaves=2,
+        )
+
+        # Les sorties Demucs et mix original peuvent différer de quelques
+        # frames. On tronque uniquement à la zone réellement commune.
+        common_frames = min(
+            chroma_accomp.shape[1],
+            chroma_mix.shape[1],
+            fondamentale_accomp.shape[1],
+            fondamentale_mix.shape[1],
+        )
+        chroma_accomp = chroma_accomp[:, :common_frames]
+        chroma_mix = chroma_mix[:, :common_frames]
+        fondamentale_accomp = fondamentale_accomp[:, :common_frames]
+        fondamentale_mix = fondamentale_mix[:, :common_frames]
+
+        chroma_accomp_norm = librosa.util.normalize(
+            chroma_accomp,
+            axis=0,
+        )
+        chroma_mix_norm = librosa.util.normalize(
+            chroma_mix,
+            axis=0,
+        )
+        fondamentale_accomp_norm = librosa.util.normalize(
+            fondamentale_accomp,
+            axis=0,
+        )
+        fondamentale_mix_norm = librosa.util.normalize(
+            fondamentale_mix,
+            axis=0,
+        )
+
+        chroma_norm = librosa.util.normalize(
+            0.72 * chroma_accomp_norm
+            + 0.28 * chroma_mix_norm,
+            axis=0,
+        )
+        fondamentale_norm = librosa.util.normalize(
+            0.78 * fondamentale_accomp_norm
+            + 0.22 * fondamentale_mix_norm,
+            axis=0,
+        )
+
+        # `chroma` reste le signal de référence pour la tonalité et les
+        # diagnostics, mais représente maintenant l'ensemble harmonique.
+        chroma = (
+            0.72 * chroma_accomp
+            + 0.28 * chroma_mix
         )
 
         templates, dictionnaire_accords = creer_templates_accords()
@@ -6169,13 +6234,6 @@ def analyser_musique_cache(
         prior_accords = creer_prior_accords(
             tonalite,
             dictionnaire_accords
-        )
-
-        # Normalisation colonne par colonne
-        chroma_norm = librosa.util.normalize(chroma, axis=0)
-        fondamentale_norm = librosa.util.normalize(
-            chroma_fondamentale,
-            axis=0
         )
 
         # Évidence de l'accompagnement : triades sur le spectre harmonique.
@@ -6352,17 +6410,24 @@ def analyser_musique_cache(
         smoothed_scores = beat_score_matrix.copy()
 
         if len(smoothed_scores) >= 2:
+            if beat_grid_refinement.get("accepted", False):
+                center_weight = 0.80
+                neighbor_weight = 0.10
+            else:
+                center_weight = 0.60
+                neighbor_weight = 0.20
+
             for i in range(len(smoothed_scores)):
-                total = 0.60 * beat_score_matrix[i]
-                poids = 0.60
+                total = center_weight * beat_score_matrix[i]
+                poids = center_weight
 
                 if i > 0:
-                    total += 0.20 * beat_score_matrix[i - 1]
-                    poids += 0.20
+                    total += neighbor_weight * beat_score_matrix[i - 1]
+                    poids += neighbor_weight
 
                 if i + 1 < len(smoothed_scores):
-                    total += 0.20 * beat_score_matrix[i + 1]
-                    poids += 0.20
+                    total += neighbor_weight * beat_score_matrix[i + 1]
+                    poids += neighbor_weight
 
                 smoothed_scores[i] = total / poids
                 smoothed_scores[i] /= smoothed_scores[i].sum()
@@ -6447,23 +6512,23 @@ def analyser_musique_cache(
         # Prior global
         # ----------------------------------------------------
 
+        # R12 : le contexte global ne doit plus écraser un accord local
+        # clairement présent dans l'intro. Il reste un biais doux, pas une
+        # décision.
         prior_vocabulaire = np.full(
             len(dictionnaire_accords),
-            0.68,
+            0.90,
             dtype=np.float64
         )
 
         prior_vocabulaire[top_vocabulaire] = 1.00
 
-        # Les deux dominants obtiennent un bonus sensible.
-        prior_vocabulaire[pair_a] = 1.32
-        prior_vocabulaire[pair_b] = 1.32
+        prior_vocabulaire[pair_a] = 1.08
+        prior_vocabulaire[pair_b] = 1.08
 
-        # Si le motif alterné est détecté, on renforce encore légèrement
-        # le couple, mais jamais au point d'interdire un autre accord.
         if alternance_active:
-            prior_vocabulaire[pair_a] = 1.48
-            prior_vocabulaire[pair_b] = 1.48
+            prior_vocabulaire[pair_a] = 1.12
+            prior_vocabulaire[pair_b] = 1.12
 
         scores_contextuels = (
             smoothed_scores
@@ -6510,14 +6575,14 @@ def analyser_musique_cache(
         if beat_grid_refinement.get("accepted", False):
             durees = (1, 2, 3, 4, 6, 8)
             bonus_duree = {
-                1: -0.38,
-                2:  0.34,
-                3: -0.06,
-                4:  0.30,
-                6:  0.10,
-                8:  0.16,
+                1: -0.15,
+                2:  0.28,
+                3: -0.02,
+                4:  0.24,
+                6:  0.08,
+                8:  0.12,
             }
-            penalite_changement = 0.24
+            penalite_changement = 0.15
         else:
             durees = (1, 2, 3, 4)
             bonus_duree = {
@@ -6691,6 +6756,42 @@ def analyser_musique_cache(
         beats.sort(key=lambda b: b['index'])
 
         # ----------------------------------------------------
+        # R12 — PREUVE LOCALE FORTE
+        # ----------------------------------------------------
+        # Le décodeur régional apporte de la stabilité, mais il ne doit pas
+        # effacer un A/D/G/C court et spectralement net. Sur la grille ×2,
+        # une évidence locale forte peut donc reprendre la main.
+        local_evidence_overrides = 0
+
+        if beat_grid_refinement.get("accepted", False):
+            for i, beat in enumerate(beats):
+                if beat.get("accord") == ".":
+                    continue
+                if i >= len(beat_score_matrix):
+                    continue
+
+                row_local = beat_score_matrix[i]
+                ordre_local = np.argsort(row_local)
+                best_idx = int(ordre_local[-1])
+                second_idx = int(ordre_local[-2])
+                best_score = float(row_local[best_idx])
+                second_score = float(row_local[second_idx])
+                ratio_local = best_score / (second_score + 1e-12)
+                marge_local = best_score - second_score
+                accord_local = dictionnaire_accords[best_idx]
+
+                if (
+                    accord_local != beat.get("accord")
+                    and ratio_local >= 1.16
+                    and marge_local >= 0.018
+                ):
+                    beat["accord"] = accord_local
+                    beat["local_evidence_override"] = True
+                    beat["local_ratio_top2"] = ratio_local
+                    beat["local_marge_top2"] = marge_local
+                    local_evidence_overrides += 1
+
+        # ----------------------------------------------------
         # STABILISATION CONSERVATIVE DES MICRO-VARIATIONS
         # ----------------------------------------------------
         # Riffstation montre des régions harmoniques longues. EZScore garde
@@ -6821,6 +6922,11 @@ def analyser_musique_cache(
             "poids_fondamentale": poids_fondamentale,
             "poids_accompagnement": 1.0 - poids_fondamentale,
             "micro_variations_stabilisees": micro_variations_stabilisees,
+            "local_evidence_overrides": int(local_evidence_overrides),
+            "harmonic_source_mix": {
+                "no_vocals": 0.72,
+                "original_mix": 0.28,
+            },
             "harmonic_regions": int(
                 sum(
                     1
@@ -6901,6 +7007,157 @@ def extraire_mots(resultat):
             })
 
     return mots
+
+
+def _fr_phonetic_word(word):
+    """
+    Approximation phonétique française lisible (type IPA simplifié).
+
+    Cette première couche R12 est dérivée du texte Whisper et sert à
+    préparer l'alignement phonétique. Ce n'est pas encore un détecteur
+    acoustique de phonèmes.
+    """
+    w = str(word or "").lower().strip()
+    w = re.sub(r"[^a-zàâäéèêëîïôöùûüÿçœæ'-]", "", w)
+
+    if not w:
+        return ""
+
+    replacements = [
+        ("eaux", "o"),
+        ("eau", "o"),
+        ("aux", "o"),
+        ("au", "o"),
+        ("oin", "wɛ̃"),
+        ("ain", "ɛ̃"),
+        ("ein", "ɛ̃"),
+        ("aim", "ɛ̃"),
+        ("in", "ɛ̃"),
+        ("im", "ɛ̃"),
+        ("un", "œ̃"),
+        ("um", "œ̃"),
+        ("an", "ɑ̃"),
+        ("am", "ɑ̃"),
+        ("en", "ɑ̃"),
+        ("em", "ɑ̃"),
+        ("on", "ɔ̃"),
+        ("om", "ɔ̃"),
+        ("ou", "u"),
+        ("oi", "wa"),
+        ("gn", "ɲ"),
+        ("ill", "j"),
+        ("ph", "f"),
+        ("ch", "ʃ"),
+        ("th", "t"),
+        ("qu", "k"),
+        ("gu", "g"),
+    ]
+
+    for src, dst in replacements:
+        w = w.replace(src, dst)
+
+    # Quelques valeurs graphème -> son très usuelles.
+    w = re.sub(r"c(?=[eéièêëiy])", "s", w)
+    w = w.replace("c", "k")
+    w = re.sub(r"g(?=[eéièêëiy])", "ʒ", w)
+    w = w.replace("j", "ʒ")
+    w = w.replace("r", "ʁ")
+    w = w.replace("u", "y")
+    w = w.replace("é", "e")
+    w = w.replace("er", "e")
+    w = w.replace("ez", "e")
+    w = w.replace("è", "ɛ")
+    w = w.replace("ê", "ɛ")
+    w = w.replace("ai", "ɛ")
+    w = w.replace("ais", "ɛ")
+    w = w.replace("ait", "ɛ")
+    w = w.replace("ç", "s")
+    w = w.replace("y", "j")
+    w = w.replace("œ", "œ")
+    w = w.replace("â", "ɑ")
+    w = w.replace("ô", "o")
+
+    # Consonnes finales souvent muettes : règle volontairement prudente.
+    w = re.sub(r"[tdspx]$", "", w)
+    w = re.sub(r"e$", "", w)
+
+    return w
+
+
+def construire_timeline_phonetique(resultat):
+    """
+    Timeline phonétique estimée à partir des mots horodatés Whisper.
+
+    Les liaisons françaises probables sont signalées par `‿z` ou `‿t`.
+    L'objectif est de rendre visible le flux lié du français avant
+    l'introduction future d'un véritable modèle acoustique phonème/CTC.
+    """
+    words = extraire_mots(resultat)
+    language = str(resultat.get("language", "") or "").lower()
+
+    if not language.startswith("fr"):
+        return []
+
+    vowels = "aàâäeéèêëiîïoôöuùûüœæy"
+    timeline = []
+
+    for i, word in enumerate(words):
+        text_word = str(word.get("text", "") or "").strip()
+        phonetic = _fr_phonetic_word(text_word)
+        liaison = ""
+
+        if i + 1 < len(words):
+            next_word = str(words[i + 1].get("text", "") or "").strip().lower()
+            current = re.sub(r"[^a-zàâäéèêëîïôöùûüÿçœæ]", "", text_word.lower())
+
+            if next_word and next_word[0] in vowels:
+                if current.endswith(("s", "x", "z")):
+                    liaison = "‿z"
+                elif current.endswith(("d", "t")):
+                    liaison = "‿t"
+                elif current.endswith("n"):
+                    liaison = "‿n"
+
+        if liaison:
+            phonetic = f"{phonetic}{liaison}"
+
+        timeline.append({
+            "Mot": text_word,
+            "Phonétique": phonetic,
+            "Début": float(word.get("start", 0.0)),
+            "Fin": float(word.get("end", word.get("start", 0.0))),
+            "Liaison": bool(liaison),
+        })
+
+    return timeline
+
+
+def construire_groupes_phonetiques(timeline, max_words=8):
+    groups = []
+    current = []
+
+    for item in timeline:
+        current.append(item)
+        if len(current) >= max_words or not item.get("Liaison", False):
+            groups.append(current)
+            current = []
+
+    if current:
+        groups.append(current)
+
+    result = []
+    for group in groups:
+        if not group:
+            continue
+        result.append({
+            "debut": float(group[0]["Début"]),
+            "fin": float(group[-1]["Fin"]),
+            "texte": " ".join(str(x["Mot"]) for x in group),
+            "phonetique": " ".join(str(x["Phonétique"]) for x in group),
+        })
+
+    return result
+
 
 
 def position_caractere_pour_temps(mots, temps):
@@ -7372,6 +7629,239 @@ def creer_dataframe_timeline(beats):
         for beat in beats
         if beat["accord"] != "."
     ])
+
+
+def creer_regions_harmoniques(beats):
+    """
+    Regroupe les beats contigus portant le même accord.
+    Les corrections manuelles sont déjà appliquées en amont, donc elles
+    apparaissent automatiquement ici.
+    """
+    regions = []
+    current = None
+
+    for beat in beats:
+        chord = str(beat.get("accord", "") or "")
+        if chord == ".":
+            if current is not None:
+                regions.append(current)
+                current = None
+            continue
+
+        start = float(beat.get("temps", 0.0))
+        end = float(beat.get("fin", start))
+
+        if current is not None and current["accord"] == chord:
+            current["fin"] = end
+        else:
+            if current is not None:
+                regions.append(current)
+            current = {
+                "accord": chord,
+                "debut": start,
+                "fin": end,
+            }
+
+    if current is not None:
+        regions.append(current)
+
+    return regions
+
+
+@st.cache_data(show_spinner=False)
+def waveform_preview_cache(audio_bytes, extension, max_points=1800):
+    """
+    Waveform légère dédiée au déroulé harmonique.
+    Aucun calcul harmonique ici.
+    """
+    path = creer_fichier_temporaire(audio_bytes, extension)
+    try:
+        y, sr = librosa.load(
+            path,
+            sr=8000,
+            mono=True,
+        )
+    finally:
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+    if len(y) == 0:
+        return {"times": [], "amplitude": [], "duration": 0.0}
+
+    max_points = max(200, int(max_points))
+    step = max(1, int(np.ceil(len(y) / max_points)))
+
+    chunks = []
+    times = []
+
+    for start in range(0, len(y), step):
+        chunk = y[start:start + step]
+        if len(chunk) == 0:
+            continue
+        peak = float(np.max(np.abs(chunk)))
+        chunks.append(peak)
+        times.append(float(start / sr))
+
+    arr = np.asarray(chunks, dtype=np.float64)
+    peak = float(np.max(arr)) if len(arr) else 0.0
+    if peak > 0:
+        arr = arr / peak
+
+    return {
+        "times": times,
+        "amplitude": arr.tolist(),
+        "duration": float(len(y) / sr),
+    }
+
+
+def creer_figure_deroule_riffstation(
+    beats,
+    sections,
+    audio_bytes,
+    extension,
+):
+    """
+    Déroulé harmonique inspiré du principe visuel de Riffstation :
+    waveform + régions d'accords longues + overview/zoom.
+    """
+    waveform = waveform_preview_cache(
+        audio_bytes,
+        extension,
+    )
+    regions = creer_regions_harmoniques(beats)
+
+    fig = go.Figure()
+
+    times = waveform.get("times", [])
+    amplitudes = waveform.get("amplitude", [])
+
+    if times and amplitudes:
+        fig.add_trace(
+            go.Scatter(
+                x=times,
+                y=amplitudes,
+                mode="lines",
+                name="Waveform",
+                line=dict(width=1),
+                hoverinfo="skip",
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=times,
+                y=[-float(v) for v in amplitudes],
+                mode="lines",
+                name="Waveform",
+                line=dict(width=1),
+                hoverinfo="skip",
+                showlegend=False,
+            )
+        )
+
+    palette = [
+        "#ff7a18", "#2f80ed", "#27ae60", "#9b51e0",
+        "#eb5757", "#f2c94c", "#56ccf2", "#6fcf97",
+        "#bb6bd9", "#f2994a", "#219653", "#2d9cdb",
+    ]
+    chord_colors = {}
+
+    for region in regions:
+        chord = region["accord"]
+        if chord not in chord_colors:
+            chord_colors[chord] = palette[
+                len(chord_colors) % len(palette)
+            ]
+
+        x0 = float(region["debut"])
+        x1 = float(region["fin"])
+        duration = max(0.0, x1 - x0)
+
+        fig.add_shape(
+            type="rect",
+            x0=x0,
+            x1=x1,
+            y0=-1.48,
+            y1=-1.12,
+            line=dict(width=0),
+            fillcolor=chord_colors[chord],
+            opacity=0.95,
+            layer="above",
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=[(x0 + x1) / 2.0],
+                y=[-1.30],
+                mode="text",
+                text=[chord],
+                textfont=dict(size=12),
+                hovertemplate=(
+                    f"<b>{html.escape(chord)}</b><br>"
+                    f"{x0:.2f}s → {x1:.2f}s"
+                    "<extra></extra>"
+                ),
+                showlegend=False,
+            )
+        )
+
+        if duration < 0.22:
+            continue
+
+    for section in sections:
+        x0 = float(section.get("time_start", 0.0))
+        x1 = float(section.get("time_end", x0))
+        fig.add_vline(
+            x=x0,
+            line_width=1,
+            opacity=0.20,
+        )
+        if x1 > x0:
+            fig.add_annotation(
+                x=(x0 + x1) / 2.0,
+                y=1.18,
+                text=libelle_bloc_affiche(section),
+                showarrow=False,
+                font=dict(size=10),
+            )
+
+    duration = float(
+        waveform.get("duration", 0.0)
+        or max(
+            [float(b.get("fin", 0.0)) for b in beats] + [1.0]
+        )
+    )
+    tick_step = 30.0 if duration >= 90.0 else 15.0
+    tickvals = list(np.arange(0.0, duration + tick_step, tick_step))
+    ticktext = [
+        f"{int(v // 60):02d}:{int(v % 60):02d}"
+        for v in tickvals
+    ]
+
+    fig.update_layout(
+        height=430,
+        margin=dict(l=10, r=10, t=36, b=30),
+        showlegend=False,
+        dragmode="zoom",
+        hovermode="closest",
+        xaxis=dict(
+            title="Temps",
+            range=[0, duration],
+            tickmode="array",
+            tickvals=tickvals,
+            ticktext=ticktext,
+            rangeslider=dict(visible=True),
+            fixedrange=False,
+        ),
+        yaxis=dict(
+            range=[-1.62, 1.30],
+            visible=False,
+            fixedrange=True,
+        ),
+    )
+
+    return fig, regions
 
 
 
@@ -8621,7 +9111,7 @@ if (
             analysis_parameters = selected_version_data["parameters"]
             analyse_source = "persisted_version"
 
-        elif persisted is not None:
+        elif persisted is not None and not force_analysis:
             musique = persisted["musique"]
             resultat = persisted["resultat"]
             analyse_source = "persisted_exact"
@@ -8638,6 +9128,13 @@ if (
             analysis_parameters = latest_persisted["parameters"]
 
         else:
+            if force_analysis:
+                # « Appliquer les paramètres » doit réellement recalculer
+                # l'analyse musicale, même si la clé de paramètres existe déjà.
+                # Whisper reste en cache : changer un seuil harmonique ne
+                # nécessite pas de retranscrire l'audio.
+                analyser_musique_cache.clear()
+
             spinner_message = (
                 "Nouvelle analyse avec les paramètres validés..."
                 if latest_persisted is not None
@@ -10532,72 +11029,22 @@ if (
 
             st.subheader("📊 Déroulé harmonique")
 
-            df = creer_dataframe_timeline(beats)
+            regions = creer_regions_harmoniques(beats)
 
-            if df.empty:
+            if not regions:
                 st.info("Aucune donnée harmonique disponible pour cette analyse.")
             else:
-                origine = pd.Timestamp("1970-01-01")
-                df["Début_dt"] = origine + pd.to_timedelta(
-                    df["Début"],
-                    unit="s",
+                fig, regions = creer_figure_deroule_riffstation(
+                    beats=beats,
+                    sections=sections_structurelles,
+                    audio_bytes=audio_bytes,
+                    extension=extension,
                 )
-                df["Fin_dt"] = origine + pd.to_timedelta(
-                    df["Fin"],
-                    unit="s",
-                )
-                df["Morceau"] = "Audio"
-
-                fig = px.timeline(
-                    df,
-                    x_start="Début_dt",
-                    x_end="Fin_dt",
-                    y="Morceau",
-                    color="Accord",
-                    text="Accord",
-                    hover_data={
-                        "Début": ":.2f",
-                        "Fin": ":.2f",
-                    },
-                )
-
-                for section in sections_structurelles:
-                    section_start = origine + pd.to_timedelta(
-                        float(section["time_start"]),
-                        unit="s",
-                    )
-                    section_end = origine + pd.to_timedelta(
-                        float(section["time_end"]),
-                        unit="s",
-                    )
-                    fig.add_vrect(
-                        x0=section_start,
-                        x1=section_end,
-                        opacity=0.08,
-                        line_width=1,
-                        annotation_text=libelle_bloc_affiche(section),
-                        annotation_position="top left",
-                    )
-
                 fig.update_layout(
-                    xaxis=dict(
-                        title="Temps",
-                        tickformat="%M:%S",
-                        fixedrange=False,
-                        rangeslider=dict(visible=True),
-                    ),
-                    yaxis=dict(
-                        title="",
-                        showticklabels=False,
-                        fixedrange=True,
-                    ),
-                    dragmode="zoom",
-                    height=430,
                     uirevision=(
                         f"analyse-{audio_hash[:12]}-"
                         f"{_version_no if _version_no is not None else 'current'}"
-                    ),
-                    margin=dict(l=10, r=10, t=35, b=25),
+                    )
                 )
 
                 st.plotly_chart(
@@ -10611,10 +11058,51 @@ if (
                 )
 
                 st.caption(
-                    "Zoom : molette sur le graphe, sélection rectangulaire, "
-                    "barre inférieure ou outils Plotly. Double-clic pour revenir "
-                    "à l'ensemble du morceau."
+                    "Waveform + régions d'accords : zoom à la molette, "
+                    "barre inférieure ou outils Plotly. Les corrections "
+                    "manuelles d'accords sont reflétées automatiquement."
                 )
+
+            _phonetic_timeline = construire_timeline_phonetique(
+                resultat
+            )
+            if _phonetic_timeline:
+                st.markdown("### 🔤 Analyse phonétique expérimentale")
+                st.caption(
+                    "Couche française dérivée du texte Whisper et de ses "
+                    "timestamps. Les liaisons probables sont explicitées. "
+                    "Cette R12 prépare l'alignement phonème acoustique ; "
+                    "elle ne prétend pas encore détecter chaque phonème "
+                    "directement dans le signal."
+                )
+
+                _phonetic_groups = construire_groupes_phonetiques(
+                    _phonetic_timeline
+                )
+
+                if _phonetic_groups:
+                    preview_rows = []
+                    for group in _phonetic_groups[:24]:
+                        preview_rows.append({
+                            "Temps": (
+                                f"{group['debut']:.2f}–"
+                                f"{group['fin']:.2f}s"
+                            ),
+                            "Paroles": group["texte"],
+                            "Phonétique": group["phonetique"],
+                        })
+
+                    st.dataframe(
+                        pd.DataFrame(preview_rows),
+                        width="stretch",
+                        hide_index=True,
+                    )
+
+                    if len(_phonetic_groups) > 24:
+                        st.caption(
+                            f"{len(_phonetic_groups) - 24} groupe(s) "
+                            "phonétique(s) supplémentaire(s) non affiché(s)."
+                        )
 
             st.markdown("### Diagnostics")
 
@@ -10673,7 +11161,26 @@ if (
                     )
 
             with diag_right:
-                st.write("Source accords : **Demucs no_vocals + moteur R11 à grille adaptative**")
+                st.write(
+                    "Source accords : **ensemble R12 "
+                    "Demucs no_vocals + mix original**"
+                )
+                _source_mix = dict(
+                    musique.get("harmonic_source_mix", {}) or {}
+                )
+                if _source_mix:
+                    st.write(
+                        "Fusion harmonique : "
+                        f"**{100 * float(_source_mix.get('no_vocals', 0.0)):.0f} % "
+                        "no_vocals / "
+                        f"{100 * float(_source_mix.get('original_mix', 0.0)):.0f} % "
+                        "mix original**"
+                    )
+
+                st.write(
+                    "Corrections par preuve locale forte : "
+                    f"**{int(musique.get('local_evidence_overrides', 0) or 0)}**"
+                )
 
                 if accords_dominants:
                     st.write(
