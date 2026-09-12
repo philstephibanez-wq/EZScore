@@ -6308,3 +6308,86 @@ Source GitHub : `d3a0f1cd91884a2d63a2849ce0fa695a4d3d2360` (`R10`).
 - warnings Triton de `whisper.timing` masqués, sans désactiver CUDA ;
 - suppression complète, nom audio original, mesures instrumentales, Blocs,
   Analyse, workflow éditorial et base SQLite conservés.
+
+## R10d — Progression réelle / profilage / stabilité harmonique
+
+### Source de reprise
+
+Base GitHub :
+
+```text
+948aba00f401dca7d69a50edf6a242a99e6ddc49
+R10B ok
+```
+
+R10d réintègre également le workflow R10c demandé :
+import → ouverture automatique → pré-écoute → `Appliquer les paramètres` → analyse.
+
+### Barre de progression
+
+Pendant un calcul neuf, EZScore affiche un statut et une barre de progression
+liés aux événements réels :
+
+```text
+Préparation
+→ Demucs / rythme / harmonie + Whisper en parallèle
+→ branche musicale terminée
+→ branche Whisper terminée
+→ finalisation / persistance
+→ 100 %
+```
+
+La progression n'est pas un timer artificiel : elle avance quand les tâches
+réelles se terminent.
+
+### Profilage
+
+La vue `Analyse` expose désormais :
+
+```text
+Demucs
+Rythme + harmonie
+Whisper
+Total
+```
+
+Les timings sont stockés avec l'analyse dans `music_json`, ce qui permet de
+comparer les versions et de cibler les optimisations.
+
+### Stabilisation harmonique conservative
+
+EZScore conserve son décodeur harmonique par régions de 1 à 4 beats.
+
+Une seconde passe corrige uniquement une micro-variation d'un beat quand :
+
+- l'accord précédent et suivant sont identiques ;
+- il n'y a aucun silence ;
+- l'accord isolé est faiblement discriminé (`ratio_top2 < 1.18` ou
+  `marge_top2 < 0.045`).
+
+Un changement fort ou tenu plusieurs beats n'est jamais supprimé par cette
+passe.
+
+Le nombre de micro-variations stabilisées est affiché dans la vue `Analyse`.
+
+### Objectif par rapport à Riffstation
+
+Riffstation privilégie visuellement de longues régions harmoniques. R10d
+rapproche EZScore de cette stabilité sans abandonner la résolution beat par
+beat ni le contrat :
+
+> Interpréter le signal audio, ne pas inventer une progression.
+
+### Conservé
+
+- suppression complète de chanson ;
+- copie audio sous nom original ;
+- pré-écoute avant première analyse ;
+- mesures instrumentales ;
+- paroles synchronisées ;
+- aperçu live Blocs ;
+- CUDA / Whisper / Demucs ;
+- warnings Triton optionnels filtrés ;
+- workflow éditorial ;
+- impression ;
+- `data/EZScore.sqlite3` inchangée.

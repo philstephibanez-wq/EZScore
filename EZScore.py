@@ -14,6 +14,7 @@ import json
 import hashlib
 import re
 import warnings
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 import torch
@@ -724,8 +725,9 @@ with st.sidebar.expander("⚙️ Réglages avancés", expanded=False):
         )
 
 st.sidebar.caption(
-    "Les réglages avancés sont mémorisés par chanson après « Appliquer ». "
-    "Le capo est mémorisé immédiatement et ne relance jamais l'analyse."
+    "« Appliquer les paramètres » mémorise les réglages du morceau et "
+    "lance l'analyse avec ces valeurs. Le capo est mémorisé immédiatement "
+    "et ne relance jamais l'analyse."
 )
 
 # ============================================================
@@ -5871,14 +5873,18 @@ def analyser_musique_cache(
     Aucune logique d'accord supplémentaire n'est ajoutée.
     """
     workdir = None
+    _music_started = time.perf_counter()
 
     try:
+        _demucs_started = time.perf_counter()
         workdir, original_path, accompaniment_path = (
             separer_accompagnement_demucs(
                 audio_bytes,
                 extension
             )
         )
+        _demucs_seconds = time.perf_counter() - _demucs_started
+        _rhythm_started = time.perf_counter()
 
         # Original uniquement pour le rythme / beat tracking.
         y_original, sr = librosa.load(
@@ -5950,6 +5956,9 @@ def analyser_musique_cache(
         else:
             signature_effective = signature_mode
             beats_par_mesure = signature_map[signature_mode]
+
+        _rhythm_seconds = time.perf_counter() - _rhythm_started
+        _harmony_started = time.perf_counter()
 
         # Chroma CQT conservé pour la qualité
         chroma = librosa.feature.chroma_cqt(
@@ -6485,6 +6494,52 @@ def analyser_musique_cache(
 
         beats.sort(key=lambda b: b['index'])
 
+        # ----------------------------------------------------
+        # STABILISATION CONSERVATIVE DES MICRO-VARIATIONS
+        # ----------------------------------------------------
+        # Riffstation montre des régions harmoniques longues. EZScore garde
+        # son analyse beat par beat, mais supprime uniquement un accord isolé
+        # d'un beat lorsque :
+        #   - les voisins portent exactement le même accord ;
+        #   - aucun des trois beats n'est un silence ;
+        #   - l'accord isolé est faiblement discriminé.
+        #
+        # Un changement fort ou tenu sur plusieurs beats reste intact.
+        micro_variations_stabilisees = 0
+
+        if len(beats) >= 3:
+            accords_originaux = [
+                str(b.get("accord", ""))
+                for b in beats
+            ]
+
+            for i in range(1, len(beats) - 1):
+                prev_accord = accords_originaux[i - 1]
+                accord = accords_originaux[i]
+                next_accord = accords_originaux[i + 1]
+
+                if (
+                    prev_accord in ("", ".")
+                    or accord in ("", ".")
+                    or next_accord in ("", ".")
+                    or prev_accord != next_accord
+                    or accord == prev_accord
+                ):
+                    continue
+
+                ratio = float(beats[i].get("ratio_top2", 999.0))
+                marge = float(beats[i].get("marge_top2", 999.0))
+
+                faible_preuve = (
+                    ratio < 1.18
+                    or marge < 0.045
+                )
+
+                if faible_preuve:
+                    beats[i]["accord"] = prev_accord
+                    beats[i]["stabilise_micro_variation"] = True
+                    micro_variations_stabilisees += 1
+
         # Détection conservative du point d'orgue :
         # un intervalle anormalement long + harmonie présente + accord actif.
         fermata_beats = set()
@@ -6561,6 +6616,17 @@ def analyser_musique_cache(
             "silence_chroma_ratio": silence_chroma_ratio,
             "poids_fondamentale": poids_fondamentale,
             "poids_accompagnement": 1.0 - poids_fondamentale,
+            "micro_variations_stabilisees": micro_variations_stabilisees,
+            "performance": {
+                "demucs_seconds": float(_demucs_seconds),
+                "rhythm_seconds": float(_rhythm_seconds),
+                "harmony_seconds": float(
+                    time.perf_counter() - _harmony_started
+                ),
+                "music_total_seconds": float(
+                    time.perf_counter() - _music_started
+                ),
+            },
         }
 
     finally:
@@ -7949,26 +8015,13 @@ elif main_menu == "Import":
             audio_filename,
         )
 
-        st.success(
-            f"« {audio_filename} » a été copié dans data/audio "
-            "et ajouté au Répertoire."
-        )
-        st.info(
-            "Aucune analyse n'a démarré. Réglez d'abord les paramètres "
-            "avancés dans la barre latérale, puis ouvrez la chanson "
-            "pour lancer explicitement l'analyse."
-        )
+        st.session_state["active_song_hash"] = audio_hash
+        set_app_state("last_song_hash", audio_hash)
+        prepare_song_preferences_for_open(audio_hash)
 
-        if st.button(
-            "🎛 Ouvrir et préparer l'analyse",
-            key=f"prepare_first_analysis_{audio_hash[:12]}",
-            type="primary",
-        ):
-            st.session_state["active_song_hash"] = audio_hash
-            set_app_state("last_song_hash", audio_hash)
-            prepare_song_preferences_for_open(audio_hash)
-            st.session_state["_pending_main_menu"] = "Chanson"
-            st.rerun()
+        # Import = ouverture automatique, sans analyse implicite.
+        st.session_state["_pending_main_menu"] = "Chanson"
+        st.rerun()
 
 # ------------------------------------------------------------
 # CHANSON
@@ -8284,10 +8337,10 @@ if (
         # 3. Sinon, tant que l'utilisateur n'a pas explicitement cliqué
         #    "Appliquer les paramètres", on charge la dernière analyse
         #    persistée du morceau.
-        # 4. Une nouvelle analyse n'est calculée que :
-        #       - après clic explicite sur « Analyser » pour un morceau neuf ;
-        #       - ou après validation explicite de paramètres nouveaux
-        #         pour un morceau déjà analysé.
+        # 4. Une nouvelle analyse n'est calculée que par action explicite :
+        #       « Appliquer les paramètres ».
+        #    Sur un morceau neuf : première analyse.
+        #    Sur un morceau déjà analysé : nouvelle variante.
 
         selected_version_no = st.session_state.get(
             "active_analysis_version_no"
@@ -8310,11 +8363,6 @@ if (
             audio_hash
         )
 
-        _first_analysis_key = f"_explicit_first_analysis_{audio_hash[:12]}"
-        _explicit_first_analysis = bool(
-            st.session_state.pop(_first_analysis_key, False)
-        )
-
         _has_existing_analysis = bool(
             selected_version_data is not None
             or persisted is not None
@@ -8328,37 +8376,26 @@ if (
                 settings=current_song_settings_payload(),
             )
 
-            if not _has_existing_analysis:
-                st.success(
-                    "Paramètres mémorisés. Aucune analyse n'a été lancée."
-                )
-
-        if not _has_existing_analysis and not _explicit_first_analysis:
-            st.info(
-                "Cette chanson n'a pas encore été analysée. "
-                "Ajustez les paramètres avancés dans la barre latérale, "
-                "puis lancez l'analyse explicitement."
+        if not _has_existing_analysis and not appliquer_reglages:
+            st.markdown("### ▶ Pré-écoute")
+            st.audio(
+                audio_bytes,
+                format={
+                    ".mp3": "audio/mpeg",
+                    ".wav": "audio/wav",
+                    ".ogg": "audio/ogg",
+                    ".m4a": "audio/mp4",
+                }.get(extension, None),
             )
-
-            if st.button(
-                "▶ Analyser avec ces paramètres",
-                key=f"run_first_analysis_{audio_hash[:12]}",
-                type="primary",
-            ):
-                save_song_preferences(
-                    audio_hash=audio_hash,
-                    capo=capo_user,
-                    settings=current_song_settings_payload(),
-                )
-                st.session_state[_first_analysis_key] = True
-                st.rerun()
-
+            st.info(
+                "Aucune analyse n'a encore été lancée. "
+                "Écoutez le morceau si nécessaire, ajustez les réglages "
+                "avancés dans la barre latérale, puis cliquez sur "
+                "« Appliquer les paramètres » pour démarrer l'analyse."
+            )
             st.stop()
 
-        force_analysis = bool(
-            _explicit_first_analysis
-            or (appliquer_reglages and _has_existing_analysis)
-        )
+        force_analysis = bool(appliquer_reglages)
 
         if selected_version_data is not None and not force_analysis:
             musique = selected_version_data["musique"]
@@ -8390,9 +8427,20 @@ if (
                 else "Analyse demandée : accords, beats, mesures et paroles..."
             )
 
-            with st.spinner(spinner_message):
+            _analysis_total_started = time.perf_counter()
+
+            with st.status(
+                spinner_message,
+                expanded=True,
+            ) as analysis_status:
+                progress = st.progress(
+                    5,
+                    text="Préparation de l'analyse…",
+                )
+
                 # CPU et GPU peuvent travailler simultanément.
                 with ThreadPoolExecutor(max_workers=2) as executor:
+                    _music_task_started = time.perf_counter()
                     future_musique = executor.submit(
                         analyser_musique_cache,
                         audio_bytes,
@@ -8406,6 +8454,8 @@ if (
                         fermata_enabled_user,
                         fermata_gap_user,
                     )
+
+                    _whisper_task_started = time.perf_counter()
                     future_whisper = executor.submit(
                         transcrire_cache,
                         audio_bytes,
@@ -8413,8 +8463,83 @@ if (
                         DEVICE
                     )
 
-                    musique = future_musique.result()
-                    resultat = future_whisper.result()
+                    progress.progress(
+                        10,
+                        text="Demucs / rythme / harmonie + Whisper en parallèle…",
+                    )
+
+                    _music_done = False
+                    _whisper_done = False
+                    _music_seconds = None
+                    _whisper_seconds = None
+
+                    while not (_music_done and _whisper_done):
+                        changed = False
+
+                        if future_musique.done() and not _music_done:
+                            musique = future_musique.result()
+                            _music_seconds = (
+                                time.perf_counter()
+                                - _music_task_started
+                            )
+                            _music_done = True
+                            changed = True
+
+                        if future_whisper.done() and not _whisper_done:
+                            resultat = future_whisper.result()
+                            _whisper_seconds = (
+                                time.perf_counter()
+                                - _whisper_task_started
+                            )
+                            _whisper_done = True
+                            changed = True
+
+                        _pct = 10
+                        if _music_done:
+                            _pct += 45
+                        if _whisper_done:
+                            _pct += 30
+
+                        if changed:
+                            _done_labels = []
+                            if _music_done:
+                                _done_labels.append("analyse musicale ✓")
+                            if _whisper_done:
+                                _done_labels.append("paroles Whisper ✓")
+
+                            progress.progress(
+                                min(_pct, 85),
+                                text=" · ".join(_done_labels),
+                            )
+
+                        if not (_music_done and _whisper_done):
+                            time.sleep(0.12)
+
+                progress.progress(
+                    88,
+                    text="Finalisation et persistance…",
+                )
+
+                _parallel_seconds = (
+                    time.perf_counter()
+                    - _analysis_total_started
+                )
+
+                perf = dict(
+                    musique.get("performance", {}) or {}
+                )
+                perf.update({
+                    "music_future_seconds": float(
+                        _music_seconds or 0.0
+                    ),
+                    "whisper_seconds": float(
+                        _whisper_seconds or 0.0
+                    ),
+                    "parallel_seconds": float(
+                        _parallel_seconds
+                    ),
+                })
+                musique["performance"] = perf
 
             save_persisted_analysis(
                 audio_hash=audio_hash,
@@ -8433,6 +8558,27 @@ if (
             )
 
             analyse_source = "computed"
+
+            if "progress" in locals():
+                _total_seconds = (
+                    time.perf_counter()
+                    - _analysis_total_started
+                )
+                musique.setdefault(
+                    "performance",
+                    {},
+                )["total_seconds"] = float(
+                    _total_seconds
+                )
+                progress.progress(
+                    100,
+                    text=f"Analyse terminée en {_total_seconds:.1f} s",
+                )
+                analysis_status.update(
+                    label=f"Analyse terminée en {_total_seconds:.1f} s",
+                    state="complete",
+                    expanded=False,
+                )
 
             # Première analyse ou nouvelle variante explicitement validée :
             # les réglages visibles deviennent la configuration du morceau.
@@ -10377,6 +10523,54 @@ if (
                     )
                     memoire_gpu = torch.cuda.memory_allocated(0) / 1024**2
                     st.write(f"VRAM utilisée : **{memoire_gpu:.0f} Mo**")
+
+            _perf = dict(
+                musique.get("performance", {}) or {}
+            )
+            if _perf:
+                st.markdown("### Performances")
+                perf_cols = st.columns(4)
+
+                with perf_cols[0]:
+                    st.metric(
+                        "Demucs",
+                        f"{_perf.get('demucs_seconds', 0.0):.1f} s",
+                    )
+                with perf_cols[1]:
+                    st.metric(
+                        "Rythme + harmonie",
+                        f"{(
+                            _perf.get('rhythm_seconds', 0.0)
+                            + _perf.get('harmony_seconds', 0.0)
+                        ):.1f} s",
+                    )
+                with perf_cols[2]:
+                    st.metric(
+                        "Whisper",
+                        f"{_perf.get('whisper_seconds', 0.0):.1f} s",
+                    )
+                with perf_cols[3]:
+                    st.metric(
+                        "Total",
+                        f"{_perf.get('total_seconds', _perf.get('parallel_seconds', 0.0)):.1f} s",
+                    )
+
+                st.caption(
+                    "Demucs et Whisper s'exécutent en parallèle ; "
+                    "le total n'est donc pas la somme des colonnes."
+                )
+
+            _micro_stab = int(
+                musique.get(
+                    "micro_variations_stabilisees",
+                    0,
+                )
+                or 0
+            )
+            st.write(
+                "Micro-variations harmoniques stabilisées : "
+                f"**{_micro_stab}**"
+            )
 
             st.markdown("### Source et persistance")
             st.write(
