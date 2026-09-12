@@ -38,6 +38,8 @@ from ezscore.timeline import (
     waveform_preview_cache,
 )
 from ezscore.printing import (
+    PRINT_FIRST_PAGE_HEADER_MM as _PRINT_FIRST_PAGE_HEADER_MM,
+    PRINT_PAGE_CONTENT_MM as _PRINT_PAGE_CONTENT_MM,
     make_print_document as _make_print_document,
     print_css_text as _print_css_text,
     print_grid_block_height_mm as _print_grid_block_height_mm,
@@ -4365,9 +4367,9 @@ if (
                     "### 🎧 Comparaison harmonique — MP3 + MIDI"
                 )
                 st.caption(
-                    "Le MP3 pilote une vraie sortie MIDI. "
-                    "Un accord est rejoué à chaque temps, avec accentuation "
-                    "des temps forts. Aucun oscillateur Web Audio."
+                    "Le MP3 est l'horloge maître. Le synthé SoundFont intégré "
+                    "rejoue la grille effective à chaque temps, avec accentuation "
+                    "des temps forts. Aucune sortie MIDI système n'est requise."
                 )
 
                 _midi_instrument_label = st.selectbox(
@@ -4433,6 +4435,10 @@ if (
                     midi_events=_play_midi_events,
                     instrument_label=_midi_instrument_label,
                     program=_midi_program,
+                    key=(
+                        f"midi_player_{audio_hash[:12]}_"
+                        f"{_midi_program}"
+                    ),
                 )
 
             elif song_view == "Paroles + accords":
