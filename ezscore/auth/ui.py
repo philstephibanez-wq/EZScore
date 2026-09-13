@@ -18,6 +18,7 @@ from .session import (
 )
 from .storage import (
     create_user,
+    delete_user,
     list_identities,
     list_users,
     reset_local_password,
@@ -264,7 +265,10 @@ def render_admin_users() -> None:
     if not allowed("admin.users"):
         return
 
-    with st.expander("Administration des utilisateurs", expanded=False):
+    with st.expander(
+        "Administration des utilisateurs",
+        expanded=bool(st.session_state.pop("_open_admin_users", False)),
+    ):
         with st.form("admin_create_user", clear_on_submit=True):
             c1, c2 = st.columns(2)
             with c1:
@@ -325,7 +329,7 @@ def render_admin_users() -> None:
                         key="admin_password_" + str(item["user_id"]),
                     )
 
-                b1, b2 = st.columns(2)
+                b1, b2, b3 = st.columns(3)
                 with b1:
                     if st.button(
                         "Enregistrer les droits",
@@ -353,6 +357,20 @@ def render_admin_users() -> None:
                             st.success("Mot de passe modifié.")
                         except Exception as exc:
                             st.error(str(exc))
+                with b3:
+                    with st.popover("Supprimer", use_container_width=True):
+                        st.warning("Cette suppression retire aussi les identités SSO liées.")
+                        if st.button(
+                            "Confirmer la suppression",
+                            key="admin_delete_" + str(item["user_id"]),
+                            type="primary",
+                            width="stretch",
+                        ):
+                            try:
+                                delete_user(int(item["user_id"]))
+                                st.rerun()
+                            except Exception as exc:
+                                st.error(str(exc))
 
 
 def render_account_page() -> None:

@@ -1,36 +1,81 @@
-# EZScore R28 FIX1 — navigation Compte
+# EZScore R29 — shell produit, profil latéral et administration utilisateurs
 
-Correctif ciblé du module d'authentification R28.
+R29 poursuit la séparation front-office / back-office et remplace la sidebar technique permanente par une présentation de type application musicale.
 
-## Correction
+## Entête
 
-Streamlit interdit de modifier directement `st.session_state["main_menu"]`
-après l'instanciation du widget `main_menu`.
+L'entête affiche désormais :
+- logo EZScore ;
+- zone de recherche visuelle ;
+- identité et rôle de l'utilisateur connecté.
 
-Les transitions du module `ezscore/auth/ui.py` passent désormais par
-`st.session_state["_pending_main_menu"]`, mécanisme déjà traité par
-`EZScore.py` au rerun suivant.
+L'objectif est de rapprocher l'ergonomie d'une application musicale moderne sans recopier l'interface d'un service tiers.
 
-Chemins corrigés :
-- ouverture de la page Compte ;
-- login e-mail réussi ;
-- création de compte réussie ;
-- déconnexion depuis le profil.
+## Left panel / sidebar
 
-## Encodage
+Sur le Répertoire, le panneau gauche devient un panneau profil/navigation :
+- avatar initial ;
+- nom ;
+- rôle ;
+- Répertoire ;
+- Mon profil ;
+- Mes éditions pour editor/admin ;
+- Importer pour editor/admin ;
+- Utilisateurs & droits pour admin ;
+- Déconnexion.
 
-Le fichier est écrit en UTF-8 natif et conserve les accents / emojis.
+Pour un visiteur :
+- Répertoire ;
+- Connexion / inscription.
 
-## Fichiers du livrable
+## Réglages techniques contextuels
 
-- `readme.md`
-- `ezscore/auth/ui.py`
+Les informations GPU / CUDA / Demucs, le capodastre et les Réglages avancés ne sont plus affichés sur l'accueil.
 
-## Installation
+Ils sont visibles uniquement :
+- dans Import ;
+- dans Chanson lorsque le morceau actif est en mode Édition.
 
-Extraire le ZIP directement dans `H:\EZScore` puis compiler :
+En Vue, Répertoire et Compte, le panneau gauche reste orienté utilisateur/profil.
+
+## Administration utilisateurs
+
+L'administrateur peut :
+- ajouter un utilisateur ;
+- attribuer reader / editor / admin ;
+- activer / désactiver ;
+- réinitialiser le mot de passe ;
+- supprimer un utilisateur et ses identités SSO liées.
+
+Le dernier administrateur actif reste protégé contre rétrogradation, désactivation ou suppression.
+
+## Récupération d'un administrateur après restauration BDD
+
+Si une BDD restaurée contient des utilisateurs mais plus aucun rôle admin, définir explicitement :
 
 ```powershell
-cd H:\EZScore
-python -m py_compile .\ezscore\auth\ui.py .\EZScore.py
+$env:EZSCORE_ADMIN_EMAIL="votre-email"
+$env:EZSCORE_ADMIN_PASSWORD="votre-mot-de-passe"
+$env:EZSCORE_ADMIN_NAME="Steve"
 ```
+
+puis relancer EZScore.
+
+R29 détecte désormais un compte existant avec cet e-mail et le promeut en admin actif au lieu d'essayer de créer un doublon.
+
+## Google / compte local
+
+Les identités Google continuent d'être liées par e-mail vérifié au compte EZScore existant. Les droits restent stockés dans EZScore : Google authentifie l'identité, il ne décide jamais du rôle.
+
+## Responsive
+
+Le header se replie sur tablette. Les boutons du panneau profil restent tactiles et le comportement responsive existant reste actif sur smartphone.
+
+## Fichiers R29
+
+Le livrable contient uniquement :
+- `EZScore.py`
+- `readme.md`
+- `ezscore/ui/app_shell.py`
+- `ezscore/auth/storage.py`
+- `ezscore/auth/ui.py`

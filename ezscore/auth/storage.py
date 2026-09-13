@@ -179,9 +179,13 @@ def register_reader(
 
 
 def bootstrap_admin_from_env() -> bool:
+    """Create or recover the explicitly configured administrator.
+
+    If EZSCORE_ADMIN_EMAIL matches an existing account, that account is
+    promoted to active admin instead of creating a duplicate. This is useful
+    after restoring a database whose role assignments were lost.
+    """
     ensure_auth_schema()
-    if user_count() != 0:
-        return False
 
     email = _email(os.getenv("EZSCORE_ADMIN_EMAIL", ""))
     password = os.getenv("EZSCORE_ADMIN_PASSWORD", "")
@@ -189,6 +193,33 @@ def bootstrap_admin_from_env() -> bool:
 
     if not email or not password:
         return False
+
+    with sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute(
+            "SELECT user_id, password_hash FROM app_users WHERE email = ?",
+            (email,),
+        ).fetchone()
+
+        if row:
+            user_id = int(row[0])
+            password_hash = row[1] or _hash_password(password)
+            conn.execute(
+                """
+                UPDATE app_users
+                SET role = 'admin',
+                    active = 1,
+                    password_hash = ?,
+                    display_name = CASE
+                        WHEN trim(display_name) = '' THEN ?
+                        ELSE display_name
+                    END,
+                    updated_at = ?
+                WHERE user_id = ?
+                """,
+                (password_hash, display_name or "Administrateur", _now(), user_id),
+            )
+            conn.commit()
+            return True
 
     create_user(
         email=email,
@@ -525,6 +556,40 @@ def update_user_access(user_id: int, *, role: Role | str, active: bool) -> None:
             WHERE user_id = ?
             """,
             (normalized_role.value, 1 if active else 0, _now(), int(user_id)),
+        )
+        conn.commit()
+
+
+def delete_user(user_id: int) -> None:
+    """Delete a user and linked identities, while protecting the last admin."""
+    ensure_auth_schema()
+    with sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute(
+            "SELECT role, active FROM app_users WHERE user_id = ?",
+            (int(user_id),),
+        ).fetchone()
+        if not row:
+            raise ValueError("Utilisateur introuvable.")
+
+        if str(row[0]) == Role.ADMIN.value and bool(row[1]):
+            remaining = conn.execute(
+                """
+                SELECT COUNT(*)
+                FROM app_users
+                WHERE role = 'admin' AND active = 1 AND user_id <> ?
+                """,
+                (int(user_id),),
+            ).fetchone()
+            if int(remaining[0] if remaining else 0) == 0:
+                raise ValueError("Impossible de supprimer le dernier administrateur actif.")
+
+        conn.execute(
+            "DELETE FROM app_identities WHERE user_id = ?",
+            (int(user_id),),
+        )
+        conn.execute(
+            "DELETE FROM app_users WHERE user_id = ?",
+            (int(user_id),),
         )
         conn.commit()
 

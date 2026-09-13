@@ -35,12 +35,16 @@ from EZScoreTemplate import ScoreTemplateRenderer
 from ezscore.midi import MIDI_INSTRUMENTS
 from ezscore.backoffice.player import render_editor_comparison_player
 from ezscore.ui.responsive import render_responsive_css
+from ezscore.ui.app_shell import (
+    analysis_sidebar_active,
+    render_app_header,
+    render_profile_sidebar,
+)
 from ezscore.player import render_song_view_player
 from ezscore.auth import (
     allowed as auth_allowed,
     current_user as auth_current_user,
     initialize_auth,
-    render_account_header,
     render_account_page,
     require as auth_require,
 )
@@ -98,13 +102,10 @@ st.set_page_config(
     layout="wide"
 )
 
-st.markdown(
-    '<div class="app-title">🎸 EZScore — V1.1</div>',
-    unsafe_allow_html=True,
-)
 render_responsive_css()
 initialize_auth()
-render_account_header()
+render_app_header()
+render_profile_sidebar()
 
 st.markdown(
     "Analyse d'un morceau : tempo, beats, mesures, accords et paroles synchronisées."
@@ -476,7 +477,9 @@ SILENCE_CHROMA_RATIO = 0.18
 FERMATA_GAP_RATIO = 1.85
 FERMATA_MIN_CONFIDENCE = 0.70
 
-if auth_allowed("song.edit"):
+_analysis_sidebar_active = analysis_sidebar_active()
+
+if auth_allowed("song.edit") and _analysis_sidebar_active:
     if DEVICE == "cuda":
         st.sidebar.success(f"🚀 GPU actif : {torch.cuda.get_device_name(0)}")
         st.sidebar.write(f"PyTorch : {torch.__version__}")
@@ -652,27 +655,26 @@ for _widget_key, _widget_default in _widget_defaults.items():
     if _widget_key not in st.session_state:
         st.session_state[_widget_key] = _widget_default
 
-# Le capo est volontairement HORS du formulaire :
-# il ne déclenche aucune nouvelle analyse harmonique.
-# Streamlit rerend immédiatement la présentation en utilisant les résultats
-# déjà en cache.
-capo_user = st.sidebar.selectbox(
-    "🎸 Capodastre",
-    list(range(0, 13)),
-    key="capo_live",
-    format_func=lambda x: "0 — sans capo" if x == 0 else f"Capo {x}",
-    help=(
-        "Affichage uniquement. L'audio, la tonalité réelle et les accords "
-        "internes restent inchangés. Exemple : Cm réel + capo 3 => Am affiché."
+# Les contrôles techniques appartiennent uniquement à Import / Édition.
+if _analysis_sidebar_active:
+    capo_user = st.sidebar.selectbox(
+        "🎸 Capodastre",
+        list(range(0, 13)),
+        key="capo_live",
+        format_func=lambda x: "0 — sans capo" if x == 0 else f"Capo {x}",
+        help=(
+            "Affichage uniquement. L'audio, la tonalité réelle et les accords "
+            "internes restent inchangés. Exemple : Cm réel + capo 3 => Am affiché."
+        )
     )
-)
+    st.sidebar.caption(
+        "Le capodastre modifie l'affichage immédiatement, sans relancer Demucs, "
+        "Whisper ni l'analyse harmonique."
+    )
+else:
+    capo_user = int(st.session_state.get("capo_live", 0))
 
-st.sidebar.caption(
-    "Le capodastre modifie l'affichage immédiatement, sans relancer Demucs, "
-    "Whisper ni l'analyse harmonique."
-)
-
-if auth_allowed("song.edit"):
+if auth_allowed("song.edit") and _analysis_sidebar_active:
     with st.sidebar.expander("⚙️ Réglages avancés", expanded=False):
         with st.form("chordstation_settings"):
             signature_mode = st.selectbox(
