@@ -46,10 +46,20 @@ _PLAYER_HTML = """
              min="0" max="2" step="0.01" value="0.65">
     </label>
   </div>
-  <button class="ez-midi-init" type="button">Charger le synthé MIDI</button>
+  <div class="ez-midi-actions">
+    <button class="ez-midi-init" type="button">Charger le synthé MIDI</button>
+    <label class="ez-midi-diagram-toggle">
+      <input class="ez-midi-show-diagrams" type="checkbox">
+      Diagrammes guitare
+    </label>
+  </div>
   <div class="ez-midi-state">Synthé non chargé</div>
   <div class="ez-measure-strip">
     <div class="ez-measure-track"></div>
+  </div>
+  <div class="ez-lyrics-strip">
+    <div class="ez-lyrics-center"></div>
+    <div class="ez-lyrics-track"></div>
   </div>
   <div class="ez-midi-hint">
     MP3 maître · FluidSynth + SoundFont intégrés au navigateur ·
@@ -109,8 +119,24 @@ _PLAYER_CSS = """
   font-size: 12px;
 }
 .ez-midi-controls input { width: 100%; }
+.ez-midi-actions {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:12px;
+  margin-top:9px;
+}
+.ez-midi-diagram-toggle {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-size:12px;
+  font-weight:700;
+}
+.ez-midi-show-diagrams { width:18px; height:18px; }
 .ez-midi-init {
-  margin-top: 9px;
+  margin-top: 0;
   min-height: 34px;
   padding: 5px 10px;
   border-radius: 7px;
@@ -182,7 +208,52 @@ _PLAYER_CSS = """
   border-color:#69adff;
   box-shadow:0 0 0 2px rgba(77,163,255,.22);
 }
-.ez-measure-lyric{margin-top:13px;min-height:38px;text-align:center;font-size:15px;line-height:1.25;opacity:.90}
+.ez-lyrics-strip {
+  position:relative;
+  overflow:hidden;
+  width:100%;
+  height:76px;
+  margin-top:8px;
+  border-top:1px solid rgba(150,160,175,.22);
+  border-bottom:1px solid rgba(150,160,175,.22);
+  background:rgba(127,127,127,.035);
+}
+.ez-lyrics-center {
+  position:absolute;
+  top:0; bottom:0; left:50%;
+  width:2px;
+  background:rgba(77,163,255,.65);
+  pointer-events:none;
+  z-index:2;
+}
+.ez-lyrics-track {
+  position:absolute;
+  left:0; top:0;
+  height:100%;
+  display:flex;
+  align-items:center;
+  gap:14px;
+  white-space:nowrap;
+  will-change:transform;
+}
+.ez-lyric-word {
+  display:inline-flex;
+  align-items:center;
+  min-height:38px;
+  padding:5px 4px;
+  font-size:22px;
+  font-weight:650;
+  opacity:.48;
+  transition:opacity .10s, transform .10s, color .10s;
+}
+.ez-lyric-word.past{opacity:.30}
+.ez-lyric-word.future{opacity:.65}
+.ez-lyric-word.current{
+  opacity:1;
+  transform:scale(1.14);
+  color:#69adff;
+  font-weight:850;
+}
 .ez-midi-hint { margin-top: 8px; font-size: 11px; opacity: 0.68; }
 @media(max-width:900px){.ez-measure-card{flex-basis:260px}}
 @media(max-width:640px){
@@ -192,8 +263,9 @@ _PLAYER_CSS = """
   .ez-measure-card{flex-basis:220px;min-height:190px;padding:9px}
   .ez-measure-chord{font-size:29px}
   .ez-beat-cell{font-size:21px;min-height:38px;padding:2px 4px}
-  .ez-measure-lyric{font-size:13px}
   .ez-measure-diagram svg{width:96px;height:122px}
+  .ez-lyrics-strip{height:68px}
+  .ez-lyric-word{font-size:18px}
 }
 """
 
@@ -204,15 +276,18 @@ export default function(component) {
   const audio = root.querySelector(".ez-midi-song");
   const initButton = root.querySelector(".ez-midi-init");
   const state = root.querySelector(".ez-midi-state");
+  const showDiagramsControl = root.querySelector(".ez-midi-show-diagrams");
   const strip = root.querySelector(".ez-measure-strip");
   const measureTrack = root.querySelector(".ez-measure-track");
+  const lyricsStrip = root.querySelector(".ez-lyrics-strip");
+  const lyricsTrack = root.querySelector(".ez-lyrics-track");
   const songVolume = root.querySelector(".ez-midi-song-volume");
   const synthVolume = root.querySelector(".ez-midi-synth-volume");
   const cover = root.querySelector(".ez-player-cover");
   const title = root.querySelector(".ez-player-title");
   const artist = root.querySelector(".ez-player-artist");
 
-  if (!audio || !initButton || !state || !strip || !measureTrack || !songVolume || !synthVolume) {
+  if (!audio || !initButton || !state || !strip || !measureTrack || !lyricsStrip || !lyricsTrack || !songVolume || !synthVolume) {
     return;
   }
 
@@ -230,7 +305,9 @@ export default function(component) {
 
   const events = Array.isArray(data.midi_events) ? data.midi_events : [];
   const measures = Array.isArray(data.player_measures) ? data.player_measures : [];
-  const showDiagrams = Boolean(data.show_diagrams);
+  const words = Array.isArray(data.lyrics_words) ? data.lyrics_words : [];
+  let showDiagrams = Boolean(data.show_diagrams);
+  if (showDiagramsControl) showDiagramsControl.checked = showDiagrams;
   const program = Number(data.program || 0);
   const cards = [];
 
@@ -262,17 +339,23 @@ export default function(component) {
       return beat;
     });
 
-    const lyric = document.createElement("div");
-    lyric.className = "ez-measure-lyric";
-    lyric.textContent = measure.lyric || "";
-
-    card.append(number, diagram, chord, beats, lyric);
+    card.append(number, diagram, chord, beats);
     measureTrack.appendChild(card);
     cards.push({ card, diagram, chord, beatNodes });
   });
 
+  const wordNodes = words.map((word) => {
+    const node = document.createElement("span");
+    node.className = "ez-lyric-word future";
+    node.textContent = String(word.text || "").trim();
+    lyricsTrack.appendChild(node);
+    return node;
+  });
+  if (!words.length) lyricsStrip.style.display = "none";
+
   let activeMeasureIndex = -1;
   let activeBeatIndex = -1;
+  let activeWordIndex = -1;
 
   function findMeasureIndex(time) {
     if (!measures.length) return -1;
@@ -298,6 +381,63 @@ export default function(component) {
       else break;
     }
     return answer;
+  }
+
+  function findWordIndex(time) {
+    if (!words.length) return -1;
+    let low = 0, high = words.length - 1, answer = 0;
+    while (low <= high) {
+      const middle = (low + high) >> 1;
+      if (Number(words[middle].start || 0) <= time) {
+        answer = middle;
+        low = middle + 1;
+      } else {
+        high = middle - 1;
+      }
+    }
+    return answer;
+  }
+
+  function renderLyrics(time) {
+    const index = findWordIndex(time);
+    if (index < 0 || !wordNodes[index]) return;
+
+    if (index !== activeWordIndex) {
+      activeWordIndex = index;
+      wordNodes.forEach((node, i) => {
+        node.classList.toggle("current", i === index);
+        node.classList.toggle("past", i < index);
+        node.classList.toggle("future", i > index);
+      });
+    }
+
+    const current = wordNodes[index];
+    const next = wordNodes[index + 1];
+    const currentCenter = current.offsetLeft + current.offsetWidth / 2;
+    let targetCenter = currentCenter;
+    if (next) {
+      const start = Number(words[index].start || 0);
+      const nextStart = Math.max(start + .04, Number(words[index + 1].start || start + .5));
+      const progress = Math.max(0, Math.min(1, (time - start) / (nextStart - start)));
+      const nextCenter = next.offsetLeft + next.offsetWidth / 2;
+      targetCenter = currentCenter + (nextCenter - currentCenter) * progress;
+    }
+    lyricsTrack.style.transform =
+      "translateX(" + (lyricsStrip.clientWidth / 2 - targetCenter) + "px)";
+  }
+
+  function refreshActiveDiagram() {
+    if (activeMeasureIndex < 0 || !cards[activeMeasureIndex]) return;
+    const measure = measures[activeMeasureIndex];
+    const active = cards[activeMeasureIndex];
+    const beatIndex = Math.max(0, activeBeatIndex);
+    const diagram = showDiagrams
+      ? String(measure.beat_diagrams?.[beatIndex] || "")
+      : "";
+    if (active.diagram.dataset.value !== diagram) {
+      active.diagram.dataset.value = diagram;
+      active.diagram.innerHTML = diagram;
+    }
   }
 
   function centerMeasure(index) {
@@ -338,13 +478,7 @@ export default function(component) {
       active.chord.textContent = String(
         measure.beat_chords?.[beatIndex] || measure.primary_chord || "—"
       );
-      const diagram = showDiagrams
-        ? String(measure.beat_diagrams?.[beatIndex] || "")
-        : "";
-      if (active.diagram.dataset.value !== diagram) {
-        active.diagram.dataset.value = diagram;
-        active.diagram.innerHTML = diagram;
-      }
+      refreshActiveDiagram();
     }
   }
 
@@ -426,6 +560,7 @@ export default function(component) {
     cursor = lowerBound(Math.max(0, Number(time) - 0.003));
     lastMediaTime = Number(time);
     updateVisual(Number(time));
+    renderLyrics(Number(time));
   }
 
   function sendEvent(event) {
@@ -451,6 +586,7 @@ export default function(component) {
     }
     lastMediaTime = time;
     updateVisual(time);
+    renderLyrics(time);
     while (cursor < events.length && Number(events[cursor].time) <= time + 0.008) {
       const event = events[cursor++];
       if (Number(event.time) >= time - 0.035 || event.kind === "program") {
@@ -572,6 +708,11 @@ export default function(component) {
     if (synth) synth.setGain(Number(synthVolume.value));
   }
 
+  function onDiagrams() {
+    showDiagrams = Boolean(showDiagramsControl?.checked);
+    refreshActiveDiagram();
+  }
+
   async function onPlay() {
     if (!ready) {
       audio.pause();
@@ -612,6 +753,7 @@ export default function(component) {
   initButton.addEventListener("click", onInitialize);
   songVolume.addEventListener("input", onSongVolume);
   synthVolume.addEventListener("input", onSynthVolume);
+  if (showDiagramsControl) showDiagramsControl.addEventListener("change", onDiagrams);
   audio.addEventListener("play", onPlay);
   audio.addEventListener("pause", onPause);
   audio.addEventListener("ended", onPause);
@@ -626,6 +768,7 @@ export default function(component) {
     initButton.removeEventListener("click", onInitialize);
     songVolume.removeEventListener("input", onSongVolume);
     synthVolume.removeEventListener("input", onSynthVolume);
+    if (showDiagramsControl) showDiagramsControl.removeEventListener("change", onDiagrams);
     audio.removeEventListener("play", onPlay);
     audio.removeEventListener("pause", onPause);
     audio.removeEventListener("ended", onPause);
@@ -712,5 +855,5 @@ def render_editor_midi_player(
         },
         key=key,
         width="stretch",
-        height=760 if show_diagrams else 560,
+        height=835,
     )

@@ -21,6 +21,7 @@ _HTML = """
     </div>
   </div>
   <audio class="ez-song" controls preload="metadata"></audio>
+
   <div class="ez-view-controls">
     <label>Vitesse
       <select class="ez-speed">
@@ -33,9 +34,19 @@ _HTML = """
         <option value="1.5">1.5×</option>
       </select>
     </label>
+    <label class="ez-diagram-toggle">
+      <input class="ez-show-diagrams" type="checkbox">
+      Diagrammes guitare
+    </label>
   </div>
+
   <div class="ez-measure-strip">
     <div class="ez-measure-track"></div>
+  </div>
+
+  <div class="ez-lyrics-strip">
+    <div class="ez-lyrics-center"></div>
+    <div class="ez-lyrics-track"></div>
   </div>
 </div>
 """
@@ -58,9 +69,18 @@ _CSS = """
 .ez-player-title{font-size:19px;font-weight:800}
 .ez-player-artist{font-size:13px;opacity:.72;margin-top:4px}
 .ez-song{width:100%}
-.ez-view-controls{display:flex;justify-content:flex-end;margin:10px 0}
+
+.ez-view-controls{
+  display:flex;
+  justify-content:flex-end;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:18px;
+  margin:10px 0;
+}
 .ez-view-controls label{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700}
 .ez-speed{min-height:38px;padding:4px 28px 4px 10px;border-radius:7px}
+.ez-show-diagrams{width:18px;height:18px}
 
 .ez-measure-strip {
   position:relative;
@@ -80,7 +100,7 @@ _CSS = """
 .ez-measure-card {
   box-sizing:border-box;
   flex:0 0 300px;
-  min-height:205px;
+  min-height:190px;
   padding:12px 14px 14px;
   border:1px solid rgba(150,160,175,.38);
   border-radius:12px;
@@ -147,27 +167,72 @@ _CSS = """
   border-color:#69adff;
   box-shadow:0 0 0 2px rgba(77,163,255,.22);
 }
-.ez-measure-lyric {
-  margin-top:13px;
-  min-height:38px;
-  text-align:center;
-  font-size:15px;
-  line-height:1.25;
-  opacity:.90;
+
+.ez-lyrics-strip {
+  position:relative;
+  overflow:hidden;
+  width:100%;
+  height:76px;
+  margin-top:8px;
+  border-top:1px solid rgba(150,160,175,.22);
+  border-bottom:1px solid rgba(150,160,175,.22);
+  background:rgba(127,127,127,.035);
 }
+.ez-lyrics-center {
+  position:absolute;
+  top:0;
+  bottom:0;
+  left:50%;
+  width:2px;
+  background:rgba(77,163,255,.65);
+  pointer-events:none;
+  z-index:2;
+}
+.ez-lyrics-track {
+  position:absolute;
+  left:0;
+  top:0;
+  height:100%;
+  display:flex;
+  align-items:center;
+  gap:14px;
+  white-space:nowrap;
+  will-change:transform;
+}
+.ez-lyric-word {
+  display:inline-flex;
+  align-items:center;
+  min-height:38px;
+  padding:5px 4px;
+  font-size:22px;
+  font-weight:650;
+  opacity:.48;
+  transition:opacity .10s, transform .10s, color .10s;
+}
+.ez-lyric-word.past{opacity:.30}
+.ez-lyric-word.future{opacity:.65}
+.ez-lyric-word.current{
+  opacity:1;
+  transform:scale(1.14);
+  color:#69adff;
+  font-weight:850;
+}
+
 @media(max-width:900px){
   .ez-measure-card{flex-basis:260px}
 }
 @media(max-width:640px){
   .ez-view-player{padding:10px}
   .ez-player-cover{width:58px;height:58px}
-  .ez-measure-strip{min-height:230px}
+  .ez-view-controls{justify-content:space-between;gap:10px}
+  .ez-measure-strip{min-height:225px}
   .ez-measure-track{gap:10px}
-  .ez-measure-card{flex-basis:220px;min-height:190px;padding:9px}
+  .ez-measure-card{flex-basis:220px;min-height:175px;padding:9px}
   .ez-measure-chord{font-size:29px}
   .ez-beat-cell{font-size:21px;min-height:38px;padding:2px 4px}
-  .ez-measure-lyric{font-size:13px}
   .ez-measure-diagram svg{width:96px;height:122px}
+  .ez-lyrics-strip{height:68px}
+  .ez-lyric-word{font-size:18px;gap:10px}
 }
 """
 
@@ -177,14 +242,18 @@ export default function(component) {
   const root = component.parentElement;
   const audio = root.querySelector(".ez-song");
   const speed = root.querySelector(".ez-speed");
+  const showDiagramsControl = root.querySelector(".ez-show-diagrams");
   const strip = root.querySelector(".ez-measure-strip");
   const track = root.querySelector(".ez-measure-track");
+  const lyricsStrip = root.querySelector(".ez-lyrics-strip");
+  const lyricsTrack = root.querySelector(".ez-lyrics-track");
   const cover = root.querySelector(".ez-player-cover");
   const title = root.querySelector(".ez-player-title");
   const artist = root.querySelector(".ez-player-artist");
   const measures = Array.isArray(data.measures) ? data.measures : [];
+  const words = Array.isArray(data.lyrics_words) ? data.lyrics_words : [];
 
-  if (!audio || !strip || !track) return;
+  if (!audio || !strip || !track || !lyricsStrip || !lyricsTrack) return;
 
   audio.src = "data:" + data.mime + ";base64," + data.audio_base64;
   audio.preservesPitch = true;
@@ -196,6 +265,9 @@ export default function(component) {
     cover.src = "data:" + data.cover.mime + ";base64," + data.cover.base64;
     cover.classList.add("has-cover");
   }
+
+  let showDiagrams = Boolean(data.show_diagrams);
+  if (showDiagramsControl) showDiagramsControl.checked = showDiagrams;
 
   const cards = measures.map((measure) => {
     const card = document.createElement("div");
@@ -225,18 +297,25 @@ export default function(component) {
       return beat;
     });
 
-    const lyric = document.createElement("div");
-    lyric.className = "ez-measure-lyric";
-    lyric.textContent = measure.lyric || "";
-
-    card.append(number, diagram, chord, beats, lyric);
+    card.append(number, diagram, chord, beats);
     track.appendChild(card);
     return { card, diagram, chord, beatNodes };
   });
 
+  const wordNodes = words.map((word) => {
+    const node = document.createElement("span");
+    node.className = "ez-lyric-word future";
+    node.textContent = String(word.text || "").trim();
+    lyricsTrack.appendChild(node);
+    return node;
+  });
+
+  if (!words.length) lyricsStrip.style.display = "none";
+
   let raf = 0;
   let activeMeasure = -1;
   let activeBeat = -1;
+  let activeWord = -1;
 
   function findMeasure(time) {
     if (!measures.length) return -1;
@@ -263,6 +342,20 @@ export default function(component) {
     return answer;
   }
 
+  function findWord(time) {
+    if (!words.length) return -1;
+    let low = 0, high = words.length - 1, answer = 0;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (Number(words[mid].start || 0) <= time) {
+        answer = mid; low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    return answer;
+  }
+
   function centerMeasure(index) {
     const card = cards[index]?.card;
     if (!card) return;
@@ -271,6 +364,48 @@ export default function(component) {
     const gap = parseFloat(getComputedStyle(track).gap || "0");
     const offset = index * (cardWidth + gap) - (stripWidth - cardWidth) / 2;
     track.style.transform = "translateX(" + (-offset) + "px)";
+  }
+
+  function renderLyrics(time) {
+    const index = findWord(time);
+    if (index < 0 || !wordNodes[index]) return;
+
+    if (index !== activeWord) {
+      activeWord = index;
+      wordNodes.forEach((node, i) => {
+        node.classList.toggle("current", i === index);
+        node.classList.toggle("past", i < index);
+        node.classList.toggle("future", i > index);
+      });
+    }
+
+    const current = wordNodes[index];
+    const next = wordNodes[index + 1];
+    const currentCenter = current.offsetLeft + current.offsetWidth / 2;
+    let targetCenter = currentCenter;
+    if (next) {
+      const start = Number(words[index].start || 0);
+      const nextStart = Math.max(start + .04, Number(words[index + 1].start || start + .5));
+      const progress = Math.max(0, Math.min(1, (time - start) / (nextStart - start)));
+      const nextCenter = next.offsetLeft + next.offsetWidth / 2;
+      targetCenter = currentCenter + (nextCenter - currentCenter) * progress;
+    }
+    lyricsTrack.style.transform =
+      "translateX(" + (lyricsStrip.clientWidth / 2 - targetCenter) + "px)";
+  }
+
+  function refreshActiveDiagram() {
+    if (activeMeasure < 0 || !cards[activeMeasure]) return;
+    const measure = measures[activeMeasure];
+    const active = cards[activeMeasure];
+    const beatIndex = Math.max(0, activeBeat);
+    const markup = showDiagrams
+      ? String(measure.beat_diagrams?.[beatIndex] || "")
+      : "";
+    if (active.diagram.dataset.value !== markup) {
+      active.diagram.dataset.value = markup;
+      active.diagram.innerHTML = markup;
+    }
   }
 
   function render() {
@@ -283,38 +418,36 @@ export default function(component) {
 
       if (measureIndex !== activeMeasure) {
         activeMeasure = measureIndex;
+        activeBeat = -1;
         cards.forEach((entry, index) => {
           entry.card.classList.toggle("active", index === measureIndex);
           entry.card.classList.toggle("past", index < measureIndex);
           entry.card.classList.toggle("future", index > measureIndex);
-          if (index !== measureIndex && entry.diagram) entry.diagram.innerHTML = "";
+          if (index !== measureIndex && entry.diagram) {
+            entry.diagram.dataset.value = "";
+            entry.diagram.innerHTML = "";
+          }
         });
         centerMeasure(measureIndex);
       }
 
-      if (measureIndex !== activeMeasure || beatIndex !== activeBeat) {
+      if (beatIndex !== activeBeat) {
         activeBeat = beatIndex;
-      }
+        const active = cards[measureIndex];
+        active.beatNodes.forEach((node, index) => {
+          node.classList.toggle("elapsed", index < beatIndex);
+          node.classList.toggle("current", index === beatIndex);
+        });
 
-      const active = cards[measureIndex];
-      active.beatNodes.forEach((node, index) => {
-        node.classList.toggle("elapsed", index < beatIndex);
-        node.classList.toggle("current", index === beatIndex);
-      });
-
-      const chord = String(measure.beat_chords?.[beatIndex] || measure.primary_chord || "—");
-      active.chord.textContent = chord || "—";
-
-      if (active.diagram) {
-        const diagram = data.show_diagrams
-          ? String(measure.beat_diagrams?.[beatIndex] || "")
-          : "";
-        if (active.diagram.dataset.value !== diagram) {
-          active.diagram.dataset.value = diagram;
-          active.diagram.innerHTML = diagram;
-        }
+        const chord = String(
+          measure.beat_chords?.[beatIndex] || measure.primary_chord || "—"
+        );
+        active.chord.textContent = chord || "—";
+        refreshActiveDiagram();
       }
     }
+
+    renderLyrics(time);
 
     if (!audio.paused && !audio.ended) raf = requestAnimationFrame(render);
   }
@@ -322,7 +455,10 @@ export default function(component) {
   function onPlay(){ cancelAnimationFrame(raf); render(); }
   function onPause(){ cancelAnimationFrame(raf); render(); }
   function onSeek(){ render(); }
-  function onResize(){ if (activeMeasure >= 0) centerMeasure(activeMeasure); }
+  function onResize(){
+    if (activeMeasure >= 0) centerMeasure(activeMeasure);
+    renderLyrics(Number(audio.currentTime || 0));
+  }
   function onSpeed(){
     const value = Number(speed.value || 1);
     audio.playbackRate = value;
@@ -330,19 +466,26 @@ export default function(component) {
     audio.preservesPitch = true;
     audio.webkitPreservesPitch = true;
   }
+  function onDiagrams(){
+    showDiagrams = Boolean(showDiagramsControl?.checked);
+    refreshActiveDiagram();
+  }
 
   speed.addEventListener("change", onSpeed);
+  if (showDiagramsControl) showDiagramsControl.addEventListener("change", onDiagrams);
   audio.addEventListener("play", onPlay);
   audio.addEventListener("pause", onPause);
   audio.addEventListener("seeked", onSeek);
   audio.addEventListener("timeupdate", onSeek);
   window.addEventListener("resize", onResize);
+
   onSpeed();
   render();
 
   return function() {
     cancelAnimationFrame(raf);
     speed.removeEventListener("change", onSpeed);
+    if (showDiagramsControl) showDiagramsControl.removeEventListener("change", onDiagrams);
     audio.removeEventListener("play", onPlay);
     audio.removeEventListener("pause", onPause);
     audio.removeEventListener("seeked", onSeek);
@@ -353,7 +496,7 @@ export default function(component) {
 """
 
 _COMPONENT = st.components.v2.component(
-    "ezscore.view_player_r24",
+    "ezscore.view_player_r25",
     html=_HTML,
     css=_CSS,
     js=_JS,
@@ -418,6 +561,7 @@ def render_song_view_player(
             "audio_base64": base64.b64encode(audio_bytes).decode("ascii"),
             "mime": _audio_mime(extension),
             "measures": measures,
+            "lyrics_words": words,
             "show_diagrams": bool(show_diagrams),
             "cover": cover_payload(cover_path),
             "title": str(title or ""),
@@ -425,5 +569,5 @@ def render_song_view_player(
         },
         key=key,
         width="stretch",
-        height=560 if show_diagrams else 420,
+        height=650,
     )
