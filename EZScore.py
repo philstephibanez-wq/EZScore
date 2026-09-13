@@ -26,12 +26,9 @@ from concurrent.futures import ThreadPoolExecutor
 from difflib import SequenceMatcher
 from collections import Counter
 from EZScoreTemplate import ScoreTemplateRenderer
-from ezscore.midi import (
-    MIDI_INSTRUMENTS,
-    build_chord_midi_events,
-    build_midi_file,
-    render_editor_midi_player,
-)
+from ezscore.midi import MIDI_INSTRUMENTS
+from ezscore.backoffice.player import render_editor_comparison_player
+from ezscore.ui.responsive import render_responsive_css
 from ezscore.timeline import (
     chord_regions as creer_regions_harmoniques,
     create_harmonic_timeline as creer_figure_deroule_riffstation,
@@ -90,6 +87,7 @@ st.markdown(
     '<div class="app-title">🎸 EZScore — V1.1</div>',
     unsafe_allow_html=True,
 )
+render_responsive_css()
 st.markdown(
     "Analyse d'un morceau : tempo, beats, mesures, accords et paroles synchronisées."
 )
@@ -3178,7 +3176,7 @@ if (
 
     with mode_col:
         if song_view in ("Grille", "Paroles + accords"):
-            _mode_options = ["👁 Vue", "✏️ Éditer", "▶ Jouer"]
+            _mode_options = ["👁 Vue", "✏️ Éditer"]
         elif song_view == "Blocs":
             _mode_options = ["👁 Vue", "✏️ Éditer"]
         else:
@@ -4359,93 +4357,23 @@ if (
                     st.rerun()
 
         # ----------------------------------------------------
-        # MODE JOUER
+        # BACK-OFFICE — PLAYER DE COMPARAISON
         # ----------------------------------------------------
-        if song_mode == "Jouer":
-            if song_view == "Grille":
-                st.markdown(
-                    "### 🎧 Comparaison harmonique — MP3 + MIDI"
-                )
-                st.caption(
-                    "Le MP3 est l'horloge maître. Le synthé SoundFont intégré "
-                    "rejoue la grille effective à chaque temps, avec accentuation "
-                    "des temps forts. Aucune sortie MIDI système n'est requise."
-                )
-
-                _midi_instrument_label = st.selectbox(
-                    "Instrument MIDI",
-                    list(MIDI_INSTRUMENTS.keys()),
-                    index=0,
-                    key=f"midi_instrument_{audio_hash[:12]}",
-                )
-                _midi_program = MIDI_INSTRUMENTS[
-                    _midi_instrument_label
-                ]
-                _midi_strum_ms = (
-                    12.0
-                    if _midi_program == 27
-                    else 0.0
-                )
-
-                _play_midi_events = (
-                    build_chord_midi_events(
-                        beats=beats,
-                        signature=signature,
-                        beats_per_measure=(
-                            beats_par_mesure_effectif
-                        ),
-                        program=_midi_program,
-                        gate_ratio=0.48,
-                        strum_ms=_midi_strum_ms,
-                    )
-                )
-
-                _play_midi_bytes = build_midi_file(
-                    beats=beats,
-                    tempo=tempo,
-                    signature=signature,
-                    beats_per_measure=(
-                        beats_par_mesure_effectif
-                    ),
-                    program=_midi_program,
-                    gate_ratio=0.48,
-                    strum_ms=_midi_strum_ms,
-                )
-
-                _play_midi_filename = (
-                    re.sub(
-                        r"[^A-Za-z0-9._-]+",
-                        "_",
-                        str(titre_affiche or "EZScore"),
-                    ).strip("_")
-                    or "EZScore"
-                ) + "_accords.mid"
-
-                st.download_button(
-                    "⬇ Télécharger le MIDI des accords",
-                    data=_play_midi_bytes,
-                    file_name=_play_midi_filename,
-                    mime="audio/midi",
-                    key=f"play_midi_{audio_hash[:12]}",
-                )
-
-                render_editor_midi_player(
-                    audio_bytes=audio_bytes,
-                    extension=extension,
-                    midi_events=_play_midi_events,
-                    instrument_label=_midi_instrument_label,
-                    program=_midi_program,
-                    key=(
-                        f"midi_player_{audio_hash[:12]}_"
-                        f"{_midi_program}"
-                    ),
-                )
-
-            elif song_view == "Paroles + accords":
-                st.info(
-                    "▶ Player Paroles + accords synchronisé : "
-                    "fonction séparée, non remplacée par le player MIDI."
-                )
+        if (
+            song_mode == "Édition"
+            and song_view in ("Grille", "Paroles + accords")
+        ):
+            render_editor_comparison_player(
+                audio_bytes=audio_bytes,
+                extension=extension,
+                beats=beats,
+                signature=signature,
+                beats_per_measure=beats_par_mesure_effectif,
+                tempo=tempo,
+                title=titre_affiche,
+                audio_hash=audio_hash,
+                instruments=MIDI_INSTRUMENTS,
+            )
 
         # Structure calculée sur les accords RÉELS, avant toute représentation capo.
         # ----------------------------------------------------
