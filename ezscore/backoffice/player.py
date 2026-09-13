@@ -11,7 +11,7 @@ from ezscore.midi import (
     render_editor_midi_player,
 )
 from ezscore.player import cover_payload
-from ezscore.player.timeline import build_player_timeline
+from ezscore.player.timeline import build_measure_timeline
 from ezscore.guitar import (
     choices as guitar_choices,
     get_voicing,
@@ -145,7 +145,7 @@ def render_editor_comparison_player(
             show_diagrams_saved,
         )
 
-        player_timeline = build_player_timeline(
+        player_measures = build_measure_timeline(
             beats=beats,
             lyrics_words=lyrics_words,
             beats_per_measure=beats_per_measure,
@@ -159,7 +159,7 @@ def render_editor_comparison_player(
             instrument_label=instrument_label,
             program=program,
             lyrics_words=lyrics_words,
-            player_timeline=player_timeline,
+            player_measures=player_measures,
             chord_diagrams=diagram_map,
             show_diagrams=bool(show_diagrams),
             cover=identity_cover,

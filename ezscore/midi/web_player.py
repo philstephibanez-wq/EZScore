@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 
 import streamlit as st
-from ezscore.player.ribbon import RIBBON_HTML, RIBBON_CSS
 
 DEFAULT_SOUNDFONT_URL = (
     "https://raw.githubusercontent.com/mrbumpy409/GeneralUser-GS/"
@@ -49,18 +48,15 @@ _PLAYER_HTML = """
   </div>
   <button class="ez-midi-init" type="button">Charger le synthé MIDI</button>
   <div class="ez-midi-state">Synthé non chargé</div>
-  <div class="ez-midi-current">
-    <div class="ez-midi-current-diagram"></div>
-    <div class="ez-midi-current-chord">—</div>
-    <div class="ez-midi-current-beat"></div>
+  <div class="ez-measure-strip">
+    <div class="ez-measure-track"></div>
   </div>
-  ${RIBBON_HTML}
   <div class="ez-midi-hint">
     MP3 maître · FluidSynth + SoundFont intégrés au navigateur ·
     aucune sortie MIDI système requise.
   </div>
 </div>
-""".replace("${RIBBON_HTML}", RIBBON_HTML)
+"""
 
 _PLAYER_CSS = """
 :host { display: block; width: 100%; }
@@ -125,28 +121,81 @@ _PLAYER_CSS = """
 }
 .ez-midi-init:disabled { opacity: 0.65; cursor: wait; }
 .ez-midi-state { margin-top: 8px; font-size: 12px; opacity: 0.88; }
-.ez-midi-current { text-align:center; min-height:62px; margin-top:8px; }
-.ez-midi-current-diagram { display:flex; justify-content:center; }
-.ez-midi-current-diagram:empty { display:none; }
-.ez-midi-current-chord { font-size:34px; font-weight:900; line-height:1.05; }
-.ez-midi-current-beat { font-size:13px; font-weight:800; opacity:.76; margin-top:4px; }
-.ez-ribbon { height:164px !important; }
-.ez-ribbon.has-diagram { height:164px !important; }
-.ez-ribbon.has-diagram .ez-ribbon-track { top:10px !important; }
-.ez-ribbon-diagram { display:none !important; }
-.ez-ribbon-item { min-width:150px !important; padding:9px 12px !important; border-radius:10px; transition:opacity .12s,background .12s,transform .12s; }
-.ez-ribbon-item.active { background:rgba(77,163,255,.22); outline:2px solid rgba(77,163,255,.95); transform:scale(1.04); opacity:1; }
-.ez-ribbon-item.past { opacity:.45; }
-.ez-ribbon-item.future { opacity:.78; }
-.ez-ribbon-beat { font-size:12px; font-weight:900; opacity:.72; margin-bottom:5px; }
-.ez-ribbon-lyric { white-space:normal !important; max-width:145px; min-height:38px; line-height:1.2; font-size:15px !important; }
-.ez-midi-hint { margin-top: 8px; font-size: 11px; opacity: 0.68; }
-@media(max-width:640px) {
-  .ez-midi-current-chord { font-size:29px; }
-  .ez-ribbon-item { min-width:118px !important; padding:7px 8px !important; }
-  .ez-ribbon-lyric { max-width:112px; font-size:13px !important; }
+.ez-measure-strip {
+  position:relative;
+  overflow:hidden;
+  width:100%;
+  min-height:245px;
+  margin-top:10px;
+  padding:8px 0 10px;
 }
-""" + RIBBON_CSS
+.ez-measure-track {
+  display:flex;
+  align-items:flex-start;
+  gap:16px;
+  will-change:transform;
+  transition:transform 220ms ease;
+}
+.ez-measure-card {
+  box-sizing:border-box;
+  flex:0 0 300px;
+  min-height:205px;
+  padding:12px 14px 14px;
+  border:1px solid rgba(150,160,175,.38);
+  border-radius:12px;
+  background:rgba(127,127,127,.055);
+  opacity:.68;
+  transition:opacity .16s, transform .16s, background .16s, border-color .16s;
+}
+.ez-measure-card.active {
+  opacity:1;
+  transform:scale(1.035);
+  background:rgba(77,163,255,.14);
+  border:2px solid rgba(77,163,255,.95);
+}
+.ez-measure-card.past{opacity:.40}
+.ez-measure-card.future{opacity:.72}
+.ez-measure-number{text-align:right;font-size:11px;font-weight:800;opacity:.48}
+.ez-measure-diagram{display:flex;justify-content:center;min-height:0;margin-top:-3px}
+.ez-measure-diagram:empty{display:none}
+.ez-measure-chord{text-align:center;font-size:34px;line-height:1.05;font-weight:900;min-height:38px;margin-top:4px}
+.ez-measure-beats{display:grid;gap:8px;margin:14px auto 0}
+.ez-beat-cell {
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-width:0;
+  min-height:42px;
+  padding:3px 6px;
+  border-radius:8px;
+  border:1px solid rgba(150,160,175,.28);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:24px;
+  font-weight:900;
+  opacity:.58;
+}
+.ez-beat-cell.elapsed{opacity:.82;background:rgba(77,163,255,.08)}
+.ez-beat-cell.current {
+  opacity:1;
+  color:#fff;
+  background:#2679d8;
+  border-color:#69adff;
+  box-shadow:0 0 0 2px rgba(77,163,255,.22);
+}
+.ez-measure-lyric{margin-top:13px;min-height:38px;text-align:center;font-size:15px;line-height:1.25;opacity:.90}
+.ez-midi-hint { margin-top: 8px; font-size: 11px; opacity: 0.68; }
+@media(max-width:900px){.ez-measure-card{flex-basis:260px}}
+@media(max-width:640px){
+  .ez-midi-player{padding:10px}
+  .ez-measure-strip{min-height:230px}
+  .ez-measure-track{gap:10px}
+  .ez-measure-card{flex-basis:220px;min-height:190px;padding:9px}
+  .ez-measure-chord{font-size:29px}
+  .ez-beat-cell{font-size:21px;min-height:38px;padding:2px 4px}
+  .ez-measure-lyric{font-size:13px}
+  .ez-measure-diagram svg{width:96px;height:122px}
+}
+"""
 
 _PLAYER_JS = r"""
 export default function(component) {
@@ -155,16 +204,15 @@ export default function(component) {
   const audio = root.querySelector(".ez-midi-song");
   const initButton = root.querySelector(".ez-midi-init");
   const state = root.querySelector(".ez-midi-state");
-  const currentChord = root.querySelector(".ez-midi-current-chord");
-  const currentBeat = root.querySelector(".ez-midi-current-beat");
-  const currentDiagram = root.querySelector(".ez-midi-current-diagram");
+  const strip = root.querySelector(".ez-measure-strip");
+  const measureTrack = root.querySelector(".ez-measure-track");
   const songVolume = root.querySelector(".ez-midi-song-volume");
   const synthVolume = root.querySelector(".ez-midi-synth-volume");
   const cover = root.querySelector(".ez-player-cover");
   const title = root.querySelector(".ez-player-title");
   const artist = root.querySelector(".ez-player-artist");
 
-  if (!audio || !initButton || !state || !currentChord || !songVolume || !synthVolume) {
+  if (!audio || !initButton || !state || !strip || !measureTrack || !songVolume || !synthVolume) {
     return;
   }
 
@@ -181,39 +229,57 @@ export default function(component) {
   state.textContent = "Synthé non chargé · Instrument : " + data.instrument_label;
 
   const events = Array.isArray(data.midi_events) ? data.midi_events : [];
-  const timeline = Array.isArray(data.player_timeline) ? data.player_timeline : [];
-  const ribbonTrack = root.querySelector(".ez-ribbon-track");
+  const measures = Array.isArray(data.player_measures) ? data.player_measures : [];
   const showDiagrams = Boolean(data.show_diagrams);
   const program = Number(data.program || 0);
-  const visualNodes = [];
+  const cards = [];
 
-  if (ribbonTrack) {
-    timeline.forEach((item) => {
-      const element = document.createElement("div");
-      element.className = "ez-ribbon-item future";
+  measures.forEach((measure) => {
+    const card = document.createElement("div");
+    card.className = "ez-measure-card future";
+
+    const number = document.createElement("div");
+    number.className = "ez-measure-number";
+    number.textContent = "Mesure " + measure.measure;
+
+    const diagram = document.createElement("div");
+    diagram.className = "ez-measure-diagram";
+
+    const chord = document.createElement("div");
+    chord.className = "ez-measure-chord";
+    chord.textContent = measure.primary_chord || "—";
+
+    const beats = document.createElement("div");
+    beats.className = "ez-measure-beats";
+    const count = Math.max(1, (measure.beat_tokens || []).length);
+    beats.style.gridTemplateColumns = "repeat(" + count + ", minmax(0,1fr))";
+
+    const beatNodes = (measure.beat_tokens || []).map((token) => {
       const beat = document.createElement("div");
-      beat.className = "ez-ribbon-beat";
-      beat.textContent = "Beat " + item.beat;
-      const chord = document.createElement("div");
-      chord.className = "ez-ribbon-chord";
-      chord.textContent = item.chord_change ? (item.chord || "·") : "·";
-      const lyric = document.createElement("div");
-      lyric.className = "ez-ribbon-lyric";
-      lyric.textContent = item.lyric || "";
-      element.append(beat, chord, lyric);
-      ribbonTrack.appendChild(element);
-      visualNodes.push(element);
+      beat.className = "ez-beat-cell";
+      beat.textContent = token || "-";
+      beats.appendChild(beat);
+      return beat;
     });
-  }
 
-  let activeVisualIndex = -1;
+    const lyric = document.createElement("div");
+    lyric.className = "ez-measure-lyric";
+    lyric.textContent = measure.lyric || "";
 
-  function findVisualIndex(time) {
-    if (!timeline.length) return -1;
-    let low = 0, high = timeline.length - 1, answer = 0;
+    card.append(number, diagram, chord, beats, lyric);
+    measureTrack.appendChild(card);
+    cards.push({ card, diagram, chord, beatNodes });
+  });
+
+  let activeMeasureIndex = -1;
+  let activeBeatIndex = -1;
+
+  function findMeasureIndex(time) {
+    if (!measures.length) return -1;
+    let low = 0, high = measures.length - 1, answer = 0;
     while (low <= high) {
       const middle = (low + high) >> 1;
-      if (Number(timeline[middle].time) <= time) {
+      if (Number(measures[middle].time) <= time) {
         answer = middle;
         low = middle + 1;
       } else {
@@ -223,31 +289,61 @@ export default function(component) {
     return answer;
   }
 
-  function updateVisual(time) {
-    const active = findVisualIndex(time);
-    if (active < 0) return;
-    const item = timeline[active];
-    const start = Number(item.time || 0);
-    const end = Math.max(start + 0.02, Number(item.end || start + 0.5));
-    const progress = Math.max(0, Math.min(1, (time - start) / (end - start)));
-    const itemWidth = window.innerWidth <= 640 ? 118 : 150;
-    const offset = (active + progress) * itemWidth;
-    if (ribbonTrack) {
-      ribbonTrack.style.transform = "translateX(" + (-offset - itemWidth / 2) + "px)";
+  function findBeatIndex(measure, time) {
+    const starts = Array.isArray(measure.beat_times) ? measure.beat_times : [];
+    if (!starts.length) return 0;
+    let answer = 0;
+    for (let index = 0; index < starts.length; index += 1) {
+      if (Number(starts[index]) <= time) answer = index;
+      else break;
     }
-    if (active !== activeVisualIndex) {
-      activeVisualIndex = active;
-      visualNodes.forEach((node, index) => {
-        node.classList.toggle("active", index === active);
-        node.classList.toggle("past", index < active);
-        node.classList.toggle("future", index > active);
+    return answer;
+  }
+
+  function centerMeasure(index) {
+    const card = cards[index]?.card;
+    if (!card) return;
+    const stripWidth = strip.clientWidth;
+    const cardWidth = card.offsetWidth;
+    const gap = parseFloat(getComputedStyle(measureTrack).gap || "0");
+    const offset = index * (cardWidth + gap) - (stripWidth - cardWidth) / 2;
+    measureTrack.style.transform = "translateX(" + (-offset) + "px)";
+  }
+
+  function updateVisual(time) {
+    const measureIndex = findMeasureIndex(time);
+    if (measureIndex < 0) return;
+    const measure = measures[measureIndex];
+    const beatIndex = findBeatIndex(measure, time);
+
+    if (measureIndex !== activeMeasureIndex) {
+      activeMeasureIndex = measureIndex;
+      activeBeatIndex = -1;
+      cards.forEach((entry, index) => {
+        entry.card.classList.toggle("active", index === measureIndex);
+        entry.card.classList.toggle("past", index < measureIndex);
+        entry.card.classList.toggle("future", index > measureIndex);
+        if (index !== measureIndex) entry.diagram.innerHTML = "";
       });
-      currentChord.textContent = item.chord || "—";
-      if (currentBeat) {
-        currentBeat.textContent = "Mesure " + item.measure + " · beat " + item.beat;
-      }
-      if (currentDiagram) {
-        currentDiagram.innerHTML = showDiagrams ? String(item.diagram || "") : "";
+      centerMeasure(measureIndex);
+    }
+
+    if (beatIndex !== activeBeatIndex) {
+      activeBeatIndex = beatIndex;
+      const active = cards[measureIndex];
+      active.beatNodes.forEach((node, index) => {
+        node.classList.toggle("elapsed", index < beatIndex);
+        node.classList.toggle("current", index === beatIndex);
+      });
+      active.chord.textContent = String(
+        measure.beat_chords?.[beatIndex] || measure.primary_chord || "—"
+      );
+      const diagram = showDiagrams
+        ? String(measure.beat_diagrams?.[beatIndex] || "")
+        : "";
+      if (active.diagram.dataset.value !== diagram) {
+        active.diagram.dataset.value = diagram;
+        active.diagram.innerHTML = diagram;
       }
     }
   }
@@ -569,7 +665,7 @@ def render_editor_midi_player(
     instrument_label: str,
     program: int,
     lyrics_words=None,
-    player_timeline=None,
+    player_measures=None,
     chord_diagrams=None,
     show_diagrams: bool = False,
     cover=None,
@@ -603,7 +699,7 @@ def render_editor_midi_player(
             "instrument_label": str(instrument_label),
             "program": int(program),
             "lyrics_words": list(lyrics_words or []),
-            "player_timeline": list(player_timeline or []),
+            "player_measures": list(player_measures or []),
             "chord_diagrams": dict(chord_diagrams or {}),
             "show_diagrams": bool(show_diagrams),
             "cover": dict(cover or {}),
@@ -616,5 +712,5 @@ def render_editor_midi_player(
         },
         key=key,
         width="stretch",
-        height=720 if show_diagrams else 520,
+        height=760 if show_diagrams else 560,
     )
