@@ -94,16 +94,17 @@ def svg(symbol: str, voicing: Voicing, width: int = 150, height: int = 190) -> s
         (
             f'<svg viewBox="0 0 130 170" width="{int(width)}" height="{int(height)}" '
             'role="img" xmlns="http://www.w3.org/2000/svg" '
+            'style="color:#f4f7fb;background:#171b24;border:1px solid #3b4352;border-radius:10px" '
             f'aria-label="Accord {escape(symbol)} — {escape(voicing.name)}">'
         ),
-        f'<text x="65" y="23" text-anchor="middle" font-size="22" font-weight="700">{escape(symbol)}</text>',
-        f'<text x="65" y="39" text-anchor="middle" font-size="9" opacity=".70">{escape(voicing.name)}</text>',
+        f'<text x="65" y="23" text-anchor="middle" font-size="24" font-weight="800" fill="#f4f7fb">{escape(symbol)}</text>',
+        f'<text x="65" y="39" text-anchor="middle" font-size="10" font-weight="700" fill="#c2ccda">{escape(voicing.name)}</text>',
     ]
 
     for x in xs:
         parts.append(
             f'<line x1="{x}" y1="{y0}" x2="{x}" y2="{y0 + 88}" '
-            'stroke="currentColor" stroke-width="1"/>'
+            'stroke="#dbe4f0" stroke-width="1.35"/>'
         )
 
     for fret_index in range(5):
@@ -111,12 +112,12 @@ def svg(symbol: str, voicing: Voicing, width: int = 150, height: int = 190) -> s
         y = y0 + fret_index * fret_gap
         parts.append(
             f'<line x1="35" y1="{y}" x2="115" y2="{y}" '
-            f'stroke="currentColor" stroke-width="{weight}"/>'
+            f'stroke="#dbe4f0" stroke-width="{weight}"/>'
         )
 
     if base > 1:
         parts.append(
-            f'<text x="20" y="{y0 + 16}" text-anchor="middle" font-size="11">{base}</text>'
+            f'<text x="20" y="{y0 + 16}" text-anchor="middle" font-size="12" font-weight="800" fill="#f4f7fb">{base}</text>'
         )
 
     if (
@@ -133,11 +134,11 @@ def svg(symbol: str, voicing: Voicing, width: int = 150, height: int = 190) -> s
             cy = y0 + (row - 0.5) * fret_gap
             parts.append(
                 f'<line x1="{x1}" y1="{cy}" x2="{x2}" y2="{cy}" '
-                'stroke="currentColor" stroke-width="14" stroke-linecap="round"/>'
+                'stroke="#f4f7fb" stroke-width="14" stroke-linecap="round"/>'
             )
             parts.append(
                 f'<text x="{(x1 + x2) / 2}" y="{cy + 3.5}" text-anchor="middle" '
-                'font-size="9" font-weight="700" fill="var(--ez-diagram-dot-text,#fff)">1</text>'
+                'font-size="9" font-weight="700" fill="#11151c">1</text>'
             )
 
     for index, fret in enumerate(voicing.frets):
@@ -146,13 +147,13 @@ def svg(symbol: str, voicing: Voicing, width: int = 150, height: int = 190) -> s
 
         if fret is None:
             parts.append(
-                f'<text x="{x}" y="47" text-anchor="middle" font-size="15">×</text>'
+                f'<text x="{x}" y="47" text-anchor="middle" font-size="17" font-weight="800" fill="#f4f7fb">×</text>'
             )
             continue
 
         if fret == 0:
             parts.append(
-                f'<circle cx="{x}" cy="43" r="4" fill="none" stroke="currentColor" stroke-width="1.5"/>'
+                f'<circle cx="{x}" cy="43" r="4" fill="none" stroke="#f4f7fb" stroke-width="2"/>'
             )
             continue
 
@@ -165,7 +166,7 @@ def svg(symbol: str, voicing: Voicing, width: int = 150, height: int = 190) -> s
 
         cy = y0 + (row - 0.5) * fret_gap
         parts.append(
-            f'<circle cx="{x}" cy="{cy}" r="7" fill="currentColor"/>'
+            f'<circle cx="{x}" cy="{cy}" r="8" fill="#f4f7fb" stroke="#11151c" stroke-width="1"/>'
         )
         if finger is not None:
             parts.append(

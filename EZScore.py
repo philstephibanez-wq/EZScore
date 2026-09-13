@@ -29,6 +29,7 @@ from EZScoreTemplate import ScoreTemplateRenderer
 from ezscore.midi import MIDI_INSTRUMENTS
 from ezscore.backoffice.player import render_editor_comparison_player
 from ezscore.ui.responsive import render_responsive_css
+from ezscore.player import render_song_view_player
 from ezscore.timeline import (
     chord_regions as creer_regions_harmoniques,
     create_harmonic_timeline as creer_figure_deroule_riffstation,
@@ -4357,26 +4358,40 @@ if (
                     st.rerun()
 
         # ----------------------------------------------------
-        # BACK-OFFICE — PLAYER DE COMPARAISON
+        # PLAYER COMMUN — VUE / ÉDITION
         # ----------------------------------------------------
-        if (
-            song_mode == "Édition"
-            and song_view in ("Grille", "Paroles + accords")
-        ):
-            render_editor_comparison_player(
-                audio_bytes=audio_bytes,
-                extension=extension,
-                beats=beats,
-                signature=signature,
-                beats_per_measure=beats_par_mesure_effectif,
-                tempo=tempo,
-                title=titre_affiche,
-                artist=artiste_affiche,
-                cover_path=song_cover_path(song),
-                audio_hash=audio_hash,
-                instruments=MIDI_INSTRUMENTS,
-                resultat=resultat,
-            )
+        if song_view in ("Grille", "Paroles + accords"):
+            if song_mode == "Vue":
+                render_song_view_player(
+                    audio_bytes=audio_bytes,
+                    extension=extension,
+                    beats=beats,
+                    beats_per_measure=beats_par_mesure_effectif,
+                    resultat=resultat,
+                    audio_hash=audio_hash,
+                    title=titre_affiche,
+                    artist=artiste_affiche,
+                    cover_path=song_cover_path(song),
+                    key=(
+                        f"view_player_{audio_hash[:12]}_"
+                        f"{song_view.replace(' ', '_')}"
+                    ),
+                )
+            elif song_mode == "Édition":
+                render_editor_comparison_player(
+                    audio_bytes=audio_bytes,
+                    extension=extension,
+                    beats=beats,
+                    signature=signature,
+                    beats_per_measure=beats_par_mesure_effectif,
+                    tempo=tempo,
+                    title=titre_affiche,
+                    artist=artiste_affiche,
+                    cover_path=song_cover_path(song),
+                    audio_hash=audio_hash,
+                    instruments=MIDI_INSTRUMENTS,
+                    resultat=resultat,
+                )
 
         # Structure calculée sur les accords RÉELS, avant toute représentation capo.
         # ----------------------------------------------------
