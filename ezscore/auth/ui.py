@@ -93,7 +93,7 @@ def render_account_header() -> None:
                 key="auth_open_account",
                 width="stretch",
             ):
-                st.session_state["main_menu"] = "Compte"
+                st.session_state["_pending_main_menu"] = "Compte"
                 st.rerun()
         with c3:
             if user and st.button(
@@ -133,7 +133,7 @@ def _render_login_panel() -> None:
 
     if submitted:
         if login(email, password):
-            st.session_state["main_menu"] = "Répertoire"
+            st.session_state["_pending_main_menu"] = "Répertoire"
             st.rerun()
         st.error("Identifiants invalides.")
 
@@ -171,7 +171,7 @@ def _render_registration_panel() -> None:
                 password=password,
                 display_name=display_name,
             )
-            st.session_state["main_menu"] = "Répertoire"
+            st.session_state["_pending_main_menu"] = "Répertoire"
             st.rerun()
         except Exception as exc:
             st.error(str(exc))
@@ -256,7 +256,7 @@ def _render_profile(user: dict) -> None:
 
     if st.button("Se déconnecter", key="profile_logout", width="stretch"):
         logout()
-        st.session_state["main_menu"] = "Répertoire"
+        st.session_state["_pending_main_menu"] = "Répertoire"
         st.rerun()
 
 
