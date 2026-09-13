@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 
 import streamlit as st
+from ezscore.player.ribbon import RIBBON_HTML, RIBBON_CSS
 
 DEFAULT_SOUNDFONT_URL = (
     "https://raw.githubusercontent.com/mrbumpy409/GeneralUser-GS/"
@@ -26,6 +27,13 @@ _JS_SYNTH_URL = (
 
 _PLAYER_HTML = """
 <div class="ez-midi-player">
+  <div class="ez-player-identity">
+    <img class="ez-player-cover" alt="">
+    <div class="ez-player-titles">
+      <div class="ez-player-title"></div>
+      <div class="ez-player-artist"></div>
+    </div>
+  </div>
   <audio class="ez-midi-song" controls preload="metadata"></audio>
   <div class="ez-midi-controls">
     <label>
@@ -42,12 +50,13 @@ _PLAYER_HTML = """
   <button class="ez-midi-init" type="button">Charger le synthé MIDI</button>
   <div class="ez-midi-state">Synthé non chargé</div>
   <div class="ez-midi-now">Accord : —</div>
+  ${RIBBON_HTML}
   <div class="ez-midi-hint">
     MP3 maître · FluidSynth + SoundFont intégrés au navigateur ·
     aucune sortie MIDI système requise.
   </div>
 </div>
-"""
+""".replace("${RIBBON_HTML}", RIBBON_HTML)
 
 _PLAYER_CSS = """
 :host { display: block; width: 100%; }
@@ -60,6 +69,31 @@ _PLAYER_CSS = """
   background: color-mix(in srgb, var(--st-text-color) 4%, transparent);
   color: var(--st-text-color);
   font-family: var(--st-font);
+}
+.ez-player-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.ez-player-cover {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 8px;
+  display: none;
+  flex: 0 0 auto;
+}
+.ez-player-cover.has-cover { display: block; }
+.ez-player-title {
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.ez-player-artist {
+  margin-top: 3px;
+  font-size: 13px;
+  opacity: .72;
 }
 .ez-midi-song { width: 100%; }
 .ez-midi-controls {
@@ -89,7 +123,7 @@ _PLAYER_CSS = """
 .ez-midi-state { margin-top: 8px; font-size: 12px; opacity: 0.88; }
 .ez-midi-now { margin-top: 6px; font-size: 15px; font-weight: 700; }
 .ez-midi-hint { margin-top: 5px; font-size: 11px; opacity: 0.68; }
-"""
+""" + RIBBON_CSS
 
 _PLAYER_JS = r"""
 export default function(component) {
@@ -101,6 +135,9 @@ export default function(component) {
   const now = root.querySelector(".ez-midi-now");
   const songVolume = root.querySelector(".ez-midi-song-volume");
   const synthVolume = root.querySelector(".ez-midi-synth-volume");
+  const cover = root.querySelector(".ez-player-cover");
+  const title = root.querySelector(".ez-player-title");
+  const artist = root.querySelector(".ez-player-artist");
 
   if (!audio || !initButton || !state || !now || !songVolume || !synthVolume) {
     return;
@@ -108,9 +145,24 @@ export default function(component) {
 
   audio.src = "data:" + data.mime + ";base64," + data.audio_base64;
   audio.volume = Number(songVolume.value);
+
+  if (title) title.textContent = String(data.title || "");
+  if (artist) artist.textContent = String(data.artist || "");
+  if (cover && data.cover && data.cover.base64 && data.cover.mime) {
+    cover.src = "data:" + data.cover.mime + ";base64," + data.cover.base64;
+    cover.alt = "Pochette de " + String(data.title || "la chanson");
+    cover.classList.add("has-cover");
+  }
   state.textContent = "Synthé non chargé · Instrument : " + data.instrument_label;
 
   const events = Array.isArray(data.midi_events) ? data.midi_events : [];
+  const lyrics = Array.isArray(data.lyrics_words) ? data.lyrics_words : [];
+  const ribbon = root.querySelector(".ez-ribbon");
+  const ribbonTrack = root.querySelector(".ez-ribbon-track");
+  const ribbonDiagram = root.querySelector(".ez-ribbon-diagram");
+  const diagrams = data.chord_diagrams || {};
+  const showDiagrams = Boolean(data.show_diagrams);
+  if (ribbon && showDiagrams) ribbon.classList.add("has-diagram");
   const program = Number(data.program || 0);
 
   let context = null;
@@ -124,6 +176,33 @@ export default function(component) {
   let disposed = false;
   let initializing = null;
   let resumeAfterInit = false;
+
+  const chordItems = events
+    .filter((event) => event.kind === "note_on" && event.chord)
+    .filter((event, index, all) => index === 0 || event.chord !== all[index - 1].chord)
+    .map((event) => ({ time: Number(event.time), chord: String(event.chord) }));
+
+  if (ribbonTrack) {
+    chordItems.forEach((item, index) => {
+      const element = document.createElement("div");
+      element.className = "ez-ribbon-item";
+      const nextTime = chordItems[index + 1]?.time ?? Number.POSITIVE_INFINITY;
+      const words = lyrics
+        .filter((word) => Number(word.start) >= item.time && Number(word.start) < nextTime)
+        .map((word) => String(word.text || "").trim())
+        .filter(Boolean)
+        .join(" ");
+      const chord = document.createElement("div");
+      chord.className = "ez-ribbon-chord";
+      chord.textContent = item.chord;
+      const lyric = document.createElement("div");
+      lyric.className = "ez-ribbon-lyric";
+      lyric.textContent = words;
+      element.appendChild(chord);
+      element.appendChild(lyric);
+      ribbonTrack.appendChild(element);
+    });
+  }
 
   window.__ezscoreMidiScripts = window.__ezscoreMidiScripts || {};
   window.__ezscoreSoundFonts = window.__ezscoreSoundFonts || {};
@@ -216,6 +295,34 @@ export default function(component) {
       resetAt(time);
     }
     lastMediaTime = time;
+    if (ribbonTrack && chordItems.length) {
+      let active = 0;
+      while (
+        active + 1 < chordItems.length &&
+        chordItems[active + 1].time <= time
+      ) {
+        active += 1;
+      }
+      const itemWidth = window.innerWidth <= 640 ? 125 : 170;
+      const localProgress = (
+        active + 1 < chordItems.length &&
+        chordItems[active + 1].time > chordItems[active].time
+      )
+        ? (time - chordItems[active].time) /
+          (chordItems[active + 1].time - chordItems[active].time)
+        : 0;
+      const offset = (active + Math.max(0, Math.min(1, localProgress))) * itemWidth;
+      ribbonTrack.style.transform =
+        "translateX(" + (-offset - itemWidth / 2) + "px)";
+      if (ribbonDiagram) {
+        const symbol = chordItems[active].chord;
+        const markup = showDiagrams ? String(diagrams[symbol] || "") : "";
+        if (ribbonDiagram.dataset.chord !== symbol) {
+          ribbonDiagram.dataset.chord = symbol;
+          ribbonDiagram.innerHTML = markup;
+        }
+      }
+    }
     while (cursor < events.length && Number(events[cursor].time) <= time + 0.008) {
       const event = events[cursor++];
       if (Number(event.time) >= time - 0.035 || event.kind === "program") {
@@ -429,6 +536,12 @@ def render_editor_midi_player(
     midi_events,
     instrument_label: str,
     program: int,
+    lyrics_words=None,
+    chord_diagrams=None,
+    show_diagrams: bool = False,
+    cover=None,
+    title: str = "",
+    artist: str = "",
     soundfont_url: str = DEFAULT_SOUNDFONT_URL,
     *,
     key: str | None = None,
@@ -456,6 +569,12 @@ def render_editor_midi_player(
             "midi_events": midi_events,
             "instrument_label": str(instrument_label),
             "program": int(program),
+            "lyrics_words": list(lyrics_words or []),
+            "chord_diagrams": dict(chord_diagrams or {}),
+            "show_diagrams": bool(show_diagrams),
+            "cover": dict(cover or {}),
+            "title": str(title or ""),
+            "artist": str(artist or ""),
             "soundfont_url": str(soundfont_url),
             "soundfont_urls": soundfont_urls,
             "libfluid_url": _LIBFLUID_URL,
@@ -463,5 +582,5 @@ def render_editor_midi_player(
         },
         key=key,
         width="stretch",
-        height=250,
+        height=430 if show_diagrams else 300,
     )

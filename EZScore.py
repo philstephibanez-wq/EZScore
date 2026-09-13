@@ -4371,8 +4371,11 @@ if (
                 beats_per_measure=beats_par_mesure_effectif,
                 tempo=tempo,
                 title=titre_affiche,
+                artist=artiste_affiche,
+                cover_path=song_cover_path(song),
                 audio_hash=audio_hash,
                 instruments=MIDI_INSTRUMENTS,
+                resultat=resultat,
             )
 
         # Structure calculée sur les accords RÉELS, avant toute représentation capo.

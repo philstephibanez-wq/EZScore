@@ -1,67 +1,126 @@
-# EZScore R21 — back-office, player d’édition et modularisation
+# EZScore R22 — pochette, ruban continu et accords guitare
 
-## Architecture produit
+R22 transforme le player d’édition en prévisualisation du futur player de lecture, tout en poursuivant la modularisation de l’application.
 
-EZScore distingue désormais explicitement deux espaces.
+## Back-office / front-office
 
-### Back-office — mode Édition
+Le mode **Édition** est le back-office de EZScore : analyse, correction, structure, métadonnées, voicings, contrôle MP3 + MIDI, validation et publication.
 
-Le mode Édition est le back-office. Il regroupe l’analyse, la correction de grille et de paroles, la structure du morceau, les métadonnées, le workflow version/édition/publication et les outils de contrôle.
+Le futur **front-office Lecture** utilisera le même principe visuel et le même transport MP3, mais sans synthèse MIDI. Il pourra être public, authentifié ou réservé à des utilisateurs / abonnés selon les permissions. Admin et éditeur accèdent au back-office ; lecteur et anonyme restent côté front selon leurs droits.
 
-Le player MP3 + MIDI est un outil de contrôle du back-office. Il est affiché directement dans les vues Grille et Paroles + accords lorsque le morceau est en mode Édition. Le mode séparé Jouer est supprimé pour cette fonction.
+## Ruban accords + paroles
 
-Le MP3 reste l’horloge maître. Le MIDI est généré depuis la grille effective, corrections manuelles comprises.
+Le player d’édition intègre maintenant un bandeau temporel continu :
 
-### Front-office — lecture publiée
+- déplacement automatique de droite vers gauche ;
+- repère central = instant courant ;
+- passé visible à gauche ;
+- accords et paroles à venir visibles à droite pour anticipation ;
+- pas de pagination pendant la lecture ;
+- pas de scroll horizontal utilisateur ;
+- synchronisation sur `audio.currentTime` du MP3 maître ;
+- comportement responsive tablette / smartphone.
 
-Le player définitif sera basé sur le même transport MP3, sans MIDI. Il utilisera un ruban temporel continu : contenu se déplaçant de droite vers gauche, position courante centrée, passé à gauche et anticipation permanente à droite. Pas de pagination pendant la lecture, pas de saut de page et pas de scroll horizontal utilisateur.
+Le ruban est isolé dans `ezscore/player/ribbon.py`.
 
-Le ruban pourra afficher les accords, les paroles ou les deux.
+## Pochette
 
-## Diagrammes et voicings guitare
+La pochette est une donnée du morceau déjà persistée par EZScore et visible dans le répertoire / back-office. R22 ajoute `ezscore/player/cover.py` pour fournir cette même pochette au composant player.
 
-L’affichage d’un diagramme d’accord sera optionnel. Un accord musical et sa position guitare sont deux données distinctes : par exemple Am peut être ouvert, barré case V, barré case XII ou utiliser un autre voicing.
+Le player d’édition affiche maintenant :
 
-En édition, l’objectif est de permettre de choisir explicitement le voicing voulu accord par accord, avec aperçu du diagramme. Les éditions Simplifiée / Standard / Avancée pourront proposer des voicings différents sans modifier la timeline harmonique.
+- la pochette si elle existe ;
+- le titre ;
+- l’artiste ;
+- puis le transport MP3 + MIDI et le ruban synchronisé.
 
-## Authentification / autorisation
+Cette identité visuelle sera réutilisée côté front-office.
 
-Une fondation RBAC modulaire est introduite dans ezscore/auth/ :
+## Diagrammes guitare optionnels
 
-- admin : tous les droits ;
-- editor : import, analyse, édition, validation et publication ;
-- reader : lecture ;
-- anonymous : contenu public uniquement.
+Nouveau sous-système `ezscore/guitar/` :
 
-Le contrat prévoit une authentification par e-mail et une couche OAuth/OIDC pour Google et fournisseurs sociaux. Aucun faux login n’est exposé : l’intégration réelle des providers viendra sur cette fondation. Les autorisations doivent être contrôlées côté application et pas seulement par masquage de boutons.
+- symbole harmonique et voicing séparés ;
+- positions ouvertes, barrées et simplifiées ;
+- rendu SVG vectoriel responsive ;
+- cordes ouvertes / étouffées ;
+- numéros de doigts ;
+- représentation des barrés ;
+- choix persistant par morceau et par symbole d’accord ;
+- activation / désactivation persistante de l’affichage des diagrammes.
+
+En mode Édition, l’expander **Diagrammes guitare (optionnel)** permet de choisir la position voulue pour chaque accord reconnu du morceau. Exemple : un `Am` reste musicalement `Am`, mais peut être affiché / joué visuellement en position ouverte ou barrée case V.
+
+Si l’option est active, le diagramme sélectionné apparaît au centre du bandeau pendant la lecture.
+
+Les choix sont enregistrés dans SQLite par `ezscore/guitar/storage.py` sans modifier la timeline harmonique ni les corrections de grille.
+
+## Catalogue initial de voicings
+
+R22 initialise les accords courants suivants avec plusieurs positions lorsque pertinent :
+
+- A / Am
+- C
+- D / Dm
+- E / Em
+- F
+- G
+
+Le catalogue est volontairement modulaire et extensible. Les accords non encore décrits continuent à fonctionner normalement dans la grille et le player ; ils sont simplement affichés sans diagramme jusqu’à ajout d’un voicing.
 
 ## Responsive
 
-Une couche responsive dédiée est introduite dans ezscore/ui/responsive.py : cibles tactiles, adaptation des colonnes et typographies, prévention du scroll horizontal de page, comportement tablette et smartphone.
+Le contrat responsive R21 reste appliqué :
 
-Le futur ruban de lecture restera continu sur mobile : la quantité d’anticipation diminuera avec la largeur disponible, mais le principe temporel restera identique.
+- desktop : largeur complète et anticipation maximale ;
+- tablette : contrôles adaptés au tactile ;
+- smartphone : bandeau compact, typographies réduites et diagramme redimensionné ;
+- aucune fonction critique ne dépend du survol souris ;
+- aucune barre de scroll horizontale ne doit être nécessaire pour suivre la lecture.
 
-## Modularisation
+## Modularisation R22
 
-R21 sort une nouvelle responsabilité de EZScore.py : le player de comparaison d’édition est maintenant dans ezscore/backoffice/player.py. La suite du développement doit continuer dans ce sens : EZScore.py orchestre, les modules portent les responsabilités métier et UI.
+Fichiers ajoutés :
 
-Nouveaux modules :
+- `ezscore/player/ribbon.py`
+- `ezscore/player/cover.py`
+- `ezscore/guitar/voicings.py`
+- `ezscore/guitar/storage.py`
 
-- ezscore/backoffice/player.py
-- ezscore/ui/responsive.py
-- ezscore/auth/roles.py
+Fichiers adaptés :
 
-## Livrable
+- `EZScore.py`
+- `ezscore/backoffice/player.py`
+- `ezscore/midi/web_player.py`
+- `ezscore/player/__init__.py`
+- `ezscore/guitar/__init__.py`
 
-Le ZIP contient uniquement les fichiers modifiés ou ajoutés par R21 :
+Principe maintenu : **`EZScore.py` orchestre ; les nouvelles responsabilités vont dans des modules dédiés.**
 
-- EZScore.py
-- readme.md
-- ezscore/backoffice/__init__.py
-- ezscore/backoffice/player.py
-- ezscore/ui/__init__.py
-- ezscore/ui/responsive.py
-- ezscore/auth/__init__.py
-- ezscore/auth/roles.py
+## Authentification / accès — contrat conservé
 
-Dézipper dans H:\\EZScore en conservant l’arborescence.
+La fondation R21 reste en place :
+
+- `admin` : tous les droits ;
+- `editor` : import, analyse, édition, validation et publication ;
+- `reader` : lecture autorisée ;
+- `anonymous` : uniquement le contenu explicitement accessible sans compte.
+
+Le front pourra être protégé par authentification e-mail / OAuth-OIDC (Google et fournisseurs sociaux) et, ultérieurement, par des droits liés à une offre payante. Authentification, autorisation et facturation resteront séparées.
+
+## Livrable R22
+
+Le ZIP contient uniquement les fichiers modifiés ou ajoutés par R22 :
+
+- `EZScore.py`
+- `readme.md`
+- `ezscore/backoffice/player.py`
+- `ezscore/midi/web_player.py`
+- `ezscore/player/__init__.py`
+- `ezscore/player/ribbon.py`
+- `ezscore/player/cover.py`
+- `ezscore/guitar/__init__.py`
+- `ezscore/guitar/voicings.py`
+- `ezscore/guitar/storage.py`
+
+Dézipper dans `H:\EZScore` en conservant l’arborescence.
