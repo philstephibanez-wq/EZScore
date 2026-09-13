@@ -30,6 +30,14 @@ from ezscore.midi import MIDI_INSTRUMENTS
 from ezscore.backoffice.player import render_editor_comparison_player
 from ezscore.ui.responsive import render_responsive_css
 from ezscore.player import render_song_view_player
+from ezscore.auth import (
+    allowed as auth_allowed,
+    current_user as auth_current_user,
+    initialize_auth,
+    render_account_bar,
+    render_admin_users,
+    require as auth_require,
+)
 from ezscore.timeline import (
     chord_regions as creer_regions_harmoniques,
     create_harmonic_timeline as creer_figure_deroule_riffstation,
@@ -89,6 +97,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 render_responsive_css()
+initialize_auth()
+render_account_bar()
+render_admin_users()
+
 st.markdown(
     "Analyse d'un morceau : tempo, beats, mesures, accords et paroles synchronisées."
 )
@@ -459,24 +471,26 @@ SILENCE_CHROMA_RATIO = 0.18
 FERMATA_GAP_RATIO = 1.85
 FERMATA_MIN_CONFIDENCE = 0.70
 
-if DEVICE == "cuda":
-    st.sidebar.success(f"🚀 GPU actif : {torch.cuda.get_device_name(0)}")
-    st.sidebar.write(f"PyTorch : {torch.__version__}")
-    st.sidebar.write(f"CUDA : {torch.version.cuda}")
-else:
-    st.sidebar.info("ℹ️ Mode CPU actif")
-    st.sidebar.write(f"PyTorch : {torch.__version__}")
-
-if demucs_disponible():
-    st.sidebar.success("🎚️ Demucs : disponible")
-else:
-    st.sidebar.warning("🎚️ Demucs : non installé")
-
-st.sidebar.caption(
-    "Notation : '-' = tenue · '.' = beat non joué · '^' = point d'orgue détecté"
-)
-
-
+if auth_allowed("song.edit"):
+    if DEVICE == "cuda":
+        st.sidebar.success(f"🚀 GPU actif : {torch.cuda.get_device_name(0)}")
+        st.sidebar.write(f"PyTorch : {torch.__version__}")
+        st.sidebar.write(f"CUDA : {torch.version.cuda}")
+    else:
+        st.sidebar.info("ℹ️ Mode CPU actif")
+        st.sidebar.write(f"PyTorch : {torch.__version__}")
+    
+    if demucs_disponible():
+        st.sidebar.success("🎚️ Demucs : disponible")
+    else:
+        st.sidebar.warning("🎚️ Demucs : non installé")
+    
+    st.sidebar.caption(
+        "Notation : '-' = tenue · '.' = beat non joué · '^' = point d'orgue détecté"
+    )
+    
+    
+    
 # ============================================================
 # RÉGLAGES UTILISATEUR
 # ============================================================
@@ -653,122 +667,141 @@ st.sidebar.caption(
     "Whisper ni l'analyse harmonique."
 )
 
-with st.sidebar.expander("⚙️ Réglages avancés", expanded=False):
-    with st.form("chordstation_settings"):
-        signature_mode = st.selectbox(
-            "Signature rythmique",
-            [
-                "Auto",
-                "2/4",
-                "4/4",
-                "3/4",
-                "6/8",
-                "12/8",
-                "5/4",
-                "7/8",
-            ],
-            key="setting_signature_mode",
-            help=(
-                "Auto tente d'estimer la signature. "
-                "Le résultat reste éditable."
+if auth_allowed("song.edit"):
+    with st.sidebar.expander("⚙️ Réglages avancés", expanded=False):
+        with st.form("chordstation_settings"):
+            signature_mode = st.selectbox(
+                "Signature rythmique",
+                [
+                    "Auto",
+                    "2/4",
+                    "4/4",
+                    "3/4",
+                    "6/8",
+                    "12/8",
+                    "5/4",
+                    "7/8",
+                ],
+                key="setting_signature_mode",
+                help=(
+                    "Auto tente d'estimer la signature. "
+                    "Le résultat reste éditable."
+                )
             )
-        )
-
-        analyse_sr_user = st.selectbox(
-            "Fréquence d'analyse",
-            [11025, 22050, 44100],
-            key="setting_analyse_sr",
-            format_func=lambda x: f"{x} Hz"
-        )
-
-        hop_length_user = st.selectbox(
-            "Hop length",
-            [512, 1024, 2048, 4096],
-            key="setting_hop_length"
-        )
-
-        silence_rms_user = st.slider(
-            "Seuil silence RMS",
-            min_value=0.05,
-            max_value=0.60,
-            step=0.01,
-            key="setting_silence_rms"
-        )
-
-        silence_chroma_user = st.slider(
-            "Seuil silence harmonique",
-            min_value=0.05,
-            max_value=0.60,
-            step=0.01,
-            key="setting_silence_chroma"
-        )
-
-        poids_fondamentale_user = st.slider(
-            "Poids de la fondamentale",
-            min_value=0.10,
-            max_value=0.45,
-            step=0.01,
-            key="setting_poids_fondamentale",
-            help=(
-                "10 % = accompagnement très dominant ; "
-                "45 % = la fondamentale grave pèse davantage. "
-                "La basse ne prend jamais le contrôle total."
+    
+            analyse_sr_user = st.selectbox(
+                "Fréquence d'analyse",
+                [11025, 22050, 44100],
+                key="setting_analyse_sr",
+                format_func=lambda x: f"{x} Hz"
             )
-        )
-
-        fermata_enabled_user = st.checkbox(
-            "Détection point d'orgue",
-            key="setting_fermata_enabled"
-        )
-
-        fermata_gap_user = st.slider(
-            "Seuil point d'orgue (× durée beat)",
-            min_value=1.20,
-            max_value=3.00,
-            step=0.05,
-            key="setting_fermata_gap"
-        )
-
-        st.markdown("---")
-        st.caption("Structure du morceau")
-
-        sections_enabled_user = st.checkbox(
-            "Détection Verse / Chorus / Bridge",
-            key="setting_sections_enabled",
-        )
-
-        section_block_measures_user = st.selectbox(
-            "Taille de bloc structurel",
-            [2, 4, 8],
-            key="setting_section_block_measures",
-            format_func=lambda x: f"{x} mesures",
-            help=(
-                "4 mesures est un bon compromis. "
-                "8 mesures est plus stable mais moins précis."
+    
+            hop_length_user = st.selectbox(
+                "Hop length",
+                [512, 1024, 2048, 4096],
+                key="setting_hop_length"
             )
-        )
-
-        section_similarity_user = st.slider(
-            "Sensibilité répétition de section",
-            min_value=0.45,
-            max_value=0.90,
-            step=0.01,
-            key="setting_section_similarity",
-            help=(
-                "Plus bas = davantage de blocs regroupés. "
-                "Plus haut = détection plus stricte."
+    
+            silence_rms_user = st.slider(
+                "Seuil silence RMS",
+                min_value=0.05,
+                max_value=0.60,
+                step=0.01,
+                key="setting_silence_rms"
             )
-        )
-
-        appliquer_reglages = st.form_submit_button(
-            "Appliquer les paramètres"
-        )
-
-st.sidebar.caption(
-    "« Appliquer les paramètres » mémorise les réglages du morceau et "
-    "lance l'analyse avec ces valeurs. Le capo est mémorisé immédiatement "
-    "et ne relance jamais l'analyse."
-)
+    
+            silence_chroma_user = st.slider(
+                "Seuil silence harmonique",
+                min_value=0.05,
+                max_value=0.60,
+                step=0.01,
+                key="setting_silence_chroma"
+            )
+    
+            poids_fondamentale_user = st.slider(
+                "Poids de la fondamentale",
+                min_value=0.10,
+                max_value=0.45,
+                step=0.01,
+                key="setting_poids_fondamentale",
+                help=(
+                    "10 % = accompagnement très dominant ; "
+                    "45 % = la fondamentale grave pèse davantage. "
+                    "La basse ne prend jamais le contrôle total."
+                )
+            )
+    
+            fermata_enabled_user = st.checkbox(
+                "Détection point d'orgue",
+                key="setting_fermata_enabled"
+            )
+    
+            fermata_gap_user = st.slider(
+                "Seuil point d'orgue (× durée beat)",
+                min_value=1.20,
+                max_value=3.00,
+                step=0.05,
+                key="setting_fermata_gap"
+            )
+    
+            st.markdown("---")
+            st.caption("Structure du morceau")
+    
+            sections_enabled_user = st.checkbox(
+                "Détection Verse / Chorus / Bridge",
+                key="setting_sections_enabled",
+            )
+    
+            section_block_measures_user = st.selectbox(
+                "Taille de bloc structurel",
+                [2, 4, 8],
+                key="setting_section_block_measures",
+                format_func=lambda x: f"{x} mesures",
+                help=(
+                    "4 mesures est un bon compromis. "
+                    "8 mesures est plus stable mais moins précis."
+                )
+            )
+    
+            section_similarity_user = st.slider(
+                "Sensibilité répétition de section",
+                min_value=0.45,
+                max_value=0.90,
+                step=0.01,
+                key="setting_section_similarity",
+                help=(
+                    "Plus bas = davantage de blocs regroupés. "
+                    "Plus haut = détection plus stricte."
+                )
+            )
+    
+            appliquer_reglages = st.form_submit_button(
+                "Appliquer les paramètres"
+            )
+    
+    
+    st.sidebar.caption(
+        "« Appliquer les paramètres » mémorise les réglages du morceau et "
+        "lance l'analyse avec ces valeurs. Le capo est mémorisé immédiatement "
+        "et ne relance jamais l'analyse."
+    )
+else:
+    signature_mode = st.session_state["setting_signature_mode"]
+    analyse_sr_user = int(st.session_state["setting_analyse_sr"])
+    hop_length_user = int(st.session_state["setting_hop_length"])
+    silence_rms_user = float(st.session_state["setting_silence_rms"])
+    silence_chroma_user = float(st.session_state["setting_silence_chroma"])
+    poids_fondamentale_user = float(st.session_state["setting_poids_fondamentale"])
+    fermata_enabled_user = bool(st.session_state["setting_fermata_enabled"])
+    fermata_gap_user = float(st.session_state["setting_fermata_gap"])
+    sections_enabled_user = bool(st.session_state["setting_sections_enabled"])
+    section_block_measures_user = int(
+        st.session_state["setting_section_block_measures"]
+    )
+    section_similarity_user = float(
+        st.session_state["setting_section_similarity"]
+    )
+    appliquer_reglages = False
 
 # Zone réservée à la progression d'analyse.
 # Elle reste visible quelle que soit la vue active.
@@ -2487,15 +2520,24 @@ _pending_main_menu = st.session_state.pop(
     None,
 )
 
-if _pending_main_menu in ("Répertoire", "Chanson", "Import"):
-    st.session_state["main_menu"] = _pending_main_menu
+_main_menu_options = ["Répertoire", "Chanson"]
+if auth_allowed("song.import"):
+    _main_menu_options.append("Import")
 
-if "main_menu" not in st.session_state:
+if _pending_main_menu in _main_menu_options:
+    st.session_state["main_menu"] = _pending_main_menu
+elif _pending_main_menu == "Import":
+    st.session_state["main_menu"] = "Répertoire"
+
+if (
+    "main_menu" not in st.session_state
+    or st.session_state["main_menu"] not in _main_menu_options
+):
     st.session_state["main_menu"] = "Répertoire"
 
 main_menu = st.radio(
     "Navigation",
-    ["Répertoire", "Chanson", "Import"],
+    _main_menu_options,
     horizontal=True,
     key="main_menu",
     label_visibility="collapsed",
@@ -2531,6 +2573,14 @@ if main_menu == "Répertoire":
     set_app_state("catalog_sort", sort_key)
 
     catalog = list_song_catalog(sort_by=sort_key)
+
+    if not auth_allowed("song.read_private"):
+        catalog = [
+            item for item in catalog
+            if str(
+                get_song_workflow(item["audio_hash"]).get("state", "working")
+            ) == "published"
+        ]
 
     st.caption(f"{len(catalog)} chanson(s) dans le répertoire")
 
@@ -2954,17 +3004,18 @@ if main_menu == "Répertoire":
                                 st.rerun()
 
                         with delete_col:
-                            with st.popover("🗑"):
-                                render_delete_song_controls(
-                                    audio_hash=item["audio_hash"],
-                                    display_name=catalog_display_name(
-                                        item,
-                                        sort_by="title",
-                                    ),
-                                    key_suffix=(
-                                        f"{sort_key}_{item['audio_hash']}_noversion"
-                                    ),
-                                )
+                            if auth_allowed("song.delete"):
+                                with st.popover("🗑"):
+                                    render_delete_song_controls(
+                                        audio_hash=item["audio_hash"],
+                                        display_name=catalog_display_name(
+                                            item,
+                                            sort_by="title",
+                                        ),
+                                        key_suffix=(
+                                            f"{sort_key}_{item['audio_hash']}_noversion"
+                                        ),
+                                    )
                     else:
                         a1, a2, a3 = st.columns([1, 1, 1])
 
@@ -2991,55 +3042,59 @@ if main_menu == "Répertoire":
                                 st.rerun()
 
                         with a2:
-                            if st.button(
-                                "✏ Modifier",
-                                key=f"edit_v_{item['audio_hash']}_{selected_version}",
-                            ):
-                                selected_audio_hash = item["audio_hash"]
-                                if (
-                                    _selected_catalog_choice is not None
-                                    and _selected_catalog_choice.get(
-                                        "kind"
-                                    ) == "published"
+                            if auth_allowed("song.edit"):
+                                if st.button(
+                                    "✏ Modifier",
+                                    key=f"edit_v_{item['audio_hash']}_{selected_version}",
                                 ):
-                                    resume_song_modifications(
-                                        selected_audio_hash
+                                    auth_require("song.edit")
+                                    selected_audio_hash = item["audio_hash"]
+                                    if (
+                                        _selected_catalog_choice is not None
+                                        and _selected_catalog_choice.get(
+                                            "kind"
+                                        ) == "published"
+                                    ):
+                                        resume_song_modifications(
+                                            selected_audio_hash
+                                        )
+                                    st.session_state["active_song_hash"] = selected_audio_hash
+                                    set_app_state("last_song_hash", selected_audio_hash)
+                                    prepare_song_preferences_for_open(selected_audio_hash)
+                                    prepare_analysis_version_for_open(
+                                        selected_audio_hash,
+                                        selected_version,
                                     )
-                                st.session_state["active_song_hash"] = selected_audio_hash
-                                set_app_state("last_song_hash", selected_audio_hash)
-                                prepare_song_preferences_for_open(selected_audio_hash)
-                                prepare_analysis_version_for_open(
-                                    selected_audio_hash,
-                                    selected_version,
-                                )
-                                st.session_state[
-                                    f"song_view_{selected_audio_hash[:12]}"
-                                ] = "Grille"
-                                st.session_state[
-                                    f"song_mode_{selected_audio_hash[:12]}"
-                                ] = "Édition"
-                                st.session_state["_pending_main_menu"] = "Chanson"
-                                st.rerun()
+                                    st.session_state[
+                                        f"song_view_{selected_audio_hash[:12]}"
+                                    ] = "Grille"
+                                    st.session_state[
+                                        f"song_mode_{selected_audio_hash[:12]}"
+                                    ] = "Édition"
+                                    st.session_state["_pending_main_menu"] = "Chanson"
+                                    st.rerun()
 
                         with a3:
-                            with st.popover("🗑"):
-                                render_delete_song_controls(
-                                    audio_hash=item["audio_hash"],
-                                    display_name=catalog_display_name(
-                                        item,
-                                        sort_by="title",
-                                    ),
-                                    key_suffix=(
-                                        f"{sort_key}_{item['audio_hash']}_"
-                                        f"{selected_version}"
-                                    ),
-                                )
+                            if auth_allowed("song.delete"):
+                                with st.popover("🗑"):
+                                    render_delete_song_controls(
+                                        audio_hash=item["audio_hash"],
+                                        display_name=catalog_display_name(
+                                            item,
+                                            sort_by="title",
+                                        ),
+                                        key_suffix=(
+                                            f"{sort_key}_{item['audio_hash']}_"
+                                            f"{selected_version}"
+                                        ),
+                                    )
 
 
 # ------------------------------------------------------------
 # IMPORT
 # ------------------------------------------------------------
 elif main_menu == "Import":
+    auth_require("song.import")
     st.subheader("📥 Import")
 
     fichier_audio = st.file_uploader(
@@ -3104,6 +3159,14 @@ elif main_menu == "Chanson":
             st.warning(
                 "Le morceau actif n'existe plus dans le répertoire."
             )
+        elif (
+            not auth_allowed("song.read_private")
+            and str(
+                get_song_workflow(current_hash).get("state", "working")
+            ) != "published"
+        ):
+            st.warning("Cette chanson n'est pas publiée.")
+            st.session_state["_pending_main_menu"] = "Répertoire"
         else:
             persisted_audio_path = find_persisted_audio(
                 current_hash
@@ -3160,28 +3223,34 @@ if (
         "_pending_song_edit_hash",
         None,
     )
-    if _pending_edit_hash == audio_hash:
+    if _pending_edit_hash == audio_hash and auth_allowed("song.edit"):
         st.session_state[_mode_key] = "Édition"
         st.session_state[f"{_mode_key}_radio"] = "✏️ Éditer"
 
     nav_col, mode_col, print_col = st.columns([1.85, 1.05, 0.12])
 
     with nav_col:
+        _song_view_options = ["Grille", "Paroles + accords"]
+        if auth_allowed("song.edit"):
+            _song_view_options.extend(["Blocs", "Analyse"])
+        if st.session_state.get(_view_key) not in _song_view_options:
+            st.session_state[_view_key] = "Paroles + accords"
+
         song_view = st.radio(
             "Vue",
-            ["Grille", "Paroles + accords", "Blocs", "Analyse"],
+            _song_view_options,
             horizontal=True,
             key=_view_key,
             label_visibility="collapsed",
         )
 
     with mode_col:
-        if song_view in ("Grille", "Paroles + accords"):
-            _mode_options = ["👁 Vue", "✏️ Éditer"]
-        elif song_view == "Blocs":
+        if (
+            auth_allowed("song.edit")
+            and song_view in ("Grille", "Paroles + accords", "Blocs")
+        ):
             _mode_options = ["👁 Vue", "✏️ Éditer"]
         else:
-            # Analyse est une vue de consultation uniquement.
             _mode_options = ["👁 Vue"]
 
         _current_mode = st.session_state.get(_mode_key, "Vue")

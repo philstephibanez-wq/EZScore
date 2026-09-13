@@ -1,4 +1,4 @@
-"""Authentication and authorization foundation for EZScore."""
+"""Role and permission model for EZScore."""
 
 from __future__ import annotations
 
@@ -15,25 +15,35 @@ class Role(StrEnum):
 PERMISSIONS = {
     Role.ADMIN: {"*"},
     Role.EDITOR: {
-        "song.read",
+        "song.read_public",
+        "song.read_private",
         "song.import",
         "song.analyse",
         "song.edit",
         "song.validate",
         "song.publish",
+        "song.delete",
     },
-    Role.READER: {"song.read"},
-    Role.ANONYMOUS: {"song.read_public"},
+    Role.READER: {
+        "song.read_public",
+        "song.read_private",
+    },
+    Role.ANONYMOUS: {
+        "song.read_public",
+    },
 }
 
 SSO_PROVIDERS = ("google", "facebook", "apple", "microsoft")
 
 
-def can(role: Role | str, permission: str) -> bool:
-    """Return whether a role owns a permission."""
+def normalize_role(role: Role | str | None) -> Role:
     try:
-        normalized = Role(role)
-    except ValueError:
-        normalized = Role.ANONYMOUS
+        return Role(str(role))
+    except (ValueError, TypeError):
+        return Role.ANONYMOUS
+
+
+def can(role: Role | str | None, permission: str) -> bool:
+    normalized = normalize_role(role)
     rights = PERMISSIONS[normalized]
-    return "*" in rights or permission in rights
+    return "*" in rights or str(permission) in rights

@@ -8,7 +8,9 @@ _CSS = r"""
 <style>
 .stButton button,
 .stDownloadButton button,
-[role="radiogroup"] label {
+[role="radiogroup"] label,
+.stTextInput input,
+.stSelectbox [data-baseweb="select"] {
     min-height: 44px;
 }
 
@@ -22,6 +24,15 @@ body,
     .block-container {
         padding-left: 1rem !important;
         padding-right: 1rem !important;
+    }
+
+    [role="radiogroup"] {
+        flex-wrap: wrap !important;
+        row-gap: .35rem !important;
+    }
+
+    div[data-testid="stPopoverBody"] {
+        max-width: min(92vw, 420px) !important;
     }
 }
 
@@ -50,6 +61,20 @@ body,
     div[data-testid="column"] {
         min-width: 100% !important;
         width: 100% !important;
+    }
+
+    .stButton button,
+    .stDownloadButton button {
+        width: 100%;
+    }
+
+    [data-testid="stFileUploader"] {
+        width: 100%;
+    }
+
+    [role="radiogroup"] label {
+        padding-top: .35rem !important;
+        padding-bottom: .35rem !important;
     }
 }
 </style>

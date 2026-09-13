@@ -1,97 +1,159 @@
-# EZScore R25 — paroles continues et diagrammes synchronisés
+# EZScore R26 — login, rôles et permissions serveur
 
-R25 corrige les deux régressions constatées après le passage au bandeau par mesure de R24.
+R26 introduit le premier socle d'authentification et d'autorisation d'EZScore, avec une interface pensée dès maintenant pour ordinateur, tablette et smartphone.
 
-## Paroles synchronisées
+## Rôles
 
-Les paroles ne sont plus figées dans la carte de mesure.
+Quatre rôles existent :
 
-Le player utilise maintenant deux couches indépendantes :
+- `anonymous` : visiteur non connecté, accès uniquement aux contenus publiés ;
+- `reader` : lecture front-office, y compris contenus privés selon l'autorisation du compte ;
+- `editor` : lecture + import + analyse + modification + validation + publication + suppression ;
+- `admin` : tous les droits, y compris gestion des utilisateurs.
 
-- **accords / beats** : une carte stable par mesure ;
-- **paroles** : un ruban continu basé sur les timestamps Whisper.
+Les permissions sont contrôlées côté serveur. Le fait de masquer un bouton n'est pas considéré comme une protection.
 
-Le ruban de paroles :
+## Authentification locale
 
-- défile continûment de droite vers gauche ;
-- conserve le mot courant dans la zone centrale ;
-- met en évidence le mot courant ;
-- atténue les mots déjà passés ;
-- garde les mots à venir visibles pour l'anticipation ;
-- suit directement `audio.currentTime`, donc reste synchronisé avec le MP3, y compris quand la vitesse de lecture change.
+R26 fournit un premier login e-mail / mot de passe.
 
-Cette logique est active dans le player Vue et dans le player de contrôle Édition MP3 + MIDI.
+Les mots de passe ne sont jamais stockés en clair. Ils sont dérivés avec :
 
-## Diagrammes guitare synchronisés
+- PBKDF2-HMAC-SHA256 ;
+- sel aléatoire par utilisateur ;
+- 310 000 itérations.
 
-Le player Vue expose maintenant directement l'option :
+La table SQLite `app_users` est créée automatiquement dans la base EZScore existante.
 
-`Diagrammes guitare`
+OAuth/OIDC (Google et autres fournisseurs) viendra ensuite et réutilisera le même modèle de compte et de permissions.
 
-Le contrôle est visible à côté de la vitesse.
+## Création du premier administrateur
 
-Quand l'option est active :
+Le premier administrateur n'est créé que si la base utilisateur est vide ET que les variables d'environnement explicites sont présentes.
 
-- le diagramme apparaît au-dessus du nom de l'accord courant ;
-- il utilise le voicing sélectionné dans le back-office ;
-- il change automatiquement si l'accord change à l'intérieur d'une mesure ;
-- la carte de mesure reste stable.
+PowerShell :
 
-Le player d'édition dispose lui aussi d'un contrôle direct d'affichage des diagrammes, en complément de la configuration persistante des voicings dans l'expander du back-office.
+```powershell
+cd H:\EZScore
+$env:EZSCORE_ADMIN_EMAIL="votre-email@example.com"
+$env:EZSCORE_ADMIN_PASSWORD="un-mot-de-passe-fort"
+$env:EZSCORE_ADMIN_NAME="Steve"
 
-La préférence persistée du morceau reste utilisée comme valeur initiale. Le toggle embarqué dans le player agit immédiatement sur l'affichage courant.
-
-## Bandeau par mesure conservé
-
-Le contrat R24 reste inchangé :
-
-```text
-┌────────────┐
-│   [diag]   │   optionnel
-│     Em     │
-│  - . - .   │
-└────────────┘
+python -m streamlit run EZScore.py --server.address 127.0.0.1 --server.port 8501 --server.headless true
 ```
 
-- une carte = une mesure ;
-- le nom de l'accord n'est pas répété par beat ;
-- le beat courant est surligné ;
-- la carte courante reste centrée pendant la mesure ;
-- le changement de carte intervient au changement de mesure ;
-- les mesures à venir restent visibles à droite.
+Une fois le premier administrateur créé, ces variables ne créent plus d'autre compte.
 
-## Vitesse
+Pour une installation permanente, elles devront ensuite être placées dans le mécanisme de démarrage du service plutôt que saisies manuellement à chaque lancement.
 
-En mode Vue :
+## Interface de connexion
 
-- 0.5×
-- 0.75×
-- 0.9×
-- 1.0×
-- 1.1×
-- 1.25×
-- 1.5×
+Une barre de compte est affichée en haut de l'application afin de rester accessible sur téléphone sans dépendre du panneau latéral.
 
-Le MP3 reste l'horloge maître et le ruban de paroles suit `audio.currentTime`.
+Visiteur :
 
-## Fichiers modifiés
+- état « Visiteur · accès public » ;
+- bouton `Connexion` ;
+- formulaire e-mail / mot de passe.
 
-R25 modifie uniquement :
+Utilisateur connecté :
 
-- `ezscore/player/web_player.py`
-- `ezscore/midi/web_player.py`
+- nom ;
+- rôle ;
+- bouton `Déconnexion`.
+
+L'administrateur dispose en plus du panneau `Utilisateurs et droits`.
+
+## Administration des comptes
+
+Un administrateur peut :
+
+- créer un compte ;
+- choisir `reader`, `editor` ou `admin` ;
+- activer / désactiver un compte ;
+- changer le rôle ;
+- réinitialiser le mot de passe local.
+
+EZScore refuse de désactiver ou rétrograder le dernier administrateur actif afin d'éviter un verrouillage complet du back-office.
+
+## Contrôle d'accès
+
+### Anonymous
+
+Le visiteur non connecté :
+
+- voit uniquement les chansons dont le workflow est `published` ;
+- peut ouvrir les vues de lecture ;
+- ne voit pas Import ;
+- ne voit pas Modifier ;
+- ne voit pas Supprimer ;
+- ne peut pas passer en mode Édition ;
+- ne voit pas les vues techniques Blocs / Analyse ;
+- ne voit pas les diagnostics GPU / Demucs ni les réglages avancés.
+
+### Reader
+
+Le reader :
+
+- dispose du front de lecture ;
+- peut accéder aux contenus privés si son rôle le permet ;
+- ne peut ni importer, ni modifier, ni publier.
+
+### Editor
+
+L'editor retrouve le back-office :
+
+- Import ;
+- Grille / Paroles + accords / Blocs / Analyse ;
+- mode Édition ;
+- contrôles d'analyse ;
+- validation / publication ;
+- suppression.
+
+### Admin
+
+L'admin possède les droits editor plus la gestion des utilisateurs.
+
+## Ergonomie tablette / smartphone
+
+R26 renforce le contrat responsive :
+
+- cible tactile minimale de 44 px ;
+- champs et sélecteurs tactiles agrandis ;
+- radios repliables sur plusieurs lignes ;
+- popover de connexion borné à la largeur de l'écran ;
+- boutons pleine largeur sur téléphone ;
+- uploader pleine largeur ;
+- colonnes Streamlit empilées sur petit écran ;
+- login accessible dans la zone principale et non uniquement dans la sidebar ;
+- aucun contrôle essentiel ne dépend du hover.
+
+## Sécurité actuelle et suite
+
+R26 est un socle fonctionnel, pas encore la fin du chantier identité.
+
+Étapes prévues :
+
+1. validation du login local sur le site Cloudflare ;
+2. séparation plus explicite front-office / back-office dans la navigation ;
+3. OAuth/OIDC Google ;
+4. éventuellement autres fournisseurs ;
+5. permissions plus fines par chanson / publication ;
+6. préparation des abonnements et droits premium.
+
+Le tunnel Cloudflare reste :
+
+`https://ezscore.logandplay.com` → `http://127.0.0.1:8501`
+
+## Fichiers R26
+
+Le livrable contient uniquement :
+
+- `EZScore.py`
 - `readme.md`
-
-## Étape suivante
-
-Après validation de R25, le prochain chantier est l'authentification et les droits :
-
-- admin ;
-- editor ;
-- reader ;
-- anonymous ;
-- permissions serveur ;
-- séparation front-office / back-office ;
-- préparation des accès authentifiés et payants.
-
-Le site actuellement exposé via Cloudflare Tunnel restera le point d'entrée public, mais les fonctions de back-office devront être protégées avant ouverture plus large.
+- `ezscore/auth/__init__.py`
+- `ezscore/auth/roles.py`
+- `ezscore/auth/storage.py`
+- `ezscore/auth/session.py`
+- `ezscore/auth/ui.py`
+- `ezscore/ui/responsive.py`
