@@ -1,3 +1,10 @@
+import warnings
+warnings.filterwarnings(
+    "ignore",
+    message=r"The httpx module is deprecated; please use httpx2 instead\.",
+    category=Warning,
+    module=r"authlib\.integrations\.httpx_client\.assertion_client",
+)
 import streamlit as st
 import html
 import numpy as np
@@ -14,7 +21,6 @@ import sqlite3
 import json
 import hashlib
 import re
-import warnings
 import time
 import base64
 import struct
@@ -34,8 +40,8 @@ from ezscore.auth import (
     allowed as auth_allowed,
     current_user as auth_current_user,
     initialize_auth,
-    render_account_bar,
-    render_admin_users,
+    render_account_header,
+    render_account_page,
     require as auth_require,
 )
 from ezscore.timeline import (
@@ -98,8 +104,7 @@ st.markdown(
 )
 render_responsive_css()
 initialize_auth()
-render_account_bar()
-render_admin_users()
+render_account_header()
 
 st.markdown(
     "Analyse d'un morceau : tempo, beats, mesures, accords et paroles synchronisées."
@@ -2520,7 +2525,7 @@ _pending_main_menu = st.session_state.pop(
     None,
 )
 
-_main_menu_options = ["Répertoire", "Chanson"]
+_main_menu_options = ["Répertoire", "Chanson", "Compte"]
 if auth_allowed("song.import"):
     _main_menu_options.append("Import")
 
@@ -2546,7 +2551,10 @@ main_menu = st.radio(
 # ------------------------------------------------------------
 # RÉPERTOIRE
 # ------------------------------------------------------------
-if main_menu == "Répertoire":
+if main_menu == "Compte":
+    render_account_page()
+
+elif main_menu == "Répertoire":
     st.subheader("🎵 Répertoire")
 
     if "active_song_hash" not in st.session_state:

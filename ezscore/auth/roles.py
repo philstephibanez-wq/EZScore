@@ -33,7 +33,7 @@ PERMISSIONS = {
     },
 }
 
-SSO_PROVIDERS = ("google", "facebook", "apple", "microsoft")
+SSO_PROVIDERS = ("google", "microsoft", "auth0", "apple")
 
 
 def normalize_role(role: Role | str | None) -> Role:
