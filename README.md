@@ -1,114 +1,102 @@
-# EZScore R23 — player Vue, beats, highlight et vitesse
+# EZScore R24 — bandeau par mesure, beats animés et diagramme optionnel
 
-R23 poursuit la séparation **front-office / back-office** et la modularisation du player.
+R24 corrige le comportement du bandeau demandé après R23.
 
-## Player visible dans les vues
+## Principe visuel
 
-Les vues **Grille** et **Paroles + accords** affichent maintenant un player MP3 lorsque le mode est **Vue**.
+Le bandeau n'affiche plus une case par beat.
 
-Ce player de lecture ne contient **aucun MIDI**. Il réutilise la même identité visuelle et la même timeline que le player d’édition :
+Il affiche maintenant **une case par mesure**, sur le même principe visuel que la grille :
 
-- pochette ;
-- titre / artiste ;
-- transport MP3 ;
-- bandeau accords + paroles ;
-- beats visibles ;
-- accord courant mis en évidence ;
-- anticipation à droite ;
-- passé atténué à gauche ;
-- diagramme guitare optionnel au-dessus du nom de l’accord courant.
+```text
+┌────────────┐
+│   [diag]   │   optionnel
+│     Em     │
+│  - . - .   │
+└────────────┘
+```
 
-Le mode **Édition** conserve le player de contrôle **MP3 + MIDI**.
+Le diagramme, lorsqu'il est activé, apparaît **au-dessus du nom de l'accord courant**.
 
-## Vitesse de lecture en mode Vue
+## Défilement
 
-Le player Vue propose :
+Le bandeau ne défile plus rapidement à chaque beat.
 
-- 0.5×
-- 0.75×
-- 0.9×
-- 1.0×
-- 1.1×
-- 1.25×
-- 1.5×
+- une mesure = une carte ;
+- la carte courante reste centrée pendant la mesure ;
+- le passage visuel à la carte suivante se fait au changement de mesure ;
+- la mesure précédente reste visible à gauche ;
+- les mesures suivantes restent visibles à droite pour l'anticipation.
 
-La vitesse est appliquée via `HTMLMediaElement.playbackRate`. Le navigateur conserve la hauteur autant que possible via `preservesPitch`.
+Le mouvement est donc beaucoup plus stable.
 
-Le bandeau reste synchronisé car sa source de temps reste `audio.currentTime`.
+## Beats
 
-## Bandeau rythmique
+La ligne inférieure de la carte reprend la logique compacte de la grille.
 
-R23 remplace la logique visuelle centrée uniquement sur les changements d’accord par une timeline **un élément par beat**.
+- le nom principal de l'accord n'est pas répété sur chaque beat ;
+- `-` représente une tenue / continuité ;
+- `.` représente le marqueur déjà utilisé par la grille ;
+- un changement d'accord exceptionnel au milieu de la mesure peut apparaître dans la subdivision correspondante ;
+- le beat courant est surligné ;
+- les beats déjà passés restent marqués plus discrètement.
 
-Chaque élément contient :
+Le nom affiché au centre de la carte suit l'accord réellement courant si un changement intervient à l'intérieur de la mesure.
 
-- numéro du beat ;
-- accord lorsqu’un changement survient ;
-- fragment de paroles correspondant au beat ;
-- mesure ;
-- horodatage début / fin.
+## Diagrammes guitare
 
-Le déplacement est continu pendant le beat, pas uniquement au changement d’accord.
+Les choix de voicing R22/R23 sont conservés.
 
-L’élément courant reçoit un highlight visible ; les éléments futurs restent lisibles pour l’anticipation.
+- affichage optionnel ;
+- même voicing en Vue et en Édition ;
+- diagramme de l'accord courant au-dessus du nom ;
+- changement automatique si l'accord change dans la mesure.
 
-## Diagramme courant
+## Mode Vue
 
-Quand l’option diagrammes est activée dans le back-office :
+Les vues **Grille** et **Paroles + accords** conservent :
 
-- le voicing choisi reste persistant ;
-- le diagramme de l’accord courant apparaît au-dessus du nom de l’accord ;
-- la vue Lecture réutilise exactement ce choix ;
-- le diagramme n’est jamais obligatoire.
+- player MP3 ;
+- pochette, titre, artiste ;
+- variation de vitesse ;
+- pitch préservé autant que possible ;
+- bandeau par mesure ;
+- paroles associées à la mesure ;
+- diagramme optionnel.
 
-Le rendu SVG a été renforcé pour les thèmes sombres : grille, barrés, doigts, cordes ouvertes et cordes étouffées sont plus contrastés.
+Aucun MIDI n'est utilisé en mode Vue.
 
-## Player d’édition
+## Mode Édition
 
-Le player MP3 + MIDI conserve le MP3 comme horloge maître et utilise désormais la même timeline visuelle par beat que le player Vue.
+Le player de contrôle conserve :
 
-R23 augmente aussi la hauteur du composant afin d’éviter la petite fenêtre interne et les scrollbars qui masquaient le bandeau.
+- MP3 maître ;
+- MIDI SoundFont ;
+- volumes MP3 / MIDI ;
+- même bandeau par mesure ;
+- même beat courant ;
+- même diagramme optionnel.
 
-## Modularisation R23
+Ainsi Vue et Édition utilisent la même représentation temporelle sans dupliquer le modèle métier.
 
-Nouveaux modules :
+## Modularisation
 
-- `ezscore/player/timeline.py` — timeline canonique du player à partir de la grille effective ;
-- `ezscore/player/web_player.py` — player MP3 sans MIDI pour le mode Vue.
+R24 modifie uniquement :
 
-Modules adaptés :
-
-- `EZScore.py` — orchestration Vue / Édition ;
-- `ezscore/backoffice/player.py` — partage de la timeline canonique ;
-- `ezscore/midi/web_player.py` — beats, highlight, diagramme courant, fenêtre agrandie ;
-- `ezscore/player/__init__.py` ;
-- `ezscore/guitar/voicings.py` — lisibilité SVG.
-
-Principe maintenu : **`EZScore.py` orchestre, les responsabilités restent dans des modules dédiés.**
-
-## Contrat d’accès
-
-Le front n’est pas nécessairement public. À terme :
-
-- anonyme : uniquement contenus autorisés ;
-- lecteur authentifié : accès selon droits ;
-- abonné : accès selon offre ;
-- éditeur : front + back-office ;
-- admin : tous droits.
-
-Authentification, autorisation et facturation restent séparées.
-
-## Livrable R23
-
-Le ZIP contient uniquement les fichiers modifiés ou ajoutés par R23 :
-
-- `EZScore.py`
-- `readme.md`
-- `ezscore/backoffice/player.py`
-- `ezscore/midi/web_player.py`
-- `ezscore/player/__init__.py`
 - `ezscore/player/timeline.py`
 - `ezscore/player/web_player.py`
-- `ezscore/guitar/voicings.py`
+- `ezscore/backoffice/player.py`
+- `ezscore/midi/web_player.py`
+- `readme.md`
 
-Dézipper dans `H:\EZScore` en conservant l’arborescence.
+La timeline canonique ajoute maintenant `build_measure_timeline()`, utilisée par les deux players.
+
+## Suite prévue
+
+Après validation de R24, l'étape suivante est la **mise en ligne sur Cloudflare**, même si EZScore n'est pas encore fonctionnellement terminé. La publication devra préserver la séparation front-office / back-office et préparer l'authentification / autorisation déjà prévue.
+
+## Livrable
+
+Le ZIP contient uniquement les fichiers modifiés de R24.
+
+Dézipper dans `H:\EZScore` en conservant l'arborescence.
