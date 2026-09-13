@@ -1,12 +1,49 @@
-# EZScore R24 — bandeau par mesure, beats animés et diagramme optionnel
+# EZScore R25 — paroles continues et diagrammes synchronisés
 
-R24 corrige le comportement du bandeau demandé après R23.
+R25 corrige les deux régressions constatées après le passage au bandeau par mesure de R24.
 
-## Principe visuel
+## Paroles synchronisées
 
-Le bandeau n'affiche plus une case par beat.
+Les paroles ne sont plus figées dans la carte de mesure.
 
-Il affiche maintenant **une case par mesure**, sur le même principe visuel que la grille :
+Le player utilise maintenant deux couches indépendantes :
+
+- **accords / beats** : une carte stable par mesure ;
+- **paroles** : un ruban continu basé sur les timestamps Whisper.
+
+Le ruban de paroles :
+
+- défile continûment de droite vers gauche ;
+- conserve le mot courant dans la zone centrale ;
+- met en évidence le mot courant ;
+- atténue les mots déjà passés ;
+- garde les mots à venir visibles pour l'anticipation ;
+- suit directement `audio.currentTime`, donc reste synchronisé avec le MP3, y compris quand la vitesse de lecture change.
+
+Cette logique est active dans le player Vue et dans le player de contrôle Édition MP3 + MIDI.
+
+## Diagrammes guitare synchronisés
+
+Le player Vue expose maintenant directement l'option :
+
+`Diagrammes guitare`
+
+Le contrôle est visible à côté de la vitesse.
+
+Quand l'option est active :
+
+- le diagramme apparaît au-dessus du nom de l'accord courant ;
+- il utilise le voicing sélectionné dans le back-office ;
+- il change automatiquement si l'accord change à l'intérieur d'une mesure ;
+- la carte de mesure reste stable.
+
+Le player d'édition dispose lui aussi d'un contrôle direct d'affichage des diagrammes, en complément de la configuration persistante des voicings dans l'expander du back-office.
+
+La préférence persistée du morceau reste utilisée comme valeur initiale. Le toggle embarqué dans le player agit immédiatement sur l'affichage courant.
+
+## Bandeau par mesure conservé
+
+Le contrat R24 reste inchangé :
 
 ```text
 ┌────────────┐
@@ -16,87 +53,45 @@ Il affiche maintenant **une case par mesure**, sur le même principe visuel que 
 └────────────┘
 ```
 
-Le diagramme, lorsqu'il est activé, apparaît **au-dessus du nom de l'accord courant**.
-
-## Défilement
-
-Le bandeau ne défile plus rapidement à chaque beat.
-
-- une mesure = une carte ;
-- la carte courante reste centrée pendant la mesure ;
-- le passage visuel à la carte suivante se fait au changement de mesure ;
-- la mesure précédente reste visible à gauche ;
-- les mesures suivantes restent visibles à droite pour l'anticipation.
-
-Le mouvement est donc beaucoup plus stable.
-
-## Beats
-
-La ligne inférieure de la carte reprend la logique compacte de la grille.
-
-- le nom principal de l'accord n'est pas répété sur chaque beat ;
-- `-` représente une tenue / continuité ;
-- `.` représente le marqueur déjà utilisé par la grille ;
-- un changement d'accord exceptionnel au milieu de la mesure peut apparaître dans la subdivision correspondante ;
+- une carte = une mesure ;
+- le nom de l'accord n'est pas répété par beat ;
 - le beat courant est surligné ;
-- les beats déjà passés restent marqués plus discrètement.
+- la carte courante reste centrée pendant la mesure ;
+- le changement de carte intervient au changement de mesure ;
+- les mesures à venir restent visibles à droite.
 
-Le nom affiché au centre de la carte suit l'accord réellement courant si un changement intervient à l'intérieur de la mesure.
+## Vitesse
 
-## Diagrammes guitare
+En mode Vue :
 
-Les choix de voicing R22/R23 sont conservés.
+- 0.5×
+- 0.75×
+- 0.9×
+- 1.0×
+- 1.1×
+- 1.25×
+- 1.5×
 
-- affichage optionnel ;
-- même voicing en Vue et en Édition ;
-- diagramme de l'accord courant au-dessus du nom ;
-- changement automatique si l'accord change dans la mesure.
+Le MP3 reste l'horloge maître et le ruban de paroles suit `audio.currentTime`.
 
-## Mode Vue
+## Fichiers modifiés
 
-Les vues **Grille** et **Paroles + accords** conservent :
+R25 modifie uniquement :
 
-- player MP3 ;
-- pochette, titre, artiste ;
-- variation de vitesse ;
-- pitch préservé autant que possible ;
-- bandeau par mesure ;
-- paroles associées à la mesure ;
-- diagramme optionnel.
-
-Aucun MIDI n'est utilisé en mode Vue.
-
-## Mode Édition
-
-Le player de contrôle conserve :
-
-- MP3 maître ;
-- MIDI SoundFont ;
-- volumes MP3 / MIDI ;
-- même bandeau par mesure ;
-- même beat courant ;
-- même diagramme optionnel.
-
-Ainsi Vue et Édition utilisent la même représentation temporelle sans dupliquer le modèle métier.
-
-## Modularisation
-
-R24 modifie uniquement :
-
-- `ezscore/player/timeline.py`
 - `ezscore/player/web_player.py`
-- `ezscore/backoffice/player.py`
 - `ezscore/midi/web_player.py`
 - `readme.md`
 
-La timeline canonique ajoute maintenant `build_measure_timeline()`, utilisée par les deux players.
+## Étape suivante
 
-## Suite prévue
+Après validation de R25, le prochain chantier est l'authentification et les droits :
 
-Après validation de R24, l'étape suivante est la **mise en ligne sur Cloudflare**, même si EZScore n'est pas encore fonctionnellement terminé. La publication devra préserver la séparation front-office / back-office et préparer l'authentification / autorisation déjà prévue.
+- admin ;
+- editor ;
+- reader ;
+- anonymous ;
+- permissions serveur ;
+- séparation front-office / back-office ;
+- préparation des accès authentifiés et payants.
 
-## Livrable
-
-Le ZIP contient uniquement les fichiers modifiés de R24.
-
-Dézipper dans `H:\EZScore` en conservant l'arborescence.
+Le site actuellement exposé via Cloudflare Tunnel restera le point d'entrée public, mais les fonctions de back-office devront être protégées avant ouverture plus large.
