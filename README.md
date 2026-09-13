@@ -1,56 +1,24 @@
-# EZScore R20_FIX3
+# EZScore R20_FIX4
 
-R20_FIX3 corrige les régressions découvertes après le découpage modulaire.
+Correction du player d'édition MP3 + MIDI.
 
-## Player MIDI d'édition
+## Correctifs
 
-- MP3 original = horloge maître ;
-- MIDI généré depuis la grille effective après corrections ;
-- guitare clean GM 27 par défaut, piano GM 0 en option ;
-- un down par temps avec accentuation métrique ;
-- même flux d'événements pour le player et l'export .mid ;
-- synthèse FluidSynth + SoundFont directement dans le navigateur ;
-- aucun port MIDI système requis ;
-- aucun streamlit.components.v1.html ;
-- player migré vers Streamlit Components v2.
-
-## Impression
-
-Correction des constantes de pagination déplacées dans ezscore/printing.py :
-- PRINT_PAGE_CONTENT_MM ;
-- PRINT_FIRST_PAGE_HEADER_MM.
-
-EZScore.py importe désormais explicitement ces constantes publiques.
-
-## Modularisation
-
-EZScore.py reste autour de 6140 lignes, contre environ 12940 avant R20.
-
-Modules :
-- ezscore/notation.py
-- ezscore/persistence.py
-- ezscore/printing.py
-- ezscore/timeline.py
-- ezscore/transcription.py
-- ezscore/midi/events.py
-- ezscore/midi/export.py
-- ezscore/midi/web_player.py
+- suppression de `AudioContext.createMediaElementSource(audio)` pour le MP3 : le composant Streamlit v2 peut réutiliser le même élément `<audio>` et Chromium interdit de le rattacher une seconde fois à un autre `MediaElementSourceNode` ;
+- le MP3 reste l'horloge maître via `audio.currentTime` et sort directement par le lecteur HTML natif ;
+- le volume chanson est piloté directement par `audio.volume` ;
+- nouvelle URL SoundFont principale via `raw.githubusercontent.com` ;
+- fallback SoundFont automatique ;
+- cache navigateur des octets SoundFont pour éviter un nouveau téléchargement à chaque rerender ;
+- initialisation du synthé rendue idempotente ;
+- un clic direct sur Lecture charge désormais automatiquement FluidSynth + SoundFont puis reprend la lecture ;
+- le bouton `Charger le synthé MIDI` reste disponible pour précharger explicitement le synthé.
 
 ## Livrable
 
-Le ZIP contient uniquement :
-- EZScore.py
-- readme.md
-- templates/EZScore.score
-- ezscore/__init__.py
-- ezscore/notation.py
-- ezscore/persistence.py
-- ezscore/printing.py
-- ezscore/timeline.py
-- ezscore/transcription.py
-- ezscore/midi/__init__.py
-- ezscore/midi/events.py
-- ezscore/midi/export.py
-- ezscore/midi/web_player.py
+Le ZIP contient uniquement les fichiers modifiés :
 
-Dézipper dans H:\EZScore en conservant l'arborescence.
+- `readme.md`
+- `ezscore/midi/web_player.py`
+
+Dézipper dans `H:\EZScore` en conservant l'arborescence.
