@@ -1,20 +1,32 @@
-# EZScore R20
+# EZScore R20_FIX3
 
-R20 :
-- player d'édition MP3 + MIDI SoundFont dans le navigateur ;
-- MP3 horloge maître ;
+R20_FIX3 corrige les régressions découvertes après le découpage modulaire.
+
+## Player MIDI d'édition
+
+- MP3 original = horloge maître ;
 - MIDI généré depuis la grille effective après corrections ;
 - guitare clean GM 27 par défaut, piano GM 0 en option ;
-- un down par temps avec vélocités accentuées ;
-- même flux MIDI pour écoute et export .mid ;
-- aucun port MIDI système ;
-- aucun streamlit.components.v1.html.
+- un down par temps avec accentuation métrique ;
+- même flux d'événements pour le player et l'export .mid ;
+- synthèse FluidSynth + SoundFont directement dans le navigateur ;
+- aucun port MIDI système requis ;
+- aucun streamlit.components.v1.html ;
+- player migré vers Streamlit Components v2.
+
+## Impression
+
+Correction des constantes de pagination déplacées dans ezscore/printing.py :
+- PRINT_PAGE_CONTENT_MM ;
+- PRINT_FIRST_PAGE_HEADER_MM.
+
+EZScore.py importe désormais explicitement ces constantes publiques.
 
 ## Modularisation
 
-EZScore.py passe d'environ 12940 à 6140 lignes.
+EZScore.py reste autour de 6140 lignes, contre environ 12940 avant R20.
 
-Modules extraits :
+Modules :
 - ezscore/notation.py
 - ezscore/persistence.py
 - ezscore/printing.py
@@ -26,7 +38,7 @@ Modules extraits :
 
 ## Livrable
 
-Le ZIP contient :
+Le ZIP contient uniquement :
 - EZScore.py
 - readme.md
 - templates/EZScore.score
