@@ -33,6 +33,7 @@ __all__ = [
     'reset_lyric_block_edits',
     '_source_words_for_interval',
     '_redistribute_corrected_block_text',
+    'effective_lyrics_words_for_sections',
     '_lyric_line_key',
     'load_lyric_line_edits',
     'save_lyric_line_edit',
