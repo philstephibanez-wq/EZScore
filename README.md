@@ -1,48 +1,61 @@
-# EZScore R29 FIX2 — blocs, sidebar et diagrammes
+# EZScore R29 FIX4 — source unique paroles + capo player
 
-Correctif cumulatif de la R29.
+Correctif cumulatif de cohérence entre Blocs, Paroles + accords et les players.
 
-## 1. Panneau gauche conservé en Vue / Édition
+## Paroles : une seule source canonique
 
-Le profil et la navigation restent visibles dans toutes les vues.
+La vue **Blocs > Édition** est désormais l'unique éditeur de paroles.
 
-- Répertoire : profil + navigation
-- Chanson / Vue : profil + navigation
-- Chanson / Édition : profil + navigation + outils techniques
-- Import : profil + navigation + outils techniques
-- Compte : profil + navigation
+Les anciennes corrections concurrentes issues de l'ancien éditeur `Corriger les paroles` ne doivent plus prendre la main dans une autre vue.
 
-Les réglages techniques ne remplacent plus le panneau profil.
+Lorsqu'une correction de bloc est enregistrée :
+- elle remplace les anciennes corrections qui chevauchent le même intervalle ;
+- elle reste rattachée aux bornes du bloc structurel courant ;
+- les corrections devenues obsolètes après un ancien découpage sont ignorées par le player.
 
-## 2. Gestion des blocs restaurée
+La timeline effective des paroles est reconstruite à partir des **blocs structurels persistés courants**.
 
-Dans `Blocs > Édition`, la colonne droite redevient une édition des **paroles seules**, sans accords.
+Elle alimente :
+- Paroles + accords ;
+- player Vue ;
+- player MIDI de contrôle en Édition.
 
-Chaque bloc affiche :
-- son nom ;
-- sa plage de mesures ;
-- un champ de paroles éditable ;
-- les corrections persistées si elles existent.
+L'ancien éditeur redondant `Corriger les paroles` de Paroles + accords est retiré de l'interface.
 
-Le bouton `Valider les paroles des blocs` enregistre les corrections sans déplacer les accords ni la timeline.
+## Structure persistée
 
-La structure du morceau reste éditée à gauche et validée séparément.
+La structure persistée du morceau reste disponible comme référence même lorsque la détection automatique de sections est désactivée.
 
-## 3. Diagrammes guitare déterministes
+Ainsi les mêmes blocs sont utilisés pour :
+- l'édition des paroles ;
+- Paroles + accords ;
+- les players.
 
-Le catalogue explicite reste prioritaire.
+## Capodastre temps réel
 
-Pour un accord majeur ou mineur absent du catalogue, EZScore génère désormais automatiquement une position barrée E-shape. Cela couvre notamment les accords fréquents auparavant absents :
+Le capodastre reste disponible dans la sidebar de `Chanson`, en Vue comme en Édition.
 
-`A#`, `Bb`, `B`, `Bm`, `C#`, `Cm`, `D#`, `Eb`, `F#`, `Fm`, `G#`, etc.
+Le changement est immédiat et ne relance aucune analyse.
 
-Ainsi un accord majeur/mineur supporté ne doit plus voir son diagramme disparaître/revenir au gré de la lecture.
+Séparation explicite :
+- harmonie réelle : utilisée par l'analyse et le MIDI ;
+- accord affiché : transformé par le capo ;
+- diagramme guitare : construit depuis l'accord affiché.
 
-Les accords enrichis (7, maj7, m7, dim...) seront ajoutés progressivement au catalogue dédié.
+Exemple :
+
+```text
+Accord réel : Cm
+Capo : 3
+Affichage : Am
+MIDI : Cm
+Diagramme : Am
+```
 
 ## Fichiers du livrable
 
 - `EZScore.py`
 - `readme.md`
-- `ezscore/ui/app_shell.py`
-- `ezscore/guitar/voicings.py`
+- `ezscore/persistence.py`
+- `ezscore/player/web_player.py`
+- `ezscore/backoffice/player.py`

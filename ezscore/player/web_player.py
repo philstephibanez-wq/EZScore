@@ -8,7 +8,7 @@ import streamlit as st
 from ezscore.player.cover import cover_payload
 from ezscore.player.timeline import build_measure_timeline
 from ezscore.guitar import get_voicing, load_show_diagrams, load_voicings, svg
-from ezscore.transcription import extraire_mots
+from ezscore.notation import accord_forme_capo
 
 
 _HTML = """
@@ -523,25 +523,42 @@ def render_song_view_player(
     beats_per_measure: int,
     resultat,
     audio_hash: str,
+    lyrics_words=None,
+    capo: int = 0,
     title: str,
     artist: str,
     cover_path,
     key: str,
 ) -> None:
-    words = extraire_mots(resultat)
+    words = list(lyrics_words or [])
     selections = load_voicings(audio_hash)
     show_diagrams = load_show_diagrams(audio_hash)
 
+    display_beats = []
     symbols = []
-    current = ""
+    current_real = ""
+
     for beat in beats or []:
+        copied = dict(beat)
         raw = str(beat.get("accord", "") or "").strip()
+
         if raw == ".":
-            current = ""
-        elif raw != "-" and raw:
-            current = raw
-        if current and current not in symbols:
-            symbols.append(current)
+            current_real = ""
+            copied["accord"] = "."
+        elif raw == "-":
+            copied["accord"] = "-"
+        elif raw:
+            current_real = raw
+            copied["accord"] = accord_forme_capo(raw, capo)
+        else:
+            copied["accord"] = raw
+
+        display_beats.append(copied)
+
+        if current_real:
+            display_symbol = accord_forme_capo(current_real, capo)
+            if display_symbol and display_symbol not in symbols:
+                symbols.append(display_symbol)
 
     diagram_map = {}
     for symbol in symbols:
@@ -550,7 +567,7 @@ def render_song_view_player(
             diagram_map[symbol] = svg(symbol, voicing, width=112, height=142)
 
     measures = build_measure_timeline(
-        beats=beats,
+        beats=display_beats,
         lyrics_words=words,
         beats_per_measure=beats_per_measure,
         chord_diagrams=diagram_map,

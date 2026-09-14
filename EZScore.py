@@ -37,6 +37,7 @@ from ezscore.backoffice.player import render_editor_comparison_player
 from ezscore.ui.responsive import render_responsive_css
 from ezscore.ui.app_shell import (
     analysis_sidebar_active,
+    current_section,
     render_app_header,
     render_profile_sidebar,
 )
@@ -655,8 +656,14 @@ for _widget_key, _widget_default in _widget_defaults.items():
     if _widget_key not in st.session_state:
         st.session_state[_widget_key] = _widget_default
 
-# Les contrôles techniques appartiennent uniquement à Import / Édition.
-if _analysis_sidebar_active:
+# Le capodastre reste un contrôle d'affichage temps réel dans Chanson
+# (Vue comme Édition). Il ne relance jamais l'analyse harmonique.
+_capo_sidebar_visible = (
+    current_section() == "Chanson"
+    or _analysis_sidebar_active
+)
+
+if _capo_sidebar_visible:
     capo_user = st.sidebar.selectbox(
         "🎸 Capodastre",
         list(range(0, 13)),
@@ -668,7 +675,7 @@ if _analysis_sidebar_active:
         )
     )
     st.sidebar.caption(
-        "Le capodastre modifie l'affichage immédiatement, sans relancer Demucs, "
+        "Modification immédiate de l'affichage, sans relancer Demucs, "
         "Whisper ni l'analyse harmonique."
     )
 else:
@@ -4436,42 +4443,6 @@ if (
                     st.success(f"Snapshot S{version_no} enregistré.")
                     st.rerun()
 
-        # ----------------------------------------------------
-        # PLAYER COMMUN — VUE / ÉDITION
-        # ----------------------------------------------------
-        if song_view in ("Grille", "Paroles + accords"):
-            if song_mode == "Vue":
-                render_song_view_player(
-                    audio_bytes=audio_bytes,
-                    extension=extension,
-                    beats=beats,
-                    beats_per_measure=beats_par_mesure_effectif,
-                    resultat=resultat,
-                    audio_hash=audio_hash,
-                    title=titre_affiche,
-                    artist=artiste_affiche,
-                    cover_path=song_cover_path(song),
-                    key=(
-                        f"view_player_{audio_hash[:12]}_"
-                        f"{song_view.replace(' ', '_')}"
-                    ),
-                )
-            elif song_mode == "Édition":
-                render_editor_comparison_player(
-                    audio_bytes=audio_bytes,
-                    extension=extension,
-                    beats=beats,
-                    signature=signature,
-                    beats_per_measure=beats_par_mesure_effectif,
-                    tempo=tempo,
-                    title=titre_affiche,
-                    artist=artiste_affiche,
-                    cover_path=song_cover_path(song),
-                    audio_hash=audio_hash,
-                    instruments=MIDI_INSTRUMENTS,
-                    resultat=resultat,
-                )
-
         # Structure calculée sur les accords RÉELS, avant toute représentation capo.
         # ----------------------------------------------------
         # GRILLE — LOOK TYPE EXCEL
@@ -4569,17 +4540,66 @@ if (
                 similarity_threshold=section_similarity_user,
             )
 
-            blocs_persistants = ensure_structure_blocks(
-                audio_hash=audio_hash,
-                detected_sections=sections_detectees,
-                total_measures=len(mesures),
-            )
+        # La structure persistée reste la référence, même si la détection
+        # automatique est désactivée. Les vues et le player utilisent ainsi
+        # exactement les mêmes blocs et les mêmes corrections de paroles.
+        blocs_persistants = ensure_structure_blocks(
+            audio_hash=audio_hash,
+            detected_sections=sections_detectees,
+            total_measures=len(mesures),
+        )
 
-            sections_structurelles = materialiser_structure_blocks(
-                blocks=blocs_persistants,
-                mesures=mesures,
-                detected_sections=sections_detectees,
-            )
+        sections_structurelles = materialiser_structure_blocks(
+            blocks=blocs_persistants,
+            mesures=mesures,
+            detected_sections=sections_detectees,
+        )
+
+        _effective_lyrics_words = effective_lyrics_words_for_sections(
+            resultat=resultat,
+            audio_hash=audio_hash,
+            sections=sections_structurelles,
+        )
+
+        # ----------------------------------------------------
+        # PLAYER COMMUN — VUE / ÉDITION
+        # ----------------------------------------------------
+        if song_view in ("Grille", "Paroles + accords"):
+            if song_mode == "Vue":
+                render_song_view_player(
+                    audio_bytes=audio_bytes,
+                    extension=extension,
+                    beats=beats,
+                    beats_per_measure=beats_par_mesure_effectif,
+                    resultat=resultat,
+                    lyrics_words=_effective_lyrics_words,
+                    audio_hash=audio_hash,
+                    capo=capo_user,
+                    title=titre_affiche,
+                    artist=artiste_affiche,
+                    cover_path=song_cover_path(song),
+                    key=(
+                        f"view_player_{audio_hash[:12]}_"
+                        f"{song_view.replace(' ', '_')}_capo{capo_user}"
+                    ),
+                )
+            elif song_mode == "Édition":
+                render_editor_comparison_player(
+                    audio_bytes=audio_bytes,
+                    extension=extension,
+                    beats=beats,
+                    signature=signature,
+                    beats_per_measure=beats_par_mesure_effectif,
+                    tempo=tempo,
+                    title=titre_affiche,
+                    artist=artiste_affiche,
+                    cover_path=song_cover_path(song),
+                    audio_hash=audio_hash,
+                    instruments=MIDI_INSTRUMENTS,
+                    resultat=resultat,
+                    lyrics_words=_effective_lyrics_words,
+                    capo=capo_user,
+                )
 
         if (
             song_view == "Blocs"
@@ -5647,73 +5667,11 @@ if (
                         lyrics_print_document,
                     )
 
-            if editor_blocks and song_mode == "Édition":
-                with st.expander("✏️ Corriger les paroles", expanded=False):
-                    st.caption(
-                        "Édition par bloc. Les accords ne bougent jamais. "
-                        "Les retours à la ligne saisis ici sont conservés."
-                    )
-
-                    for idx, item in enumerate(editor_blocks):
-                        st.markdown(f"**{item['Bloc']}**")
-                        value = st.text_area(
-                            f"Paroles — {item['Bloc']}",
-                            value=item["text"],
-                            height=140,
-                            key=f"lyric_block_{audio_hash[:12]}_{item['block_key']}",
-                            label_visibility="collapsed",
-                        )
-                        item["edited_text"] = value
-
-                    save_col, reset_col = st.columns([1, 1])
-
-                    with save_col:
-                        if st.button(
-                            "✅ Valider ces paroles",
-                            type="primary",
-                            key=f"save_lyrics_blocks_{audio_hash[:12]}",
-                            help=(
-                                "Valide les corrections de paroles de ce morceau "
-                                "et crée une nouvelle version de la partition."
-                            ),
-                        ):
-                            for item in editor_blocks:
-                                save_lyric_block_edit(
-                                    audio_hash=audio_hash,
-                                    block_key=item["block_key"],
-                                    original_text=item["original_text"],
-                                    corrected_text=item.get("edited_text", ""),
-                                    time_start=item["debut"],
-                                    time_end=item["fin"],
-                                )
-                            version_no = save_analysis_version(
-                                audio_hash=audio_hash,
-                                analysis_key=analysis_key,
-                                parameters=analysis_parameters,
-                                musique=musique,
-                                resultat=resultat,
-                            )
-                            st.session_state[
-                                "active_analysis_version_no"
-                            ] = version_no
-                            st.success(
-                                f"Paroles validées — V{version_no}. "
-                                "Nouvelle version créée. Accords et timeline inchangés."
-                            )
-                            st.rerun()
-
-                    with reset_col:
-                        with st.popover("↩ Réinitialiser les paroles"):
-                            st.warning(
-                                "Supprime seulement les corrections de paroles "
-                                "et revient au texte Whisper."
-                            )
-                            if st.button(
-                                "Confirmer",
-                                key=f"reset_lyrics_blocks_{audio_hash[:12]}",
-                            ):
-                                reset_lyric_block_edits(audio_hash)
-                                st.rerun()
+            if song_mode == "Édition":
+                st.caption(
+                    "Les paroles sont éditées uniquement dans la vue Blocs. "
+                    "Cette vue reflète la version canonique validée."
+                )
 
         # ----------------------------------------------------
         # STRUCTURE DU MORCEAU

@@ -21,6 +21,7 @@ from ezscore.guitar import (
     save_voicing,
     svg as guitar_svg,
 )
+from ezscore.notation import accord_forme_capo
 
 
 def render_editor_comparison_player(
@@ -37,6 +38,8 @@ def render_editor_comparison_player(
     audio_hash: str,
     instruments: dict[str, int],
     resultat,
+    lyrics_words=None,
+    capo: int = 0,
 ):
     """Render the MP3+MIDI verification tool inside edition views only."""
     with st.container(border=True):
@@ -65,16 +68,33 @@ def render_editor_comparison_player(
             strum_ms=strum_ms,
         )
 
-        from ezscore.transcription import extraire_mots
-        lyrics_words = extraire_mots(resultat)
+        lyrics_words = list(lyrics_words or [])
 
+        display_beats = []
         chord_symbols = []
-        for event in events:
-            if event.get("kind") != "note_on":
-                continue
-            symbol = str(event.get("chord", "") or "").strip()
-            if symbol and symbol not in chord_symbols:
-                chord_symbols.append(symbol)
+        current_real = ""
+
+        for beat in beats or []:
+            copied = dict(beat)
+            raw = str(beat.get("accord", "") or "").strip()
+
+            if raw == ".":
+                current_real = ""
+                copied["accord"] = "."
+            elif raw == "-":
+                copied["accord"] = "-"
+            elif raw:
+                current_real = raw
+                copied["accord"] = accord_forme_capo(raw, capo)
+            else:
+                copied["accord"] = raw
+
+            display_beats.append(copied)
+
+            if current_real:
+                display_symbol = accord_forme_capo(current_real, capo)
+                if display_symbol and display_symbol not in chord_symbols:
+                    chord_symbols.append(display_symbol)
 
         saved_voicings = load_voicings(audio_hash)
         show_diagrams_saved = load_show_diagrams(audio_hash)
@@ -146,7 +166,7 @@ def render_editor_comparison_player(
         )
 
         player_measures = build_measure_timeline(
-            beats=beats,
+            beats=display_beats,
             lyrics_words=lyrics_words,
             beats_per_measure=beats_per_measure,
             chord_diagrams=diagram_map,

@@ -575,10 +575,28 @@ def save_lyric_block_edit(
     audio_hash, block_key, original_text, corrected_text,
     time_start, time_end,
 ):
+    """Persist the canonical correction for one structural block.
+
+    Any older lyric correction overlapping the same structural interval is
+    removed first. This prevents historical whole-song or obsolete-boundary
+    edits from taking precedence in another view.
+    """
     original = str(original_text or "").strip()
     corrected = str(corrected_text or "").strip()
+    t0 = float(time_start)
+    t1 = float(time_end)
 
     with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            DELETE FROM lyric_block_edits
+            WHERE audio_hash = ?
+              AND block_key <> ?
+              AND NOT (time_end <= ? OR time_start >= ?)
+            """,
+            (str(audio_hash), str(block_key), t0, t1),
+        )
+
         if not corrected or corrected == original:
             conn.execute(
                 "DELETE FROM lyric_block_edits "
@@ -603,11 +621,10 @@ def save_lyric_block_edit(
                 """,
                 (
                     str(audio_hash), str(block_key), original, corrected,
-                    float(time_start), float(time_end), _utc_now_iso(),
+                    t0, t1, _utc_now_iso(),
                 ),
             )
         conn.commit()
-
 
 def reset_lyric_block_edits(audio_hash):
     with sqlite3.connect(DB_PATH) as conn:
@@ -710,6 +727,63 @@ def _redistribute_corrected_block_text(corrected_text, source_words):
         prev_end = float(end)
 
     return result
+
+
+def effective_lyrics_words_for_sections(
+    resultat,
+    audio_hash,
+    sections,
+):
+    """Build the canonical lyric timeline from the current structural blocks.
+
+    Only edits whose key matches the *current* block boundaries are used.
+    Stale corrections from previous block layouts are deliberately ignored.
+    """
+    edits = load_lyric_block_edits(audio_hash)
+    effective = []
+
+    if not sections:
+        return [
+            {
+                "text": str(word.get("text", "") or "").strip(),
+                "start": float(word.get("start", 0.0) or 0.0),
+                "end": float(word.get("end", word.get("start", 0.0)) or 0.0),
+            }
+            for word in extraire_mots(resultat)
+            if str(word.get("text", "") or "").strip()
+        ]
+
+    for section in sections:
+        t0 = float(section.get("time_start", 0.0) or 0.0)
+        t1 = float(section.get("time_end", t0) or t0)
+        if t1 <= t0:
+            continue
+
+        source_words = _source_words_for_interval(resultat, t0, t1)
+        block_key = _lyric_block_key(t0, t1)
+        edit = edits.get(block_key, {})
+        corrected = str(edit.get("corrected_text", "") or "").strip()
+
+        if corrected:
+            block_words = _redistribute_corrected_block_text(
+                corrected,
+                source_words,
+            )
+        else:
+            block_words = [
+                {**word, "manual_line_end": False}
+                for word in source_words
+            ]
+
+        effective.extend(block_words)
+
+    effective.sort(
+        key=lambda word: (
+            float(word.get("start", 0.0) or 0.0),
+            float(word.get("end", 0.0) or 0.0),
+        )
+    )
+    return effective
 
 
 def _lyric_line_key(time_start, time_end, original_text):
