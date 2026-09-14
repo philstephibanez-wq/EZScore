@@ -1,89 +1,135 @@
-# EZScore — correctif pré-roll / post-roll des paroles
+# EZScore — MIDI + performances Analyse — livraison corrigée
 
-Base vérifiée : `master` au commit `f2c6a6fc066e6a77d932f8e0e6e666de0a3529bc`
-(`EZScore_R30_ANALYSIS_V2`).
-
-## But
-
-Corriger la disparition des paroles chantées avant la première mesure détectée,
-sans toucher au moteur R33 de découpage intelligent et sans déplacer aucun
-timestamp.
-
-Exemple concerné : **Tombe la neige**.
-
-Le chanteur peut commencer avant la première mesure musicale. Ces mots doivent
-donc rester visibles et synchronisés.
-
-## Correction
-
-`ezscore/ui/app_shell.py` conserve la compatibilité R30 existante et ajoute un
-pont temporaire vers l'architecture à trois timelines.
-
-Le moteur R33 fournit déjà une enveloppe visuelle correcte :
-
-- premier bloc : peut commencer avant la mesure 1 ;
-- dernier bloc : peut finir après la dernière mesure détectée.
-
-Le code R30 reconstruisait ensuite les bornes depuis les mesures et perdait
-cette information.
-
-Le correctif :
-
-1. conserve l'enveloppe temporelle R33 lors de la matérialisation ;
-2. étend uniquement le premier et le dernier intervalle visuel ;
-3. applique la même enveloppe dans l'éditeur **Paroles des blocs** ;
-4. ne touche jamais aux frontières temporelles des blocs intermédiaires.
-
-## Invariants
+Base GitHub vérifiée avant génération :
 
 ```text
-timestamp accord  : inchangé
-timestamp phonème : inchangé
-timestamp mot     : inchangé
-moteur structure R33 : inchangé
+master = 15518e2e7e50a3d78835d70574457ec3528ad930
+commit = EZScore_R30_MIDI_FIX2_FAST
 ```
 
-Les blocs restent une vue éditoriale.
+## Diagnostic GitHub
 
-## Trace
+Le `master` courant contient encore dans `EZScore.py` :
 
-Quand un pré-roll ou post-roll est effectivement récupéré :
+```python
+from ezscore.midi import MIDI_INSTRUMENTS
+```
+
+alors que la vue Analyse appelle ensuite :
+
+```python
+build_midi_file(...)
+```
+
+Le `NameError` est donc confirmé sur le code GitHub courant.
+
+Le module `ezscore.midi` exporte déjà correctement :
+
+```python
+build_midi_file
+```
+
+Le problème est uniquement la résolution du symbole dans le monolithe.
+
+La vue Analyse GitHub courante utilise aussi encore l'ancien `timeline.py`,
+qui crée une trace Plotly et un rectangle pour chaque région d'accord. Cela
+explique les temps de rendu très élevés sur certains morceaux.
+
+## Correctif MIDI
+
+`ezscore/ui/app_shell.py` conserve le pré-roll des paroles déjà validé et
+ajoute un pont très étroit :
+
+```python
+_persistence.build_midi_file = _build_midi_file
+_persistence.__all__.append("build_midi_file")
+```
+
+Pourquoi cela fonctionne :
+
+1. `EZScore.py` importe `ezscore.ui.app_shell`;
+2. le pont expose alors `build_midi_file` dans `ezscore.persistence`;
+3. plus bas, `EZScore.py` exécute déjà :
+
+```python
+from ezscore.persistence import *
+```
+
+4. `build_midi_file` devient donc disponible dans le namespace du monolithe.
+
+Aucun `builtins`, aucun calcul MIDI au démarrage.
+
+## Correctif performances Analyse
+
+`ezscore/timeline.py` est remplacé par la version optimisée :
+
+- waveform en `Scattergl`;
+- toutes les régions d'accords dans une seule trace `Bar`;
+- tous les noms d'accords dans une seule trace texte;
+- environ 4 traces Plotly au total au lieu de centaines;
+- cache waveform Streamlit conservé.
+
+Trace attendue :
 
 ```text
-[EZTRACE][LYRICS_ENVELOPE] measure=... visual=...
+[EZTRACE][ANALYSE_TIMELINE_PERF]
+beats=...
+regions=...
+waveform_points=...
+plotly_traces=...
 ```
 
-## Fichiers
+`plotly_traces` doit rester autour de 4.
+
+## Fichiers livrés
 
 ```text
 ezscore/ui/app_shell.py
+ezscore/timeline.py
 readme.md
 ```
 
-Aucun fichier SSO/auth modifié.
-Aucune base SQLite.
+Le ZIP ne contient PAS de répertoire racine supplémentaire : il peut être
+dézippé directement dans `H:\EZScore`.
+
+Aucune DB.
 Aucun audio.
-Aucun script `apply_*.py`.
+Aucun `apply_*.py`.
+Aucun fichier auth/SSO.
 
 ## Installation
 
-Dézipper le ZIP directement dans `H:\EZScore` en conservant l'arborescence.
-
-Puis :
-
 ```powershell
 cd H:\EZScore
+
+tar -xf "$env:USERPROFILE\Downloads\EZScore_R30_MIDI_PERF_FINAL.zip" -C H:\EZScore
+
 python -m py_compile .\ezscore\ui\app_shell.py
+python -m py_compile .\ezscore\timeline.py
 python -m py_compile .\EZScore.py
 python -m compileall -q .\ezscore
+
 python -m streamlit run .\EZScore.py
 ```
 
-## Recette immédiate
+## Recette
 
-Ouvrir **Tombe la neige** puis `Blocs > Édition`.
+1. Ouvrir une chanson.
+2. Passer en `Analyse`.
+3. Vérifier l'absence de :
 
-Le premier bloc doit maintenant contenir aussi les mots Whisper situés avant
-le début de la mesure 1.
+```text
+NameError: name 'build_midi_file' is not defined
+```
 
-Aucune réanalyse Demucs / Whisper n'est nécessaire pour ce test.
+4. Vérifier la présence en console de :
+
+```text
+[EZTRACE][MIDI_SYMBOL] build_midi_file exported=true
+[EZTRACE][ANALYSE_TIMELINE_PERF] ...
+```
+
+5. Vérifier que le bouton de téléchargement MIDI apparaît.
+6. Tester `Analyse -> Grille -> Analyse` pour comparer le temps du second rendu.
+
+Le découpage R33 et le pré-roll des paroles restent inchangés.
