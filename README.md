@@ -1,21 +1,17 @@
-# EZScore R30 FIX1 — récupération des sauts de ligne
+# EZScore R30 FIX2 — sauts de ligne visibles dans le parolier
 
-Correctif incrémental à appliquer après R30.
+Correctif incrémental à appliquer après R30 FIX1.
 
-## Correction
+## Paroles + accords
 
-Les retours à la ligne manuels des paroles pouvaient ne plus être visibles après les régressions précédentes, même lorsqu'une ancienne version technique les contenait encore.
+Les retours à la ligne validés dans Blocs > Édition restent la source canonique.
+Le parolier matérialise maintenant explicitement la séparation entre deux vers manuels.
 
-FIX1 ajoute une récupération conservatrice depuis `analysis_versions.lyric_edits_json` :
+Aucun texte n'est recalculé, aucun accord n'est déplacé et aucune réanalyse n'est lancée.
 
-- une ancienne mise en forme n'est reprise que si le texte est strictement identique après normalisation des espaces ;
-- seuls les retours à la ligne sont donc restaurés automatiquement ;
-- une ancienne correction de mots différente n'est jamais réinjectée ;
-- la mise en forme récupérée est immédiatement réenregistrée dans `lyric_block_edits` afin de redevenir la référence courante.
-
-Cette récupération fonctionne aussi avec l'ancien décalage de borne de bloc de quelques millisecondes.
+Le même découpage est également repris par le rendu imprimable basé sur la même fonction de lignes.
 
 ## Fichiers modifiés
 
-- `ezscore/persistence.py`
-- `readme.md`
+- ezscore/persistence.py
+- readme.md
