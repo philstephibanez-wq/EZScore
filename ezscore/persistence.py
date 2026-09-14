@@ -29,6 +29,7 @@ __all__ = [
     'audio_sha256',
     '_lyric_block_key',
     'load_lyric_block_edits',
+    'resolve_lyric_block_edit',
     'save_lyric_block_edit',
     'reset_lyric_block_edits',
     '_source_words_for_interval',
@@ -572,6 +573,38 @@ def load_lyric_block_edits(audio_hash):
     }
 
 
+def resolve_lyric_block_edit(edits, time_start, time_end, tolerance=0.02):
+    """Resolve the current block edit, including the legacy ±1 ms boundary.
+
+    Exact key lookup remains authoritative. A narrow boundary fallback recovers
+    corrections saved before the block end convention changed to +0.001 s,
+    preserving text and manual line breaks.
+    """
+    edits = edits or {}
+    t0 = float(time_start)
+    t1 = float(time_end)
+    exact = edits.get(_lyric_block_key(t0, t1))
+    if exact:
+        return exact
+
+    best = None
+    best_delta = None
+    tol = float(tolerance)
+
+    for item in edits.values():
+        e0 = float(item.get("time_start", 0.0) or 0.0)
+        e1 = float(item.get("time_end", e0) or e0)
+        d0 = abs(e0 - t0)
+        d1 = abs(e1 - t1)
+        if d0 <= tol and d1 <= tol:
+            delta = d0 + d1
+            if best_delta is None or delta < best_delta:
+                best = item
+                best_delta = delta
+
+    return best or {}
+
+
 def save_lyric_block_edit(
     audio_hash, block_key, original_text, corrected_text,
     time_start, time_end,
@@ -765,8 +798,9 @@ def effective_lyrics_words_for_sections(
 
         source_words = _source_words_for_interval(resultat, t0, t1)
         block_key = _lyric_block_key(t0, t1)
+        edit = resolve_lyric_block_edit(edits, t0, t1)
         corrected = str(
-            edits.get(block_key, {}).get("corrected_text", "") or ""
+            edit.get("corrected_text", "") or ""
         ).strip()
 
         if corrected:

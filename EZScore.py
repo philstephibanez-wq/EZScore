@@ -4985,9 +4985,10 @@ if (
                         if str(word.get("text", "") or "").strip()
                     ).strip()
 
-                    _preview_edit = _preview_lyric_edits.get(
-                        _preview_key,
-                        {},
+                    _preview_edit = resolve_lyric_block_edit(
+                        _preview_lyric_edits,
+                        _preview_t0,
+                        _preview_t1,
                     )
                     _preview_corrected = str(
                         _preview_edit.get("corrected_text", "") or ""
@@ -5469,7 +5470,11 @@ if (
                 source_words = _source_words_for_interval(resultat, t0, t1)
                 original = " ".join(w["text"] for w in source_words).strip()
                 block_key = _lyric_block_key(t0, t1)
-                edit = edits_by_block.get(block_key, {})
+                edit = resolve_lyric_block_edit(
+                    edits_by_block,
+                    t0,
+                    t1,
+                )
                 corrected = str(edit.get("corrected_text", "") or "").strip()
 
                 lines = construire_lignes_paroles_intervalle(
@@ -5580,8 +5585,10 @@ if (
                     block_key_print = _lyric_block_key(
                         t0_print, t1_print
                     )
-                    edit_print = edits_by_block.get(
-                        block_key_print, {}
+                    edit_print = resolve_lyric_block_edit(
+                        edits_by_block,
+                        t0_print,
+                        t1_print,
                     )
                     corrected_print = str(
                         edit_print.get("corrected_text", "") or ""
@@ -5770,7 +5777,7 @@ if (
             if not regions:
                 st.info("Aucune donnée harmonique disponible pour cette analyse.")
             else:
-                fig, regions = creer_figure_deroule_riffstation(
+                fig = creer_figure_deroule_riffstation(
                     beats=beats,
                     sections=sections_structurelles,
                     audio_bytes=audio_bytes,

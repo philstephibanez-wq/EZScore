@@ -1,63 +1,46 @@
-# EZScore R29 FIX7 — ergonomie chanson compacte
+# EZScore R29 FIX8 — Analyse + sauts de ligne paroles
 
-Correctif cumulatif basé sur le FIX6.
+Correctif cumulatif basé sur FIX7.
 
-## Objectif
+## 1. Vue Analyse
 
-Supprimer le faux gain ergonomique qui consistait à déplacer le scroll de la page principale vers la sidebar.
+Régression corrigée :
 
-Dans une chanson, les commandes réellement utilisées pendant le travail doivent être visibles immédiatement :
-- choix de vue ;
-- mode Vue / Édition ;
-- capodastre.
+```text
+ValueError: too many values to unpack (expected 2)
+```
 
-## Sidebar chanson
+`create_harmonic_timeline()` retourne une seule figure Plotly. Le code appelant ne tente plus de déballer un second retour inutile.
 
-Sur `Chanson` et `Import`, le profil devient compact :
-- avatar réduit ;
-- nom ;
-- rôle.
+## 2. Sauts de ligne des paroles
 
-Les actions globales sont secondaires :
-- Répertoire ;
-- Profil ;
-- Mes éditions ;
-- Importer ;
-- Administration ;
-- Déconnexion.
+Les retours à la ligne saisis dans `Blocs > Édition` sont de nouveau récupérés.
 
-Elles sont regroupées dans une navigation compacte/repliable afin de ne plus repousser les commandes du morceau vers le bas.
+Cause :
+- l'ancienne convention enregistrait la fin du bloc à `fin` ;
+- FIX6 a normalisé la fin à `fin + 0,001 s` ;
+- la clé persistée ne correspondait donc plus exactement, même si le bloc était le même.
 
-## Commandes du morceau
+FIX8 conserve l'identification exacte en priorité, puis accepte uniquement un ancien enregistrement dont les bornes diffèrent de quelques millisecondes. Le texte corrigé et ses retours à la ligne sont alors réutilisés.
 
-Le bloc `🎼 Morceau` reste dans le left panel et contient :
-- Grille / Paroles + accords / Blocs / Analyse ;
-- Vue / Éditer ;
-- Capodastre.
+Cette résolution est appliquée à :
+- Blocs > Édition ;
+- Paroles + accords ;
+- impression ;
+- timeline canonique utilisée par les players.
 
-Il est placé avant les réglages techniques.
+## 3. Ergonomie
 
-Les réglages avancés restent contextuels à Import / Édition et ne doivent plus être le premier élément utile du panneau.
-
-## Paroles
-
-Le FIX6 est conservé :
-- Blocs > Édition = source canonique ;
-- mêmes frontières temporelles pour Blocs, Paroles + accords et players ;
-- nettoyage des corrections historiques chevauchantes.
-
-## Capodastre
-
-Le FIX6 est conservé :
-- grille, Paroles + accords, player et diagrammes suivent le capo ;
-- MIDI/audio restent dans l'harmonie réelle ;
-- aucune réanalyse.
+La sidebar compacte FIX7 est conservée :
+- profil compact dans Chanson / Import ;
+- commandes globales secondaires repliées ;
+- Vue / Édition / Capo accessibles sans parcourir toute la sidebar.
 
 ## Fichiers du livrable
 
 - `EZScore.py`
 - `readme.md`
-- `ezscore/ui/app_shell.py`
 - `ezscore/persistence.py`
+- `ezscore/ui/app_shell.py`
 - `ezscore/player/web_player.py`
 - `ezscore/backoffice/player.py`
