@@ -1,0 +1,45 @@
+name: EZScore R30 Deliverable
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile R30
+        run: |
+          python -m py_compile \
+            EZScore.py \
+            ezscore/persistence.py \
+            ezscore/auth/storage.py \
+            ezscore/auth/session.py \
+            ezscore/auth/ui.py \
+            ezscore/ui/app_shell.py
+      - name: Static R30 checks
+        shell: bash
+        run: |
+          grep -q "save_lyric_block_edits_snapshot" EZScore.py
+          grep -q "song_editor_assignments" ezscore/persistence.py
+          grep -q "picture_url" ezscore/auth/storage.py
+          grep -q "Nom affiché ou e-mail" ezscore/auth/ui.py
+      - name: Build delivery
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf out
+          mkdir -p out/ezscore/auth out/ezscore/ui
+          cp EZScore.py out/EZScore.py
+          cp README.md out/readme.md
+          cp ezscore/persistence.py out/ezscore/persistence.py
+          cp ezscore/auth/storage.py out/ezscore/auth/storage.py
+          cp ezscore/auth/session.py out/ezscore/auth/session.py
+          cp ezscore/auth/ui.py out/ezscore/auth/ui.py
+          cp ezscore/ui/app_shell.py out/ezscore/ui/app_shell.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EZScore_R30_users_editors_avatars_lyrics
+          path: out/
+          if-no-files-found: error
+          retention-days: 1
