@@ -4922,44 +4922,14 @@ if (
                             )
                             st.rerun()
 
-                    validate_col, cancel_col, reset_col = st.columns(
-                        [1.2, 1.2, 1.7]
+                    st.caption(
+                        "Structure et paroles sont validées ensemble avec le bouton "
+                        "situé sous les deux panneaux."
                     )
 
-                    with validate_col:
-                        if st.button(
-                            "✅ Valider ce découpage",
-                            type="primary",
-                            key=f"validate_structure_draft_{audio_hash[:12]}",
-                            disabled=not _structure_draft_is_dirty(audio_hash),
-                            help=(
-                                "Persiste exactement le découpage visible et crée "
-                                "une nouvelle version de la partition."
-                            ),
-                        ):
-                            ok, message = _persist_structure_draft(
-                                audio_hash,
-                                draft_blocks,
-                                total_measures,
-                            )
-
-                            if ok:
-                                version_no = save_analysis_version(
-                                    audio_hash=audio_hash,
-                                    analysis_key=analysis_key,
-                                    parameters=analysis_parameters,
-                                    musique=musique,
-                                    resultat=resultat,
-                                )
-                                st.session_state[
-                                    "active_analysis_version_no"
-                                ] = version_no
-                                st.success(
-                                    f"{message} Nouvelle version V{version_no} créée."
-                                )
-                                st.rerun()
-                            else:
-                                st.error(message)
+                    cancel_col, reset_col = st.columns(
+                        [1.2, 1.7]
+                    )
 
                     with cancel_col:
                         if st.button(
@@ -5075,18 +5045,30 @@ if (
                         f"mesures {_preview_m0}–{_preview_m1}"
                     )
 
+                    _preview_block_id = int(
+                        _preview_block.get("block_id", _preview_index + 1)
+                        or (_preview_index + 1)
+                    )
+                    _preview_widget_key = (
+                        f"block_lyrics_{audio_hash[:10]}_id{_preview_block_id}"
+                    )
+
+                    # Clé stable par bloc : déplacer une frontière ne change plus
+                    # l'identité du widget et ne peut donc plus effacer un texte
+                    # non encore validé lors d'un rerun Streamlit.
+                    if _preview_widget_key not in st.session_state:
+                        st.session_state[_preview_widget_key] = _preview_value
+
                     _preview_edited = st.text_area(
                         f"Paroles — {_preview_title}",
-                        value=_preview_value,
                         height=120,
-                        key=(
-                            f"block_lyrics_{audio_hash[:10]}_"
-                            f"{_preview_key[:12]}"
-                        ),
+                        key=_preview_widget_key,
                         label_visibility="collapsed",
                         placeholder="[instrumental]",
                     )
                     _preview_editor_items.append({
+                        "block_id": _preview_block_id,
+                        "widget_key": _preview_widget_key,
                         "block_key": _preview_key,
                         "original_text": _preview_original,
                         "edited_text": _preview_edited,
@@ -5095,19 +5077,78 @@ if (
                     })
 
                 if _preview_editor_items:
-                    _lyrics_save_col, _lyrics_reset_col = st.columns(2)
+                    _lyrics_dirty = any(
+                        str(item.get("edited_text", ""))
+                        != (
+                            str(
+                                resolve_lyric_block_edit(
+                                    _preview_lyric_edits,
+                                    item["time_start"],
+                                    item["time_end"],
+                                ).get("corrected_text", "")
+                            )
+                            if resolve_lyric_block_edit(
+                                _preview_lyric_edits,
+                                item["time_start"],
+                                item["time_end"],
+                            )
+                            else str(item.get("original_text", ""))
+                        )
+                        for item in _preview_editor_items
+                    )
 
-                    with _lyrics_save_col:
+                    if _lyrics_dirty:
+                        st.warning("● Paroles modifiées non validées.")
+
+                    with st.popover(
+                        "↩ Réinitialiser les paroles",
+                        use_container_width=True,
+                    ):
+                        st.warning(
+                            "Supprime les corrections manuelles de paroles "
+                            "et revient au texte Whisper."
+                        )
                         if st.button(
-                            "✅ Valider les paroles des blocs",
-                            type="primary",
-                            key=f"save_block_lyrics_{audio_hash[:12]}",
+                            "Confirmer",
+                            key=f"reset_block_lyrics_{audio_hash[:12]}",
                             width="stretch",
-                            help=(
-                                "Enregistre uniquement les paroles corrigées. "
-                                "Les accords et la timeline ne changent pas."
-                            ),
                         ):
+                            reset_lyric_block_edits(audio_hash)
+                            for item in _preview_editor_items:
+                                st.session_state.pop(
+                                    item.get("widget_key", ""),
+                                    None,
+                                )
+                            st.rerun()
+
+            # Une seule transaction utilisateur : structure + paroles.
+            # Cela supprime l'ambiguïté entre deux boutons de validation et
+            # garantit que le texte visible est sauvegardé avec les bornes
+            # visibles au même instant.
+            if _preview_editor_items:
+                st.markdown("---")
+                _save_all_col, _save_hint_col = st.columns([1.35, 2.65])
+
+                with _save_all_col:
+                    if st.button(
+                        "✅ Valider blocs + paroles",
+                        type="primary",
+                        key=f"save_blocks_and_lyrics_{audio_hash[:12]}",
+                        width="stretch",
+                        help=(
+                            "Enregistre ensemble le découpage, les noms et "
+                            "toutes les paroles actuellement visibles."
+                        ),
+                    ):
+                        ok, message = _persist_structure_draft(
+                            audio_hash,
+                            draft_blocks,
+                            total_measures,
+                        )
+
+                        if not ok:
+                            st.error(message)
+                        else:
                             save_lyric_block_edits_snapshot(
                                 audio_hash,
                                 _preview_editor_items,
@@ -5123,28 +5164,26 @@ if (
                             st.session_state[
                                 "active_analysis_version_no"
                             ] = version_no
-                            st.success(
-                                f"Paroles des blocs validées — V{version_no}. "
-                                "Accords et timeline inchangés."
-                            )
-                            st.rerun()
 
-                    with _lyrics_reset_col:
-                        with st.popover(
-                            "↩ Réinitialiser les paroles",
-                            use_container_width=True,
-                        ):
-                            st.warning(
-                                "Supprime les corrections manuelles de paroles "
-                                "et revient au texte Whisper."
+                            # Le mode et la vue restent explicitement verrouillés
+                            # sur le contexte de travail courant.
+                            st.session_state[_view_key] = "Blocs"
+                            st.session_state[_mode_key] = "Édition"
+                            st.session_state[
+                                f"{_mode_key}_radio"
+                            ] = "✏️ Éditer"
+
+                            st.success(
+                                f"{message} Paroles validées — V{version_no}. "
+                                "Vous restez dans Blocs > Édition."
                             )
-                            if st.button(
-                                "Confirmer",
-                                key=f"reset_block_lyrics_{audio_hash[:12]}",
-                                width="stretch",
-                            ):
-                                reset_lyric_block_edits(audio_hash)
-                                st.rerun()
+
+                with _save_hint_col:
+                    st.caption(
+                        "Un seul bouton valide maintenant l'état complet de "
+                        "l'éditeur : frontières, noms de blocs, texte et sauts "
+                        "de ligne."
+                    )
 
         if song_view == "Grille":
             st.subheader("🎼 Grille")
