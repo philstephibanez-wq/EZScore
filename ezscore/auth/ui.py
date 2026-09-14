@@ -17,11 +17,14 @@ from .session import (
     register_and_login,
 )
 from .storage import (
+    avatar_value,
     create_user,
     delete_user,
     list_identities,
     list_users,
     reset_local_password,
+    restore_provider_avatar,
+    save_user_avatar,
     set_local_password,
     update_profile,
     update_user_access,
@@ -120,20 +123,23 @@ def _render_login_panel() -> None:
     st.markdown('<div class="ez-auth-or">ou</div>', unsafe_allow_html=True)
 
     with st.form("auth_login_form", clear_on_submit=False):
-        email = st.text_input("E-mail", key="auth_login_email")
+        identifier = st.text_input(
+            "Nom affiché ou e-mail",
+            key="auth_login_email",
+        )
         password = st.text_input(
             "Mot de passe",
             type="password",
             key="auth_login_password",
         )
         submitted = st.form_submit_button(
-            "Se connecter avec e-mail",
+            "Se connecter",
             type="primary",
             width="stretch",
         )
 
     if submitted:
-        if login(email, password):
+        if login(identifier, password):
             st.session_state["_pending_main_menu"] = "Répertoire"
             st.rerun()
         st.error("Identifiants invalides.")
@@ -144,7 +150,10 @@ def _render_registration_panel() -> None:
     st.caption("Les nouveaux comptes sont créés avec le rôle reader.")
 
     with st.form("auth_register_form", clear_on_submit=False):
-        display_name = st.text_input("Nom affiché")
+        display_name = st.text_input(
+            "Nom affiché / login",
+            help="Unique dans EZScore. Utilisable à la place de l'e-mail pour se connecter.",
+        )
         email = st.text_input("E-mail", key="auth_register_email")
         password = st.text_input(
             "Mot de passe",
@@ -181,13 +190,17 @@ def _render_registration_panel() -> None:
 def _render_profile(user: dict) -> None:
     name = str(user.get("display_name") or user.get("email") or "?")
     initial = name[:1].upper()
+    avatar = avatar_value(user)
 
     c1, c2 = st.columns([1.0, 3.2])
     with c1:
-        st.markdown(
-            '<div class="ez-profile-avatar">' + initial + '</div>',
-            unsafe_allow_html=True,
-        )
+        if avatar:
+            st.image(avatar, width=96)
+        else:
+            st.markdown(
+                '<div class="ez-profile-avatar">' + initial + '</div>',
+                unsafe_allow_html=True,
+            )
     with c2:
         st.subheader(name)
         st.write(str(user.get("email") or ""))
@@ -198,8 +211,9 @@ def _render_profile(user: dict) -> None:
 
     with st.form("profile_identity_form"):
         display_name = st.text_input(
-            "Nom affiché",
+            "Nom affiché / login",
             value=str(user.get("display_name") or ""),
+            help="Ce nom est unique et peut être utilisé pour la connexion locale.",
         )
         save = st.form_submit_button(
             "Enregistrer le profil",
@@ -213,6 +227,43 @@ def _render_profile(user: dict) -> None:
             st.rerun()
         except Exception as exc:
             st.error(str(exc))
+
+    st.markdown("#### Photo de profil")
+    avatar_upload = st.file_uploader(
+        "Importer / remplacer la photo",
+        type=["jpg", "jpeg", "png", "webp"],
+        key="profile_avatar_upload",
+    )
+    av1, av2 = st.columns(2)
+    with av1:
+        if st.button(
+            "Enregistrer la photo",
+            key="profile_avatar_save",
+            width="stretch",
+            disabled=avatar_upload is None,
+        ):
+            try:
+                save_user_avatar(int(user["user_id"]), avatar_upload)
+                st.rerun()
+            except Exception as exc:
+                st.error(str(exc))
+    with av2:
+        identities = list_identities(int(user["user_id"]))
+        has_provider_picture = any(
+            str(identity.get("picture_url") or "").strip()
+            for identity in identities
+        )
+        if st.button(
+            "Reprendre la photo Google / SSO",
+            key="profile_avatar_provider",
+            width="stretch",
+            disabled=not has_provider_picture,
+        ):
+            try:
+                restore_provider_avatar(int(user["user_id"]))
+                st.rerun()
+            except Exception as exc:
+                st.error(str(exc))
 
     st.markdown("#### Sécurité")
     has_password = bool(user.get("has_local_password"))
@@ -250,9 +301,12 @@ def _render_profile(user: dict) -> None:
     if identities:
         st.markdown("#### Identités liées")
         for identity in identities:
+            provider = str(identity.get("provider") or "oidc")
+            email = str(identity.get("email") or "")
+            has_picture = bool(str(identity.get("picture_url") or "").strip())
             st.caption(
-                str(identity.get("provider") or "oidc")
-                + " · " + str(identity.get("email") or "")
+                provider + " · " + email
+                + (" · photo disponible" if has_picture else "")
             )
 
     if st.button("Se déconnecter", key="profile_logout", width="stretch"):
@@ -273,7 +327,10 @@ def render_admin_users() -> None:
             c1, c2 = st.columns(2)
             with c1:
                 email = st.text_input("E-mail du nouvel utilisateur")
-                display_name = st.text_input("Nom affiché")
+                display_name = st.text_input(
+                    "Nom affiché / login",
+                    help="Unique. L'utilisateur pourra se connecter avec ce nom ou son e-mail.",
+                )
             with c2:
                 role = st.selectbox(
                     "Rôle",
@@ -306,6 +363,16 @@ def render_admin_users() -> None:
                     "**" + str(item["display_name"] or item["email"]) + "**  \n"
                     + str(item["email"])
                 )
+                st.caption(
+                    "Morceaux assignés : "
+                    + str(int(item.get("assigned_songs") or 0))
+                )
+
+                login_name = st.text_input(
+                    "Nom affiché / login",
+                    value=str(item.get("display_name") or ""),
+                    key="admin_display_" + str(item["user_id"]),
+                )
 
                 c1, c2, c3 = st.columns([1.0, .8, 1.4])
                 with c1:
@@ -337,6 +404,10 @@ def render_admin_users() -> None:
                         width="stretch",
                     ):
                         try:
+                            update_profile(
+                                int(item["user_id"]),
+                                display_name=login_name,
+                            )
                             update_user_access(
                                 int(item["user_id"]),
                                 role=role,
