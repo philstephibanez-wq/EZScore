@@ -256,6 +256,7 @@ export default function(component) {
   if (!audio || !strip || !track || !lyricsStrip || !lyricsTrack) return;
 
   audio.src = "data:" + data.mime + ";base64," + data.audio_base64;
+  audio.volume = Math.max(0, Math.min(1, Number(data.audio_volume ?? 0.85)));
   audio.preservesPitch = true;
   audio.webkitPreservesPitch = true;
 
@@ -528,6 +529,7 @@ def render_song_view_player(
     title: str,
     artist: str,
     cover_path,
+    audio_volume: float = 0.85,
     key: str,
 ) -> None:
     words = list(lyrics_words or [])
@@ -583,6 +585,7 @@ def render_song_view_player(
             "cover": cover_payload(cover_path),
             "title": str(title or ""),
             "artist": str(artist or ""),
+            "audio_volume": max(0.0, min(1.0, float(audio_volume))),
         },
         key=key,
         width="stretch",

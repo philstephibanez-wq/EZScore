@@ -40,6 +40,8 @@ def render_editor_comparison_player(
     resultat,
     lyrics_words=None,
     capo: int = 0,
+    audio_volume: float = 0.85,
+    midi_volume: float = 0.65,
 ):
     """Render the MP3+MIDI verification tool inside edition views only."""
     with st.container(border=True):
@@ -185,6 +187,9 @@ def render_editor_comparison_player(
             cover=identity_cover,
             title=title,
             artist=artist,
+            audio_hash=audio_hash,
+            audio_volume=audio_volume,
+            midi_volume=midi_volume,
             key=f"editor_midi_player_{audio_hash[:12]}_{program}",
         )
 

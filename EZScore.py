@@ -32,9 +32,19 @@ from concurrent.futures import ThreadPoolExecutor
 from difflib import SequenceMatcher
 from collections import Counter
 from EZScoreTemplate import ScoreTemplateRenderer
-from ezscore.midi import MIDI_INSTRUMENTS
+from ezscore.midi import MIDI_INSTRUMENTS, build_midi_file
 from ezscore.backoffice.player import render_editor_comparison_player
 from ezscore.ui.responsive import render_responsive_css
+from ezscore.ui.song_fsm import (
+    MODE_EDIT,
+    MODE_VIEW,
+    allowed_modes as song_allowed_modes,
+    allowed_views as song_allowed_views,
+    initialize_session as initialize_song_ui_state,
+    mode_label as song_mode_label_text,
+    on_view_widget_change,
+    state_keys as song_state_keys,
+)
 from ezscore.ui.app_shell import (
     analysis_sidebar_active,
     current_section,
@@ -581,6 +591,12 @@ if _pending_song_preferences:
         "capo_live": int(
             _pending_song_preferences.get("capo", 0) or 0
         ),
+        "song_audio_volume": float(
+            _pref_settings.get("audio_volume", 0.85) or 0.85
+        ),
+        "song_midi_volume": float(
+            _pref_settings.get("midi_volume", 0.65) or 0.65
+        ),
         "setting_signature_mode": _pref_settings.get(
             "signature_mode",
             st.session_state.get("setting_signature_mode", "Auto"),
@@ -645,6 +661,8 @@ if _pending_song_preferences:
 # Session State. Cela évite les warnings Streamlit "default value + Session State".
 _widget_defaults = {
     "capo_live": 0,
+    "song_audio_volume": 0.85,
+    "song_midi_volume": 0.65,
     "setting_signature_mode": "Auto",
     "setting_analyse_sr": 22050,
     "setting_hop_length": 2048,
@@ -3211,32 +3229,22 @@ if (
     song = ensure_song(audio_hash, audio_filename)
 
     # --------------------------------------------------------
-    # V39 — VUE DE PARTITION + MODE LOCAL
+    # NAVIGATION DU MORCEAU — FSM UNIQUE
     # --------------------------------------------------------
-    _view_key = f"song_view_{audio_hash[:12]}"
-    _mode_key = f"song_mode_{audio_hash[:12]}"
-
-    if _view_key not in st.session_state:
-        st.session_state[_view_key] = "Paroles + accords"
-    if _mode_key not in st.session_state:
-        st.session_state[_mode_key] = "Vue"
+    _can_edit_song = auth_allowed("song.edit")
+    _view_key, _mode_key = song_state_keys(audio_hash)
+    initialize_song_ui_state(audio_hash, _can_edit_song)
 
     _pending_edit_hash = st.session_state.pop(
         "_pending_song_edit_hash",
         None,
     )
-    if _pending_edit_hash == audio_hash and auth_allowed("song.edit"):
-        st.session_state[_mode_key] = "Édition"
-        st.session_state[f"{_mode_key}_radio"] = "✏️ Éditer"
+    if _pending_edit_hash == audio_hash and _can_edit_song:
+        st.session_state[_view_key] = "Grille"
+        st.session_state[_mode_key] = MODE_EDIT
 
-    _song_view_options = ["Grille", "Paroles + accords"]
-    if auth_allowed("song.edit"):
-        _song_view_options.extend(["Blocs", "Analyse"])
-    if st.session_state.get(_view_key) not in _song_view_options:
-        st.session_state[_view_key] = "Paroles + accords"
+    _song_view_options = song_allowed_views(_can_edit_song)
 
-    # Contrôles permanents dans le left panel : ils restent accessibles
-    # quel que soit le scroll de la partition.
     with song_controls_slot:
         st.markdown("---")
         st.markdown("### 🎼 Morceau")
@@ -3245,39 +3253,22 @@ if (
             "Vue",
             _song_view_options,
             key=_view_key,
-            help="Change de vue sans revenir en haut de la page.",
+            help="Changer de vue revient volontairement en mode Vue.",
+            on_change=on_view_widget_change,
+            args=(audio_hash, _can_edit_song),
         )
 
-        if (
-            auth_allowed("song.edit")
-            and song_view in ("Grille", "Paroles + accords", "Blocs")
-        ):
-            _mode_options = ["👁 Vue", "✏️ Éditer"]
-        else:
-            _mode_options = ["👁 Vue"]
+        _mode_options = song_allowed_modes(song_view, _can_edit_song)
+        if st.session_state.get(_mode_key) not in _mode_options:
+            st.session_state[_mode_key] = MODE_VIEW
 
-        _current_mode = st.session_state.get(_mode_key, "Vue")
-        _current_label = (
-            "✏️ Éditer"
-            if _current_mode == "Édition"
-            else "👁 Vue"
-        )
-        if _current_label not in _mode_options:
-            _current_label = "👁 Vue"
-
-        song_mode_label = st.radio(
+        song_mode = st.radio(
             "Mode",
             _mode_options,
-            key=f"{_mode_key}_radio",
-            index=_mode_options.index(_current_label),
+            key=_mode_key,
             horizontal=True,
+            format_func=song_mode_label_text,
         )
-
-        song_mode = {
-            "👁 Vue": "Vue",
-            "✏️ Éditer": "Édition",
-        }[song_mode_label]
-        st.session_state[_mode_key] = song_mode
 
         capo_user = st.selectbox(
             "🎸 Capodastre",
@@ -3292,9 +3283,50 @@ if (
             ),
         )
 
-    # Slot d'impression principal ; les contrôles de navigation ne sont
-    # plus dans le flux vertical de la page.
-    print_slot = st.empty()
+        audio_volume_user = st.slider(
+            "🔊 Volume chanson",
+            min_value=0,
+            max_value=100,
+            value=int(
+                round(
+                    float(
+                        st.session_state.get(
+                            "song_audio_volume",
+                            0.85,
+                        )
+                    ) * 100
+                )
+            ),
+            key=f"song_audio_volume_percent_{audio_hash[:12]}",
+            help="Préférence persistante propre à cette chanson.",
+        ) / 100.0
+        st.session_state["song_audio_volume"] = float(audio_volume_user)
+
+        if song_mode == MODE_EDIT:
+            midi_volume_user = st.slider(
+                "🎹 Volume MIDI",
+                min_value=0,
+                max_value=200,
+                value=int(
+                    round(
+                        float(
+                            st.session_state.get(
+                                "song_midi_volume",
+                                0.65,
+                            )
+                        ) * 100
+                    )
+                ),
+                key=f"song_midi_volume_percent_{audio_hash[:12]}",
+                help="Préférence persistante du player d'édition.",
+            ) / 100.0
+            st.session_state["song_midi_volume"] = float(midi_volume_user)
+        else:
+            midi_volume_user = float(
+                st.session_state.get("song_midi_volume", 0.65)
+            )
+
+        print_slot = song_controls_slot.container()
 
     # --------------------------------------------------------
     # PRÉFÉRENCES DU MORCEAU — SANS RÉANALYSE
@@ -3321,7 +3353,23 @@ if (
         else None
     )
 
-    if _stored_capo != int(capo_user):
+    _stored_audio_volume = float(
+        _stored_settings.get("audio_volume", 0.85) or 0.85
+    )
+    _stored_midi_volume = float(
+        _stored_settings.get("midi_volume", 0.65) or 0.65
+    )
+    _current_audio_volume = float(audio_volume_user)
+    _current_midi_volume = float(midi_volume_user)
+
+    if (
+        _stored_capo != int(capo_user)
+        or abs(_stored_audio_volume - _current_audio_volume) > 0.0001
+        or abs(_stored_midi_volume - _current_midi_volume) > 0.0001
+    ):
+        _stored_settings = dict(_stored_settings)
+        _stored_settings["audio_volume"] = _current_audio_volume
+        _stored_settings["midi_volume"] = _current_midi_volume
         save_song_preferences(
             audio_hash=audio_hash,
             capo=capo_user,
@@ -4638,6 +4686,7 @@ if (
                     title=titre_affiche,
                     artist=artiste_affiche,
                     cover_path=song_cover_path(song),
+                    audio_volume=audio_volume_user,
                     key=(
                         f"view_player_{audio_hash[:12]}_"
                         f"{song_view.replace(' ', '_')}_capo{capo_user}"
@@ -4659,6 +4708,8 @@ if (
                     resultat=resultat,
                     lyrics_words=_effective_lyrics_words,
                     capo=capo_user,
+                    audio_volume=audio_volume_user,
+                    midi_volume=midi_volume_user,
                 )
 
         if (
@@ -5348,6 +5399,7 @@ if (
                 )
 
                 with print_slot.container():
+                    st.markdown("#### 🖨 Impression")
                     _print_icon(
                         f"grid-{audio_hash[:10]}",
                         grid_print_document,
@@ -5778,6 +5830,7 @@ if (
                 )
 
                 with print_slot.container():
+                    st.markdown("#### 🖨 Impression")
                     _print_icon(
                         f"lyrics-{audio_hash[:10]}",
                         lyrics_print_document,
