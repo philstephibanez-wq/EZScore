@@ -8,6 +8,10 @@ import streamlit as st
 
 from ezscore.auth import allowed, current_user, logout
 from ezscore.auth.storage import avatar_value
+from ezscore.ui.song_fsm import (
+    is_analysis_phase,
+    workflow_state,
+)
 
 
 _SHELL_CSS = r"""
@@ -106,16 +110,9 @@ def current_section() -> str:
     return str(st.session_state.get("main_menu", "Répertoire"))
 
 
-def analysis_sidebar_active() -> bool:
-    """Show analysis controls in Import, Analyse, or song edit contexts.
 
-    R35 workflow rule:
-    a freshly imported song must open directly in the Analyse view, not in
-    Grille/Paroles and not in edit mode. The Import -> Chanson transition is
-    visible here one rerun before the main navigation consumes
-    ``_pending_main_menu``; that is the stable point where we initialize the
-    song FSM for the imported hash.
-    """
+def analysis_sidebar_active() -> bool:
+    """Analysis settings visibility driven by workflow FSM."""
     section = current_section()
 
     if section == "Import":
@@ -127,60 +124,37 @@ def analysis_sidebar_active() -> bool:
         return active
 
     if section != "Chanson" or not allowed("song.edit"):
-        print(
-            "[EZTRACE][ANALYSIS_UI] "
-            f"section={section} active=False"
-        )
         return False
 
     active_hash = str(
         st.session_state.get("active_song_hash", "") or ""
     )
     if not active_hash:
-        print(
-            "[EZTRACE][ANALYSIS_UI] "
-            "section=Chanson hash=none active=False"
-        )
         return False
 
-    short_hash = active_hash[:12]
-    view_key = "song_view_" + short_hash
-    mode_key = "song_mode_" + short_hash
-
-    # Fresh import transition:
-    # the previous main page is still Import while Chanson is pending.
-    # Force the target workflow to Analyse/Vue before the song widgets exist.
-    pending = str(
-        st.session_state.get("_pending_main_menu", "") or ""
-    )
-    source_section = str(
-        st.session_state.get("main_menu", "") or ""
-    )
-
-    if pending == "Chanson" and source_section == "Import":
-        st.session_state[view_key] = "Analyse"
-        st.session_state[mode_key] = "Vue"
+    phase = workflow_state(active_hash)
+    if is_analysis_phase(phase):
         print(
-            "[EZTRACE][IMPORT] "
-            f"hash={short_hash} source=Import "
-            "target_view=Analyse target_mode=Vue"
+            "[EZTRACE][ANALYSIS_UI] "
+            f"hash={active_hash[:12]} workflow={phase} active=True"
         )
         return True
+
+    view_key = "song_view_" + active_hash[:12]
+    mode_key = "song_mode_" + active_hash[:12]
 
     view = str(st.session_state.get(view_key, "") or "")
     mode = str(st.session_state.get(mode_key, "") or "")
 
-    # Analyse is an analysis context by definition, even in mode Vue.
-    # Other song views expose technical parameters only while editing.
     active = view == "Analyse" or mode == "Édition"
 
     print(
         "[EZTRACE][ANALYSIS_UI] "
-        f"section=Chanson hash={short_hash} "
+        f"hash={active_hash[:12]} workflow={phase} "
         f"view={view or '-'} mode={mode or '-'} active={active}"
     )
-    return active
 
+    return active
 
 def render_app_header() -> None:
     st.markdown(_SHELL_CSS, unsafe_allow_html=True)
@@ -210,12 +184,19 @@ def _goto(section: str) -> None:
 
 
 def render_profile_sidebar() -> None:
-    """Render global navigation without stealing space from song controls.
+    """Render global navigation unless analysis owns the sidebar."""
+    active_hash = str(
+        st.session_state.get("active_song_hash", "") or ""
+    )
+    if active_hash:
+        phase = workflow_state(active_hash)
+        if is_analysis_phase(phase):
+            print(
+                "[EZTRACE][SIDEBAR] "
+                f"hash={active_hash[:12]} workflow={phase} shell=hidden"
+            )
+            return
 
-    Répertoire / Compte keep the richer profile presentation. Chanson / Import
-    use a compact identity plus a collapsed secondary menu so the contextual
-    song controls remain immediately reachable.
-    """
     section = current_section()
     compact = section in ("Chanson", "Import")
     user = current_user()

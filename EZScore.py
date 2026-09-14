@@ -39,6 +39,14 @@ from ezscore.ui.responsive import render_responsive_css
 from ezscore.ui.song_fsm import (
     MODE_EDIT,
     MODE_VIEW,
+    WORKFLOW_ANALYSIS_READY,
+    WORKFLOW_ANALYSIS_RUNNING,
+    begin_import_analysis as song_begin_import_analysis,
+    complete_analysis_to_edit as song_complete_analysis_to_edit,
+    is_analysis_phase as song_is_analysis_phase,
+    mark_analysis_failed as song_mark_analysis_failed,
+    mark_analysis_running as song_mark_analysis_running,
+    workflow_state as song_workflow_state,
     allowed_modes as song_allowed_modes,
     allowed_views as song_allowed_views,
     initialize_session as initialize_song_ui_state,
@@ -497,7 +505,24 @@ FERMATA_MIN_CONFIDENCE = 0.70
 
 _analysis_sidebar_active = analysis_sidebar_active()
 
-if auth_allowed("song.edit") and _analysis_sidebar_active:
+_active_workflow_hash = str(
+    st.session_state.get("active_song_hash", "") or ""
+)
+_song_workflow_phase = (
+    song_workflow_state(_active_workflow_hash)
+    if _active_workflow_hash
+    else ""
+)
+_song_analysis_phase = bool(
+    _active_workflow_hash
+    and song_is_analysis_phase(_song_workflow_phase)
+)
+
+if (
+    auth_allowed("song.edit")
+    and _analysis_sidebar_active
+    and not _song_analysis_phase
+):
     if DEVICE == "cuda":
         st.sidebar.success(f"🚀 GPU actif : {torch.cuda.get_device_name(0)}")
         st.sidebar.write(f"PyTorch : {torch.__version__}")
@@ -686,7 +711,10 @@ for _widget_key, _widget_default in _widget_defaults.items():
 capo_user = int(st.session_state.get("capo_live", 0))
 
 if auth_allowed("song.edit") and _analysis_sidebar_active:
-    with st.sidebar.expander("⚙️ Réglages avancés", expanded=False):
+    with st.sidebar.expander(
+        "⚙️ Réglages avancés",
+        expanded=_song_analysis_phase,
+    ):
         with st.form("chordstation_settings"):
             signature_mode = st.selectbox(
                 "Signature rythmique",
@@ -824,6 +852,16 @@ else:
 # Zone réservée à la progression d'analyse.
 # Elle reste visible quelle que soit la vue active.
 analysis_progress_slot = st.sidebar.container()
+
+if (
+    _song_workflow_phase == WORKFLOW_ANALYSIS_READY
+    and _analysis_sidebar_active
+):
+    with analysis_progress_slot:
+        st.progress(
+            0,
+            text="Prêt à analyser — ajustez les réglages puis appliquez.",
+        )
 
 
 # ============================================================
@@ -3144,7 +3182,17 @@ elif main_menu == "Import":
         set_app_state("last_song_hash", audio_hash)
         prepare_song_preferences_for_open(audio_hash)
 
-        # Import = ouverture automatique, sans analyse implicite.
+        # FSM métier : Import -> Analyse prête.
+        song_begin_import_analysis(
+            audio_hash,
+            can_edit=auth_allowed("song.edit"),
+        )
+        print(
+            "[EZTRACE][WORKFLOW] "
+            f"hash={audio_hash[:12]} import->analysis_ready"
+        )
+
+        # Ouverture automatique, sans analyse implicite.
         st.session_state["_pending_main_menu"] = "Chanson"
         st.rerun()
 
@@ -3245,89 +3293,122 @@ if (
         st.session_state[_mode_key] = MODE_EDIT
 
     _song_view_options = song_allowed_views(_can_edit_song)
+    _workflow_phase = song_workflow_state(audio_hash)
+    _analysis_owned_sidebar = song_is_analysis_phase(
+        _workflow_phase
+    )
 
-    with song_controls_slot:
-        st.markdown("---")
-        st.markdown("### 🎼 Morceau")
+    if _analysis_owned_sidebar:
+        song_view = "Analyse"
+        song_mode = MODE_VIEW
+        st.session_state[_view_key] = song_view
+        st.session_state[_mode_key] = song_mode
 
-        song_view = st.radio(
-            "Vue",
-            _song_view_options,
-            key=_view_key,
-            help="Changer de vue revient volontairement en mode Vue.",
-            on_change=on_view_widget_change,
-            args=(audio_hash, _can_edit_song),
+        capo_user = int(
+            st.session_state.get("capo_live", 0)
         )
-
-        _mode_options = song_allowed_modes(song_view, _can_edit_song)
-        if st.session_state.get(_mode_key) not in _mode_options:
-            st.session_state[_mode_key] = MODE_VIEW
-
-        song_mode = st.radio(
-            "Mode",
-            _mode_options,
-            key=_mode_key,
-            horizontal=True,
-            format_func=song_mode_label_text,
+        audio_volume_user = float(
+            st.session_state.get("song_audio_volume", 0.85)
         )
-
-        capo_user = st.selectbox(
-            "🎸 Capodastre",
-            list(range(0, 13)),
-            key="capo_live",
-            format_func=lambda x: (
-                "0 — sans capo" if x == 0 else f"Capo {x}"
-            ),
-            help=(
-                "Affichage immédiat uniquement : grille, paroles, player "
-                "et diagrammes. L'audio/MIDI reste dans l'harmonie réelle."
-            ),
+        midi_volume_user = float(
+            st.session_state.get("song_midi_volume", 0.65)
         )
+        print_slot = song_controls_slot.container()
+    else:
+        with song_controls_slot:
+            st.markdown("---")
+            st.markdown("### 🎼 Morceau")
 
-        audio_volume_user = st.slider(
-            "🔊 Volume chanson",
-            min_value=0,
-            max_value=100,
-            value=int(
-                round(
-                    float(
-                        st.session_state.get(
-                            "song_audio_volume",
-                            0.85,
-                        )
-                    ) * 100
-                )
-            ),
-            key=f"song_audio_volume_percent_{audio_hash[:12]}",
-            help="Préférence persistante propre à cette chanson.",
-        ) / 100.0
-        st.session_state["song_audio_volume"] = float(audio_volume_user)
+            song_view = st.radio(
+                "Vue",
+                _song_view_options,
+                key=_view_key,
+                help="Changer de vue revient volontairement en mode Vue.",
+                on_change=on_view_widget_change,
+                args=(audio_hash, _can_edit_song),
+            )
 
-        if song_mode == MODE_EDIT:
-            midi_volume_user = st.slider(
-                "🎹 Volume MIDI",
+            _mode_options = song_allowed_modes(
+                song_view,
+                _can_edit_song,
+            )
+            if st.session_state.get(_mode_key) not in _mode_options:
+                st.session_state[_mode_key] = MODE_VIEW
+
+            song_mode = st.radio(
+                "Mode",
+                _mode_options,
+                key=_mode_key,
+                horizontal=True,
+                format_func=song_mode_label_text,
+            )
+
+            capo_user = st.selectbox(
+                "🎸 Capodastre",
+                list(range(0, 13)),
+                key="capo_live",
+                format_func=lambda x: (
+                    "0 — sans capo"
+                    if x == 0
+                    else f"Capo {x}"
+                ),
+            )
+
+            audio_volume_user = st.slider(
+                "🔊 Volume chanson",
                 min_value=0,
-                max_value=200,
+                max_value=100,
                 value=int(
                     round(
                         float(
                             st.session_state.get(
-                                "song_midi_volume",
-                                0.65,
+                                "song_audio_volume",
+                                0.85,
                             )
                         ) * 100
                     )
                 ),
-                key=f"song_midi_volume_percent_{audio_hash[:12]}",
-                help="Préférence persistante du player d'édition.",
+                key=(
+                    f"song_audio_volume_percent_"
+                    f"{audio_hash[:12]}"
+                ),
             ) / 100.0
-            st.session_state["song_midi_volume"] = float(midi_volume_user)
-        else:
-            midi_volume_user = float(
-                st.session_state.get("song_midi_volume", 0.65)
+            st.session_state["song_audio_volume"] = float(
+                audio_volume_user
             )
 
-        print_slot = song_controls_slot.container()
+            if song_mode == MODE_EDIT:
+                midi_volume_user = st.slider(
+                    "🎹 Volume MIDI",
+                    min_value=0,
+                    max_value=200,
+                    value=int(
+                        round(
+                            float(
+                                st.session_state.get(
+                                    "song_midi_volume",
+                                    0.65,
+                                )
+                            ) * 100
+                        )
+                    ),
+                    key=(
+                        f"song_midi_volume_percent_"
+                        f"{audio_hash[:12]}"
+                    ),
+                ) / 100.0
+                st.session_state["song_midi_volume"] = float(
+                    midi_volume_user
+                )
+            else:
+                midi_volume_user = float(
+                    st.session_state.get(
+                        "song_midi_volume",
+                        0.65,
+                    )
+                )
+
+            print_slot = song_controls_slot.container()
 
     # --------------------------------------------------------
     # PRÉFÉRENCES DU MORCEAU — SANS RÉANALYSE
@@ -3661,6 +3742,14 @@ if (
         )
 
         if appliquer_reglages:
+            song_mark_analysis_running(audio_hash)
+            print(
+                "[EZTRACE][WORKFLOW] "
+                f"hash={audio_hash[:12]} "
+                "analysis_ready->analysis_running"
+            )
+            analysis_progress_slot.empty()
+
             save_song_preferences(
                 audio_hash=audio_hash,
                 capo=capo_user,
@@ -3886,6 +3975,21 @@ if (
                 capo=capo_user,
                 settings=current_song_settings_payload(DEVICE),
             )
+
+            song_complete_analysis_to_edit(
+                audio_hash,
+                can_edit=_can_edit_song,
+            )
+            st.session_state["active_analysis_version_no"] = (
+                saved_version_no
+            )
+            print(
+                "[EZTRACE][WORKFLOW] "
+                f"hash={audio_hash[:12]} "
+                "analysis_running->editing "
+                "view=Grille mode=Édition"
+            )
+            st.rerun()
 
         _snapshot_metadata_key = (
             f"_snapshot_metadata_{audio_hash[:12]}"
@@ -6326,5 +6430,17 @@ if (
             )
 
     except Exception as e:
+        if (
+            audio_hash
+            and song_workflow_state(audio_hash)
+            == WORKFLOW_ANALYSIS_RUNNING
+        ):
+            song_mark_analysis_failed(audio_hash)
+            print(
+                "[EZTRACE][WORKFLOW] "
+                f"hash={audio_hash[:12]} "
+                "analysis_running->analysis_ready error"
+            )
+
         st.error(f"Erreur pendant l'analyse : {e}")
         st.exception(e)

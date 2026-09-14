@@ -146,3 +146,124 @@ def on_view_widget_change(audio_hash: str, can_edit: bool) -> None:
 
 def mode_label(value: str) -> str:
     return "✏️ Éditer" if value == MODE_EDIT else "👁 Vue"
+
+# ---------------------------------------------------------------------------
+# Workflow FSM
+# ---------------------------------------------------------------------------
+
+WORKFLOW_ANALYSIS_READY = "analysis_ready"
+WORKFLOW_ANALYSIS_RUNNING = "analysis_running"
+WORKFLOW_EDITING = "editing"
+WORKFLOW_VALIDATED = "validated"
+WORKFLOW_PUBLISHED = "published"
+
+EVENT_WORKFLOW_IMPORT = "workflow_import"
+EVENT_WORKFLOW_ANALYSIS_START = "workflow_analysis_start"
+EVENT_WORKFLOW_ANALYSIS_COMPLETE = "workflow_analysis_complete"
+EVENT_WORKFLOW_ANALYSIS_FAILED = "workflow_analysis_failed"
+EVENT_WORKFLOW_EDIT = "workflow_edit"
+EVENT_WORKFLOW_VALIDATE = "workflow_validate"
+EVENT_WORKFLOW_PUBLISH = "workflow_publish"
+
+
+def workflow_key(audio_hash: str) -> str:
+    prefix = str(audio_hash or "")[:12]
+    return f"song_workflow_ui_{prefix}"
+
+
+def workflow_state(
+    audio_hash: str,
+    default: str = WORKFLOW_EDITING,
+) -> str:
+    if not audio_hash:
+        return default
+
+    value = str(
+        st.session_state.get(
+            workflow_key(audio_hash),
+            default,
+        )
+        or default
+    )
+
+    allowed = {
+        WORKFLOW_ANALYSIS_READY,
+        WORKFLOW_ANALYSIS_RUNNING,
+        WORKFLOW_EDITING,
+        WORKFLOW_VALIDATED,
+        WORKFLOW_PUBLISHED,
+    }
+    return value if value in allowed else default
+
+
+def set_workflow_state(audio_hash: str, value: str) -> str:
+    st.session_state[workflow_key(audio_hash)] = value
+    return value
+
+
+def workflow_transition(audio_hash: str, event: str) -> str:
+    current = workflow_state(audio_hash)
+
+    mapping = {
+        EVENT_WORKFLOW_IMPORT: WORKFLOW_ANALYSIS_READY,
+        EVENT_WORKFLOW_ANALYSIS_START: WORKFLOW_ANALYSIS_RUNNING,
+        EVENT_WORKFLOW_ANALYSIS_COMPLETE: WORKFLOW_EDITING,
+        EVENT_WORKFLOW_ANALYSIS_FAILED: WORKFLOW_ANALYSIS_READY,
+        EVENT_WORKFLOW_EDIT: WORKFLOW_EDITING,
+        EVENT_WORKFLOW_VALIDATE: WORKFLOW_VALIDATED,
+        EVENT_WORKFLOW_PUBLISH: WORKFLOW_PUBLISHED,
+    }
+
+    target = mapping.get(event, current)
+    return set_workflow_state(audio_hash, target)
+
+
+def is_analysis_phase(value: str) -> bool:
+    return value in {
+        WORKFLOW_ANALYSIS_READY,
+        WORKFLOW_ANALYSIS_RUNNING,
+    }
+
+
+def begin_import_analysis(audio_hash: str, can_edit: bool) -> None:
+    workflow_transition(audio_hash, EVENT_WORKFLOW_IMPORT)
+
+    view_key, mode_key = state_keys(audio_hash)
+
+    st.session_state[view_key] = (
+        VIEW_ANALYSIS if can_edit else VIEW_LYRICS
+    )
+    st.session_state[mode_key] = MODE_VIEW
+
+
+def mark_analysis_running(audio_hash: str) -> None:
+    workflow_transition(
+        audio_hash,
+        EVENT_WORKFLOW_ANALYSIS_START,
+    )
+
+
+def mark_analysis_failed(audio_hash: str) -> None:
+    workflow_transition(
+        audio_hash,
+        EVENT_WORKFLOW_ANALYSIS_FAILED,
+    )
+
+
+def complete_analysis_to_edit(
+    audio_hash: str,
+    can_edit: bool,
+) -> None:
+    workflow_transition(
+        audio_hash,
+        EVENT_WORKFLOW_ANALYSIS_COMPLETE,
+    )
+
+    view_key, mode_key = state_keys(audio_hash)
+
+    if can_edit:
+        st.session_state[view_key] = VIEW_GRID
+        st.session_state[mode_key] = MODE_EDIT
+    else:
+        st.session_state[view_key] = VIEW_LYRICS
+        st.session_state[mode_key] = MODE_VIEW

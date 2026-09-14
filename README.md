@@ -1,78 +1,96 @@
-# EZScore R35 — Import → Analyse
+# EZScore R36.1 — Correctif transition FSM après analyse
 
-## Correctif
+Base attendue : `R36_WORKFLOW_FSM` déjà appliquée localement.
 
-Un import neuf ne doit pas ouvrir la chanson en mode édition.
+## Bug corrigé
 
-Le flux attendu devient :
-
-```text
-Import du fichier
-    ↓
-Chanson
-    ↓
-Vue = Analyse
-Mode = Vue
-    ↓
-Paramètres d'analyse visibles
-    ↓
-Appliquer les paramètres
-    ↓
-Analyse
-```
-
-Le correctif est limité à :
+La fin d'une deuxième analyse déclenchait :
 
 ```text
-ezscore/ui/app_shell.py
+StreamlitWidgetAlreadyInstantiatedError:
+st.session_state.song_view_... cannot be modified after the widget
+with key song_view_... is instantiated.
 ```
 
-Aucune modification SQLite.
-Aucune modification des données du répertoire.
-Aucune modification de `EZScore.py`.
-
-## Traces ajoutées
-
-PowerShell affiche maintenant des lignes telles que :
+Cause :
 
 ```text
-[EZTRACE][IMPORT] hash=... source=Import target_view=Analyse target_mode=Vue
-[EZTRACE][ANALYSIS_UI] section=Chanson hash=... view=Analyse mode=Vue active=True
+analyse terminée
+→ complete_analysis_to_edit()
+→ écriture immédiate dans song_view_* / song_mode_*
+→ les radios existent déjà dans ce même run
+→ Streamlit interdit la modification
 ```
 
-Ces traces servent à la recette et permettent de vérifier le workflow exact.
+## Correction
+
+La transition devient asynchrone au rerun Streamlit :
+
+```text
+analyse terminée
+→ workflow = editing
+→ _pending_song_edit_hash = audio_hash
+→ st.rerun()
+→ début du run suivant
+→ EZScore.py consomme _pending_song_edit_hash
+→ Vue = Grille
+→ Mode = Édition
+→ création des radios
+```
+
+Aucune clé de widget n'est donc modifiée après instanciation.
+
+## Fichier modifié
+
+```text
+ezscore/ui/song_fsm.py
+```
+
+Aucune migration SQLite.
+Aucune donnée musicale modifiée.
 
 ## Installation PowerShell
 
-Depuis le dossier où le ZIP est décompressé, copier le fichier :
+Dézipper puis :
 
 ```powershell
 cd H:\EZScore
-Copy-Item -Force "<DOSSIER_DEZIP>\EZScore_R35_IMPORT_ANALYSE\ezscore\ui\app_shell.py" ".\ezscore\ui\app_shell.py"
+python .\apply_r36_1.py --root H:\EZScore
 ```
 
-Puis compiler :
+Puis :
 
 ```powershell
-python -m py_compile .\ezscore\ui\app_shell.py
 python -m py_compile .\EZScore.py
+python -m py_compile .\ezscore\ui\song_fsm.py
 python -m compileall -q .\ezscore
 ```
 
-Puis lancer :
+Lancer :
 
 ```powershell
 python -m streamlit run .\EZScore.py --server.address 127.0.0.1 --server.port 8501 --server.headless true
 ```
 
-## Recette — étape suivante
+## Recette
 
-Importer une nouvelle chanson.
+Sur le morceau déjà analysé :
 
-Résultat attendu immédiatement après import :
+1. rester en édition ;
+2. relancer explicitement une deuxième analyse ;
+3. attendre 100 % ;
+4. vérifier qu'il n'y a plus de `StreamlitWidgetAlreadyInstantiatedError` ;
+5. vérifier le retour automatique :
 
-- vue `Analyse` sélectionnée ;
-- mode `Vue` ;
-- paramètres avancés visibles dans la barre latérale ;
-- aucune analyse lancée automatiquement ;
-- trace `[EZTRACE][IMPORT] ... target_view=Analyse target_mode=Vue`.
+```text
+Vue = Grille
+Mode = Édition
+```
+
+Trace attendue :
+
+```text
+[EZTRACE][FSM] hash=... post_analysis_transition=queued
+```
+
+Ne pas commit/push avant validation de cette étape.
