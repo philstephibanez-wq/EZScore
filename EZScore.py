@@ -33,6 +33,7 @@ from difflib import SequenceMatcher
 from collections import Counter
 from EZScoreTemplate import ScoreTemplateRenderer
 from ezscore.midi import MIDI_INSTRUMENTS, build_midi_file
+from ezscore.phonetics import beat_phoneme_groups, build_phoneme_timeline, diagnostic_rows as phoneme_diagnostic_rows
 from ezscore.backoffice.player import render_editor_comparison_player
 from ezscore.ui.responsive import render_responsive_css
 from ezscore.ui.song_fsm import (
@@ -6016,47 +6017,35 @@ if (
                     "Grille > Jouer."
                 )
 
-            _phonetic_timeline = construire_timeline_phonetique(
-                resultat
+            _phoneme_timeline = build_phoneme_timeline(
+                resultat=resultat,
+                beats=beats,
+                beats_per_measure=beats_par_mesure_effectif,
             )
-            if _phonetic_timeline:
-                st.markdown("### 🔤 Analyse phonétique expérimentale")
+            if _phoneme_timeline:
+                st.markdown("### Timeline phonemes / beats")
                 st.caption(
-                    "Couche française dérivée du texte Whisper et de ses "
-                    "timestamps. Les liaisons probables sont explicitées. "
-                    "Cette R12 prépare l'alignement phonème acoustique ; "
-                    "elle ne prétend pas encore détecter chaque phonème "
-                    "directement dans le signal."
+                    "Source actuelle : phonétique dérivée des mots Whisper. "
+                    "Les positions sont projetées sur les beats et ne "
+                    "dépendent pas des blocs."
                 )
-
-                _phonetic_groups = construire_groupes_phonetiques(
-                    _phonetic_timeline
-                )
-
-                if _phonetic_groups:
-                    preview_rows = []
-                    for group in _phonetic_groups[:24]:
-                        preview_rows.append({
-                            "Temps": (
-                                f"{group['debut']:.2f}–"
-                                f"{group['fin']:.2f}s"
-                            ),
-                            "Paroles": group["texte"],
-                            "Phonétique": group["phonetique"],
-                        })
-
+                _beat_phoneme_rows = beat_phoneme_groups(_phoneme_timeline)
+                if _beat_phoneme_rows:
                     st.dataframe(
-                        pd.DataFrame(preview_rows),
+                        pd.DataFrame(_beat_phoneme_rows),
                         width="stretch",
                         hide_index=True,
+                        height=420,
                     )
-
-                    if len(_phonetic_groups) > 24:
-                        st.caption(
-                            f"{len(_phonetic_groups) - 24} groupe(s) "
-                            "phonétique(s) supplémentaire(s) non affiché(s)."
-                        )
-
+                with st.expander("Detail phoneme par phoneme", expanded=True):
+                    st.dataframe(
+                        pd.DataFrame(phoneme_diagnostic_rows(_phoneme_timeline)),
+                        width="stretch",
+                        hide_index=True,
+                        height=480,
+                    )
+            else:
+                st.caption("Aucune timeline phonetique disponible.")
             st.markdown("### Diagnostics")
 
             diag_left, diag_right = st.columns(2)
