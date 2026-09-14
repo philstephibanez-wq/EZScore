@@ -7,6 +7,7 @@ import html
 import streamlit as st
 
 from ezscore.auth import allowed, current_user, logout
+from ezscore.auth.storage import avatar_value
 
 
 _SHELL_CSS = r"""
@@ -163,31 +164,53 @@ def render_profile_sidebar() -> None:
         name = str(user.get("display_name") or user.get("email") or "Compte")
         role = str(user.get("role") or "reader")
         initial = html.escape(name[:1].upper() if name else "?")
+        avatar = avatar_value(user)
 
         if compact:
-            st.sidebar.markdown(
-                f"""
-                <div class="ez-side-profile-compact">
-                  <div class="ez-side-avatar-compact">{initial}</div>
-                  <div>
-                    <div class="ez-side-name">{html.escape(name)}</div>
-                    <div class="ez-side-role">{html.escape(role)}</div>
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+            if avatar:
+                av_col, name_col = st.sidebar.columns([0.28, 0.72])
+                with av_col:
+                    st.image(avatar, width=42)
+                with name_col:
+                    st.markdown(
+                        f"**{html.escape(name)}**  \n"
+                        f"<small>{html.escape(role)}</small>",
+                        unsafe_allow_html=True,
+                    )
+            else:
+                st.sidebar.markdown(
+                    f"""
+                    <div class="ez-side-profile-compact">
+                      <div class="ez-side-avatar-compact">{initial}</div>
+                      <div>
+                        <div class="ez-side-name">{html.escape(name)}</div>
+                        <div class="ez-side-role">{html.escape(role)}</div>
+                      </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
         else:
-            st.sidebar.markdown(
-                f"""
-                <div class="ez-side-profile">
-                  <div class="ez-side-avatar">{initial}</div>
-                  <div class="ez-side-name">{html.escape(name)}</div>
-                  <div class="ez-side-role">{html.escape(role)}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+            if avatar:
+                st.sidebar.image(avatar, width=76)
+                st.sidebar.markdown(
+                    f"<div style='text-align:center'>"
+                    f"<div class='ez-side-name'>{html.escape(name)}</div>"
+                    f"<div class='ez-side-role'>{html.escape(role)}</div>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.sidebar.markdown(
+                    f"""
+                    <div class="ez-side-profile">
+                      <div class="ez-side-avatar">{initial}</div>
+                      <div class="ez-side-name">{html.escape(name)}</div>
+                      <div class="ez-side-role">{html.escape(role)}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
     else:
         if compact:
             st.sidebar.markdown(
