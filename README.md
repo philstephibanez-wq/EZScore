@@ -1,56 +1,63 @@
-# EZScore R29 FIX6 — paroles alignées + contrôles morceau permanents
+# EZScore R29 FIX7 — ergonomie chanson compacte
 
-Correctif cumulatif des régressions observées après R29.
+Correctif cumulatif basé sur le FIX6.
 
-## Paroles : même découpage, même texte partout
+## Objectif
 
-La vue `Blocs > Édition` reste l'unique éditeur canonique des paroles.
+Supprimer le faux gain ergonomique qui consistait à déplacer le scroll de la page principale vers la sidebar.
 
-Le défaut venait d'une différence de frontière temporelle entre :
-- l'éditeur de blocs : fin de bloc = fin de dernière mesure + 1 ms ;
-- `Paroles + accords` / player : fin de bloc = fin exacte de la mesure.
+Dans une chanson, les commandes réellement utilisées pendant le travail doivent être visibles immédiatement :
+- choix de vue ;
+- mode Vue / Édition ;
+- capodastre.
 
-Un mot placé sur la frontière pouvait donc appartenir à deux blocs différents selon la vue.
+## Sidebar chanson
 
-FIX6 uniformise la convention :
-- `time_start` = début de la première mesure ;
-- `time_end` = fin de la dernière mesure + 0,001 s.
+Sur `Chanson` et `Import`, le profil devient compact :
+- avatar réduit ;
+- nom ;
+- rôle.
 
-La même clé de bloc est donc utilisée par :
-- Blocs ;
-- Paroles + accords ;
-- player Vue ;
-- player MIDI de contrôle.
+Les actions globales sont secondaires :
+- Répertoire ;
+- Profil ;
+- Mes éditions ;
+- Importer ;
+- Administration ;
+- Déconnexion.
 
-Lorsqu'une correction de paroles est validée, une ancienne correction chevauchant le même bloc est supprimée afin d'éviter qu'une correction historique ne réapparaisse dans une autre vue.
+Elles sont regroupées dans une navigation compacte/repliable afin de ne plus repousser les commandes du morceau vers le bas.
 
-## Contrôles permanents du morceau
+## Commandes du morceau
 
-Les commandes de navigation du morceau ne sont plus dans le flux vertical principal.
-
-Elles sont regroupées dans le panneau gauche, sous le profil :
-- Vue : Grille / Paroles + accords / Blocs / Analyse ;
-- Mode : Vue / Éditer ;
+Le bloc `🎼 Morceau` reste dans le left panel et contient :
+- Grille / Paroles + accords / Blocs / Analyse ;
+- Vue / Éditer ;
 - Capodastre.
 
-Elles restent donc accessibles même lorsqu'on est descendu loin dans la partition.
+Il est placé avant les réglages techniques.
 
-Sur smartphone/tablette, elles restent dans le drawer latéral tactile.
+Les réglages avancés restent contextuels à Import / Édition et ne doivent plus être le premier élément utile du panneau.
+
+## Paroles
+
+Le FIX6 est conservé :
+- Blocs > Édition = source canonique ;
+- mêmes frontières temporelles pour Blocs, Paroles + accords et players ;
+- nettoyage des corrections historiques chevauchantes.
 
 ## Capodastre
 
-Le capo reste un réglage d'affichage temps réel :
-- grille : transposée pour les formes à jouer ;
-- Paroles + accords : transposé ;
-- player Vue : transposé ;
-- diagrammes guitare : transposés ;
-- player MIDI : noms/diagrammes transposés mais harmonie MIDI réelle inchangée ;
+Le FIX6 est conservé :
+- grille, Paroles + accords, player et diagrammes suivent le capo ;
+- MIDI/audio restent dans l'harmonie réelle ;
 - aucune réanalyse.
 
 ## Fichiers du livrable
 
 - `EZScore.py`
 - `readme.md`
+- `ezscore/ui/app_shell.py`
 - `ezscore/persistence.py`
 - `ezscore/player/web_player.py`
 - `ezscore/backoffice/player.py`

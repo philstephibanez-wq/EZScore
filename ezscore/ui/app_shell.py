@@ -64,6 +64,32 @@ _SHELL_CSS = r"""
     font-size:.82rem;
     margin-top:.2rem;
 }
+.ez-side-profile-compact {
+    display:flex;
+    align-items:center;
+    gap:.65rem;
+    padding:.35rem .2rem .55rem;
+}
+.ez-side-avatar-compact {
+    width:38px;
+    height:38px;
+    flex:0 0 38px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:1rem;
+    font-weight:900;
+    background:rgba(45,180,160,.18);
+    border:1px solid rgba(45,180,160,.65);
+}
+.ez-side-profile-compact .ez-side-name {
+    font-size:.94rem;
+}
+.ez-side-profile-compact .ez-side-role {
+    margin-top:.05rem;
+    font-size:.72rem;
+}
 @media(max-width:900px) {
     .ez-topbar {flex-wrap:wrap}
     .ez-topbar-search {order:3; width:100%}
@@ -123,36 +149,120 @@ def _goto(section: str) -> None:
 
 
 def render_profile_sidebar() -> None:
-    """Always render profile/navigation; technical controls are appended below."""
-    technical = analysis_sidebar_active()
+    """Render global navigation without stealing space from song controls.
 
+    Répertoire / Compte keep the richer profile presentation. Chanson / Import
+    use a compact identity plus a collapsed secondary menu so the contextual
+    song controls remain immediately reachable.
+    """
+    section = current_section()
+    compact = section in ("Chanson", "Import")
     user = current_user()
+
     if user:
         name = str(user.get("display_name") or user.get("email") or "Compte")
         role = str(user.get("role") or "reader")
         initial = html.escape(name[:1].upper() if name else "?")
-        st.sidebar.markdown(
-            f"""
-            <div class="ez-side-profile">
-              <div class="ez-side-avatar">{initial}</div>
-              <div class="ez-side-name">{html.escape(name)}</div>
-              <div class="ez-side-role">{html.escape(role)}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    else:
-        st.sidebar.markdown(
-            """
-            <div class="ez-side-profile">
-              <div class="ez-side-avatar">?</div>
-              <div class="ez-side-name">Visiteur</div>
-              <div class="ez-side-role">accès public</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
 
+        if compact:
+            st.sidebar.markdown(
+                f"""
+                <div class="ez-side-profile-compact">
+                  <div class="ez-side-avatar-compact">{initial}</div>
+                  <div>
+                    <div class="ez-side-name">{html.escape(name)}</div>
+                    <div class="ez-side-role">{html.escape(role)}</div>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.sidebar.markdown(
+                f"""
+                <div class="ez-side-profile">
+                  <div class="ez-side-avatar">{initial}</div>
+                  <div class="ez-side-name">{html.escape(name)}</div>
+                  <div class="ez-side-role">{html.escape(role)}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+    else:
+        if compact:
+            st.sidebar.markdown(
+                """
+                <div class="ez-side-profile-compact">
+                  <div class="ez-side-avatar-compact">?</div>
+                  <div>
+                    <div class="ez-side-name">Visiteur</div>
+                    <div class="ez-side-role">accès public</div>
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.sidebar.markdown(
+                """
+                <div class="ez-side-profile">
+                  <div class="ez-side-avatar">?</div>
+                  <div class="ez-side-name">Visiteur</div>
+                  <div class="ez-side-role">accès public</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+    # On a song/import page, keep global navigation secondary and collapsed.
+    if compact:
+        quick_col1, quick_col2 = st.sidebar.columns(2)
+        with quick_col1:
+            if st.button("🎵 Répertoire", key="shell_repertoire", width="stretch"):
+                _goto("Répertoire")
+        with quick_col2:
+            if user:
+                if st.button("👤 Profil", key="shell_profile", width="stretch"):
+                    _goto("Compte")
+            else:
+                if st.button("🔐 Connexion", key="shell_login", width="stretch"):
+                    _goto("Compte")
+
+        if user:
+            with st.sidebar.expander("☰ Navigation", expanded=False):
+                if allowed("song.edit"):
+                    if st.button(
+                        "✏️ Mes éditions",
+                        key="shell_edits",
+                        width="stretch",
+                    ):
+                        _goto("Répertoire")
+                    if st.button(
+                        "⬆️ Importer",
+                        key="shell_import",
+                        width="stretch",
+                    ):
+                        _goto("Import")
+
+                if allowed("admin.users"):
+                    if st.button(
+                        "👥 Utilisateurs & droits",
+                        key="shell_admin_users",
+                        width="stretch",
+                    ):
+                        st.session_state["_open_admin_users"] = True
+                        _goto("Compte")
+
+                if st.button(
+                    "🚪 Déconnexion",
+                    key="shell_logout",
+                    width="stretch",
+                ):
+                    logout()
+                    _goto("Répertoire")
+        return
+
+    # Home/account: full navigation is useful and there is no song toolbar.
     if st.sidebar.button("🎵 Répertoire", key="shell_repertoire", width="stretch"):
         _goto("Répertoire")
 
@@ -188,8 +298,3 @@ def render_profile_sidebar() -> None:
             width="stretch",
         ):
             _goto("Compte")
-
-    if technical:
-        st.sidebar.markdown("---")
-        st.sidebar.markdown("### 🎛 Édition")
-        st.sidebar.caption("Réglages techniques du morceau")
