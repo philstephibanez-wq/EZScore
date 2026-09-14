@@ -3741,6 +3741,7 @@ def construire_lignes_paroles_intervalle(
             "paroles": paroles,
             "debut": lt0,
             "fin": lt1,
+            "manual_verse": bool(manual_mode),
             # Métadonnée seulement : permet d'identifier les mesures déjà
             # rendues sans modifier le rendu vocal historique.
             "mesure_numeros": [
@@ -3750,6 +3751,25 @@ def construire_lignes_paroles_intervalle(
             ],
             "instrumental": False,
         })
+
+    if manual_mode and len(lignes) > 1:
+        # Le parolier doit matérialiser les retours à la ligne saisis dans
+        # Blocs > Édition. Les lignes vocales restent inchangées ; on insère
+        # uniquement un séparateur visuel entre deux vers manuels.
+        separated = []
+        for index, line in enumerate(lignes):
+            separated.append(line)
+            if index < len(lignes) - 1:
+                separated.append({
+                    "accords": "",
+                    "paroles": " ",
+                    "debut": float(line.get("fin", 0.0)),
+                    "fin": float(line.get("fin", 0.0)),
+                    "mesure_numeros": [],
+                    "instrumental": False,
+                    "manual_verse_separator": True,
+                })
+        lignes = separated
 
     return lignes
 
