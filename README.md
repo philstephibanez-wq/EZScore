@@ -1,163 +1,119 @@
-# EZScore — vitesse + lecteur MP3/MIDI + cleanup
+# EZScore — lecteur Analyse compact + sélection instrument
 
-Base vérifiée avant livraison :
+Cette livraison est un delta sur `EZScore_R30_SPEED_PLAYER_CLEANUP`.
+
+## Corrections
+
+### Instrument MIDI
+
+Le lecteur `Analyse` permet à nouveau de choisir :
 
 ```text
-GitHub master = 007c9399178e913c16e1da2ac28f97b64eb37deb
-EZScore_R30_PERF_PROBES
+Electric Guitar (clean)
+Acoustic Grand Piano
 ```
 
-## 1. Correction de la lenteur
+Le changement d'instrument ne relance pas Whisper, l'analyse harmonique ni R33.
+Il ne reconstruit que les événements MIDI.
 
-Le log transmis montre que la cause principale est :
+### Suppression des diagrammes guitare dans Analyse
+
+La case :
 
 ```text
-detecter_sections_structurelles ≈ 55,6 secondes
+Diagrammes guitare
 ```
 
-Le moteur R33 était relancé à chaque rerun Streamlit, y compris lors d'un simple
-changement de vue.
+n'est plus affichée dans le lecteur de la vue Analyse.
 
-Nouveau comportement :
+Les diagrammes restent disponibles dans les vues d'édition qui utilisent le
+lecteur complet.
+
+### Suppression de la grande marge noire
+
+La marge provenait du lecteur complet, qui réservait :
 
 ```text
-structure_blocks déjà persistés
-    -> réutilisation immédiate
-    -> PAS de recalcul R33
-
-structure_blocks absents
-    -> calcul R33
-    -> ensure_structure_blocks() persiste la proposition
+835 px
 ```
 
-Le bouton existant `Réinitialiser depuis l'analyse` continue donc à fonctionner :
-il supprime la structure persistée, et le rerun suivant autorise exactement un
-nouveau calcul R33.
+pour :
+- bandeau de mesures;
+- diagrammes;
+- paroles synchronisées.
 
-La trace fichier attendue devient :
+Or la vue Analyse ne leur fournissait aucune donnée.
+
+Analyse utilise désormais un composant compact de :
 
 ```text
-structure.persisted.reuse
+285 px
 ```
 
-au lieu d'un appel coûteux à :
+avec uniquement :
 
 ```text
-structure.r33.compute
-```
-
-Le pré-roll et le post-roll vocal sont conservés.
-
-## 2. Lecteur MP3 + MIDI restauré dans Analyse
-
-Le lecteur n'avait pas disparu des modules :
-
-```text
-ezscore/backoffice/player.py
-ezscore/midi/web_player.py
-```
-
-mais `EZScore.py` ne l'appelait plus dans `Analyse`.
-
-Cette livraison restaure le lecteur directement au moment où la vue Analyse
-construit son MIDI.
-
-Le lecteur contient de nouveau :
-
-```text
-audio MP3 maître
+titre / artiste
+audio MP3
 volume chanson
 volume MIDI
-bouton Charger le synthé MIDI
-lecture MIDI synchronisée au MP3
+chargement synthé
+état du synthé
 ```
 
-Le téléchargement `.mid` existant reste affiché ensuite.
+### Texte obsolète supprimé
 
-Le MP3 archivé est lu via un cache Streamlit afin d'éviter de relire plusieurs
-mégaoctets à chaque rerun.
-
-Les événements supplémentaires dans :
+Le message :
 
 ```text
-H:\EZScore\data\logs\ezscore_perf.log
+La lecture MIDI synchronisée est disponible dans Grille > Jouer.
 ```
 
-sont :
+est neutralisé car la vue `Jouer` n'existe plus.
+
+## Performance
+
+Le log fourni confirme que le correctif R33 fonctionne :
 
 ```text
-analysis.player.build_events
-analysis.player.render
-midi.build_midi_file.bridge
 structure.persisted.reuse
-structure.r33.compute
 ```
 
-## 3. Cleanup
+La structure persistée a été réutilisée en quelques millisecondes.
 
-Le ZIP contient un `.gitignore` renforcé pour ne plus ajouter :
+Sur l'extrait fourni, le coût principal restant au premier affichage Analyse est :
 
 ```text
-data/EZScore.sqlite3
-data/audio/
-data/covers/
-data/logs/
-EZScore_R30_*/
-EZScore_*_FIX*/
+waveform_preview_cache ≈ 6.10 s
+timeline.create_harmonic_timeline ≈ 6.23 s
+player.render ≈ 0.28 s
+MIDI bridge ≈ 0.35 s
 ```
 
-Les anciens dossiers déjà trackés par Git doivent être retirés une seule fois.
-
-Après installation et recette correcte :
-
-```powershell
-cd H:\EZScore
-
-git rm -r --ignore-unmatch `
-  EZScore_R30_LYRICS_PREROLL_FIX `
-  EZScore_R30_MIDI_FIX `
-  EZScore_R30_MIDI_FIX2_FAST
-
-git rm -r --cached --ignore-unmatch `
-  data\EZScore.sqlite3 `
-  data\audio `
-  data\covers `
-  data\logs
-
-git rm -r --cached --ignore-unmatch `
-  ezscore\auth\__pycache__ `
-  ezscore\backoffice\__pycache__ `
-  ezscore\guitar\__pycache__ `
-  ezscore\midi\__pycache__ `
-  ezscore\player\__pycache__ `
-  ezscore\ui\__pycache__
-
-git status --porcelain=v1 -uall
-```
-
-`--cached` conserve DB/audio/covers/logs sur le disque local.
+Donc le lecteur MIDI n'est plus la cause de la lenteur principale.
 
 ## Fichiers livrés
 
 ```text
 .gitignore
 ezscore/ui/app_shell.py
+ezscore/midi/analysis_player.py
 readme.md
 ```
 
-Aucun dossier racine parasite dans le ZIP.
 Aucune DB.
-Aucun MP3.
+Aucun audio.
 Aucun cover.
-Aucun patch/apply script.
+Aucun dossier de livraison parasite.
 
 ## Installation
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_R30_SPEED_PLAYER_CLEANUP.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_R30_PLAYER_UI_FIX.zip" -C H:\EZScore
 
+python -m py_compile .\ezscore\midi\analysis_player.py
 python -m py_compile .\ezscore\ui\app_shell.py
 python -m py_compile .\EZScore.py
 python -m compileall -q .\ezscore
@@ -167,17 +123,14 @@ python -m streamlit run .\EZScore.py
 
 ## Recette
 
-1. Ouvrir `Grille`, puis `Paroles + accords`, puis `Blocs`.
-   Les changements de vue ne doivent plus déclencher 55 secondes de R33.
+Dans `Analyse > Comparaison audio / accords` :
 
-2. Ouvrir `Analyse`.
-   Sous `Comparaison audio / accords`, le lecteur doit afficher :
-   - contrôleur MP3,
-   - Volume chanson,
-   - Volume MIDI,
-   - Charger le synthé MIDI.
+1. sélectionner `Acoustic Grand Piano`;
+2. charger le synthé;
+3. vérifier le volume MP3;
+4. vérifier le volume MIDI;
+5. lancer la lecture;
+6. repasser sur `Electric Guitar (clean)`.
 
-3. Vérifier dans `data\logs\ezscore_perf.log` :
-   - `structure.persisted.reuse`
-   - `analysis.player.render`
-   - absence d'un `structure.r33.compute` sur un simple changement de vue.
+La case `Diagrammes guitare` ne doit plus apparaître et le lecteur doit se
+terminer immédiatement après son texte d'état, sans grande zone noire.

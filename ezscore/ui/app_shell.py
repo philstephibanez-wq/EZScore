@@ -15,9 +15,9 @@ from ezscore.midi import (
     MIDI_INSTRUMENTS as _MIDI_INSTRUMENTS,
     build_chord_midi_events as _build_chord_midi_events,
     build_midi_file as _build_midi_file,
-    render_editor_midi_player as _render_editor_midi_player,
 )
 import ezscore.transcription as _transcription
+from ezscore.midi.analysis_player import render_analysis_midi_player as _render_analysis_midi_player
 from ezscore.diagnostics.perf import (
     install_runtime_probes,
     perf_event,
@@ -267,14 +267,31 @@ def _render_analysis_mp3_midi_player(
         )
         return
 
-    with perf_span("analysis.player.build_events", beats=len(beats or [])):
+    labels = list(_MIDI_INSTRUMENTS.keys())
+    current_label = _analysis_instrument_label(program)
+    selected_index = labels.index(current_label) if current_label in labels else 0
+
+    instrument_label = st.selectbox(
+        "Instrument de contrôle",
+        labels,
+        index=selected_index,
+        key=f"analysis_midi_instrument_{active_hash[:12]}",
+    )
+    selected_program = int(_MIDI_INSTRUMENTS[instrument_label])
+    selected_strum_ms = 12.0 if selected_program == 27 else 0.0
+
+    with perf_span(
+        "analysis.player.build_events",
+        beats=len(beats or []),
+        program=selected_program,
+    ):
         events = _build_chord_midi_events(
             beats=beats,
             signature=signature,
             beats_per_measure=beats_per_measure,
-            program=program,
+            program=selected_program,
             gate_ratio=gate_ratio,
-            strum_ms=strum_ms,
+            strum_ms=selected_strum_ms,
         )
 
     if not events:
@@ -297,20 +314,18 @@ def _render_analysis_mp3_midi_player(
         events=len(events),
         audio_bytes=len(audio_bytes),
     ):
-        _render_editor_midi_player(
+        _render_analysis_midi_player(
             audio_bytes=audio_bytes,
             extension=extension,
             midi_events=events,
-            instrument_label=_analysis_instrument_label(program),
-            program=program,
-            lyrics_words=[],
-            player_measures=[],
-            chord_diagrams={},
-            show_diagrams=False,
-            cover={},
+            instrument_label=instrument_label,
+            program=selected_program,
             title=title,
             artist=artist,
-            key=f"analysis_mp3_midi_{active_hash[:12]}_{int(program)}",
+            key=(
+                f"analysis_mp3_midi_{active_hash[:12]}_"
+                f"{selected_program}"
+            ),
         )
 
 
@@ -395,6 +410,7 @@ perf_event("midi.symbol.exported", exported=True)
 
 _ORIGINAL_ST_CHECKBOX = st.checkbox
 _ORIGINAL_ST_SELECTBOX = st.selectbox
+_ORIGINAL_ST_CAPTION = st.caption
 
 
 def _ezscore_checkbox(*args, **kwargs):
@@ -413,8 +429,22 @@ def _ezscore_selectbox(*args, **kwargs):
     return _ORIGINAL_ST_SELECTBOX(*args, **kwargs)
 
 
+
+
+def _ezscore_caption(*args, **kwargs):
+    if args:
+        value = str(args[0] or "").strip()
+        if value == (
+            "La lecture MIDI synchronisée est disponible dans "
+            "Grille > Jouer."
+        ):
+            return None
+    return _ORIGINAL_ST_CAPTION(*args, **kwargs)
+
+
 st.checkbox = _ezscore_checkbox
 st.selectbox = _ezscore_selectbox
+st.caption = _ezscore_caption
 
 
 # ---------------------------------------------------------------------------
