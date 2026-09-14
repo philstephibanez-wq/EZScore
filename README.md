@@ -1,94 +1,48 @@
-# EZScore R32 - Phoneme timeline diagnostics
+# EZScore R34 — Stabilisation blocs / paroles
 
-Base utilisateur : `4cf5abedbeb890a63bf8bc2345f6d918d4af9bf5` (R31 STABILIZATION FSM).
+Cette livraison repart de la version redevenue fonctionnelle.
 
-## Objectif
+## Corrections
 
-Rendre visibles les phonèmes utilisés par EZScore et les replacer dans la
-grille musicale : temps audio, mesure et beat.
+- paroles validées rattachées à `block_id` via la clé `block:<id>` ;
+- aucune migration SQLite ;
+- un bloc vide validé reste instrumental ;
+- récupération conservatrice des anciennes corrections `t0/t1` ;
+- suppression du second `st.rerun()` lors d'une modification de `Fin` ;
+- maintien de `Blocs > Édition` ;
+- phonèmes visibles dans `Blocs > Édition`.
 
-Cette version ne prétend pas encore effectuer une détection acoustique directe
-des phonèmes. La source actuelle reste :
+## Installation
 
-```text
-audio
-  -> Whisper
-  -> mots horodatés
-  -> représentation phonétique
-  -> unités phonétiques réparties dans l'intervalle du mot
-  -> projection sur beats / mesures
+Arrêter Streamlit, dézipper, puis :
+
+```powershell
+cd H:\EZScore
+python .\EZScore_R34_STABLE_BLOCKS\apply_r34.py --root H:\EZScore
 ```
 
-Le diagnostic est volontairement explicite sur cette provenance afin de ne pas
-confondre phonétique dérivée et future détection acoustique.
+L'applicateur crée automatiquement un backup `_backup_R34_YYYYMMDD-HHMMSS`.
 
-## Nouveau module
+## Contrôle
 
-`ezscore/phonetics/timeline.py`
-
-Il fournit une timeline indépendante des blocs éditoriaux :
-
-```text
-phoneme
-start
-end
-duration
-word
-measure
-beat
-beat_index
-source
-acoustic
-liaison
+```powershell
+cd H:\EZScore
+python -m compileall -q .
+git status --porcelain=v1 -uall
+python -m streamlit run .\EZScore.py --server.address 127.0.0.1 --server.port 8501 --server.headless true
 ```
 
-La modification des bornes d'un bloc ne doit donc jamais modifier cette
-timeline.
+Tester d'abord `http://127.0.0.1:8501`.
 
-## Vue Analyse
+## La Bohème
 
-La vue Analyse affiche maintenant :
+Ne pas réanalyser avant le test.
 
-1. une vue musicale groupée par beat :
-   - mesure ;
-   - beat ;
-   - plage de temps ;
-   - phonèmes ;
-   - paroles correspondantes ;
+1. Ouvrir La Bohème.
+2. `Blocs > Édition`.
+3. Vérifier l'intro et les paroles.
+4. Modifier la fin d'un bloc et vérifier que la vue ne change pas.
+5. Ouvrir `🔤 Phonèmes / beats`.
+6. Quand l'état est correct, cliquer `Valider blocs + paroles`.
 
-2. un détail phonème par phonème :
-   - début ;
-   - fin ;
-   - durée ;
-   - mesure ;
-   - beat ;
-   - phonème ;
-   - mot ;
-   - source.
-
-## Modèle cible
-
-```text
-                    audio.currentTime
-                           |
-             +-------------+-------------+
-             |                           |
-             v                           v
-        BeatTimeline               PhonemeTimeline
-        mesures/beats              voix / phonèmes
-             |                           |
-             +-------------+-------------+
-                           |
-                           v
-                       Player
-```
-
-Les blocs structurels restent une couche éditoriale et ne gouvernent pas
-l'horodatage vocal.
-
-## Fichiers du livrable
-
-- `EZScore.py`
-- `ezscore/phonetics/__init__.py`
-- `ezscore/phonetics/timeline.py`
-- `readme.md`
+À partir de cette validation, le texte est persisté par `block_id`.
