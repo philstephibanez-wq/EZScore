@@ -1,81 +1,48 @@
-# EZScore R29 — shell produit, profil latéral et administration utilisateurs
+# EZScore R29 FIX2 — blocs, sidebar et diagrammes
 
-R29 poursuit la séparation front-office / back-office et remplace la sidebar technique permanente par une présentation de type application musicale.
+Correctif cumulatif de la R29.
 
-## Entête
+## 1. Panneau gauche conservé en Vue / Édition
 
-L'entête affiche désormais :
-- logo EZScore ;
-- zone de recherche visuelle ;
-- identité et rôle de l'utilisateur connecté.
+Le profil et la navigation restent visibles dans toutes les vues.
 
-L'objectif est de rapprocher l'ergonomie d'une application musicale moderne sans recopier l'interface d'un service tiers.
+- Répertoire : profil + navigation
+- Chanson / Vue : profil + navigation
+- Chanson / Édition : profil + navigation + outils techniques
+- Import : profil + navigation + outils techniques
+- Compte : profil + navigation
 
-## Left panel / sidebar
+Les réglages techniques ne remplacent plus le panneau profil.
 
-Sur le Répertoire, le panneau gauche devient un panneau profil/navigation :
-- avatar initial ;
-- nom ;
-- rôle ;
-- Répertoire ;
-- Mon profil ;
-- Mes éditions pour editor/admin ;
-- Importer pour editor/admin ;
-- Utilisateurs & droits pour admin ;
-- Déconnexion.
+## 2. Gestion des blocs restaurée
 
-Pour un visiteur :
-- Répertoire ;
-- Connexion / inscription.
+Dans `Blocs > Édition`, la colonne droite redevient une édition des **paroles seules**, sans accords.
 
-## Réglages techniques contextuels
+Chaque bloc affiche :
+- son nom ;
+- sa plage de mesures ;
+- un champ de paroles éditable ;
+- les corrections persistées si elles existent.
 
-Les informations GPU / CUDA / Demucs, le capodastre et les Réglages avancés ne sont plus affichés sur l'accueil.
+Le bouton `Valider les paroles des blocs` enregistre les corrections sans déplacer les accords ni la timeline.
 
-Ils sont visibles uniquement :
-- dans Import ;
-- dans Chanson lorsque le morceau actif est en mode Édition.
+La structure du morceau reste éditée à gauche et validée séparément.
 
-En Vue, Répertoire et Compte, le panneau gauche reste orienté utilisateur/profil.
+## 3. Diagrammes guitare déterministes
 
-## Administration utilisateurs
+Le catalogue explicite reste prioritaire.
 
-L'administrateur peut :
-- ajouter un utilisateur ;
-- attribuer reader / editor / admin ;
-- activer / désactiver ;
-- réinitialiser le mot de passe ;
-- supprimer un utilisateur et ses identités SSO liées.
+Pour un accord majeur ou mineur absent du catalogue, EZScore génère désormais automatiquement une position barrée E-shape. Cela couvre notamment les accords fréquents auparavant absents :
 
-Le dernier administrateur actif reste protégé contre rétrogradation, désactivation ou suppression.
+`A#`, `Bb`, `B`, `Bm`, `C#`, `Cm`, `D#`, `Eb`, `F#`, `Fm`, `G#`, etc.
 
-## Récupération d'un administrateur après restauration BDD
+Ainsi un accord majeur/mineur supporté ne doit plus voir son diagramme disparaître/revenir au gré de la lecture.
 
-Si une BDD restaurée contient des utilisateurs mais plus aucun rôle admin, définir explicitement :
+Les accords enrichis (7, maj7, m7, dim...) seront ajoutés progressivement au catalogue dédié.
 
-```powershell
-$env:EZSCORE_ADMIN_EMAIL="votre-email"
-$env:EZSCORE_ADMIN_PASSWORD="votre-mot-de-passe"
-$env:EZSCORE_ADMIN_NAME="Steve"
-```
+## Fichiers du livrable
 
-puis relancer EZScore.
-
-R29 détecte désormais un compte existant avec cet e-mail et le promeut en admin actif au lieu d'essayer de créer un doublon.
-
-## Google / compte local
-
-Les identités Google continuent d'être liées par e-mail vérifié au compte EZScore existant. Les droits restent stockés dans EZScore : Google authentifie l'identité, il ne décide jamais du rôle.
-
-## Responsive
-
-Le header se replie sur tablette. Les boutons du panneau profil restent tactiles et le comportement responsive existant reste actif sur smartphone.
-
-## Fichiers R29
-
-Le livrable contient uniquement :
 - `EZScore.py`
 - `readme.md`
 - `ezscore/ui/app_shell.py`
-- `ezscore/auth/storage.py`
-- `ezscore/auth/ui.py`
+- `ezscore/guitar/voicings.py`

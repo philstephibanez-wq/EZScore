@@ -4928,11 +4928,10 @@ if (
 
 
             with preview_col:
-                st.markdown("### 🎤 Paroles + accords")
+                st.markdown("### 🎤 Paroles des blocs")
                 st.caption(
-                    "Aperçu live du découpage en cours. Les paroles et accords "
-                    "suivent immédiatement les bornes du brouillon ; rien n'est "
-                    "persisté avant « Valider ce découpage »."
+                    "Paroles seules, sans accords. Chaque bloc suit les bornes du "
+                    "découpage courant et reste éditable avant validation."
                 )
 
                 _preview_measure_by_no = {
@@ -4940,12 +4939,7 @@ if (
                     for m in mesures_affichees
                 }
                 _preview_lyric_edits = load_lyric_block_edits(audio_hash)
-                _preview_parts = [
-                    '<div class="block-live-preview">',
-                    '<div class="block-live-preview-caption">'
-                    'Découpage courant — aperçu non persistant'
-                    '</div>',
-                ]
+                _preview_editor_items = []
 
                 for _preview_index, _preview_block in enumerate(draft_blocks):
                     _preview_m0 = int(_preview_block["measure_start"])
@@ -4968,6 +4962,18 @@ if (
                         _preview_t0,
                         _preview_t1,
                     )
+
+                    _preview_source_words = _source_words_for_interval(
+                        resultat,
+                        _preview_t0,
+                        _preview_t1,
+                    )
+                    _preview_original = " ".join(
+                        str(word.get("text", "") or "").strip()
+                        for word in _preview_source_words
+                        if str(word.get("text", "") or "").strip()
+                    ).strip()
+
                     _preview_edit = _preview_lyric_edits.get(
                         _preview_key,
                         {},
@@ -4975,53 +4981,90 @@ if (
                     _preview_corrected = str(
                         _preview_edit.get("corrected_text", "") or ""
                     ).strip()
+                    _preview_value = _preview_corrected or _preview_original
 
-                    _preview_lines = construire_lignes_paroles_completes_intervalle(
-                        mesures=mesures_affichees,
-                        resultat=resultat,
-                        t0=_preview_t0,
-                        t1=_preview_t1,
-                        max_chars=52,
-                        corrected_block_text=_preview_corrected,
+                    st.markdown(
+                        f"**{_preview_title}** · "
+                        f"mesures {_preview_m0}–{_preview_m1}"
                     )
 
-                    _preview_parts.append(
-                        '<div class="block-live-card">'
-                        '<div class="block-live-title">'
-                        f'{html.escape(_preview_title)}'
-                        '<span class="block-live-range">'
-                        f'Mesures {_preview_m0}–{_preview_m1}'
-                        '</span>'
-                        '</div>'
-                    )
-
-                    if _preview_lines:
-                        for _preview_line in _preview_lines:
-                            _preview_parts.append(
-                                '<div class="block-live-line">'
-                                '<div class="block-live-chords">'
-                                f'{html.escape(str(_preview_line.get("accords", "")))}'
-                                '</div>'
-                                '<div class="block-live-text">'
-                                f'{html.escape(str(_preview_line.get("paroles", "")))}'
-                                '</div>'
-                                '</div>'
-                            )
-                    else:
-                        _preview_parts.append(
-                            '<div class="block-live-instrumental">'
-                            '[instrumental]'
-                            '</div>'
+                    if _preview_original or _preview_corrected:
+                        _preview_edited = st.text_area(
+                            f"Paroles — {_preview_title}",
+                            value=_preview_value,
+                            height=120,
+                            key=(
+                                f"block_lyrics_{audio_hash[:10]}_"
+                                f"{_preview_key[:12]}"
+                            ),
+                            label_visibility="collapsed",
                         )
+                        _preview_editor_items.append({
+                            "block_key": _preview_key,
+                            "original_text": _preview_original,
+                            "edited_text": _preview_edited,
+                            "time_start": _preview_t0,
+                            "time_end": _preview_t1,
+                        })
+                    else:
+                        st.caption("[instrumental]")
 
-                    _preview_parts.append('</div>')
+                if _preview_editor_items:
+                    _lyrics_save_col, _lyrics_reset_col = st.columns(2)
 
-                _preview_parts.append('</div>')
+                    with _lyrics_save_col:
+                        if st.button(
+                            "✅ Valider les paroles des blocs",
+                            type="primary",
+                            key=f"save_block_lyrics_{audio_hash[:12]}",
+                            width="stretch",
+                            help=(
+                                "Enregistre uniquement les paroles corrigées. "
+                                "Les accords et la timeline ne changent pas."
+                            ),
+                        ):
+                            for _item in _preview_editor_items:
+                                save_lyric_block_edit(
+                                    audio_hash=audio_hash,
+                                    block_key=_item["block_key"],
+                                    original_text=_item["original_text"],
+                                    corrected_text=_item["edited_text"],
+                                    time_start=_item["time_start"],
+                                    time_end=_item["time_end"],
+                                )
 
-                st.markdown(
-                    ''.join(_preview_parts),
-                    unsafe_allow_html=True,
-                )
+                            version_no = save_analysis_version(
+                                audio_hash=audio_hash,
+                                analysis_key=analysis_key,
+                                parameters=analysis_parameters,
+                                musique=musique,
+                                resultat=resultat,
+                            )
+                            st.session_state[
+                                "active_analysis_version_no"
+                            ] = version_no
+                            st.success(
+                                f"Paroles des blocs validées — V{version_no}. "
+                                "Accords et timeline inchangés."
+                            )
+                            st.rerun()
+
+                    with _lyrics_reset_col:
+                        with st.popover(
+                            "↩ Réinitialiser les paroles",
+                            use_container_width=True,
+                        ):
+                            st.warning(
+                                "Supprime les corrections manuelles de paroles "
+                                "et revient au texte Whisper."
+                            )
+                            if st.button(
+                                "Confirmer",
+                                key=f"reset_block_lyrics_{audio_hash[:12]}",
+                                width="stretch",
+                            ):
+                                reset_lyric_block_edits(audio_hash)
+                                st.rerun()
 
         if song_view == "Grille":
             st.subheader("🎼 Grille")

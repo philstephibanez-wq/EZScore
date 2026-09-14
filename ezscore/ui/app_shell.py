@@ -73,6 +73,9 @@ _SHELL_CSS = r"""
 
 
 def current_section() -> str:
+    pending = st.session_state.get("_pending_main_menu")
+    if pending:
+        return str(pending)
     return str(st.session_state.get("main_menu", "Répertoire"))
 
 
@@ -120,11 +123,8 @@ def _goto(section: str) -> None:
 
 
 def render_profile_sidebar() -> None:
-    """Product-oriented left panel for home/profile navigation."""
-    if analysis_sidebar_active():
-        st.sidebar.markdown("### 🎛 Édition")
-        st.sidebar.caption("Réglages techniques du morceau")
-        return
+    """Always render profile/navigation; technical controls are appended below."""
+    technical = analysis_sidebar_active()
 
     user = current_user()
     if user:
@@ -188,3 +188,8 @@ def render_profile_sidebar() -> None:
             width="stretch",
         ):
             _goto("Compte")
+
+    if technical:
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### 🎛 Édition")
+        st.sidebar.caption("Réglages techniques du morceau")

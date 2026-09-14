@@ -56,8 +56,68 @@ VOICINGS: dict[str, tuple[Voicing, ...]] = {
 }
 
 
+_PITCHES = {
+    "C": 0, "B#": 0,
+    "C#": 1, "Db": 1,
+    "D": 2,
+    "D#": 3, "Eb": 3,
+    "E": 4, "Fb": 4,
+    "F": 5, "E#": 5,
+    "F#": 6, "Gb": 6,
+    "G": 7,
+    "G#": 8, "Ab": 8,
+    "A": 9,
+    "A#": 10, "Bb": 10,
+    "B": 11, "Cb": 11,
+}
+
+
+def _fallback_barre_voicing(symbol: str) -> tuple[Voicing, ...]:
+    text = str(symbol or "").strip()
+    if not text:
+        return ()
+
+    import re
+
+    match = re.fullmatch(r"([A-G](?:#|b)?)(m?)", text)
+    if not match:
+        return ()
+
+    root, minor_flag = match.groups()
+    pitch = _PITCHES.get(root)
+    if pitch is None:
+        return ()
+
+    # E-shape barre. Use fret 12 for E/Em to avoid a zero-fret barre.
+    fret = (int(pitch) - 4) % 12
+    if fret == 0:
+        fret = 12
+
+    if minor_flag:
+        frets = (fret, fret + 2, fret + 2, fret, fret, fret)
+        fingers = (1, 3, 4, 1, 1, 1)
+    else:
+        frets = (fret, fret + 2, fret + 2, fret + 1, fret, fret)
+        fingers = (1, 3, 4, 2, 1, 1)
+
+    return (
+        Voicing(
+            f"Barré {fret}",
+            frets,
+            fingers,
+            fret,
+            6,
+            1,
+        ),
+    )
+
+
 def choices(symbol: str) -> tuple[Voicing, ...]:
-    return VOICINGS.get(str(symbol or "").strip(), ())
+    text = str(symbol or "").strip()
+    explicit = VOICINGS.get(text)
+    if explicit:
+        return explicit
+    return _fallback_barre_voicing(text)
 
 
 def get_voicing(symbol: str, name: str | None = None) -> Voicing | None:
