@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+from pathlib import Path
 
 import streamlit as st
 
@@ -10,7 +11,13 @@ from ezscore.auth import allowed, current_user, logout
 from ezscore.auth.storage import avatar_value
 import ezscore.persistence as _persistence
 from ezscore.persistence import load_latest_persisted_analysis
-from ezscore.midi import build_midi_file as _build_midi_file
+from ezscore.midi import (
+    MIDI_INSTRUMENTS as _MIDI_INSTRUMENTS,
+    build_chord_midi_events as _build_chord_midi_events,
+    build_midi_file as _build_midi_file,
+    render_editor_midi_player as _render_editor_midi_player,
+)
+import ezscore.transcription as _transcription
 from ezscore.diagnostics.perf import (
     install_runtime_probes,
     perf_event,
@@ -22,22 +29,348 @@ install_runtime_probes()
 
 
 # ---------------------------------------------------------------------------
-# R30 MIDI symbol bridge.
-#
-# EZScore.py imports app_shell BEFORE:
-#     from ezscore.persistence import *
-#
-# The current monolith later calls build_midi_file(...) but imports only
-# MIDI_INSTRUMENTS from ezscore.midi. Expose the already-existing MIDI builder
-# through persistence.__all__, so the later star import resolves the symbol.
-#
-# Important:
-# - no builtins mutation;
-# - no MIDI work is performed here;
-# - build_midi_file still runs only when the Analyse view asks for it.
+# R30/R33 runtime compatibility:
+# - do NOT recompute R33 when visual blocks are already persisted;
+# - restore the MP3 + MIDI synchronized player in Analyse;
+# - keep all timings in the file-based performance log.
 # ---------------------------------------------------------------------------
 
-_persistence.build_midi_file = _build_midi_file
+_ORIGINAL_DETECTER_SECTIONS = _transcription.detecter_sections_structurelles
+
+
+def _measure_pattern(measure):
+    return str(measure.get("notation", "") or "").strip()
+
+
+def _ezscore_detecter_sections_structurelles(
+    mesures,
+    resultat,
+    block_measures=4,
+    similarity_threshold=0.66,
+):
+    """Reuse persisted visual blocks instead of rerunning R33 on every rerun.
+
+    A reset of structure_blocks still works as intended: once the persisted
+    rows are deleted, the original R33 engine runs once and ensure_structure_blocks
+    persists the new proposal.
+    """
+    active_hash = str(st.session_state.get("active_song_hash", "") or "").strip()
+
+    if active_hash:
+        try:
+            existing = _persistence.load_structure_blocks(active_hash)
+        except Exception as exc:
+            perf_event(
+                "structure.persisted.lookup",
+                status="error",
+                error_type=type(exc).__name__,
+                error=str(exc),
+            )
+            existing = []
+
+        if existing:
+            words = _transcription.extraire_mots(resultat)
+            by_number = {
+                int(m.get("numero", 0) or 0): m
+                for m in (mesures or [])
+            }
+
+            sections = []
+            ordered = sorted(
+                [dict(block) for block in existing],
+                key=lambda block: int(block.get("order_index", 0) or 0),
+            )
+
+            for index, block in enumerate(ordered):
+                m0 = int(block.get("measure_start", 1) or 1)
+                m1 = int(block.get("measure_end", m0) or m0)
+
+                group = [
+                    by_number[num]
+                    for num in range(m0, m1 + 1)
+                    if num in by_number
+                ]
+                if not group:
+                    continue
+
+                sections.append({
+                    "index": index,
+                    "measure_start": m0,
+                    "measure_end": m1,
+                    "time_start": float(group[0].get("debut", 0.0) or 0.0),
+                    "time_end": float(
+                        group[-1].get(
+                            "fin",
+                            group[-1].get("debut", 0.0),
+                        )
+                        or 0.0
+                    ) + 0.001,
+                    "cluster": str(
+                        block.get("cluster", chr(ord("A") + (index % 26)))
+                    ),
+                    "custom_label": str(
+                        block.get("custom_label", "") or ""
+                    ).strip(),
+                    "type": str(
+                        block.get("custom_label", "") or ""
+                    ).strip() or (
+                        "Bloc "
+                        + str(
+                            block.get(
+                                "cluster",
+                                chr(ord("A") + (index % 26)),
+                            )
+                        )
+                    ),
+                    "confidence": 1.0,
+                    "cluster_repeats": 1,
+                    "lyric_repeat": 0.0,
+                    "harmonic_repeat": 1.0,
+                    "measure_patterns": [
+                        _measure_pattern(measure)
+                        for measure in group
+                    ],
+                    "visual_only": True,
+                })
+
+            # Preserve vocal pre-roll / post-roll without moving timestamps.
+            if sections and words:
+                sections[0]["time_start"] = min(
+                    float(sections[0]["time_start"]),
+                    min(float(word.get("start", 0.0)) for word in words),
+                )
+                sections[-1]["time_end"] = max(
+                    float(sections[-1]["time_end"]),
+                    max(
+                        float(word.get("end", word.get("start", 0.0)))
+                        for word in words
+                    ),
+                )
+
+            perf_event(
+                "structure.persisted.reuse",
+                blocks=len(sections),
+                measures=len(mesures or []),
+                threshold=float(similarity_threshold),
+            )
+            return sections
+
+    # No persisted structure: this is the only case where R33 is allowed to
+    # perform the expensive intelligent analysis.
+    with perf_span(
+        "structure.r33.compute",
+        measures=len(mesures or []),
+        threshold=float(similarity_threshold),
+    ):
+        return _ORIGINAL_DETECTER_SECTIONS(
+            mesures=mesures,
+            resultat=resultat,
+            block_measures=block_measures,
+            similarity_threshold=similarity_threshold,
+        )
+
+
+# EZScore.py imports this symbol only after app_shell has loaded.
+_transcription.detecter_sections_structurelles = (
+    _ezscore_detecter_sections_structurelles
+)
+
+
+@st.cache_data(show_spinner=False)
+def _analysis_player_audio_bytes(path_str, mtime_ns, size):
+    """Read archived audio once per physical file revision."""
+    return Path(path_str).read_bytes()
+
+
+def _analysis_player_song(active_hash):
+    try:
+        for item in _persistence.list_song_catalog(sort_by="title"):
+            if str(item.get("audio_hash", "")) == active_hash:
+                return item
+    except Exception as exc:
+        perf_event(
+            "analysis.player.song_lookup",
+            status="error",
+            error_type=type(exc).__name__,
+            error=str(exc),
+        )
+    return {}
+
+
+def _analysis_player_audio(active_hash, song):
+    filename = str(song.get("original_filename", "") or "").strip()
+    audio_dir = getattr(_persistence, "AUDIO_DIR", None)
+
+    if filename and audio_dir is not None:
+        candidate = Path(audio_dir) / Path(filename).name
+        if candidate.is_file():
+            stat = candidate.stat()
+            return (
+                _analysis_player_audio_bytes(
+                    str(candidate),
+                    int(stat.st_mtime_ns),
+                    int(stat.st_size),
+                ),
+                candidate.suffix.lower() or ".mp3",
+            )
+
+    # Compatibility fallback for archives with an old physical filename.
+    try:
+        candidate = _persistence.find_persisted_audio(active_hash)
+    except Exception:
+        candidate = None
+
+    if candidate is None:
+        return None, ".mp3"
+
+    candidate = Path(candidate)
+    stat = candidate.stat()
+    return (
+        _analysis_player_audio_bytes(
+            str(candidate),
+            int(stat.st_mtime_ns),
+            int(stat.st_size),
+        ),
+        candidate.suffix.lower() or ".mp3",
+    )
+
+
+def _analysis_instrument_label(program):
+    for label, value in _MIDI_INSTRUMENTS.items():
+        if int(value) == int(program):
+            return str(label)
+    return f"Programme MIDI {int(program)}"
+
+
+def _render_analysis_mp3_midi_player(
+    *,
+    beats,
+    signature,
+    beats_per_measure,
+    program,
+    gate_ratio,
+    strum_ms,
+):
+    """Render the missing two-volume synchronized player in Analyse."""
+    active_hash = str(st.session_state.get("active_song_hash", "") or "").strip()
+    if not active_hash:
+        return
+
+    song = _analysis_player_song(active_hash)
+    audio_bytes, extension = _analysis_player_audio(active_hash, song)
+
+    if not audio_bytes:
+        perf_event(
+            "analysis.player.render",
+            status="skipped",
+            reason="audio_not_found",
+        )
+        return
+
+    with perf_span("analysis.player.build_events", beats=len(beats or [])):
+        events = _build_chord_midi_events(
+            beats=beats,
+            signature=signature,
+            beats_per_measure=beats_per_measure,
+            program=program,
+            gate_ratio=gate_ratio,
+            strum_ms=strum_ms,
+        )
+
+    if not events:
+        return
+
+    title = (
+        str(song.get("title", "") or "").strip()
+        or Path(str(song.get("original_filename", "") or "EZScore")).stem
+        or "EZScore"
+    )
+    artist = str(song.get("artist", "") or "").strip()
+
+    st.caption(
+        "MP3 maître + synthé MIDI synchronisé. "
+        "Les volumes chanson et MIDI sont réglables séparément."
+    )
+
+    with perf_span(
+        "analysis.player.render",
+        events=len(events),
+        audio_bytes=len(audio_bytes),
+    ):
+        _render_editor_midi_player(
+            audio_bytes=audio_bytes,
+            extension=extension,
+            midi_events=events,
+            instrument_label=_analysis_instrument_label(program),
+            program=program,
+            lyrics_words=[],
+            player_measures=[],
+            chord_diagrams={},
+            show_diagrams=False,
+            cover={},
+            title=title,
+            artist=artist,
+            key=f"analysis_mp3_midi_{active_hash[:12]}_{int(program)}",
+        )
+
+
+def _ezscore_build_midi_file(*args, **kwargs):
+    """Build the downloadable MIDI and restore the Analyse comparison player."""
+    started = __import__("time").perf_counter()
+    midi_bytes = _build_midi_file(*args, **kwargs)
+
+    try:
+        active_hash = str(
+            st.session_state.get("active_song_hash", "") or ""
+        )
+        view = (
+            str(
+                st.session_state.get(
+                    f"song_view_{active_hash[:12]}",
+                    "",
+                )
+            )
+            if active_hash
+            else ""
+        )
+
+        if view == "Analyse":
+            beats = kwargs.get("beats", args[0] if args else [])
+            _render_analysis_mp3_midi_player(
+                beats=beats,
+                signature=str(kwargs.get("signature", "4/4")),
+                beats_per_measure=int(
+                    kwargs.get("beats_per_measure", 4)
+                ),
+                program=int(kwargs.get("program", 27)),
+                gate_ratio=float(kwargs.get("gate_ratio", 0.48)),
+                strum_ms=float(kwargs.get("strum_ms", 0.0)),
+            )
+    except Exception as exc:
+        perf_event(
+            "analysis.player.render",
+            status="error",
+            error_type=type(exc).__name__,
+            error=str(exc),
+        )
+        st.warning(
+            "Le lecteur MP3 + MIDI n'a pas pu être initialisé : "
+            + str(exc)
+        )
+
+    perf_event(
+        "midi.build_midi_file.bridge",
+        duration_ms=(
+            __import__("time").perf_counter() - started
+        ) * 1000.0,
+        bytes=len(midi_bytes or b""),
+    )
+    return midi_bytes
+
+
+# EZScore.py performs `from ezscore.persistence import *` after app_shell.
+# Export the corrected wrapper through that existing import path.
+_persistence.build_midi_file = _ezscore_build_midi_file
 if "build_midi_file" not in _persistence.__all__:
     _persistence.__all__.append("build_midi_file")
 

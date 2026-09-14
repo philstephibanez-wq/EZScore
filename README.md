@@ -1,229 +1,183 @@
-# EZScore — sondes de performance dans un fichier
+# EZScore — vitesse + lecteur MP3/MIDI + cleanup
 
-Base GitHub réanalysée avant livraison :
-
-```text
-master = 15518e2e7e50a3d78835d70574457ec3528ad930
-commit = EZScore_R30_MIDI_FIX2_FAST
-```
-
-## Où est passé le lecteur MP3 + MIDI ?
-
-Le code GitHub courant contient toujours le lecteur synchronisé :
-
-```python
-render_editor_comparison_player(...)
-```
-
-mais il n'est appelé que pour :
+Base vérifiée avant livraison :
 
 ```text
-Vue = Grille ou Paroles + accords
-Mode = Édition
+GitHub master = 007c9399178e913c16e1da2ac28f97b64eb37deb
+EZScore_R30_PERF_PROBES
 ```
 
-La vue `Analyse` n'affiche actuellement que le téléchargement du MIDI et contient
-même un texte obsolète indiquant « Grille > Jouer », alors qu'il n'existe plus de
-vue `Jouer`.
+## 1. Correction de la lenteur
 
-C'est une régression d'orchestration/UI, pas une suppression du moteur du
-lecteur. Le lecteur lui-même existe encore dans :
+Le log transmis montre que la cause principale est :
+
+```text
+detecter_sections_structurelles ≈ 55,6 secondes
+```
+
+Le moteur R33 était relancé à chaque rerun Streamlit, y compris lors d'un simple
+changement de vue.
+
+Nouveau comportement :
+
+```text
+structure_blocks déjà persistés
+    -> réutilisation immédiate
+    -> PAS de recalcul R33
+
+structure_blocks absents
+    -> calcul R33
+    -> ensure_structure_blocks() persiste la proposition
+```
+
+Le bouton existant `Réinitialiser depuis l'analyse` continue donc à fonctionner :
+il supprime la structure persistée, et le rerun suivant autorise exactement un
+nouveau calcul R33.
+
+La trace fichier attendue devient :
+
+```text
+structure.persisted.reuse
+```
+
+au lieu d'un appel coûteux à :
+
+```text
+structure.r33.compute
+```
+
+Le pré-roll et le post-roll vocal sont conservés.
+
+## 2. Lecteur MP3 + MIDI restauré dans Analyse
+
+Le lecteur n'avait pas disparu des modules :
 
 ```text
 ezscore/backoffice/player.py
 ezscore/midi/web_player.py
 ```
 
-Avant de le replacer dans `Analyse`, cette livraison instrumente d'abord les
-lenteurs globales, comme demandé.
+mais `EZScore.py` ne l'appelait plus dans `Analyse`.
 
-## Log fichier
+Cette livraison restaure le lecteur directement au moment où la vue Analyse
+construit son MIDI.
 
-Les sondes n'écrivent pas dans PowerShell.
+Le lecteur contient de nouveau :
 
-Fichier principal :
+```text
+audio MP3 maître
+volume chanson
+volume MIDI
+bouton Charger le synthé MIDI
+lecture MIDI synchronisée au MP3
+```
+
+Le téléchargement `.mid` existant reste affiché ensuite.
+
+Le MP3 archivé est lu via un cache Streamlit afin d'éviter de relire plusieurs
+mégaoctets à chaque rerun.
+
+Les événements supplémentaires dans :
 
 ```text
 H:\EZScore\data\logs\ezscore_perf.log
 ```
 
-Rotation automatique :
+sont :
 
 ```text
-ezscore_perf.log
-ezscore_perf.log.1
-...
-ezscore_perf.log.5
+analysis.player.build_events
+analysis.player.render
+midi.build_midi_file.bridge
+structure.persisted.reuse
+structure.r33.compute
 ```
 
-Format : JSON Lines (une mesure par ligne).
+## 3. Cleanup
 
-## Accès UI
-
-Pour un administrateur, un panneau apparaît dans la sidebar :
+Le ZIP contient un `.gitignore` renforcé pour ne plus ajouter :
 
 ```text
-🧪 Diagnostic performances
+data/EZScore.sqlite3
+data/audio/
+data/covers/
+data/logs/
+EZScore_R30_*/
+EZScore_*_FIX*/
 ```
 
-avec :
+Les anciens dossiers déjà trackés par Git doivent être retirés une seule fois.
 
-```text
-⬇ Télécharger le log
-🧹 Vider le log
+Après installation et recette correcte :
+
+```powershell
+cd H:\EZScore
+
+git rm -r --ignore-unmatch `
+  EZScore_R30_LYRICS_PREROLL_FIX `
+  EZScore_R30_MIDI_FIX `
+  EZScore_R30_MIDI_FIX2_FAST
+
+git rm -r --cached --ignore-unmatch `
+  data\EZScore.sqlite3 `
+  data\audio `
+  data\covers `
+  data\logs
+
+git rm -r --cached --ignore-unmatch `
+  ezscore\auth\__pycache__ `
+  ezscore\backoffice\__pycache__ `
+  ezscore\guitar\__pycache__ `
+  ezscore\midi\__pycache__ `
+  ezscore\player\__pycache__ `
+  ezscore\ui\__pycache__
+
+git status --porcelain=v1 -uall
 ```
 
-## Sondes installées
-
-### Cycle Streamlit
-
-```text
-rerun.start
-```
-
-### Persistence / DB
-
-```text
-persistence.load_latest_persisted_analysis
-persistence.load_persisted_analysis
-persistence.load_structure_blocks
-persistence.materialiser_structure_blocks
-persistence.effective_lyrics_words_for_sections
-persistence.load_measure_edits
-persistence.load_lyric_block_edits
-persistence.list_song_catalog
-```
-
-### Analyse audio / Plotly
-
-```text
-timeline.waveform_preview_cache
-timeline.create_harmonic_timeline
-timeline.chord_regions
-timeline.render.summary
-ui.plotly_chart
-```
-
-### MIDI
-
-```text
-midi.build_chord_midi_events
-midi.build_midi_file
-midi.symbol.exported
-```
-
-### Phonèmes / structure
-
-```text
-transcription.construire_timeline_phonetique
-transcription.construire_groupes_phonetiques
-transcription.detecter_sections_structurelles
-transcription.extraire_mots
-```
-
-### UI
-
-```text
-ui.dataframe
-ui.download_button
-ui.image
-ui.analysis_sidebar.load_latest
-ui.analysis_sidebar.state
-```
-
-Chaque entrée comporte notamment :
-
-```text
-timestamp UTC
-event
-duration_ms
-section
-audio_hash
-view
-mode
-status
-```
-
-quand ces informations sont disponibles.
-
-## Important
-
-Le coût des sondes est volontairement faible :
-
-- pas de log pour chaque `markdown`;
-- pas de log pour chaque `write`;
-- pas de log pour chaque widget;
-- fichiers rotatifs;
-- aucune dépendance supplémentaire.
-
-## Correctifs conservés
-
-Cette livraison conserve :
-
-- pré-roll / post-roll vocal validé;
-- moteur de structure R33;
-- pont MIDI `build_midi_file`;
-- timeline Analyse optimisée (nombre de traces Plotly quasi constant).
-
-Les traces de diagnostic ajoutées précédemment avec `print(...)` dans les
-fichiers livrés sont redirigées vers le fichier de performance.
+`--cached` conserve DB/audio/covers/logs sur le disque local.
 
 ## Fichiers livrés
 
 ```text
-ezscore/diagnostics/__init__.py
-ezscore/diagnostics/perf.py
+.gitignore
 ezscore/ui/app_shell.py
-ezscore/timeline.py
 readme.md
 ```
 
+Aucun dossier racine parasite dans le ZIP.
 Aucune DB.
-Aucun audio.
-Aucun fichier auth/SSO.
-Aucun `apply_*.py`.
+Aucun MP3.
+Aucun cover.
+Aucun patch/apply script.
 
 ## Installation
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_R30_PERF_PROBES.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_R30_SPEED_PLAYER_CLEANUP.zip" -C H:\EZScore
 
-python -m py_compile .\ezscore\diagnostics\__init__.py
-python -m py_compile .\ezscore\diagnostics\perf.py
 python -m py_compile .\ezscore\ui\app_shell.py
-python -m py_compile .\ezscore\timeline.py
 python -m py_compile .\EZScore.py
 python -m compileall -q .\ezscore
 
 python -m streamlit run .\EZScore.py
 ```
 
-## Recette demandée
+## Recette
 
-1. Vider le log via `🧪 Diagnostic performances`.
-2. Ouvrir successivement :
-   - Répertoire;
-   - Grille;
-   - Paroles + accords;
-   - Blocs;
-   - Analyse.
-3. Attendre l'affichage complet de chaque vue.
-4. Télécharger `ezscore_perf.log` depuis le panneau diagnostics.
-5. Me transmettre le fichier.
+1. Ouvrir `Grille`, puis `Paroles + accords`, puis `Blocs`.
+   Les changements de vue ne doivent plus déclencher 55 secondes de R33.
 
-À partir de ce log, on pourra identifier précisément si les minutes sont
-perdues dans :
+2. Ouvrir `Analyse`.
+   Sous `Comparaison audio / accords`, le lecteur doit afficher :
+   - contrôleur MP3,
+   - Volume chanson,
+   - Volume MIDI,
+   - Charger le synthé MIDI.
 
-```text
-DB
-reconstruction des timelines
-Plotly
-MIDI
-phonèmes
-structure
-ou rendu Streamlit
-```
-
-sans se fier à des suppositions.
+3. Vérifier dans `data\logs\ezscore_perf.log` :
+   - `structure.persisted.reuse`
+   - `analysis.player.render`
+   - absence d'un `structure.r33.compute` sur un simple changement de vue.
