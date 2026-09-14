@@ -9,11 +9,13 @@ import os
 import secrets
 import sqlite3
 from datetime import datetime, timezone
+from pathlib import Path
 
-from ezscore.persistence import DB_PATH
+from ezscore.persistence import APP_DIR, DB_PATH
 from .roles import Role, normalize_role
 
 _PBKDF2_ITERATIONS = 310_000
+AVATAR_DIR = APP_DIR / "data" / "avatars"
 
 
 def _now() -> str:
@@ -22,6 +24,52 @@ def _now() -> str:
 
 def _email(value: str) -> str:
     return str(value or "").strip().lower()
+
+
+def _display_name(value: str) -> str:
+    return str(value or "").strip()
+
+
+def _assert_unique_display_name(
+    conn: sqlite3.Connection,
+    display_name: str,
+    *,
+    exclude_user_id: int | None = None,
+) -> None:
+    display = _display_name(display_name)
+    if not display:
+        raise ValueError("Le nom affiché / login est obligatoire.")
+    if len(display) > 120:
+        raise ValueError("Le nom affiché / login est trop long.")
+
+    if exclude_user_id is None:
+        row = conn.execute(
+            "SELECT user_id FROM app_users "
+            "WHERE display_name = ? COLLATE NOCASE",
+            (display,),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT user_id FROM app_users "
+            "WHERE display_name = ? COLLATE NOCASE AND user_id <> ?",
+            (display, int(exclude_user_id)),
+        ).fetchone()
+
+    if row:
+        raise ValueError("Ce nom affiché / login est déjà utilisé.")
+
+
+def _unique_external_display_name(conn: sqlite3.Connection, value: str, email: str) -> str:
+    base = _display_name(value) or str(email or "").split("@", 1)[0].strip() or "Utilisateur"
+    candidate = base
+    suffix = 2
+    while conn.execute(
+        "SELECT 1 FROM app_users WHERE display_name = ? COLLATE NOCASE",
+        (candidate,),
+    ).fetchone():
+        candidate = f"{base}-{suffix}"
+        suffix += 1
+    return candidate
 
 
 def ensure_auth_schema() -> None:
@@ -43,6 +91,50 @@ def ensure_auth_schema() -> None:
             )
             """
         )
+        user_columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(app_users)").fetchall()
+        }
+        for column, sql_type in {
+            "avatar_path": "TEXT NOT NULL DEFAULT ''",
+            "avatar_url": "TEXT NOT NULL DEFAULT ''",
+            "avatar_source": "TEXT NOT NULL DEFAULT ''",
+        }.items():
+            if column not in user_columns:
+                conn.execute(
+                    f"ALTER TABLE app_users ADD COLUMN {column} {sql_type}"
+                )
+
+        # display_name is also the local login. Existing empty/duplicate names
+        # are normalized once before the unique NOCASE index is created.
+        rows = conn.execute(
+            "SELECT user_id, email, display_name FROM app_users ORDER BY user_id"
+        ).fetchall()
+        seen = set()
+        for user_id, email, display_name in rows:
+            base = str(display_name or "").strip()
+            if not base:
+                base = str(email or "").split("@", 1)[0].strip() or f"user{user_id}"
+            candidate = base
+            suffix = 2
+            while candidate.casefold() in seen:
+                candidate = f"{base}-{suffix}"
+                suffix += 1
+            seen.add(candidate.casefold())
+            if candidate != str(display_name or ""):
+                conn.execute(
+                    "UPDATE app_users SET display_name = ? WHERE user_id = ?",
+                    (candidate, int(user_id)),
+                )
+
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_app_users_display_name_nocase
+            ON app_users(display_name COLLATE NOCASE)
+            WHERE trim(display_name) <> ''
+            """
+        )
+
         conn.execute(
             """
             CREATE UNIQUE INDEX IF NOT EXISTS idx_app_users_provider_subject
@@ -68,6 +160,16 @@ def ensure_auth_schema() -> None:
             )
             """
         )
+        identity_columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(app_identities)").fetchall()
+        }
+        if "picture_url" not in identity_columns:
+            conn.execute(
+                "ALTER TABLE app_identities ADD COLUMN "
+                "picture_url TEXT NOT NULL DEFAULT ''"
+            )
+
         conn.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_app_identities_user
@@ -132,6 +234,7 @@ def create_user(
     if len(str(password)) < 8:
         raise ValueError("Le mot de passe doit contenir au moins 8 caractères.")
 
+    display = _display_name(display_name)
     normalized_role = normalize_role(role)
     if normalized_role == Role.ANONYMOUS:
         raise ValueError("anonymous n'est pas un compte persistant.")
@@ -139,6 +242,7 @@ def create_user(
     now = _now()
     try:
         with sqlite3.connect(DB_PATH) as conn:
+            _assert_unique_display_name(conn, display)
             cur = conn.execute(
                 """
                 INSERT INTO app_users (
@@ -149,7 +253,7 @@ def create_user(
                 """,
                 (
                     normalized_email,
-                    str(display_name or "").strip(),
+                    display,
                     _hash_password(password),
                     normalized_role.value,
                     now,
@@ -159,7 +263,9 @@ def create_user(
             conn.commit()
             user_id = int(cur.lastrowid)
     except sqlite3.IntegrityError as exc:
-        raise ValueError("Un compte existe déjà avec cette adresse e-mail.") from exc
+        raise ValueError(
+            "Un compte existe déjà avec cet e-mail ou ce nom affiché / login."
+        ) from exc
 
     return get_user_by_id(user_id)
 
@@ -237,7 +343,7 @@ def get_user_by_id(user_id: int) -> dict | None:
             """
             SELECT user_id, email, display_name, role, active,
                    auth_provider, created_at, updated_at, last_login_at,
-                   password_hash
+                   password_hash, avatar_path, avatar_url, avatar_source
             FROM app_users
             WHERE user_id = ?
             """,
@@ -250,7 +356,7 @@ def get_user_by_id(user_id: int) -> dict | None:
     keys = (
         "user_id", "email", "display_name", "role", "active",
         "auth_provider", "created_at", "updated_at", "last_login_at",
-        "password_hash",
+        "password_hash", "avatar_path", "avatar_url", "avatar_source",
     )
     result = dict(zip(keys, row))
     result["active"] = bool(result["active"])
@@ -258,9 +364,10 @@ def get_user_by_id(user_id: int) -> dict | None:
     return result
 
 
-def authenticate_local(email: str, password: str) -> dict | None:
+def authenticate_local(identifier: str, password: str) -> dict | None:
     ensure_auth_schema()
-    normalized_email = _email(email)
+    raw_identifier = str(identifier or "").strip()
+    normalized_email = _email(raw_identifier)
 
     with sqlite3.connect(DB_PATH) as conn:
         row = conn.execute(
@@ -268,8 +375,10 @@ def authenticate_local(email: str, password: str) -> dict | None:
             SELECT user_id, password_hash, active
             FROM app_users
             WHERE email = ?
+               OR display_name = ? COLLATE NOCASE
+            LIMIT 1
             """,
-            (normalized_email,),
+            (normalized_email, raw_identifier),
         ).fetchone()
 
         if not row or not bool(row[2]) or not _verify_password(password, row[1]):
@@ -291,6 +400,7 @@ def upsert_external_identity(
     subject: str,
     email: str,
     display_name: str = "",
+    picture_url: str = "",
 ) -> dict:
     """Link an OIDC identity to an EZScore account.
 
@@ -301,6 +411,7 @@ def upsert_external_identity(
     subject_value = str(subject or "").strip()
     normalized_email = _email(email)
     display = str(display_name or "").strip()
+    picture = str(picture_url or "").strip()
 
     if not subject_value:
         raise ValueError("Identité OIDC sans subject.")
@@ -324,12 +435,14 @@ def upsert_external_identity(
             conn.execute(
                 """
                 UPDATE app_identities
-                SET email = ?, display_name = ?, updated_at = ?, last_login_at = ?
+                SET email = ?, display_name = ?, picture_url = ?,
+                    updated_at = ?, last_login_at = ?
                 WHERE provider = ? AND subject = ?
                 """,
                 (
                     normalized_email,
                     display,
+                    picture,
                     now,
                     now,
                     provider_name,
@@ -345,23 +458,29 @@ def upsert_external_identity(
             if by_email:
                 user_id = int(by_email[0])
             else:
+                account_display = _unique_external_display_name(
+                    conn, display, normalized_email
+                )
                 cur = conn.execute(
                     """
                     INSERT INTO app_users (
                         email, display_name, password_hash, role, active,
                         auth_provider, provider_subject,
-                        created_at, updated_at, last_login_at
+                        created_at, updated_at, last_login_at,
+                        avatar_url, avatar_source
                     )
-                    VALUES (?, ?, NULL, 'reader', 1, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, NULL, 'reader', 1, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         normalized_email,
-                        display,
+                        account_display,
                         provider_name,
                         subject_value,
                         now,
                         now,
                         now,
+                        picture,
+                        provider_name if picture else "",
                     ),
                 )
                 user_id = int(cur.lastrowid)
@@ -370,9 +489,9 @@ def upsert_external_identity(
                 """
                 INSERT INTO app_identities (
                     user_id, provider, subject, email, display_name,
-                    created_at, updated_at, last_login_at
+                    picture_url, created_at, updated_at, last_login_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     user_id,
@@ -380,6 +499,7 @@ def upsert_external_identity(
                     subject_value,
                     normalized_email,
                     display,
+                    picture,
                     now,
                     now,
                     now,
@@ -390,13 +510,22 @@ def upsert_external_identity(
             """
             UPDATE app_users
             SET last_login_at = ?, updated_at = ?,
-                display_name = CASE
-                    WHEN trim(display_name) = '' THEN ?
-                    ELSE display_name
+                avatar_url = CASE
+                    WHEN trim(avatar_path) = '' AND ? <> '' THEN ?
+                    ELSE avatar_url
+                END,
+                avatar_source = CASE
+                    WHEN trim(avatar_path) = '' AND ? <> '' THEN ?
+                    ELSE avatar_source
                 END
             WHERE user_id = ?
             """,
-            (now, now, display, user_id),
+            (
+                now, now,
+                picture, picture,
+                picture, provider_name,
+                user_id,
+            ),
         )
         conn.commit()
 
@@ -408,7 +537,7 @@ def list_identities(user_id: int) -> list[dict]:
     with sqlite3.connect(DB_PATH) as conn:
         rows = conn.execute(
             """
-            SELECT provider, subject, email, display_name, last_login_at
+            SELECT provider, subject, email, display_name, picture_url, last_login_at
             FROM app_identities
             WHERE user_id = ?
             ORDER BY provider
@@ -422,16 +551,15 @@ def list_identities(user_id: int) -> list[dict]:
             "subject": row[1],
             "email": row[2],
             "display_name": row[3],
-            "last_login_at": row[4],
+            "picture_url": row[4],
+            "last_login_at": row[5],
         }
         for row in rows
     ]
 
 
 def update_profile(user_id: int, *, display_name: str) -> dict:
-    display = str(display_name or "").strip()
-    if len(display) > 120:
-        raise ValueError("Le nom affiché est trop long.")
+    display = _display_name(display_name)
 
     ensure_auth_schema()
     with sqlite3.connect(DB_PATH) as conn:
@@ -442,6 +570,11 @@ def update_profile(user_id: int, *, display_name: str) -> dict:
         if not exists:
             raise ValueError("Utilisateur introuvable.")
 
+        _assert_unique_display_name(
+            conn,
+            display,
+            exclude_user_id=int(user_id),
+        )
         conn.execute(
             """
             UPDATE app_users
@@ -453,6 +586,91 @@ def update_profile(user_id: int, *, display_name: str) -> dict:
         conn.commit()
 
     return get_user_by_id(int(user_id))
+
+
+def save_user_avatar(user_id: int, uploaded_file) -> dict:
+    ensure_auth_schema()
+    if uploaded_file is None:
+        raise ValueError("Aucune image sélectionnée.")
+
+    suffix = Path(str(getattr(uploaded_file, "name", "") or "")).suffix.lower()
+    if suffix not in {".jpg", ".jpeg", ".png", ".webp"}:
+        raise ValueError("Format avatar non supporté.")
+
+    AVATAR_DIR.mkdir(parents=True, exist_ok=True)
+    for old in AVATAR_DIR.glob(f"user_{int(user_id)}.*"):
+        try:
+            old.unlink()
+        except OSError:
+            pass
+
+    target = AVATAR_DIR / f"user_{int(user_id)}{suffix}"
+    target.write_bytes(uploaded_file.getvalue())
+    relative = str(target.relative_to(APP_DIR))
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            UPDATE app_users
+            SET avatar_path = ?, avatar_source = 'local', updated_at = ?
+            WHERE user_id = ?
+            """,
+            (relative, _now(), int(user_id)),
+        )
+        conn.commit()
+
+    return get_user_by_id(int(user_id))
+
+
+def restore_provider_avatar(user_id: int) -> dict:
+    ensure_auth_schema()
+    with sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute(
+            """
+            SELECT provider, picture_url
+            FROM app_identities
+            WHERE user_id = ? AND trim(picture_url) <> ''
+            ORDER BY CASE WHEN provider = 'google' THEN 0 ELSE 1 END,
+                     identity_id
+            LIMIT 1
+            """,
+            (int(user_id),),
+        ).fetchone()
+
+        if not row:
+            raise ValueError("Aucune photo de fournisseur disponible.")
+
+        for old in AVATAR_DIR.glob(f"user_{int(user_id)}.*"):
+            try:
+                old.unlink()
+            except OSError:
+                pass
+
+        conn.execute(
+            """
+            UPDATE app_users
+            SET avatar_path = '', avatar_url = ?, avatar_source = ?, updated_at = ?
+            WHERE user_id = ?
+            """,
+            (str(row[1] or ""), str(row[0] or ""), _now(), int(user_id)),
+        )
+        conn.commit()
+
+    return get_user_by_id(int(user_id))
+
+
+def avatar_value(user: dict | None):
+    user = user or {}
+    raw_path = str(user.get("avatar_path", "") or "").strip()
+    if raw_path:
+        candidate = Path(raw_path)
+        if not candidate.is_absolute():
+            candidate = APP_DIR / candidate
+        if candidate.is_file():
+            return str(candidate)
+
+    url = str(user.get("avatar_url", "") or "").strip()
+    return url or None
 
 
 def set_local_password(
@@ -492,26 +710,54 @@ def set_local_password(
 def list_users() -> list[dict]:
     ensure_auth_schema()
     with sqlite3.connect(DB_PATH) as conn:
-        rows = conn.execute(
+        has_assignments = conn.execute(
             """
-            SELECT user_id, email, display_name, role, active,
-                   auth_provider, created_at, updated_at, last_login_at,
-                   password_hash
-            FROM app_users
-            ORDER BY lower(email)
+            SELECT 1 FROM sqlite_master
+            WHERE type = 'table' AND name = 'song_editor_assignments'
             """
-        ).fetchall()
+        ).fetchone() is not None
+
+        if has_assignments:
+            rows = conn.execute(
+                """
+                SELECT u.user_id, u.email, u.display_name, u.role, u.active,
+                       u.auth_provider, u.created_at, u.updated_at,
+                       u.last_login_at, u.password_hash,
+                       u.avatar_path, u.avatar_url, u.avatar_source,
+                       COUNT(a.audio_hash) AS assigned_songs
+                FROM app_users u
+                LEFT JOIN song_editor_assignments a
+                       ON a.user_id = u.user_id
+                GROUP BY u.user_id
+                ORDER BY lower(u.display_name), lower(u.email)
+                """
+            ).fetchall()
+        else:
+            rows = [
+                tuple(row) + (0,)
+                for row in conn.execute(
+                    """
+                    SELECT user_id, email, display_name, role, active,
+                           auth_provider, created_at, updated_at, last_login_at,
+                           password_hash, avatar_path, avatar_url, avatar_source
+                    FROM app_users
+                    ORDER BY lower(display_name), lower(email)
+                    """
+                ).fetchall()
+            ]
 
     keys = (
         "user_id", "email", "display_name", "role", "active",
         "auth_provider", "created_at", "updated_at", "last_login_at",
-        "password_hash",
+        "password_hash", "avatar_path", "avatar_url", "avatar_source",
+        "assigned_songs",
     )
     result = []
     for row in rows:
         item = dict(zip(keys, row))
         item["active"] = bool(item["active"])
         item["has_local_password"] = bool(item.pop("password_hash", None))
+        item["assigned_songs"] = int(item.get("assigned_songs") or 0)
         result.append(item)
     return result
 

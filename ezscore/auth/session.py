@@ -161,6 +161,7 @@ def current_user() -> dict | None:
             or email
             or ""
         ).strip()
+        picture_url = str(claims.get("picture") or "").strip()
 
         if subject and email:
             try:
@@ -169,6 +170,7 @@ def current_user() -> dict | None:
                     subject=subject,
                     email=email,
                     display_name=display_name,
+                    picture_url=picture_url,
                 )
             except Exception:
                 return None
@@ -212,8 +214,8 @@ def require(permission: str) -> None:
         raise PermissionError("Permission requise : " + str(permission))
 
 
-def login(email: str, password: str) -> bool:
-    user = authenticate_local(email, password)
+def login(identifier: str, password: str) -> bool:
+    user = authenticate_local(identifier, password)
     if not user:
         return False
     st.session_state[_SESSION_USER_ID] = int(user["user_id"])

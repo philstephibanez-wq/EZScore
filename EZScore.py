@@ -49,6 +49,7 @@ from ezscore.auth import (
     render_account_page,
     require as auth_require,
 )
+from ezscore.auth.storage import list_users as auth_list_users
 from ezscore.timeline import (
     chord_regions as creer_regions_harmoniques,
     create_harmonic_timeline as creer_figure_deroule_riffstation,
@@ -3332,6 +3333,22 @@ if (
     # --------------------------------------------------------
     metadata_key = audio_hash[:16]
 
+    _editor_assignment = get_song_editor_assignment(audio_hash)
+    _editor_user_id = (
+        int(_editor_assignment["user_id"])
+        if _editor_assignment and _editor_assignment.get("user_id") is not None
+        else None
+    )
+    _eligible_editors = [
+        user for user in auth_list_users()
+        if bool(user.get("active"))
+        and str(user.get("role") or "") in ("editor", "admin")
+    ]
+    _editor_by_id = {
+        int(user["user_id"]): user
+        for user in _eligible_editors
+    }
+
     _sidebar_editor = str(song.get("editor", "") or "").strip()
     _validated_mods = validated_partition_modifications(audio_hash)
     _structure_dirty = _structure_draft_is_dirty(audio_hash)
@@ -3385,12 +3402,56 @@ if (
                 )
 
             with meta_col3:
-                editor_user = st.text_input(
-                    "Éditeur",
-                    value=song.get("editor", ""),
-                    key=f"editor_{metadata_key}",
-                    help="Nom de l'auteur des modifications de cette partition.",
-                )
+                _current_auth_user = auth_current_user() or {}
+                _is_admin = str(_current_auth_user.get("role") or "") == "admin"
+
+                if _is_admin:
+                    _editor_options = [None] + sorted(
+                        _editor_by_id.keys(),
+                        key=lambda uid: str(
+                            _editor_by_id[uid].get("display_name") or ""
+                        ).casefold(),
+                    )
+
+                    if _editor_user_id not in _editor_options:
+                        _editor_user_id = None
+
+                    editor_user_id = st.selectbox(
+                        "Éditeur assigné",
+                        _editor_options,
+                        index=_editor_options.index(_editor_user_id),
+                        key=f"editor_user_{metadata_key}",
+                        format_func=lambda uid: (
+                            "— Aucun éditeur —"
+                            if uid is None
+                            else (
+                                str(_editor_by_id[uid].get("display_name") or "")
+                                + " · "
+                                + str(_editor_by_id[uid].get("role") or "")
+                            )
+                        ),
+                        help=(
+                            "Attribution réelle à un utilisateur EZScore actif. "
+                            "Seuls editor/admin sont proposés."
+                        ),
+                    )
+                    editor_user = (
+                        str(
+                            _editor_by_id[editor_user_id].get("display_name")
+                            or ""
+                        )
+                        if editor_user_id is not None
+                        else ""
+                    )
+                else:
+                    editor_user_id = _editor_user_id
+                    editor_user = str(song.get("editor", "") or "").strip()
+                    st.text_input(
+                        "Éditeur assigné",
+                        value=editor_user or "—",
+                        disabled=True,
+                        key=f"editor_readonly_{metadata_key}",
+                    )
 
             strum_col1, strum_col2 = st.columns(2)
 
@@ -3427,6 +3488,14 @@ if (
                 strumming_primary_user,
                 strumming_secondary_user,
             )
+
+            if str((auth_current_user() or {}).get("role") or "") == "admin":
+                assign_song_editor(
+                    audio_hash,
+                    editor_user_id,
+                    editor_user,
+                )
+
             song["title"] = str(title_user or "").strip()
             song["artist"] = str(artist_user or "").strip()
             song["editor"] = str(editor_user or "").strip()
@@ -4990,36 +5059,40 @@ if (
                         _preview_t0,
                         _preview_t1,
                     )
+                    _preview_has_edit = bool(_preview_edit)
                     _preview_corrected = str(
-                        _preview_edit.get("corrected_text", "") or ""
-                    ).strip()
-                    _preview_value = _preview_corrected or _preview_original
+                        _preview_edit.get("corrected_text", "")
+                        if _preview_has_edit else ""
+                    )
+                    _preview_value = (
+                        _preview_corrected
+                        if _preview_has_edit
+                        else _preview_original
+                    )
 
                     st.markdown(
                         f"**{_preview_title}** · "
                         f"mesures {_preview_m0}–{_preview_m1}"
                     )
 
-                    if _preview_original or _preview_corrected:
-                        _preview_edited = st.text_area(
-                            f"Paroles — {_preview_title}",
-                            value=_preview_value,
-                            height=120,
-                            key=(
-                                f"block_lyrics_{audio_hash[:10]}_"
-                                f"{_preview_key[:12]}"
-                            ),
-                            label_visibility="collapsed",
-                        )
-                        _preview_editor_items.append({
-                            "block_key": _preview_key,
-                            "original_text": _preview_original,
-                            "edited_text": _preview_edited,
-                            "time_start": _preview_t0,
-                            "time_end": _preview_t1,
-                        })
-                    else:
-                        st.caption("[instrumental]")
+                    _preview_edited = st.text_area(
+                        f"Paroles — {_preview_title}",
+                        value=_preview_value,
+                        height=120,
+                        key=(
+                            f"block_lyrics_{audio_hash[:10]}_"
+                            f"{_preview_key[:12]}"
+                        ),
+                        label_visibility="collapsed",
+                        placeholder="[instrumental]",
+                    )
+                    _preview_editor_items.append({
+                        "block_key": _preview_key,
+                        "original_text": _preview_original,
+                        "edited_text": _preview_edited,
+                        "time_start": _preview_t0,
+                        "time_end": _preview_t1,
+                    })
 
                 if _preview_editor_items:
                     _lyrics_save_col, _lyrics_reset_col = st.columns(2)
@@ -5035,15 +5108,10 @@ if (
                                 "Les accords et la timeline ne changent pas."
                             ),
                         ):
-                            for _item in _preview_editor_items:
-                                save_lyric_block_edit(
-                                    audio_hash=audio_hash,
-                                    block_key=_item["block_key"],
-                                    original_text=_item["original_text"],
-                                    corrected_text=_item["edited_text"],
-                                    time_start=_item["time_start"],
-                                    time_end=_item["time_end"],
-                                )
+                            save_lyric_block_edits_snapshot(
+                                audio_hash,
+                                _preview_editor_items,
+                            )
 
                             version_no = save_analysis_version(
                                 audio_hash=audio_hash,
@@ -5475,16 +5543,22 @@ if (
                     t0,
                     t1,
                 )
-                corrected = str(edit.get("corrected_text", "") or "").strip()
-
-                lines = construire_lignes_paroles_intervalle(
-                    mesures=mesures_affichees,
-                    resultat=resultat,
-                    t0=t0,
-                    t1=t1,
-                    max_chars=74,
-                    corrected_block_text=corrected,
+                has_edit = bool(edit)
+                corrected = str(
+                    edit.get("corrected_text", "") if has_edit else ""
                 )
+
+                if has_edit and not corrected.strip():
+                    lines = []
+                else:
+                    lines = construire_lignes_paroles_intervalle(
+                        mesures=mesures_affichees,
+                        resultat=resultat,
+                        t0=t0,
+                        t1=t1,
+                        max_chars=74,
+                        corrected_block_text=corrected if has_edit else None,
+                    )
 
                 html_lyrics.append(
                     '<div class="lyrics-structure-block">'
@@ -5590,18 +5664,25 @@ if (
                         t0_print,
                         t1_print,
                     )
+                    _has_print_edit = bool(edit_print)
                     corrected_print = str(
-                        edit_print.get("corrected_text", "") or ""
-                    ).strip()
-
-                    lines_print = construire_lignes_paroles_completes_intervalle(
-                        mesures=mesures_affichees,
-                        resultat=resultat,
-                        t0=t0_print,
-                        t1=t1_print,
-                        max_chars=74,
-                        corrected_block_text=corrected_print,
+                        edit_print.get("corrected_text", "")
+                        if _has_print_edit else ""
                     )
+
+                    if _has_print_edit and not corrected_print.strip():
+                        lines_print = []
+                    else:
+                        lines_print = construire_lignes_paroles_completes_intervalle(
+                            mesures=mesures_affichees,
+                            resultat=resultat,
+                            t0=t0_print,
+                            t1=t1_print,
+                            max_chars=74,
+                            corrected_block_text=(
+                                corrected_print if _has_print_edit else None
+                            ),
+                        )
 
                     line_count = max(1, len(lines_print))
                     estimated_height_mm = _print_lyrics_block_height_mm(
