@@ -5165,14 +5165,9 @@ if (
                                 "active_analysis_version_no"
                             ] = version_no
 
-                            # Le mode et la vue restent explicitement verrouillés
-                            # sur le contexte de travail courant.
-                            st.session_state[_view_key] = "Blocs"
-                            st.session_state[_mode_key] = "Édition"
-                            st.session_state[
-                                f"{_mode_key}_radio"
-                            ] = "✏️ Éditer"
-
+                            # Ne jamais réécrire ici les clés de widgets déjà
+                            # instanciés. Streamlit conserve naturellement les
+                            # radios Blocs / Édition du rerun courant.
                             st.success(
                                 f"{message} Paroles validées — V{version_no}. "
                                 "Vous restez dans Blocs > Édition."

@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 import sqlite3
+from difflib import SequenceMatcher
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -911,9 +912,18 @@ def _source_words_for_interval(resultat, t0, t1):
 
 def _redistribute_corrected_block_text(corrected_text, source_words):
     """
-    Redistribue le texte corrigé sur LA MÊME fenêtre vocale.
-    Les accords et leurs timestamps ne changent pas.
-    Les retours à la ligne saisis sont conservés.
+    Reprojette le texte corrigé sur la timeline Whisper sans décaler les mots
+    qui n'ont pas changé.
+
+    Principe :
+    - les mots identiques gardent exactement leurs timestamps d'origine ;
+    - un remplacement 1 pour 1 garde aussi la fenêtre temporelle du mot source ;
+    - seules les insertions/remplacements de longueur différente sont
+      interpolés localement dans la fenêtre voisine ;
+    - les retours à la ligne manuels restent portés par manual_line_end.
+
+    Cela évite le comportement précédent qui redistribuait TOUS les mots sur
+    toute la durée du bloc dès qu'un seul mot était ajouté/supprimé.
     """
     if not source_words:
         return []
@@ -924,10 +934,7 @@ def _redistribute_corrected_block_text(corrected_text, source_words):
         if line.strip()
     ]
     if not lines:
-        return [
-            {**w, "manual_line_end": False}
-            for w in source_words
-        ]
+        return []
 
     tokens = []
     line_ends = set()
@@ -940,44 +947,105 @@ def _redistribute_corrected_block_text(corrected_text, source_words):
     if not tokens:
         return []
 
-    src_centers = np.asarray([
-        (float(w["start"]) + float(w["end"])) / 2.0
-        for w in source_words
-    ], dtype=float)
+    src_tokens = [
+        str(word.get("text", "") or "").strip()
+        for word in source_words
+    ]
 
-    if len(tokens) == 1:
-        centers = np.asarray([(src_centers[0] + src_centers[-1]) / 2.0])
-    elif len(src_centers) == 1:
-        centers = np.linspace(
-            float(source_words[0]["start"]),
-            float(source_words[-1]["end"]),
-            len(tokens),
+    def _match_token(value):
+        value = str(value or "").casefold().strip()
+        value = re.sub(r"^[^\wÀ-ÿ]+|[^\wÀ-ÿ]+$", "", value)
+        return value
+
+    src_norm = [_match_token(value) for value in src_tokens]
+    dst_norm = [_match_token(value) for value in tokens]
+
+    matcher = SequenceMatcher(a=src_norm, b=dst_norm, autojunk=False)
+    mapped = [None] * len(tokens)
+
+    block_start = float(source_words[0]["start"])
+    block_end = float(source_words[-1]["end"])
+    block_end = max(block_end, block_start + 0.02)
+
+    def _place_segment(dst_start, dst_end, src_start, src_end):
+        count = max(0, dst_end - dst_start)
+        if count <= 0:
+            return
+
+        if src_start < src_end:
+            left = float(source_words[src_start]["start"])
+            right = float(source_words[src_end - 1]["end"])
+        else:
+            prev_end = (
+                float(source_words[src_start - 1]["end"])
+                if src_start > 0
+                else block_start
+            )
+            next_start = (
+                float(source_words[src_start]["start"])
+                if src_start < len(source_words)
+                else block_end
+            )
+            left = prev_end
+            right = next_start
+
+        if right <= left:
+            right = min(block_end, left + max(0.04, 0.12 * count))
+        if right <= left:
+            left = max(block_start, right - max(0.04, 0.12 * count))
+
+        width = max(right - left, 0.02)
+        step = width / max(count, 1)
+
+        for local_index, dst_index in enumerate(range(dst_start, dst_end)):
+            seg_start = left + local_index * step
+            seg_end = left + (local_index + 1) * step
+            mapped[dst_index] = {
+                "text": tokens[dst_index],
+                "start": float(max(block_start, seg_start)),
+                "end": float(min(block_end, max(seg_end, seg_start + 0.02))),
+                "manual_line_end": dst_index in line_ends,
+            }
+
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            for src_index, dst_index in zip(range(i1, i2), range(j1, j2)):
+                word = source_words[src_index]
+                mapped[dst_index] = {
+                    "text": tokens[dst_index],
+                    "start": float(word["start"]),
+                    "end": float(word["end"]),
+                    "manual_line_end": dst_index in line_ends,
+                }
+            continue
+
+        if tag == "replace" and (i2 - i1) == (j2 - j1):
+            for src_index, dst_index in zip(range(i1, i2), range(j1, j2)):
+                word = source_words[src_index]
+                mapped[dst_index] = {
+                    "text": tokens[dst_index],
+                    "start": float(word["start"]),
+                    "end": float(word["end"]),
+                    "manual_line_end": dst_index in line_ends,
+                }
+            continue
+
+        if tag in ("replace", "insert"):
+            _place_segment(j1, j2, i1, i2)
+
+    # Sécurité : tous les tokens doivent avoir une position, même sur un
+    # opcode atypique. On ne touche pas aux timestamps déjà ancrés.
+    for index, item in enumerate(mapped):
+        if item is None:
+            _place_segment(index, index + 1, 0, len(source_words))
+
+    result = [item for item in mapped if item is not None]
+    result.sort(
+        key=lambda item: (
+            float(item.get("start", 0.0)),
+            float(item.get("end", 0.0)),
         )
-    else:
-        centers = np.interp(
-            np.linspace(0.0, 1.0, len(tokens)),
-            np.linspace(0.0, 1.0, len(src_centers)),
-            src_centers,
-        )
-
-    start_block = float(source_words[0]["start"])
-    end_block = float(source_words[-1]["end"])
-    duration = max(end_block - start_block, 1e-6)
-    nominal = min(0.40, max(0.06, duration / max(len(tokens) * 2.5, 1)))
-
-    result = []
-    prev_end = start_block
-    for i, (token, center) in enumerate(zip(tokens, centers)):
-        start = max(start_block, float(center) - nominal / 2, prev_end)
-        end = min(end_block, max(start + 0.02, float(center) + nominal / 2))
-        result.append({
-            "text": token,
-            "start": float(start),
-            "end": float(end),
-            "manual_line_end": i in line_ends,
-        })
-        prev_end = float(end)
-
+    )
     return result
 
 

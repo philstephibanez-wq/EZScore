@@ -91,5 +91,53 @@ def make_print_document(kind, body_html, title="EZScore"):
 
 
 def print_icon(key_suffix, print_document):
-    payload=json.dumps(str(print_document),ensure_ascii=False).replace("</","<\\/")
-    st.iframe(f'''<!doctype html><html><head><meta charset="utf-8"><style>html,body{{width:40px;height:40px;margin:0;padding:0;overflow:hidden;background:transparent}}body{{display:flex;align-items:center;justify-content:center}}button{{width:34px;height:34px;margin:0;padding:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid rgba(120,120,120,.45);border-radius:7px;background:transparent;color:#f2f2f2;cursor:pointer}}button:hover{{background:rgba(127,127,127,.10)}}svg{{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}}</style></head><body><button id="print-{html.escape(str(key_suffix))}" title="Imprimer cette vue" aria-label="Imprimer cette vue" onclick='const doc = {payload}; const w=window.open("", "_blank"); if(!w){{alert("Le navigateur a bloqué la fenêtre d’impression.");return;}} w.document.open();w.document.write(doc);w.document.close();const launchPrint=()=>{{w.focus();setTimeout(()=>w.print(),120);}};if(w.document.readyState==="complete")launchPrint();else{{w.addEventListener("load",launchPrint,{{once:true}});setTimeout(launchPrint,350);}}'><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 8V3h10v5"/><rect x="6" y="14" width="12" height="7" rx="1"/><path d="M6 17H4a2 2 0 0 1-2-2v-4a3 3 0 0 1 3-3h14a3 3 0 0 1 3 3v4a2 2 0 0 1-2 2h-2"/><path d="M17 11h.01"/></svg></button></body></html>''',width=40,height=40)
+    """Render a visible print button for the current score view."""
+    suffix = str(key_suffix or "")
+    if suffix.startswith("grid-"):
+        label = "🖨 Imprimer la grille"
+    elif suffix.startswith("lyrics-"):
+        label = "🖨 Imprimer paroles + accords"
+    else:
+        label = "🖨 Imprimer cette vue"
+
+    payload = json.dumps(
+        str(print_document),
+        ensure_ascii=False,
+    ).replace("</", "<\\/")
+    safe_id = html.escape(suffix)
+    safe_label = html.escape(label)
+
+    st.iframe(
+        f'''<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+html,body{{width:100%;height:46px;margin:0;padding:0;overflow:hidden;background:transparent}}
+body{{display:flex;align-items:center}}
+button{{
+  width:100%;height:42px;margin:0;padding:0 14px;
+  display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid rgba(120,120,120,.55);border-radius:8px;
+  background:rgba(127,127,127,.08);color:#f2f2f2;
+  font:600 14px system-ui,-apple-system,Segoe UI,sans-serif;cursor:pointer
+}}
+button:hover{{background:rgba(127,127,127,.16)}}
+</style>
+</head>
+<body>
+<button id="print-{safe_id}" title="{safe_label}" aria-label="{safe_label}"
+onclick='const doc = {payload}; const w=window.open("", "_blank");
+if(!w){{alert("Le navigateur a bloqué la fenêtre d’impression.");return;}}
+w.document.open();w.document.write(doc);w.document.close();
+const launchPrint=()=>{{w.focus();setTimeout(()=>w.print(),120);}};
+if(w.document.readyState==="complete")launchPrint();
+else{{w.addEventListener("load",launchPrint,{{once:true}});setTimeout(launchPrint,350);}}'>
+{safe_label}
+</button>
+</body>
+</html>''',
+        width="stretch",
+        height=46,
+    )
+
