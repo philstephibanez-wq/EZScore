@@ -561,6 +561,141 @@ def _lyric_block_key(time_start, time_end):
     return hashlib.sha1(payload.encode("utf-8")).hexdigest()
 
 
+def _lyric_text_without_layout(value):
+    """Normalize only whitespace, preserving words/punctuation for comparison."""
+    return " ".join(str(value or "").split())
+
+
+def _recover_lyric_linebreaks_from_versions(conn, audio_hash, edits):
+    """Recover manual line breaks lost by older regressions.
+
+    Recovery is deliberately conservative: a historical text is accepted only
+    when its content is identical after whitespace normalization. Therefore this
+    can restore layout (newlines) without resurrecting old wording changes.
+    """
+    try:
+        rows = conn.execute(
+            """
+            SELECT lyric_edits_json
+            FROM analysis_versions
+            WHERE audio_hash = ?
+              AND trim(lyric_edits_json) NOT IN ('', '{}')
+            ORDER BY version_no DESC
+            """,
+            (str(audio_hash),),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return edits
+
+    if not rows:
+        return edits
+
+    changed = []
+
+    def _matching_current(hist):
+        h0 = float(hist.get("time_start", 0.0) or 0.0)
+        h1 = float(hist.get("time_end", h0) or h0)
+        exact_key = _lyric_block_key(h0, h1)
+        if exact_key in edits:
+            return exact_key, edits[exact_key]
+        best = None
+        best_delta = None
+        for key, item in edits.items():
+            e0 = float(item.get("time_start", 0.0) or 0.0)
+            e1 = float(item.get("time_end", e0) or e0)
+            d0 = abs(e0 - h0)
+            d1 = abs(e1 - h1)
+            if d0 <= 0.02 and d1 <= 0.02:
+                delta = d0 + d1
+                if best_delta is None or delta < best_delta:
+                    best = (key, item)
+                    best_delta = delta
+        return best
+
+    for row in rows:
+        try:
+            historic = json.loads(row[0] or "{}")
+        except Exception:
+            continue
+        if not isinstance(historic, dict):
+            continue
+
+        for hist in historic.values():
+            if not isinstance(hist, dict):
+                continue
+            historic_text = str(hist.get("corrected_text", "") or "")
+            if "\n" not in historic_text and "\r" not in historic_text:
+                continue
+
+            match = _matching_current(hist)
+            if match is None:
+                # If there is no current override, recover only when the old
+                # formatted text contains exactly the same words as the old
+                # source/original text. This restores layout only.
+                original = str(hist.get("original_text", "") or "")
+                if (
+                    _lyric_text_without_layout(historic_text)
+                    != _lyric_text_without_layout(original)
+                ):
+                    continue
+                h0 = float(hist.get("time_start", 0.0) or 0.0)
+                h1 = float(hist.get("time_end", h0) or h0)
+                key = _lyric_block_key(h0, h1)
+                item = {
+                    "original_text": original,
+                    "corrected_text": historic_text,
+                    "time_start": h0,
+                    "time_end": h1,
+                }
+                edits[key] = item
+                changed.append((key, item))
+                continue
+
+            key, current = match
+            current_text = str(current.get("corrected_text", "") or "")
+            if "\n" in current_text or "\r" in current_text:
+                continue
+            if (
+                _lyric_text_without_layout(current_text)
+                != _lyric_text_without_layout(historic_text)
+            ):
+                continue
+            current["corrected_text"] = historic_text
+            changed.append((key, current))
+
+    if changed:
+        now = _utc_now_iso()
+        for key, item in changed:
+            conn.execute(
+                """
+                INSERT INTO lyric_block_edits (
+                    audio_hash, block_key, original_text, corrected_text,
+                    time_start, time_end, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(audio_hash, block_key)
+                DO UPDATE SET
+                    original_text = excluded.original_text,
+                    corrected_text = excluded.corrected_text,
+                    time_start = excluded.time_start,
+                    time_end = excluded.time_end,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    str(audio_hash),
+                    str(key),
+                    str(item.get("original_text", "") or ""),
+                    str(item.get("corrected_text", "") or ""),
+                    float(item.get("time_start", 0.0) or 0.0),
+                    float(item.get("time_end", 0.0) or 0.0),
+                    now,
+                ),
+            )
+        conn.commit()
+
+    return edits
+
+
 def load_lyric_block_edits(audio_hash):
     if not audio_hash:
         return {}
@@ -575,18 +710,23 @@ def load_lyric_block_edits(audio_hash):
                 """,
                 (str(audio_hash),),
             ).fetchall()
+
+            edits = {
+                r[0]: {
+                    "original_text": r[1] or "",
+                    "corrected_text": r[2] or "",
+                    "time_start": float(r[3]),
+                    "time_end": float(r[4]),
+                }
+                for r in rows
+            }
+            return _recover_lyric_linebreaks_from_versions(
+                conn,
+                audio_hash,
+                edits,
+            )
     except sqlite3.OperationalError:
         return {}
-
-    return {
-        r[0]: {
-            "original_text": r[1] or "",
-            "corrected_text": r[2] or "",
-            "time_start": float(r[3]),
-            "time_end": float(r[4]),
-        }
-        for r in rows
-    }
 
 
 def resolve_lyric_block_edit(edits, time_start, time_end, tolerance=0.02):
