@@ -10,6 +10,30 @@ from ezscore.auth import allowed, current_user, logout
 from ezscore.auth.storage import avatar_value
 import ezscore.persistence as _persistence
 from ezscore.persistence import load_latest_persisted_analysis
+from ezscore.midi import build_midi_file as _build_midi_file
+
+
+# ---------------------------------------------------------------------------
+# R30 MIDI symbol bridge.
+#
+# EZScore.py imports app_shell BEFORE:
+#     from ezscore.persistence import *
+#
+# The current monolith later calls build_midi_file(...) but imports only
+# MIDI_INSTRUMENTS from ezscore.midi. Expose the already-existing MIDI builder
+# through persistence.__all__, so the later star import resolves the symbol.
+#
+# Important:
+# - no builtins mutation;
+# - no MIDI work is performed here;
+# - build_midi_file still runs only when the Analyse view asks for it.
+# ---------------------------------------------------------------------------
+
+_persistence.build_midi_file = _build_midi_file
+if "build_midi_file" not in _persistence.__all__:
+    _persistence.__all__.append("build_midi_file")
+
+print("[EZTRACE][MIDI_SYMBOL] build_midi_file exported=true")
 
 
 # ---------------------------------------------------------------------------
