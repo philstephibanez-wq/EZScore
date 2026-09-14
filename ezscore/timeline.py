@@ -10,6 +10,8 @@ import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
 
+from ezscore.diagnostics.perf import perf_event
+
 
 def chord_regions(beats):
     regions = []
@@ -297,12 +299,12 @@ def create_harmonic_timeline(
         },
     )
 
-    print(
-        "[EZTRACE][ANALYSE_TIMELINE_PERF] "
-        f"beats={len(beats)} "
-        f"regions={len(regions)} "
-        f"waveform_points={len(times)} "
-        f"plotly_traces={len(fig.data)}"
+    perf_event(
+        "timeline.render.summary",
+        beats=len(beats),
+        regions=len(regions),
+        waveform_points=len(times),
+        plotly_traces=len(fig.data),
     )
 
     return fig

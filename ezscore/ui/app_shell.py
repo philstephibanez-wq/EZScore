@@ -11,6 +11,14 @@ from ezscore.auth.storage import avatar_value
 import ezscore.persistence as _persistence
 from ezscore.persistence import load_latest_persisted_analysis
 from ezscore.midi import build_midi_file as _build_midi_file
+from ezscore.diagnostics.perf import (
+    install_runtime_probes,
+    perf_event,
+    perf_span,
+    render_perf_log_sidebar,
+)
+
+install_runtime_probes()
 
 
 # ---------------------------------------------------------------------------
@@ -33,7 +41,7 @@ _persistence.build_midi_file = _build_midi_file
 if "build_midi_file" not in _persistence.__all__:
     _persistence.__all__.append("build_midi_file")
 
-print("[EZTRACE][MIDI_SYMBOL] build_midi_file exported=true")
+perf_event("midi.symbol.exported", exported=True)
 
 
 # ---------------------------------------------------------------------------
@@ -172,10 +180,12 @@ def _ezscore_materialiser_structure_blocks(
     }
 
     if visual_start < raw_start or visual_end > raw_end:
-        print(
-            "[EZTRACE][LYRICS_ENVELOPE] "
-            f"measure={raw_start:.3f}-{raw_end:.3f} "
-            f"visual={visual_start:.3f}-{visual_end:.3f}"
+        perf_event(
+            "lyrics.visual_envelope",
+            measure_start=raw_start,
+            measure_end=raw_end,
+            visual_start=visual_start,
+            visual_end=visual_end,
         )
 
     return result
@@ -345,29 +355,38 @@ def analysis_sidebar_active() -> bool:
     # a freshly imported song has no persisted analysis yet. It must expose
     # the analysis settings even though the song is opened in Vue mode.
     try:
-        latest = load_latest_persisted_analysis(active_hash)
+        with perf_span(
+            "ui.analysis_sidebar.load_latest",
+            audio_hash=active_hash[:12],
+        ):
+            latest = load_latest_persisted_analysis(active_hash)
     except Exception as exc:
-        print(
-            "[EZTRACE][ANALYSIS_UI] "
-            f"hash={active_hash[:12]} persistence_error={exc!r}"
+        perf_event(
+            "ui.analysis_sidebar.load_latest",
+            status="error",
+            audio_hash=active_hash[:12],
+            error_type=type(exc).__name__,
+            error=str(exc),
         )
         latest = None
 
     if latest is None:
-        print(
-            "[EZTRACE][ANALYSIS_UI] "
-            f"hash={active_hash[:12]} "
-            "fresh_song=true show_settings=true"
+        perf_event(
+            "ui.analysis_sidebar.state",
+            audio_hash=active_hash[:12],
+            fresh_song=True,
+            show_settings=True,
         )
         return True
 
     mode_key = "song_mode_" + active_hash[:12]
     editing = st.session_state.get(mode_key) == "Édition"
 
-    print(
-        "[EZTRACE][ANALYSIS_UI] "
-        f"hash={active_hash[:12]} "
-        f"fresh_song=false edit_mode={editing}"
+    perf_event(
+        "ui.analysis_sidebar.state",
+        audio_hash=active_hash[:12],
+        fresh_song=False,
+        edit_mode=bool(editing),
     )
     return editing
 
@@ -406,6 +425,8 @@ def render_profile_sidebar() -> None:
     use a compact identity plus a collapsed secondary menu so the contextual
     song controls remain immediately reachable.
     """
+    render_perf_log_sidebar()
+
     section = current_section()
     compact = section in ("Chanson", "Import")
     user = current_user()
