@@ -1,33 +1,58 @@
-# EZScore R30 FIX4 — éditeur Blocs + Paroles déterministe
+# EZScore R30 FIX5 — validation Blocs, synchro paroles, impression
 
-Correctif incrémental à appliquer après R30 FIX2.
+Correctif cumulatif à appliquer sur le dernier push utilisateur `5683aec`.
 
-## Cause des comportements aléatoires
+## 1. Validation Blocs + paroles
 
-Deux états indépendants coexistaient :
-- le brouillon de structure ;
-- les textareas de paroles.
+Correction de :
 
-De plus, les clés Streamlit des paroles dépendaient des bornes temporelles.
-Déplacer une frontière changeait donc la clé du widget et pouvait faire
-réapparaître une ancienne valeur ou perdre une modification non validée.
+```text
+StreamlitWidgetAlreadyInstantiatedError:
+st.session_state.song_view_... cannot be modified after the widget ...
+```
 
-Enfin, deux boutons de validation distincts rendaient possible la validation
-du découpage sans sauvegarder les paroles visibles.
+Après `Valider blocs + paroles`, EZScore ne réécrit plus les clés Streamlit
+`song_view`, `song_mode` ni leur radio après instanciation.
 
-## FIX4
+La vue courante reste naturellement `Blocs > Édition` sans provoquer
+l'exception.
 
-- clé des textareas basée sur le block_id stable ;
-- déplacer une frontière ne recrée plus le champ de paroles ;
-- suppression du bouton indépendant Valider ce découpage ;
-- suppression du bouton indépendant Valider les paroles ;
-- un seul bouton : Valider blocs + paroles ;
-- ce bouton persiste les frontières/noms puis l'état complet des paroles ;
-- un seul snapshot est créé ;
-- la vue reste explicitement Blocs > Édition ;
-- la réinitialisation des paroles nettoie aussi les widgets de session.
+## 2. Player : conservation des timestamps
+
+L'ancien mécanisme redistribuait tous les mots corrigés sur toute la durée du
+bloc dès que le nombre de mots changeait. Cela pouvait décaler progressivement
+les paroles du player.
+
+FIX5 utilise un alignement lexical local :
+- les mots inchangés gardent exactement leurs timestamps Whisper ;
+- un remplacement 1 pour 1 garde la fenêtre temporelle du mot source ;
+- seules les insertions ou remplacements de longueur différente sont interpolés
+  localement entre leurs voisins ;
+- les retours à la ligne manuels restent conservés.
+
+Ainsi une correction orthographique ou un déplacement partiel n'entraîne plus
+le recalage artificiel de tout le bloc.
+
+## 3. Impression visible
+
+Les fonctions d'impression existaient toujours mais étaient exposées sous forme
+d'une icône 34 px devenue difficile à repérer.
+
+Le contrôle est maintenant un bouton explicite :
+- `🖨 Imprimer la grille`
+- `🖨 Imprimer paroles + accords`
+
+Le document autonome et le dialogue d'impression navigateur existants sont
+conservés.
+
+## 4. Base SQLite
+
+Le dépôt contient bien `data/EZScore.sqlite3`. Le dernier push utilisateur qui
+la modifie est `5683aec`.
 
 ## Fichiers modifiés
 
-- EZScore.py
-- readme.md
+- `EZScore.py`
+- `ezscore/persistence.py`
+- `ezscore/printing.py`
+- `readme.md`
