@@ -578,9 +578,9 @@ def save_lyric_block_edit(
 ):
     """Persist the canonical correction for one structural block.
 
-    Any older lyric correction overlapping the same structural interval is
-    removed first. This prevents historical whole-song or obsolete-boundary
-    edits from taking precedence in another view.
+    Older corrections overlapping the same current block are removed first.
+    This prevents an obsolete boundary or old editor from winning in another
+    view of the same song.
     """
     original = str(original_text or "").strip()
     corrected = str(corrected_text or "").strip()
@@ -735,10 +735,11 @@ def effective_lyrics_words_for_sections(
     audio_hash,
     sections,
 ):
-    """Build the canonical lyric timeline from the current structural blocks.
+    """Canonical lyric timeline for players and synchronized views.
 
-    Only edits whose key matches the *current* block boundaries are used.
-    Stale corrections from previous block layouts are deliberately ignored.
+    The persisted structural blocks define the intervals. Only a correction
+    whose key matches the current block boundaries is applied; obsolete edits
+    from older block layouts are ignored.
     """
     edits = load_lyric_block_edits(audio_hash)
     effective = []
@@ -748,7 +749,9 @@ def effective_lyrics_words_for_sections(
             {
                 "text": str(word.get("text", "") or "").strip(),
                 "start": float(word.get("start", 0.0) or 0.0),
-                "end": float(word.get("end", word.get("start", 0.0)) or 0.0),
+                "end": float(
+                    word.get("end", word.get("start", 0.0)) or 0.0
+                ),
             }
             for word in extraire_mots(resultat)
             if str(word.get("text", "") or "").strip()
@@ -762,8 +765,9 @@ def effective_lyrics_words_for_sections(
 
         source_words = _source_words_for_interval(resultat, t0, t1)
         block_key = _lyric_block_key(t0, t1)
-        edit = edits.get(block_key, {})
-        corrected = str(edit.get("corrected_text", "") or "").strip()
+        corrected = str(
+            edits.get(block_key, {}).get("corrected_text", "") or ""
+        ).strip()
 
         if corrected:
             block_words = _redistribute_corrected_block_text(
@@ -2801,7 +2805,10 @@ def materialiser_structure_blocks(
             "detected_measure_start": block.get("detected_measure_start"),
             "detected_measure_end": block.get("detected_measure_end"),
             "time_start": float(groupe[0]["debut"]),
-            "time_end": float(groupe[-1]["fin"]),
+            # +1 ms : même convention que l'éditeur de blocs. Cela évite
+            # qu'un mot situé exactement sur une frontière passe dans le
+            # bloc voisin selon la vue utilisée.
+            "time_end": float(groupe[-1]["fin"]) + 0.001,
             "measure_patterns": [
                 _normaliser_pattern_mesure(m.get("notation", ""))
                 for m in groupe

@@ -1,31 +1,56 @@
-# EZScore R29 FIX5 — export du helper de paroles canonique
+# EZScore R29 FIX6 — paroles alignées + contrôles morceau permanents
 
-Correctif ciblé du FIX4.
+Correctif cumulatif des régressions observées après R29.
 
-## Cause
+## Paroles : même découpage, même texte partout
 
-`EZScore.py` importe la persistance avec :
+La vue `Blocs > Édition` reste l'unique éditeur canonique des paroles.
 
-```python
-from ezscore.persistence import *
-```
+Le défaut venait d'une différence de frontière temporelle entre :
+- l'éditeur de blocs : fin de bloc = fin de dernière mesure + 1 ms ;
+- `Paroles + accords` / player : fin de bloc = fin exacte de la mesure.
 
-Le module `ezscore.persistence` définit explicitement `__all__`.  
-La nouvelle fonction `effective_lyrics_words_for_sections` avait été ajoutée au module mais oubliée dans cette liste.
+Un mot placé sur la frontière pouvait donc appartenir à deux blocs différents selon la vue.
 
-Conséquence : la fonction existait bien dans `persistence.py`, mais n'était pas importée dans `EZScore.py`, d'où :
+FIX6 uniformise la convention :
+- `time_start` = début de la première mesure ;
+- `time_end` = fin de la dernière mesure + 0,001 s.
 
-```text
-NameError: name 'effective_lyrics_words_for_sections' is not defined
-```
+La même clé de bloc est donc utilisée par :
+- Blocs ;
+- Paroles + accords ;
+- player Vue ;
+- player MIDI de contrôle.
 
-## Correction
+Lorsqu'une correction de paroles est validée, une ancienne correction chevauchant le même bloc est supprimée afin d'éviter qu'une correction historique ne réapparaisse dans une autre vue.
 
-`effective_lyrics_words_for_sections` est maintenant exportée dans `__all__`.
+## Contrôles permanents du morceau
 
-Aucun autre comportement du FIX4 n'est modifié.
+Les commandes de navigation du morceau ne sont plus dans le flux vertical principal.
+
+Elles sont regroupées dans le panneau gauche, sous le profil :
+- Vue : Grille / Paroles + accords / Blocs / Analyse ;
+- Mode : Vue / Éditer ;
+- Capodastre.
+
+Elles restent donc accessibles même lorsqu'on est descendu loin dans la partition.
+
+Sur smartphone/tablette, elles restent dans le drawer latéral tactile.
+
+## Capodastre
+
+Le capo reste un réglage d'affichage temps réel :
+- grille : transposée pour les formes à jouer ;
+- Paroles + accords : transposé ;
+- player Vue : transposé ;
+- diagrammes guitare : transposés ;
+- player MIDI : noms/diagrammes transposés mais harmonie MIDI réelle inchangée ;
+- aucune réanalyse.
 
 ## Fichiers du livrable
 
+- `EZScore.py`
 - `readme.md`
 - `ezscore/persistence.py`
+- `ezscore/player/web_player.py`
+- `ezscore/backoffice/player.py`

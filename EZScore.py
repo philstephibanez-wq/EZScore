@@ -108,6 +108,11 @@ initialize_auth()
 render_app_header()
 render_profile_sidebar()
 
+# Emplacement réservé aux contrôles permanents du morceau.
+# Le conteneur est créé ici pour rester au-dessus des réglages techniques
+# dans la sidebar, puis rempli quand un morceau est effectivement ouvert.
+song_controls_slot = st.sidebar.container()
+
 st.markdown(
     "Analyse d'un morceau : tempo, beats, mesures, accords et paroles synchronisées."
 )
@@ -656,30 +661,9 @@ for _widget_key, _widget_default in _widget_defaults.items():
     if _widget_key not in st.session_state:
         st.session_state[_widget_key] = _widget_default
 
-# Le capodastre reste un contrôle d'affichage temps réel dans Chanson
-# (Vue comme Édition). Il ne relance jamais l'analyse harmonique.
-_capo_sidebar_visible = (
-    current_section() == "Chanson"
-    or _analysis_sidebar_active
-)
-
-if _capo_sidebar_visible:
-    capo_user = st.sidebar.selectbox(
-        "🎸 Capodastre",
-        list(range(0, 13)),
-        key="capo_live",
-        format_func=lambda x: "0 — sans capo" if x == 0 else f"Capo {x}",
-        help=(
-            "Affichage uniquement. L'audio, la tonalité réelle et les accords "
-            "internes restent inchangés. Exemple : Cm réel + capo 3 => Am affiché."
-        )
-    )
-    st.sidebar.caption(
-        "Modification immédiate de l'affichage, sans relancer Demucs, "
-        "Whisper ni l'analyse harmonique."
-    )
-else:
-    capo_user = int(st.session_state.get("capo_live", 0))
+# Le widget Capodastre est rendu dans la barre permanente du morceau.
+# Ici on conserve seulement une valeur sûre pour les autres écrans.
+capo_user = int(st.session_state.get("capo_live", 0))
 
 if auth_allowed("song.edit") and _analysis_sidebar_active:
     with st.sidebar.expander("⚙️ Réglages avancés", expanded=False):
@@ -3244,24 +3228,25 @@ if (
         st.session_state[_mode_key] = "Édition"
         st.session_state[f"{_mode_key}_radio"] = "✏️ Éditer"
 
-    nav_col, mode_col, print_col = st.columns([1.85, 1.05, 0.12])
+    _song_view_options = ["Grille", "Paroles + accords"]
+    if auth_allowed("song.edit"):
+        _song_view_options.extend(["Blocs", "Analyse"])
+    if st.session_state.get(_view_key) not in _song_view_options:
+        st.session_state[_view_key] = "Paroles + accords"
 
-    with nav_col:
-        _song_view_options = ["Grille", "Paroles + accords"]
-        if auth_allowed("song.edit"):
-            _song_view_options.extend(["Blocs", "Analyse"])
-        if st.session_state.get(_view_key) not in _song_view_options:
-            st.session_state[_view_key] = "Paroles + accords"
+    # Contrôles permanents dans le left panel : ils restent accessibles
+    # quel que soit le scroll de la partition.
+    with song_controls_slot:
+        st.markdown("---")
+        st.markdown("### 🎼 Morceau")
 
         song_view = st.radio(
             "Vue",
             _song_view_options,
-            horizontal=True,
             key=_view_key,
-            label_visibility="collapsed",
+            help="Change de vue sans revenir en haut de la page.",
         )
 
-    with mode_col:
         if (
             auth_allowed("song.edit")
             and song_view in ("Grille", "Paroles + accords", "Blocs")
@@ -3271,38 +3256,44 @@ if (
             _mode_options = ["👁 Vue"]
 
         _current_mode = st.session_state.get(_mode_key, "Vue")
-        if _current_mode == "Édition":
-            _current_label = "✏️ Éditer"
-        elif _current_mode == "Jouer":
-            _current_label = "▶ Jouer"
-        else:
-            _current_label = "👁 Vue"
-
+        _current_label = (
+            "✏️ Éditer"
+            if _current_mode == "Édition"
+            else "👁 Vue"
+        )
         if _current_label not in _mode_options:
             _current_label = "👁 Vue"
 
         song_mode_label = st.radio(
             "Mode",
             _mode_options,
-            horizontal=True,
             key=f"{_mode_key}_radio",
             index=_mode_options.index(_current_label),
-            label_visibility="collapsed",
+            horizontal=True,
         )
 
         song_mode = {
             "👁 Vue": "Vue",
             "✏️ Éditer": "Édition",
-            "▶ Jouer": "Jouer",
         }[song_mode_label]
-
         st.session_state[_mode_key] = song_mode
 
-        # Le passage en mode Édition ne modifie jamais implicitement
-        # l'état éditorial. La reprise est une action explicite.
+        capo_user = st.selectbox(
+            "🎸 Capodastre",
+            list(range(0, 13)),
+            key="capo_live",
+            format_func=lambda x: (
+                "0 — sans capo" if x == 0 else f"Capo {x}"
+            ),
+            help=(
+                "Affichage immédiat uniquement : grille, paroles, player "
+                "et diagrammes. L'audio/MIDI reste dans l'harmonie réelle."
+            ),
+        )
 
-    with print_col:
-        print_slot = st.empty()
+    # Slot d'impression principal ; les contrôles de navigation ne sont
+    # plus dans le flux vertical de la page.
+    print_slot = st.empty()
 
     # --------------------------------------------------------
     # PRÉFÉRENCES DU MORCEAU — SANS RÉANALYSE
@@ -5451,6 +5442,9 @@ if (
             # ----------------------------------------------------
 
             st.subheader("🎤 Paroles")
+            st.caption(
+                "Paroles issues des blocs validés — source unique pour la vue et le player."
+            )
 
             def html_ligne_paroles(bloc):
                 accords = html.escape(str(bloc.get("accords", "")))
