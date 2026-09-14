@@ -107,19 +107,79 @@ def current_section() -> str:
 
 
 def analysis_sidebar_active() -> bool:
-    """Technical analysis controls only belong to Import or song edit mode."""
+    """Show analysis controls in Import, Analyse, or song edit contexts.
+
+    R35 workflow rule:
+    a freshly imported song must open directly in the Analyse view, not in
+    Grille/Paroles and not in edit mode. The Import -> Chanson transition is
+    visible here one rerun before the main navigation consumes
+    ``_pending_main_menu``; that is the stable point where we initialize the
+    song FSM for the imported hash.
+    """
     section = current_section()
+
     if section == "Import":
-        return allowed("song.edit")
+        active = allowed("song.edit")
+        print(
+            "[EZTRACE][ANALYSIS_UI] "
+            f"section=Import active={active}"
+        )
+        return active
+
     if section != "Chanson" or not allowed("song.edit"):
+        print(
+            "[EZTRACE][ANALYSIS_UI] "
+            f"section={section} active=False"
+        )
         return False
 
-    active_hash = str(st.session_state.get("active_song_hash", "") or "")
-    if active_hash:
-        mode_key = "song_mode_" + active_hash[:12]
-        return st.session_state.get(mode_key) == "Édition"
+    active_hash = str(
+        st.session_state.get("active_song_hash", "") or ""
+    )
+    if not active_hash:
+        print(
+            "[EZTRACE][ANALYSIS_UI] "
+            "section=Chanson hash=none active=False"
+        )
+        return False
 
-    return False
+    short_hash = active_hash[:12]
+    view_key = "song_view_" + short_hash
+    mode_key = "song_mode_" + short_hash
+
+    # Fresh import transition:
+    # the previous main page is still Import while Chanson is pending.
+    # Force the target workflow to Analyse/Vue before the song widgets exist.
+    pending = str(
+        st.session_state.get("_pending_main_menu", "") or ""
+    )
+    source_section = str(
+        st.session_state.get("main_menu", "") or ""
+    )
+
+    if pending == "Chanson" and source_section == "Import":
+        st.session_state[view_key] = "Analyse"
+        st.session_state[mode_key] = "Vue"
+        print(
+            "[EZTRACE][IMPORT] "
+            f"hash={short_hash} source=Import "
+            "target_view=Analyse target_mode=Vue"
+        )
+        return True
+
+    view = str(st.session_state.get(view_key, "") or "")
+    mode = str(st.session_state.get(mode_key, "") or "")
+
+    # Analyse is an analysis context by definition, even in mode Vue.
+    # Other song views expose technical parameters only while editing.
+    active = view == "Analyse" or mode == "Édition"
+
+    print(
+        "[EZTRACE][ANALYSIS_UI] "
+        f"section=Chanson hash={short_hash} "
+        f"view={view or '-'} mode={mode or '-'} active={active}"
+    )
+    return active
 
 
 def render_app_header() -> None:

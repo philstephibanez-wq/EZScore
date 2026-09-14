@@ -1,48 +1,78 @@
-# EZScore R34 — Stabilisation blocs / paroles
+# EZScore R35 — Import → Analyse
 
-Cette livraison repart de la version redevenue fonctionnelle.
+## Correctif
 
-## Corrections
+Un import neuf ne doit pas ouvrir la chanson en mode édition.
 
-- paroles validées rattachées à `block_id` via la clé `block:<id>` ;
-- aucune migration SQLite ;
-- un bloc vide validé reste instrumental ;
-- récupération conservatrice des anciennes corrections `t0/t1` ;
-- suppression du second `st.rerun()` lors d'une modification de `Fin` ;
-- maintien de `Blocs > Édition` ;
-- phonèmes visibles dans `Blocs > Édition`.
+Le flux attendu devient :
 
-## Installation
-
-Arrêter Streamlit, dézipper, puis :
-
-```powershell
-cd H:\EZScore
-python .\EZScore_R34_STABLE_BLOCKS\apply_r34.py --root H:\EZScore
+```text
+Import du fichier
+    ↓
+Chanson
+    ↓
+Vue = Analyse
+Mode = Vue
+    ↓
+Paramètres d'analyse visibles
+    ↓
+Appliquer les paramètres
+    ↓
+Analyse
 ```
 
-L'applicateur crée automatiquement un backup `_backup_R34_YYYYMMDD-HHMMSS`.
+Le correctif est limité à :
 
-## Contrôle
+```text
+ezscore/ui/app_shell.py
+```
+
+Aucune modification SQLite.
+Aucune modification des données du répertoire.
+Aucune modification de `EZScore.py`.
+
+## Traces ajoutées
+
+PowerShell affiche maintenant des lignes telles que :
+
+```text
+[EZTRACE][IMPORT] hash=... source=Import target_view=Analyse target_mode=Vue
+[EZTRACE][ANALYSIS_UI] section=Chanson hash=... view=Analyse mode=Vue active=True
+```
+
+Ces traces servent à la recette et permettent de vérifier le workflow exact.
+
+## Installation PowerShell
+
+Depuis le dossier où le ZIP est décompressé, copier le fichier :
 
 ```powershell
 cd H:\EZScore
-python -m compileall -q .
-git status --porcelain=v1 -uall
+Copy-Item -Force "<DOSSIER_DEZIP>\EZScore_R35_IMPORT_ANALYSE\ezscore\ui\app_shell.py" ".\ezscore\ui\app_shell.py"
+```
+
+Puis compiler :
+
+```powershell
+python -m py_compile .\ezscore\ui\app_shell.py
+python -m py_compile .\EZScore.py
+python -m compileall -q .\ezscore
+```
+
+Puis lancer :
+
+```powershell
 python -m streamlit run .\EZScore.py --server.address 127.0.0.1 --server.port 8501 --server.headless true
 ```
 
-Tester d'abord `http://127.0.0.1:8501`.
+## Recette — étape suivante
 
-## La Bohème
+Importer une nouvelle chanson.
 
-Ne pas réanalyser avant le test.
+Résultat attendu immédiatement après import :
 
-1. Ouvrir La Bohème.
-2. `Blocs > Édition`.
-3. Vérifier l'intro et les paroles.
-4. Modifier la fin d'un bloc et vérifier que la vue ne change pas.
-5. Ouvrir `🔤 Phonèmes / beats`.
-6. Quand l'état est correct, cliquer `Valider blocs + paroles`.
-
-À partir de cette validation, le texte est persisté par `block_id`.
+- vue `Analyse` sélectionnée ;
+- mode `Vue` ;
+- paramètres avancés visibles dans la barre latérale ;
+- aucune analyse lancée automatiquement ;
+- trace `[EZTRACE][IMPORT] ... target_view=Analyse target_mode=Vue`.
