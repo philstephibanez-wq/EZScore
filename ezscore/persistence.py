@@ -31,6 +31,7 @@ __all__ = [
     'load_lyric_block_edits',
     'resolve_lyric_block_edit',
     'save_lyric_block_edit',
+    'save_lyric_block_edits_snapshot',
     'reset_lyric_block_edits',
     '_source_words_for_interval',
     '_redistribute_corrected_block_text',
@@ -57,6 +58,8 @@ __all__ = [
     'catalog_display_name',
     'ensure_song',
     'update_song_metadata',
+    'get_song_editor_assignment',
+    'assign_song_editor',
     '_cover_extension',
     'save_song_cover',
     'delete_song_cover',
@@ -229,6 +232,19 @@ def init_persistence():
                 "ALTER TABLE songs ADD COLUMN cover_path "
                 "TEXT NOT NULL DEFAULT ''"
             )
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS song_editor_assignments (
+                audio_hash TEXT PRIMARY KEY,
+                user_id INTEGER,
+                display_name TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (audio_hash) REFERENCES songs(audio_hash)
+                    ON DELETE CASCADE
+            )
+            """
+        )
 
         conn.execute("""
             CREATE TABLE IF NOT EXISTS analyses (
@@ -660,6 +676,68 @@ def save_lyric_block_edit(
             )
         conn.commit()
 
+def save_lyric_block_edits_snapshot(audio_hash, items):
+    """Persist the complete current lyric state for all structural blocks.
+
+    This is intentionally atomic. It allows a verse to be cut from one block
+    and pasted into another, including making a block explicitly empty.
+    Stale edits from an older block layout are removed in the same transaction.
+    """
+    now = _utc_now_iso()
+    normalized = []
+
+    for item in items or []:
+        block_key = str(item.get("block_key", "") or "").strip()
+        if not block_key:
+            continue
+
+        original = str(item.get("original_text", "") or "").strip()
+        edited = str(item.get("edited_text", "") or "").strip()
+        t0 = float(item.get("time_start", 0.0) or 0.0)
+        t1 = float(item.get("time_end", t0) or t0)
+
+        normalized.append({
+            "block_key": block_key,
+            "original_text": original,
+            "edited_text": edited,
+            "time_start": t0,
+            "time_end": t1,
+        })
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            "DELETE FROM lyric_block_edits WHERE audio_hash = ?",
+            (str(audio_hash),),
+        )
+
+        for item in normalized:
+            # Identical text needs no override. An empty edited block DOES:
+            # it explicitly means that its lyrics were moved elsewhere.
+            if item["edited_text"] == item["original_text"]:
+                continue
+
+            conn.execute(
+                """
+                INSERT INTO lyric_block_edits (
+                    audio_hash, block_key, original_text, corrected_text,
+                    time_start, time_end, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(audio_hash),
+                    item["block_key"],
+                    item["original_text"],
+                    item["edited_text"],
+                    item["time_start"],
+                    item["time_end"],
+                    now,
+                ),
+            )
+
+        conn.commit()
+
+
 def reset_lyric_block_edits(audio_hash):
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
@@ -799,15 +877,20 @@ def effective_lyrics_words_for_sections(
         source_words = _source_words_for_interval(resultat, t0, t1)
         block_key = _lyric_block_key(t0, t1)
         edit = resolve_lyric_block_edit(edits, t0, t1)
+        has_edit = bool(edit)
         corrected = str(
-            edit.get("corrected_text", "") or ""
+            edit.get("corrected_text", "") if has_edit else ""
         ).strip()
 
-        if corrected:
-            block_words = _redistribute_corrected_block_text(
-                corrected,
-                source_words,
-            )
+        if has_edit:
+            if corrected:
+                block_words = _redistribute_corrected_block_text(
+                    corrected,
+                    source_words,
+                )
+            else:
+                # Explicitly empty block: the editor moved/removed its lyrics.
+                block_words = []
         else:
             block_words = [
                 {**word, "manual_line_end": False}
@@ -1597,6 +1680,63 @@ def update_song_metadata(audio_hash, title, artist, editor, strumming_primary, s
         )
         conn.commit()
 
+
+
+def get_song_editor_assignment(audio_hash):
+    with sqlite3.connect(DB_PATH) as conn:
+        try:
+            row = conn.execute(
+                """
+                SELECT user_id, display_name, updated_at
+                FROM song_editor_assignments
+                WHERE audio_hash = ?
+                """,
+                (str(audio_hash),),
+            ).fetchone()
+        except sqlite3.OperationalError:
+            return None
+
+    if not row:
+        return None
+    return {
+        "user_id": int(row[0]) if row[0] is not None else None,
+        "display_name": row[1] or "",
+        "updated_at": row[2],
+    }
+
+
+def assign_song_editor(audio_hash, user_id, display_name):
+    """Assign a song to a real EZScore user while keeping a readable snapshot."""
+    now = _utc_now_iso()
+    name = str(display_name or "").strip()
+    uid = int(user_id) if user_id is not None else None
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            """
+            INSERT INTO song_editor_assignments (
+                audio_hash, user_id, display_name, updated_at
+            )
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(audio_hash)
+            DO UPDATE SET
+                user_id = excluded.user_id,
+                display_name = excluded.display_name,
+                updated_at = excluded.updated_at
+            """,
+            (str(audio_hash), uid, name, now),
+        )
+        conn.execute(
+            """
+            UPDATE songs
+            SET editor = ?, updated_at = ?
+            WHERE audio_hash = ?
+            """,
+            (name, now, str(audio_hash)),
+        )
+        conn.commit()
+
+    return get_song_editor_assignment(audio_hash)
 
 
 def _cover_extension(filename):
