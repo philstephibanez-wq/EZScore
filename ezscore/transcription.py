@@ -6,6 +6,8 @@ import re
 from difflib import SequenceMatcher
 
 import numpy as np
+from ezscore.analysis.timelines import build_lyrics_timeline
+from ezscore.analysis.structure import detect_visual_blocks
 
 def extraire_mots(resultat):
     mots = []
@@ -426,208 +428,36 @@ def detecter_sections_structurelles(
     block_measures=4,
     similarity_threshold=0.66,
 ):
+    """Compatibility adapter.
+
+    Structure is now secondary and visual-only. The canonical timestamps live
+    in the independent chord/phoneme/lyrics timelines.
+
+    `block_measures` is intentionally ignored: the internal observation window
+    belongs to the structure engine and is not an editorial block size.
     """
-    Détection prudente en deux passes :
+    lyrics_timeline = build_lyrics_timeline(resultat)
 
-    1. Regrouper des blocs similaires sous des labels A/B/C...
-    2. Nommer Verse/Chorus/Bridge seulement si les indices sont suffisants.
+    sections = detect_visual_blocks(
+        mesures=mesures,
+        lyrics_timeline=lyrics_timeline,
+        similarity_threshold=similarity_threshold,
+    )
 
-    Aucun nom de section n'est imposé si la confiance est faible.
-    """
-    if not mesures:
-        return []
-
-    block_measures = max(2, int(block_measures))
-    blocs = []
-
-    for start in range(0, len(mesures), block_measures):
-        groupe = mesures[start:start + block_measures]
-        if not groupe:
-            continue
-
-        t0 = float(groupe[0]["debut"])
-        t1 = float(groupe[-1]["fin"])
-        lyrics = _lyrics_for_interval(resultat, t0, t1)
-
-        # Signature structurelle = progression de MESURES complètes.
-        measure_patterns = [
-            _normaliser_pattern_mesure(m.get("notation", ""))
-            for m in groupe
-        ]
-
-        blocs.append({
-            "index": len(blocs),
-            "measure_start": int(groupe[0]["numero"]),
-            "measure_end": int(groupe[-1]["numero"]),
-            "time_start": t0,
-            "time_end": t1,
-            "lyrics": lyrics,
-            "lyrics_norm": _normaliser_texte_structure(lyrics),
-            "measure_patterns": measure_patterns,
-            "has_lyrics": bool(_normaliser_texte_structure(lyrics)),
-        })
-
-    if not blocs:
-        return []
-
-    # Pairwise similarities.
-    n = len(blocs)
-    pair_h = np.zeros((n, n), dtype=float)
-    pair_l = np.zeros((n, n), dtype=float)
-    pair_total = np.zeros((n, n), dtype=float)
-
-    for i in range(n):
-        pair_h[i, i] = 1.0
-        pair_l[i, i] = 1.0
-        pair_total[i, i] = 1.0
-
-        for j in range(i + 1, n):
-            h = _measure_progression_similarity(
-                blocs[i]["measure_patterns"],
-                blocs[j]["measure_patterns"]
-            )
-
-            l_seq = _sequence_similarity(
-                blocs[i]["lyrics_norm"],
-                blocs[j]["lyrics_norm"]
-            )
-            l_jac = _token_jaccard(
-                blocs[i]["lyrics_norm"],
-                blocs[j]["lyrics_norm"]
-            )
-            l = 0.65 * l_seq + 0.35 * l_jac
-
-            # IMPORTANT :
-            # le cluster A/B/C est défini par la progression de mesures.
-            # Les paroles ne servent PAS à décider si deux blocs musicaux
-            # sont le même pattern.
-            total = h
-
-            pair_h[i, j] = pair_h[j, i] = h
-            pair_l[i, j] = pair_l[j, i] = l
-            pair_total[i, j] = pair_total[j, i] = total
-
-    # Greedy clustering into A/B/C...
-    clusters = []
-    labels = [None] * n
-
-    for i in range(n):
-        best_cluster = None
-        best_score = -1.0
-
-        for ci, members in enumerate(clusters):
-            sim = float(np.mean([
-                pair_total[i, m]
-                for m in members
-            ]))
-            if sim > best_score:
-                best_score = sim
-                best_cluster = ci
-
-        if (
-            best_cluster is not None
-            and best_score >= similarity_threshold
-        ):
-            clusters[best_cluster].append(i)
-            labels[i] = best_cluster
-        else:
-            clusters.append([i])
-            labels[i] = len(clusters) - 1
-
-    # Cluster statistics.
-    cluster_stats = {}
-
-    for ci, members in enumerate(clusters):
-        repeats = len(members)
-        has_lyrics = [blocs[m]["has_lyrics"] for m in members]
-        lyric_density = sum(has_lyrics) / max(repeats, 1)
-
-        lyric_sims = []
-        harm_sims = []
-
-        for a_pos in range(len(members)):
-            for b_pos in range(a_pos + 1, len(members)):
-                a = members[a_pos]
-                b = members[b_pos]
-                lyric_sims.append(pair_l[a, b])
-                harm_sims.append(pair_h[a, b])
-
-        lyric_repeat = (
-            float(np.mean(lyric_sims))
-            if lyric_sims
-            else 0.0
-        )
-        harmonic_repeat = (
-            float(np.mean(harm_sims))
-            if harm_sims
-            else 0.0
-        )
-
-        cluster_stats[ci] = {
-            "repeats": repeats,
-            "lyric_density": lyric_density,
-            "lyric_repeat": lyric_repeat,
-            "harmonic_repeat": harmonic_repeat,
-        }
-
-    # Labels structurels neutres.
-    # V25 : aucune interprétation Verse / Chorus / Bridge / Intro / Outro.
-    # Le cluster A/B/C/... identifie uniquement une famille de progression
-    # de mesures. Son nom sera éditable ultérieurement.
-    def alpha_label(idx):
-        idx = int(idx)
-        letters = ""
-        while True:
-            letters = chr(ord("A") + (idx % 26)) + letters
-            idx = idx // 26 - 1
-            if idx < 0:
-                break
-        return letters
-
-    sections = []
-
-    for i, bloc in enumerate(blocs):
-        ci = labels[i]
-        stats = cluster_stats[ci]
-        cluster_name = alpha_label(ci)
-
-        confidence = (
-            stats["harmonic_repeat"]
-            if stats["repeats"] >= 2
-            else 0.45
-        )
-
-        sections.append({
-            **bloc,
-            "cluster": cluster_name,
-            "type": f"Bloc {cluster_name}",
-            "confidence": float(confidence),
-            "cluster_repeats": stats["repeats"],
-            "lyric_repeat": stats["lyric_repeat"],
-            "harmonic_repeat": stats["harmonic_repeat"],
-            "measure_patterns": bloc["measure_patterns"],
-        })
-
-    # Fusionner uniquement des occurrences consécutives du même cluster.
-    merged = []
-
+    # R30 callers still expect lyrics/type/cluster fields.
     for section in sections:
-        if (
-            merged
-            and merged[-1]["type"] == section["type"]
-            and merged[-1]["cluster"] == section["cluster"]
-            and merged[-1]["measure_end"] + 1 == section["measure_start"]
-        ):
-            prev = merged[-1]
-            prev["measure_end"] = section["measure_end"]
-            prev["time_end"] = section["time_end"]
-            prev["lyrics"] = (
-                (prev["lyrics"] + " " + section["lyrics"]).strip()
-            )
-            prev["confidence"] = float(
-                (prev["confidence"] + section["confidence"]) / 2.0
-            )
-        else:
-            merged.append(dict(section))
+        t0 = float(section["time_start"])
+        t1 = float(section["time_end"])
+        words = [
+            item["text"]
+            for item in lyrics_timeline
+            if float(item["end"]) >= t0 and float(item["start"]) <= t1
+        ]
+        section["lyrics"] = " ".join(words)
+        section["lyrics_norm"] = _normaliser_texte_structure(section["lyrics"])
+        section["cluster_repeats"] = 1
+        section["lyric_repeat"] = 0.0
+        section["harmonic_repeat"] = 0.0
 
-    return merged
+    return sections
+

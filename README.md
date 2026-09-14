@@ -1,96 +1,181 @@
-# EZScore R36.1 — Correctif transition FSM après analyse
+# EZScore — séparation analyse primaire / structure visuelle
 
-Base attendue : `R36_WORKFLOW_FSM` déjà appliquée localement.
+Cette livraison pose la séparation demandée sans toucher au SSO/auth ni à
+l'éditeur existant.
 
-## Bug corrigé
+## 1. Analyse primaire : 3 timelines synchronisées
 
-La fin d'une deuxième analyse déclenchait :
+Nouveau module :
+
+`ezscore/analysis/timelines.py`
+
+Il construit trois timelines sur **la même horloge audio en secondes** :
+
+### Accords
+
+Chaque beat possède :
+
+- `id` stable ;
+- `start` / `end` ;
+- accord ;
+- beat ;
+- mesure ;
+- confiance.
+
+Cette timeline est destinée à devenir la source unique du MIDI.
+
+### Paroles
+
+Chaque mot Whisper possède :
+
+- `id` stable ;
+- `start` / `end` ;
+- texte ;
+- index mot / segment.
+
+### Phonèmes
+
+Chaque phonème possède :
+
+- `id` stable ;
+- `start` / `end` ;
+- `word_id` ;
+- phonème.
+
+Important : pour l'instant le phonème est **dérivé de Whisper** et son temps est
+interpolé à l'intérieur du mot. Il est explicitement marqué :
 
 ```text
-StreamlitWidgetAlreadyInstantiatedError:
-st.session_state.song_view_... cannot be modified after the widget
-with key song_view_... is instantiated.
+source = whisper-derived
+acoustic = false
 ```
 
-Cause :
+Il ne faut donc pas le confondre avec une future détection acoustique réelle.
+
+## 2. Analyse secondaire : structure visuelle
+
+Nouveau module :
+
+`ezscore/analysis/structure.py`
+
+Il lit les mesures et les motifs d'accords et propose des blocs visuels.
+
+Les blocs portent :
 
 ```text
-analyse terminée
-→ complete_analysis_to_edit()
-→ écriture immédiate dans song_view_* / song_mode_*
-→ les radios existent déjà dans ce même run
-→ Streamlit interdit la modification
+visual_only = true
 ```
 
-## Correction
+Ils ne modifient jamais les timestamps accords / phonèmes / paroles.
 
-La transition devient asynchrone au rerun Streamlit :
+Le moteur cherche des **séquences harmoniques répétées**, pas un simple
+découpage toutes les 4 mesures.
+
+## Compatibilité R30
+
+`ezscore/transcription.py` conserve la fonction historique :
+
+`detecter_sections_structurelles(...)`
+
+mais elle délègue maintenant au nouveau module structure.
+
+Donc l'application existante continue de fonctionner pendant la migration.
+
+## Invariant à respecter pour les prochaines étapes
 
 ```text
-analyse terminée
-→ workflow = editing
-→ _pending_song_edit_hash = audio_hash
-→ st.rerun()
-→ début du run suivant
-→ EZScore.py consomme _pending_song_edit_hash
-→ Vue = Grille
-→ Mode = Édition
-→ création des radios
+TIMELINES = vérité temporelle
+BLOCS = vue éditoriale / navigation seulement
+MIDI = rendu de la timeline accords
 ```
 
-Aucune clé de widget n'est donc modifiée après instanciation.
+Déplacer ou renommer un bloc ne doit jamais déplacer un accord, un phonème ou
+un mot.
 
-## Fichier modifié
+## Fichiers livrés
 
 ```text
-ezscore/ui/song_fsm.py
+ezscore/analysis/__init__.py
+ezscore/analysis/timelines.py
+ezscore/analysis/structure.py
+ezscore/transcription.py
+readme.md
 ```
 
-Aucune migration SQLite.
-Aucune donnée musicale modifiée.
+Aucun `apply_*.py`.
+Aucun fichier auth/SSO.
+Aucune base SQLite.
 
-## Installation PowerShell
-
-Dézipper puis :
+## Compilation
 
 ```powershell
 cd H:\EZScore
-python .\apply_r36_1.py --root H:\EZScore
-```
-
-Puis :
-
-```powershell
+python -m py_compile .\ezscore\analysis\__init__.py
+python -m py_compile .\ezscore\analysis\timelines.py
+python -m py_compile .\ezscore\analysis\structure.py
+python -m py_compile .\ezscore\transcription.py
 python -m py_compile .\EZScore.py
-python -m py_compile .\ezscore\ui\song_fsm.py
 python -m compileall -q .\ezscore
 ```
 
-Lancer :
+## Test immédiat
 
-```powershell
-python -m streamlit run .\EZScore.py --server.address 127.0.0.1 --server.port 8501 --server.headless true
-```
+Relancer EZScore et réinitialiser la structure depuis l'analyse.
 
-## Recette
-
-Sur le morceau déjà analysé :
-
-1. rester en édition ;
-2. relancer explicitement une deuxième analyse ;
-3. attendre 100 % ;
-4. vérifier qu'il n'y a plus de `StreamlitWidgetAlreadyInstantiatedError` ;
-5. vérifier le retour automatique :
+La console doit maintenant montrer :
 
 ```text
-Vue = Grille
-Mode = Édition
+[EZTRACE][VISUAL_STRUCTURE] ...
 ```
+
+La prochaine étape sera de brancher explicitement le MIDI sur
+`timeline["chords"]`, puis les corrections de paroles et d'accords sur leurs IDs
+stables, sans dépendre des bornes de blocs.
+
+
+---
+
+# R33 — découpage intelligent variable
+
+Le moteur de structure ne travaille plus avec des blocs finaux de 4 mesures.
+
+Il analyse maintenant les **mesures individuellement** et recherche des phrases
+harmoniques répétées de longueur variable.
+
+Plage de recherche automatique :
+
+```text
+6/8 mesures minimum selon la longueur du morceau
+jusqu'à 24 mesures
+```
+
+Cette plage est interne au moteur : ce n'est pas une taille de bloc imposée.
+
+Les paroles n'interviennent qu'en second niveau pour départager des candidats
+harmoniques proches.
+
+Le moteur refuse volontairement le fallback :
+
+```text
+1-4 / 5-8 / 9-12 / ...
+```
+
+En l'absence de structure suffisamment fiable, il préfère un grand bloc ou une
+coupure de forte nouveauté harmonique plutôt qu'un faux découpage régulier.
 
 Trace attendue :
 
 ```text
-[EZTRACE][FSM] hash=... post_analysis_transition=queued
+[EZTRACE][VISUAL_STRUCTURE_R33]
+top_candidates=[...]
+selected=[...]
+ranges=[...]
 ```
 
-Ne pas commit/push avant validation de cette étape.
+`top_candidates` permet de voir ce que le moteur reconnaît réellement.
+`selected` contient seulement les répétitions retenues comme ancres de
+structure. Toutes les ressemblances ne deviennent donc plus une frontière.
+
+Le premier et le dernier bloc étendent aussi leur enveloppe visuelle aux
+paroles situées avant la première mesure ou après la dernière mesure, sans
+modifier aucun timestamp.

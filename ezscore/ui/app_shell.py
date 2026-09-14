@@ -8,10 +8,47 @@ import streamlit as st
 
 from ezscore.auth import allowed, current_user, logout
 from ezscore.auth.storage import avatar_value
-from ezscore.ui.song_fsm import (
-    is_analysis_phase,
-    workflow_state,
-)
+from ezscore.persistence import load_latest_persisted_analysis
+
+
+# ---------------------------------------------------------------------------
+# R30 compatibility shim — structure detection is mandatory.
+#
+# EZScore.py R30 still instantiates two legacy widgets:
+# - setting_sections_enabled
+# - setting_section_block_measures
+#
+# We neutralize those exact widget keys before rendering:
+# - structure detection is always enabled;
+# - the internal observation window is fixed at 4 measures.
+#
+# This keeps the R30 SSO/auth/application shell intact while removing the two
+# obsolete choices from the UI. Only the similarity sensitivity remains user-
+# adjustable.
+# ---------------------------------------------------------------------------
+
+_ORIGINAL_ST_CHECKBOX = st.checkbox
+_ORIGINAL_ST_SELECTBOX = st.selectbox
+
+
+def _ezscore_checkbox(*args, **kwargs):
+    key = kwargs.get("key")
+    if key == "setting_sections_enabled":
+        st.session_state[key] = True
+        return True
+    return _ORIGINAL_ST_CHECKBOX(*args, **kwargs)
+
+
+def _ezscore_selectbox(*args, **kwargs):
+    key = kwargs.get("key")
+    if key == "setting_section_block_measures":
+        st.session_state[key] = 4
+        return 4
+    return _ORIGINAL_ST_SELECTBOX(*args, **kwargs)
+
+
+st.checkbox = _ezscore_checkbox
+st.selectbox = _ezscore_selectbox
 
 
 _SHELL_CSS = r"""
@@ -110,18 +147,15 @@ def current_section() -> str:
     return str(st.session_state.get("main_menu", "Répertoire"))
 
 
-
 def analysis_sidebar_active() -> bool:
-    """Analysis settings visibility driven by workflow FSM."""
+    """Show analysis controls for imports, fresh songs, or explicit edit mode."""
+    # Structural analysis is a permanent EZScore invariant.
+    st.session_state["setting_sections_enabled"] = True
+    st.session_state["setting_section_block_measures"] = 4
     section = current_section()
 
     if section == "Import":
-        active = allowed("song.edit")
-        print(
-            "[EZTRACE][ANALYSIS_UI] "
-            f"section=Import active={active}"
-        )
-        return active
+        return allowed("song.edit")
 
     if section != "Chanson" or not allowed("song.edit"):
         return False
@@ -132,29 +166,36 @@ def analysis_sidebar_active() -> bool:
     if not active_hash:
         return False
 
-    phase = workflow_state(active_hash)
-    if is_analysis_phase(phase):
+    # R30 baseline fix:
+    # a freshly imported song has no persisted analysis yet. It must expose
+    # the analysis settings even though the song is opened in Vue mode.
+    try:
+        latest = load_latest_persisted_analysis(active_hash)
+    except Exception as exc:
         print(
             "[EZTRACE][ANALYSIS_UI] "
-            f"hash={active_hash[:12]} workflow={phase} active=True"
+            f"hash={active_hash[:12]} persistence_error={exc!r}"
+        )
+        latest = None
+
+    if latest is None:
+        print(
+            "[EZTRACE][ANALYSIS_UI] "
+            f"hash={active_hash[:12]} "
+            "fresh_song=true show_settings=true"
         )
         return True
 
-    view_key = "song_view_" + active_hash[:12]
     mode_key = "song_mode_" + active_hash[:12]
-
-    view = str(st.session_state.get(view_key, "") or "")
-    mode = str(st.session_state.get(mode_key, "") or "")
-
-    active = view == "Analyse" or mode == "Édition"
+    editing = st.session_state.get(mode_key) == "Édition"
 
     print(
         "[EZTRACE][ANALYSIS_UI] "
-        f"hash={active_hash[:12]} workflow={phase} "
-        f"view={view or '-'} mode={mode or '-'} active={active}"
+        f"hash={active_hash[:12]} "
+        f"fresh_song=false edit_mode={editing}"
     )
+    return editing
 
-    return active
 
 def render_app_header() -> None:
     st.markdown(_SHELL_CSS, unsafe_allow_html=True)
@@ -184,19 +225,12 @@ def _goto(section: str) -> None:
 
 
 def render_profile_sidebar() -> None:
-    """Render global navigation unless analysis owns the sidebar."""
-    active_hash = str(
-        st.session_state.get("active_song_hash", "") or ""
-    )
-    if active_hash:
-        phase = workflow_state(active_hash)
-        if is_analysis_phase(phase):
-            print(
-                "[EZTRACE][SIDEBAR] "
-                f"hash={active_hash[:12]} workflow={phase} shell=hidden"
-            )
-            return
+    """Render global navigation without stealing space from song controls.
 
+    Répertoire / Compte keep the richer profile presentation. Chanson / Import
+    use a compact identity plus a collapsed secondary menu so the contextual
+    song controls remain immediately reachable.
+    """
     section = current_section()
     compact = section in ("Chanson", "Import")
     user = current_user()
@@ -271,14 +305,15 @@ def render_profile_sidebar() -> None:
                 """
                 <div class="ez-side-profile">
                   <div class="ez-side-avatar">?</div>
-                  <div class="ez-side-name">Visiteur</div>
-                  <div class="ez-side-role">accès public</div>
+                  <div>
+                    <div class="ez-side-name">Visiteur</div>
+                    <div class="ez-side-role">accès public</div>
+                  </div>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
-    # On a song/import page, keep global navigation secondary and collapsed.
     if compact:
         quick_col1, quick_col2 = st.sidebar.columns(2)
         with quick_col1:
@@ -326,7 +361,6 @@ def render_profile_sidebar() -> None:
                     _goto("Répertoire")
         return
 
-    # Home/account: full navigation is useful and there is no song toolbar.
     if st.sidebar.button("🎵 Répertoire", key="shell_repertoire", width="stretch"):
         _goto("Répertoire")
 

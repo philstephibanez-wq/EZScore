@@ -292,12 +292,6 @@ export default function(component) {
   }
 
   audio.src = "data:" + data.mime + ";base64," + data.audio_base64;
-  songVolume.value = String(
-    Math.max(0, Math.min(1, Number(data.audio_volume ?? 0.85)))
-  );
-  synthVolume.value = String(
-    Math.max(0, Math.min(2, Number(data.midi_volume ?? 0.65)))
-  );
   audio.volume = Number(songVolume.value);
 
   if (title) title.textContent = String(data.title || "");
@@ -820,9 +814,6 @@ def render_editor_midi_player(
     cover=None,
     title: str = "",
     artist: str = "",
-    audio_hash: str = "",
-    audio_volume: float = 0.85,
-    midi_volume: float = 0.65,
     soundfont_url: str = DEFAULT_SOUNDFONT_URL,
     *,
     key: str | None = None,
@@ -857,9 +848,6 @@ def render_editor_midi_player(
             "cover": dict(cover or {}),
             "title": str(title or ""),
             "artist": str(artist or ""),
-            "audio_hash": str(audio_hash or ""),
-            "audio_volume": max(0.0, min(1.0, float(audio_volume))),
-            "midi_volume": max(0.0, min(2.0, float(midi_volume))),
             "soundfont_url": str(soundfont_url),
             "soundfont_urls": soundfont_urls,
             "libfluid_url": _LIBFLUID_URL,
