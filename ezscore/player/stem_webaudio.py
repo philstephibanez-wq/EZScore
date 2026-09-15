@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -8,6 +7,8 @@ from pathlib import Path
 from typing import Any
 
 import streamlit as st
+
+from ezscore.player.media_url import register_media_url
 
 from ezscore.analysis.stems import STEM_NAMES
 
@@ -18,7 +19,7 @@ def ffmpeg_available() -> bool:
 
 def _preview_target(path: Path, preview_dir: Path) -> Path:
     preview_dir.mkdir(parents=True, exist_ok=True)
-    return preview_dir / f"{path.stem}.mp3"
+    return preview_dir / f"{path.stem}.browser64.mp3"
 
 
 def _preview_is_current(source: Path, target: Path) -> bool:
@@ -41,10 +42,6 @@ def make_browser_preview(path: Path, preview_dir: Path) -> Path:
             "FFmpeg est requis pour créer les copies MP3 légères du lecteur."
         )
 
-    if path.suffix.lower() == ".mp3":
-        shutil.copy2(path, target)
-        return target
-
     cmd = [
         "ffmpeg",
         "-y",
@@ -59,7 +56,7 @@ def make_browser_preview(path: Path, preview_dir: Path) -> Path:
         "-codec:a",
         "libmp3lame",
         "-b:a",
-        "96k",
+        "64k",
         "-ar",
         "44100",
         str(target),
@@ -315,13 +312,6 @@ export default function(component) {
     return Math.max(0, Math.min(duration, position + (context.currentTime - startedAtContextTime)));
   }
 
-  function decodeBase64(base64) {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-    return bytes.buffer;
-  }
-
   function dbToLinear(db) {
     return Math.pow(10, Number(db || 0) / 20);
   }
@@ -381,7 +371,14 @@ export default function(component) {
     trackNodes = [];
 
     for (let i = 0; i < defs.length; i += 1) {
-      const buffer = await context.decodeAudioData(decodeBase64(String(defs[i].base64 || "")));
+      const response = await fetch(String(defs[i].url || ""), {cache:"force-cache"});
+      if (!response.ok) {
+        throw new Error(
+          "HTTP média " + response.status + " pour " + String(defs[i].label || defs[i].name || "piste")
+        );
+      }
+      const audioBytes = await response.arrayBuffer();
+      const buffer = await context.decodeAudioData(audioBytes);
       decoded.push(buffer);
 
       const lowLP = context.createBiquadFilter();
@@ -699,11 +696,16 @@ def render_player(
         volume: float,
     ) -> None:
         preview = previews[name]
+        media_url = register_media_url(
+            preview,
+            coordinates=f"{key}:stem:{name}",
+            mimetype="audio/mpeg",
+        )
         tracks.append({
             "name": name,
             "label": label,
             "mime": "audio/mpeg",
-            "base64": base64.b64encode(preview.read_bytes()).decode("ascii"),
+            "url": media_url,
             "enabled": enabled,
             "volume": volume,
             "low": 0.0,
@@ -733,11 +735,9 @@ def render_player(
             enabled, volume = defaults[name]
             pack(name, labels[name], stems[name], enabled, volume)
 
-    payload_bytes = sum(len(track["base64"]) for track in tracks)
     st.caption(
-        "Lecteur WebAudio prêt · previews MP3 96 kb/s · "
-        f"payload ≈ {payload_bytes / 1024 / 1024:.1f} Mio · "
-        "WAV Demucs intacts."
+        "Lecteur WebAudio prêt · previews MP3 64 kb/s servies en HTTP · "
+        "payload Bidi = métadonnées/URLs uniquement · WAV Demucs intacts."
     )
 
     _STEM_PLAYER(

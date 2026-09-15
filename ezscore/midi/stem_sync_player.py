@@ -6,12 +6,13 @@ audio.currentTime. MIDI never drives or shifts the canonical timeline.
 
 from __future__ import annotations
 
-import base64
 import json
 from pathlib import Path
 from typing import Any
 
 import streamlit as st
+
+from ezscore.player.media_url import register_media_url
 
 DEFAULT_SOUNDFONT_URL = (
     "https://raw.githubusercontent.com/mrbumpy409/GeneralUser-GS/"
@@ -134,7 +135,7 @@ export default function(component) {
   const chordsVolume = root.querySelector(".chords-volume");
   const drumsVolume = root.querySelector(".drums-volume");
 
-  audio.src = "data:" + String(data.mime || "audio/mpeg") + ";base64," + String(data.audio_base64 || "");
+  audio.src = String(data.audio_url || "");
   audio.volume = Number(audioVolume.value);
 
   const tracks = data.tracks || {};
@@ -419,12 +420,11 @@ _COMPONENT = st.components.v2.component(
 
 def render_stem_midi_sync_player(
     *,
-    audio_bytes: bytes,
-    extension: str,
+    audio_path: Path,
     midi_metadata: dict[str, Any],
     key: str,
 ) -> None:
-    suffix = str(extension or ".mp3").lower()
+    suffix = str(Path(audio_path).suffix or ".mp3").lower()
     mime = {
         ".mp3": "audio/mpeg",
         ".wav": "audio/wav",
@@ -432,11 +432,21 @@ def render_stem_midi_sync_player(
         ".m4a": "audio/mp4",
     }.get(suffix, "application/octet-stream")
 
+    audio_url = register_media_url(
+        Path(audio_path),
+        coordinates=f"{key}:master-audio",
+        mimetype=mime,
+    )
+
     tracks = dict(midi_metadata.get("browser_events", {}) or {})
+    if not tracks:
+        raise RuntimeError(
+            "Aucun événement MIDI navigateur disponible pour le lecteur synchronisé."
+        )
+
     _COMPONENT(
         data={
-            "mime": mime,
-            "audio_base64": base64.b64encode(audio_bytes).decode("ascii"),
+            "audio_url": audio_url,
             "tracks": tracks,
             "soundfont_urls": list(SOUNDFONT_FALLBACKS),
             "libfluid_url": LIBFLUID_URL,

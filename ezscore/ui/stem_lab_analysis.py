@@ -37,6 +37,7 @@ from ezscore.analysis.stems import (
 )
 import ezscore.persistence as _persistence
 from ezscore.analysis.stem_midi import (
+    browser_events_from_bundle,
     launch_stem_midi_job,
     load_stem_midi_job,
 )
@@ -44,6 +45,7 @@ from ezscore.analysis.stem_midi import (
 from ezscore.midi.stem_sync_player import render_stem_midi_sync_player
 from ezscore.player.stem_webaudio import (
     ffmpeg_available as _stem_ffmpeg_available,
+    make_browser_preview as _make_browser_preview,
     render_player as _render_stem_player,
 )
 
@@ -439,6 +441,10 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
         "Architecture modulaire : séparation → timelines → analyses → "
         "structure → lecteur. Audio original = horloge maître."
     )
+    st.caption(
+        "Contrat EZScore : aucune erreur masquée, aucun fallback silencieux. "
+        "Une panne est exposée, diagnostiquée puis corrigée à sa source."
+    )
 
     if source is None or not source.is_file():
         st.error("Audio original introuvable dans le répertoire EZScore.")
@@ -488,12 +494,16 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
         st.warning("Les stems ne sont pas encore disponibles. Lance l'extraction.")
         return
 
-    # Exact STEM_LAB-style WebAudio mixer: one AudioContext, one master clock,
-    # per-track enable/disable + independent volume controls.
     st.subheader("Lecteur synchronisé")
-    st.caption(
-        "WebAudio : une horloge commune pour original + stems. "
-        "Chaque piste peut être activée/désactivée, réglée en volume et égalisée par crossover 3 bandes."
+    player_mode = st.radio(
+        "Type de lecteur",
+        ["STEM audio", "MP3 + MIDI"],
+        horizontal=True,
+        key=f"ezstem_player_mode_{str(audio_hash)[:12]}",
+        help=(
+            "Un seul lecteur lourd est monté à la fois afin d'éviter de saturer "
+            "la connexion Streamlit avec plusieurs payloads audio."
+        ),
     )
 
     if not _stem_ffmpeg_available():
@@ -505,16 +515,25 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
     speech_for_player = _load_speech(audio_hash) or {}
     cached_words = list(speech_for_player.get("words", []) or [])
 
-    _render_stem_player(
-        source,
-        stems,
-        preview_dir=_work_dir(audio_hash) / "browser_preview",
-        key=(
-            f"ezstem_player_{str(audio_hash)[:12]}_"
-            f"{len(cached_words)}"
-        ),
-        words=cached_words,
-    )
+    if player_mode == "STEM audio":
+        st.caption(
+            "WebAudio : une horloge commune pour original + stems. "
+            "Chaque piste peut être activée/désactivée, réglée en volume et égalisée."
+        )
+        _render_stem_player(
+            source,
+            stems,
+            preview_dir=_work_dir(audio_hash) / "browser_preview",
+            key=(
+                f"ezstem_player_{str(audio_hash)[:12]}_"
+                f"{len(cached_words)}"
+            ),
+            words=cached_words,
+        )
+    else:
+        st.caption(
+            "Le lecteur MP3 + MIDI est affiché plus bas dès que le bundle MIDI est disponible."
+        )
 
     st.subheader("Stems")
     _download_stems(stems)
@@ -628,23 +647,54 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
             )
 
             browser_events = dict(midi_meta.get("browser_events", {}) or {})
-            if browser_events:
-                st.markdown("#### Lecteur MP3 + MIDI synchronisés")
-                st.caption(
-                    "L'audio original est l'horloge maître. "
-                    "Chant, accords et batterie MIDI peuvent être activés séparément."
+
+            # Compatibility with R7/R7.1 bundles: derive browser events from the
+            # already-exported note/beat analyses. No pYIN/Demucs rerun required.
+            if not browser_events:
+                vocal_notes = list(
+                    (midi_meta.get("vocal_analysis", {}) or {}).get("notes", []) or []
                 )
-                render_stem_midi_sync_player(
-                    audio_bytes=source.read_bytes(),
-                    extension=source.suffix.lower() or ".mp3",
-                    midi_metadata=midi_meta,
-                    key=f"ezstem_midi_sync_{str(audio_hash)[:12]}",
-                )
-            else:
-                st.info(
-                    "Le bundle MIDI présent a été généré avant R7.2. "
-                    "Relance la génération MIDI pour créer les événements du lecteur synchronisé."
-                )
+                drum_analysis = dict(midi_meta.get("drum_analysis", {}) or {})
+                if vocal_notes and drum_analysis and structure_for_midi:
+                    browser_events = browser_events_from_bundle(
+                        vocal_notes=vocal_notes,
+                        structure=structure_for_midi,
+                        drum_analysis=drum_analysis,
+                        beats_per_bar=int(
+                            midi_meta.get(
+                                "beats_per_bar",
+                                structure_for_midi.get("beats_per_bar", 4),
+                            )
+                            or 4
+                        ),
+                    )
+                    midi_meta["browser_events"] = browser_events
+                    meta_path.write_text(
+                        json.dumps(midi_meta, ensure_ascii=False, indent=2),
+                        encoding="utf-8",
+                    )
+
+            if player_mode == "MP3 + MIDI":
+                if browser_events:
+                    st.markdown("#### Lecteur MP3 + MIDI synchronisés")
+                    st.caption(
+                        "MP3 original = horloge maître. "
+                        "Chant, accords et batterie MIDI sont indépendants."
+                    )
+                    preview_path = _make_browser_preview(
+                        source,
+                        _work_dir(audio_hash) / "browser_preview",
+                    )
+                    render_stem_midi_sync_player(
+                        audio_path=preview_path,
+                        midi_metadata=midi_meta,
+                        key=f"ezstem_midi_sync_{str(audio_hash)[:12]}",
+                    )
+                else:
+                    st.warning(
+                        "Impossible de construire les événements navigateur à partir "
+                        "du bundle MIDI actuel."
+                    )
 
     st.subheader("Analyse des paroles")
     st.caption(

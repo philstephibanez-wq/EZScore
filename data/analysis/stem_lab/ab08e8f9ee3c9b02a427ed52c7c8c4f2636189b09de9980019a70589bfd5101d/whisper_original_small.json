@@ -1,0 +1,794 @@
+{
+  "engine": "openai-whisper",
+  "model": "small",
+  "source": "original",
+  "language": "fr",
+  "text": "... C'est un endroit qui ressemble à la Louisiannais à l'Italie. Il y a du linge étendu sur la terrassée. Et c'est joli. On dirait le sud. Le temps d'une lente. Et la vie sûrement. Une 1 million d'années. ... Et toujours en été. ... Il y a plein d'enfants qui se roulent sur la blouse. Il y a plein de chiens. Une tortue des poissons bouges. Il ne manque rien. ... On dirait le sud. Le temps d'une lente. Et la vie sûrement. Une 1 million d'années. Et toujours en été. ... ... ... ... ... ... ... ... ... ... ... ... ... Un jour ou l'autre, il faudra qu'il y ait la guerre. On le sait bien. On n'aime pas ça, mais on ne sait pas quoi faire. On dit c'est le destin. ... ... ... ... ... ... ... ... ... ... ...",
+  "words": [
+    {
+      "start": 0.0,
+      "end": 1.78,
+      "text": "..."
+    },
+    {
+      "start": 10.7,
+      "end": 11.26,
+      "text": "C"
+    },
+    {
+      "start": 11.26,
+      "end": 11.46,
+      "text": "'est"
+    },
+    {
+      "start": 11.46,
+      "end": 11.94,
+      "text": "un"
+    },
+    {
+      "start": 11.94,
+      "end": 12.34,
+      "text": "endroit"
+    },
+    {
+      "start": 12.34,
+      "end": 13.14,
+      "text": "qui"
+    },
+    {
+      "start": 13.14,
+      "end": 14.02,
+      "text": "ressemble"
+    },
+    {
+      "start": 14.02,
+      "end": 14.28,
+      "text": "à"
+    },
+    {
+      "start": 14.28,
+      "end": 14.54,
+      "text": "la"
+    },
+    {
+      "start": 14.54,
+      "end": 16.38,
+      "text": "Louisiannais"
+    },
+    {
+      "start": 17.68,
+      "end": 18.24,
+      "text": "à"
+    },
+    {
+      "start": 18.24,
+      "end": 18.5,
+      "text": "l"
+    },
+    {
+      "start": 18.5,
+      "end": 19.22,
+      "text": "'Italie."
+    },
+    {
+      "start": 21.86,
+      "end": 22.26,
+      "text": "Il"
+    },
+    {
+      "start": 22.26,
+      "end": 22.58,
+      "text": "y"
+    },
+    {
+      "start": 22.58,
+      "end": 22.62,
+      "text": "a"
+    },
+    {
+      "start": 22.62,
+      "end": 22.82,
+      "text": "du"
+    },
+    {
+      "start": 22.82,
+      "end": 23.4,
+      "text": "linge"
+    },
+    {
+      "start": 23.4,
+      "end": 24.4,
+      "text": "étendu"
+    },
+    {
+      "start": 24.4,
+      "end": 24.94,
+      "text": "sur"
+    },
+    {
+      "start": 24.94,
+      "end": 25.3,
+      "text": "la"
+    },
+    {
+      "start": 25.3,
+      "end": 26.66,
+      "text": "terrassée."
+    },
+    {
+      "start": 27.66,
+      "end": 28.88,
+      "text": "Et"
+    },
+    {
+      "start": 28.88,
+      "end": 29.14,
+      "text": "c"
+    },
+    {
+      "start": 29.14,
+      "end": 29.32,
+      "text": "'est"
+    },
+    {
+      "start": 29.32,
+      "end": 30.08,
+      "text": "joli."
+    },
+    {
+      "start": 34.86,
+      "end": 36.22,
+      "text": "On"
+    },
+    {
+      "start": 36.22,
+      "end": 36.9,
+      "text": "dirait"
+    },
+    {
+      "start": 36.9,
+      "end": 37.18,
+      "text": "le"
+    },
+    {
+      "start": 37.18,
+      "end": 37.7,
+      "text": "sud."
+    },
+    {
+      "start": 40.66,
+      "end": 41.44,
+      "text": "Le"
+    },
+    {
+      "start": 41.44,
+      "end": 41.74,
+      "text": "temps"
+    },
+    {
+      "start": 41.74,
+      "end": 42.08,
+      "text": "d"
+    },
+    {
+      "start": 42.08,
+      "end": 42.2,
+      "text": "'une"
+    },
+    {
+      "start": 42.2,
+      "end": 42.56,
+      "text": "lente."
+    },
+    {
+      "start": 45.480000000000004,
+      "end": 46.84,
+      "text": "Et"
+    },
+    {
+      "start": 46.84,
+      "end": 47.1,
+      "text": "la"
+    },
+    {
+      "start": 47.1,
+      "end": 47.48,
+      "text": "vie"
+    },
+    {
+      "start": 47.48,
+      "end": 48.8,
+      "text": "sûrement."
+    },
+    {
+      "start": 51.02,
+      "end": 52.22,
+      "text": "Une"
+    },
+    {
+      "start": 52.22,
+      "end": 52.6,
+      "text": "1"
+    },
+    {
+      "start": 52.6,
+      "end": 53.0,
+      "text": "million"
+    },
+    {
+      "start": 53.0,
+      "end": 53.4,
+      "text": "d"
+    },
+    {
+      "start": 53.4,
+      "end": 54.24,
+      "text": "'années."
+    },
+    {
+      "start": 60.300000000000004,
+      "end": 61.38,
+      "text": "..."
+    },
+    {
+      "start": 61.38,
+      "end": 62.32,
+      "text": "Et"
+    },
+    {
+      "start": 62.32,
+      "end": 62.9,
+      "text": "toujours"
+    },
+    {
+      "start": 62.9,
+      "end": 63.58,
+      "text": "en"
+    },
+    {
+      "start": 63.58,
+      "end": 64.08,
+      "text": "été."
+    },
+    {
+      "start": 72.86,
+      "end": 73.94,
+      "text": "..."
+    },
+    {
+      "start": 73.94,
+      "end": 75.16,
+      "text": "Il"
+    },
+    {
+      "start": 75.16,
+      "end": 75.28,
+      "text": "y"
+    },
+    {
+      "start": 75.28,
+      "end": 75.58,
+      "text": "plein"
+    },
+    {
+      "start": 75.58,
+      "end": 75.86,
+      "text": "d"
+    },
+    {
+      "start": 75.86,
+      "end": 76.38,
+      "text": "'enfants"
+    },
+    {
+      "start": 76.38,
+      "end": 76.94,
+      "text": "qui"
+    },
+    {
+      "start": 76.94,
+      "end": 77.26,
+      "text": "se"
+    },
+    {
+      "start": 77.26,
+      "end": 77.76,
+      "text": "roulent"
+    },
+    {
+      "start": 77.76,
+      "end": 78.06,
+      "text": "sur"
+    },
+    {
+      "start": 78.06,
+      "end": 78.42,
+      "text": "la"
+    },
+    {
+      "start": 78.42,
+      "end": 79.08,
+      "text": "blouse."
+    },
+    {
+      "start": 81.30000000000001,
+      "end": 81.84,
+      "text": "Il"
+    },
+    {
+      "start": 81.84,
+      "end": 81.92,
+      "text": "y"
+    },
+    {
+      "start": 81.92,
+      "end": 81.96,
+      "text": "a"
+    },
+    {
+      "start": 81.96,
+      "end": 82.28,
+      "text": "plein"
+    },
+    {
+      "start": 82.28,
+      "end": 82.62,
+      "text": "de"
+    },
+    {
+      "start": 82.62,
+      "end": 83.18,
+      "text": "chiens."
+    },
+    {
+      "start": 86.66,
+      "end": 87.7,
+      "text": "Une"
+    },
+    {
+      "start": 87.7,
+      "end": 88.18,
+      "text": "tortue"
+    },
+    {
+      "start": 88.18,
+      "end": 88.66,
+      "text": "des"
+    },
+    {
+      "start": 88.66,
+      "end": 89.3,
+      "text": "poissons"
+    },
+    {
+      "start": 89.3,
+      "end": 89.92,
+      "text": "bouges."
+    },
+    {
+      "start": 91.66,
+      "end": 92.34,
+      "text": "Il"
+    },
+    {
+      "start": 92.34,
+      "end": 92.64,
+      "text": "ne"
+    },
+    {
+      "start": 92.64,
+      "end": 93.08,
+      "text": "manque"
+    },
+    {
+      "start": 93.08,
+      "end": 93.58,
+      "text": "rien."
+    },
+    {
+      "start": 98.66,
+      "end": 98.68,
+      "text": "..."
+    },
+    {
+      "start": 99.41000000000001,
+      "end": 100.04,
+      "text": "On"
+    },
+    {
+      "start": 100.04,
+      "end": 100.74,
+      "text": "dirait"
+    },
+    {
+      "start": 100.74,
+      "end": 101.06,
+      "text": "le"
+    },
+    {
+      "start": 101.06,
+      "end": 101.92,
+      "text": "sud."
+    },
+    {
+      "start": 104.66,
+      "end": 105.38,
+      "text": "Le"
+    },
+    {
+      "start": 105.38,
+      "end": 105.64,
+      "text": "temps"
+    },
+    {
+      "start": 105.64,
+      "end": 105.94,
+      "text": "d"
+    },
+    {
+      "start": 105.94,
+      "end": 106.08,
+      "text": "'une"
+    },
+    {
+      "start": 106.08,
+      "end": 106.5,
+      "text": "lente."
+    },
+    {
+      "start": 109.42,
+      "end": 110.68,
+      "text": "Et"
+    },
+    {
+      "start": 110.68,
+      "end": 110.92,
+      "text": "la"
+    },
+    {
+      "start": 110.92,
+      "end": 111.32,
+      "text": "vie"
+    },
+    {
+      "start": 111.32,
+      "end": 112.34,
+      "text": "sûrement."
+    },
+    {
+      "start": 114.6,
+      "end": 116.0,
+      "text": "Une"
+    },
+    {
+      "start": 116.0,
+      "end": 117.0,
+      "text": "1"
+    },
+    {
+      "start": 117.0,
+      "end": 117.22,
+      "text": "d"
+    },
+    {
+      "start": 117.22,
+      "end": 118.8,
+      "text": "'années."
+    },
+    {
+      "start": 125.34,
+      "end": 126.08,
+      "text": "Et"
+    },
+    {
+      "start": 126.08,
+      "end": 126.7,
+      "text": "toujours"
+    },
+    {
+      "start": 126.7,
+      "end": 127.34,
+      "text": "en"
+    },
+    {
+      "start": 127.34,
+      "end": 127.84,
+      "text": "été."
+    },
+    {
+      "start": 135.76,
+      "end": 137.16,
+      "text": "..."
+    },
+    {
+      "start": 145.54000000000002,
+      "end": 145.58,
+      "text": "..."
+    },
+    {
+      "start": 145.58,
+      "end": 145.6,
+      "text": "..."
+    },
+    {
+      "start": 145.6,
+      "end": 145.62,
+      "text": "..."
+    },
+    {
+      "start": 152.26,
+      "end": 152.95999999999998,
+      "text": "..."
+    },
+    {
+      "start": 160.26,
+      "end": 161.66,
+      "text": "..."
+    },
+    {
+      "start": 161.66,
+      "end": 163.36,
+      "text": "..."
+    },
+    {
+      "start": 163.36,
+      "end": 164.18,
+      "text": "..."
+    },
+    {
+      "start": 172.54,
+      "end": 173.94,
+      "text": "..."
+    },
+    {
+      "start": 184.56,
+      "end": 185.96,
+      "text": "..."
+    },
+    {
+      "start": 185.96,
+      "end": 186.24,
+      "text": "..."
+    },
+    {
+      "start": 188.46,
+      "end": 189.86,
+      "text": "..."
+    },
+    {
+      "start": 206.94,
+      "end": 207.58,
+      "text": "..."
+    },
+    {
+      "start": 207.58,
+      "end": 207.9,
+      "text": "Un"
+    },
+    {
+      "start": 207.9,
+      "end": 208.28,
+      "text": "jour"
+    },
+    {
+      "start": 208.28,
+      "end": 208.58,
+      "text": "ou"
+    },
+    {
+      "start": 208.58,
+      "end": 208.72,
+      "text": "l"
+    },
+    {
+      "start": 208.72,
+      "end": 208.96,
+      "text": "'autre,"
+    },
+    {
+      "start": 209.5,
+      "end": 209.6,
+      "text": "il"
+    },
+    {
+      "start": 209.6,
+      "end": 210.12,
+      "text": "faudra"
+    },
+    {
+      "start": 210.12,
+      "end": 210.54,
+      "text": "qu"
+    },
+    {
+      "start": 210.54,
+      "end": 210.66,
+      "text": "'il"
+    },
+    {
+      "start": 210.66,
+      "end": 210.9,
+      "text": "y"
+    },
+    {
+      "start": 210.9,
+      "end": 211.04,
+      "text": "ait"
+    },
+    {
+      "start": 211.04,
+      "end": 211.28,
+      "text": "la"
+    },
+    {
+      "start": 211.28,
+      "end": 211.66,
+      "text": "guerre."
+    },
+    {
+      "start": 214.04000000000002,
+      "end": 214.68,
+      "text": "On"
+    },
+    {
+      "start": 214.68,
+      "end": 214.96,
+      "text": "le"
+    },
+    {
+      "start": 214.96,
+      "end": 215.22,
+      "text": "sait"
+    },
+    {
+      "start": 215.22,
+      "end": 215.8,
+      "text": "bien."
+    },
+    {
+      "start": 217.96,
+      "end": 218.6,
+      "text": "On"
+    },
+    {
+      "start": 218.6,
+      "end": 218.76,
+      "text": "n"
+    },
+    {
+      "start": 218.76,
+      "end": 218.86,
+      "text": "'aime"
+    },
+    {
+      "start": 218.86,
+      "end": 219.14,
+      "text": "pas"
+    },
+    {
+      "start": 219.14,
+      "end": 219.68,
+      "text": "ça,"
+    },
+    {
+      "start": 219.96,
+      "end": 220.22,
+      "text": "mais"
+    },
+    {
+      "start": 220.22,
+      "end": 220.56,
+      "text": "on"
+    },
+    {
+      "start": 220.56,
+      "end": 220.96,
+      "text": "ne"
+    },
+    {
+      "start": 220.96,
+      "end": 221.16,
+      "text": "sait"
+    },
+    {
+      "start": 221.16,
+      "end": 221.56,
+      "text": "pas"
+    },
+    {
+      "start": 221.56,
+      "end": 221.76,
+      "text": "quoi"
+    },
+    {
+      "start": 221.76,
+      "end": 222.42,
+      "text": "faire."
+    },
+    {
+      "start": 223.64,
+      "end": 224.28,
+      "text": "On"
+    },
+    {
+      "start": 224.28,
+      "end": 224.54,
+      "text": "dit"
+    },
+    {
+      "start": 224.54,
+      "end": 224.86,
+      "text": "c"
+    },
+    {
+      "start": 224.86,
+      "end": 224.98,
+      "text": "'est"
+    },
+    {
+      "start": 224.98,
+      "end": 225.3,
+      "text": "le"
+    },
+    {
+      "start": 225.3,
+      "end": 225.82,
+      "text": "destin."
+    },
+    {
+      "start": 231.10000000000002,
+      "end": 231.74,
+      "text": "..."
+    },
+    {
+      "start": 231.74,
+      "end": 232.78,
+      "text": "..."
+    },
+    {
+      "start": 232.78,
+      "end": 233.06,
+      "text": "..."
+    },
+    {
+      "start": 233.06,
+      "end": 234.0,
+      "text": "..."
+    },
+    {
+      "start": 236.57999999999998,
+      "end": 237.98,
+      "text": "..."
+    },
+    {
+      "start": 237.98,
+      "end": 238.94,
+      "text": "..."
+    },
+    {
+      "start": 238.94,
+      "end": 241.34,
+      "text": "..."
+    },
+    {
+      "start": 241.34,
+      "end": 243.64,
+      "text": "..."
+    },
+    {
+      "start": 245.12,
+      "end": 246.52,
+      "text": "..."
+    },
+    {
+      "start": 248.01999999999998,
+      "end": 249.42,
+      "text": "..."
+    },
+    {
+      "start": 249.42,
+      "end": 252.08,
+      "text": "..."
+    }
+  ]
+}
