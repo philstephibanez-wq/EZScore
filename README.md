@@ -1,94 +1,85 @@
-# EZScore — feature/vocal-midi-analysis — lecteur 3 pistes
+# EZScore — filtre anti-vibrato du MIDI vocal
 
-Branche cible obligatoire :
+Branche cible :
 
 ```text
 feature/vocal-midi-analysis
 ```
 
-## Lecteur d'analyse
+Cette livraison modifie uniquement la segmentation des notes chantées.
 
-Le lecteur joue désormais, sur la même horloge MP3 :
+## Problème traité
 
-```text
-MP3 original
-+ MIDI accords
-+ MIDI chant
-```
+Le pYIN détecte correctement les variations fines de fréquence, mais l'ancienne
+conversion en MIDI pouvait transformer une excursion de vibrato autour d'une
+note en une note MIDI voisine.
 
-Volumes indépendants :
+Exemple indésirable :
 
 ```text
-Volume chanson
-Volume accords MIDI
-Volume chant MIDI
+A4 → A#4 → A4
 ```
 
-Le chant MIDI n'est actif que si une analyse vocale persistée existe.
+alors que le chanteur tient en réalité un A4 avec vibrato.
 
-## Instrument du chant
+## Nouveau comportement
 
-Sélecteur dédié :
+La détection F0 reste précise. La réduction de sensibilité intervient uniquement
+au moment de transformer le contour F0 en notes MIDI.
+
+Réglages initiaux :
 
 ```text
-Instrument du chant MIDI
+filtre médian          : 7 frames
+hystérésis             : 70 cents
+nouvelle note stable   : 100 ms
 ```
 
-Choix :
+Une note voisine n'est donc acceptée que si :
+1. la hauteur s'éloigne réellement de la note courante de plus de 70 cents ;
+2. la nouvelle note reste stable environ 100 ms.
+
+Lorsqu'un vrai changement est confirmé, le début de la nouvelle note est
+replacé au premier frame stable. Il n'y a donc pas 100 ms de retard ajouté au
+MIDI.
+
+## Cache
+
+Le schéma vocal passe de `1` à `2`.
+
+Les anciennes analyses vocales ne sont volontairement plus chargées afin de ne
+pas continuer à écouter un MIDI généré avec l'ancien segmentateur.
+
+Il faut donc cliquer une fois sur :
 
 ```text
-Alto Sax
-Tenor Sax
-Soprano Sax
-Baritone Sax
-Voice Oohs
-Acoustic Grand Piano
+Analyser / recalculer la voix
 ```
 
-Valeur par défaut :
+pour chaque morceau testé.
 
-```text
-Alto Sax
-```
+Le cache contient aussi les paramètres de segmentation utilisés.
 
-Le but est de distinguer clairement la ligne mélodique de l'accompagnement lors
-de la comparaison à l'oreille.
+## Ce qui ne change pas
 
-## Synchronisation
-
-Le MP3 reste l'horloge maître.
-
-FluidSynth utilise deux canaux :
-
-```text
-canal 1 = accords
-canal 2 = chant
-```
-
-Un seek du MP3 recale les deux curseurs MIDI.
-
-## Aucun changement du moteur d'analyse
-
-Cette livraison ne change pas :
+Aucune modification de :
 
 ```text
 accords
 Whisper
 phonèmes
+paroles
 R33
-raffinement expérimental des blocs
-timestamps
+raffinement des blocs
+lecteur 3 pistes
+horloge MP3
+timestamps des autres timelines
 ```
 
-Elle ajoute uniquement la lecture de la timeline vocale déjà calculée.
-
-## Fichiers
+Le changement est limité à :
 
 ```text
 ezscore/analysis/vocal.py
-ezscore/midi/analysis_player.py
-ezscore/ui/app_shell.py
-readme.md
 ```
 
 ## Installation
@@ -107,11 +98,9 @@ feature/vocal-midi-analysis
 Puis :
 
 ```powershell
-tar -xf "$env:USERPROFILE\Downloads\EZScore_FEATURE_VOCAL_DUAL_PLAYER.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_FEATURE_VOCAL_VIBRATO_FILTER.zip" -C H:\EZScore
 
 python -m py_compile .\ezscore\analysis\vocal.py
-python -m py_compile .\ezscore\midi\analysis_player.py
-python -m py_compile .\ezscore\ui\app_shell.py
 python -m py_compile .\EZScore.py
 python -m compileall -q .\ezscore
 
@@ -121,14 +110,12 @@ python -m streamlit run .\EZScore.py
 ## Recette
 
 1. Ouvrir `Analyse`.
-2. Vérifier MP3 + MIDI accords.
-3. Calculer la mélodie vocale si nécessaire.
-4. Vérifier l'apparition de `Instrument du chant MIDI`.
-5. Garder `Alto Sax`.
-6. Charger le synthé MIDI.
-7. Lancer la lecture.
-8. Régler séparément les trois volumes.
-9. Mettre les accords MIDI à zéro pour contrôler voix détectée + chanson.
-10. Mettre la chanson à zéro pour écouter uniquement les deux MIDI.
+2. Recalculer la voix.
+3. Garder `Alto Sax`.
+4. Mettre `Volume accords MIDI = 0`.
+5. Écouter MP3 + chant MIDI.
+6. Vérifier que les petites notes parasites dues au vibrato ont diminué.
+7. Vérifier qu'un vrai passage mélodique d'un demi-ton ou d'un ton reste bien
+   détecté.
 
-Ne pas fusionner dans master avant validation sur plusieurs morceaux.
+Ne pas fusionner dans `master` avant validation sur plusieurs morceaux.

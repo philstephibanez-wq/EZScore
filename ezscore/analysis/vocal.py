@@ -28,8 +28,11 @@ APP_DIR = Path(__file__).resolve().parents[2]
 VOCAL_CACHE_DIR = APP_DIR / "data" / "analysis" / "vocal_pitch"
 VOCAL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-VOCAL_SCHEMA_VERSION = 1
-VOCAL_ANALYSIS_ENGINE = "pyin-v1"
+VOCAL_SCHEMA_VERSION = 2
+VOCAL_ANALYSIS_ENGINE = "pyin-v2-vibrato-hysteresis"
+VOCAL_MEDIAN_WIDTH = 7
+VOCAL_NOTE_HYSTERESIS_CENTS = 70.0
+VOCAL_NOTE_CHANGE_STABLE_MS = 100.0
 DEFAULT_VOCAL_PROGRAM = 53  # GM Voice Oohs, zero-based
 
 VOCAL_MIDI_INSTRUMENTS = {
@@ -178,24 +181,56 @@ def _segment_notes(
     voiced_prob: np.ndarray,
     hop_seconds: float,
     min_duration: float = 0.09,
+    median_width: int = VOCAL_MEDIAN_WIDTH,
+    hysteresis_cents: float = VOCAL_NOTE_HYSTERESIS_CENTS,
+    stable_change_ms: float = VOCAL_NOTE_CHANGE_STABLE_MS,
 ) -> list[dict[str, Any]]:
+    """Convert F0 frames to sung MIDI notes without turning vibrato into notes.
+
+    The F0 detector keeps its full precision. Only note segmentation is made
+    slightly less reactive:
+    - a 7-frame median filter smooths local pitch wobble;
+    - the current MIDI note is kept inside a 70-cent hysteresis band;
+    - a candidate new note must remain stable for ~100 ms before the boundary
+      is accepted.
+
+    When a real note change is confirmed, its start is backdated to the first
+    stable candidate frame, so the anti-vibrato filter does not add 100 ms of
+    audible latency to the exported/player MIDI.
+    """
     if len(times) == 0:
         return []
 
-    smoothed = _median_filter(midi_float, width=5)
-    quantized = np.full(len(smoothed), np.nan, dtype=float)
-    finite = np.isfinite(smoothed)
-    quantized[finite] = np.rint(smoothed[finite])
+    smoothed = _median_filter(midi_float, width=max(3, int(median_width)))
+    stable_frames = max(
+        1,
+        int(math.ceil((float(stable_change_ms) / 1000.0) / max(hop_seconds, 1e-6))),
+    )
+    hysteresis_semitones = max(0.50, float(hysteresis_cents) / 100.0)
 
     notes = []
     start_idx = None
     current = None
+    candidate = None
+    candidate_start = None
+
+    def reset_candidate():
+        nonlocal candidate, candidate_start
+        candidate = None
+        candidate_start = None
 
     def close(end_idx: int):
         nonlocal start_idx, current
         if start_idx is None or current is None:
             start_idx = None
             current = None
+            reset_candidate()
+            return
+
+        if end_idx < start_idx:
+            start_idx = None
+            current = None
+            reset_candidate()
             return
 
         start = float(times[start_idx])
@@ -206,8 +241,16 @@ def _segment_notes(
             probs = voiced_prob[start_idx:end_idx + 1]
             valid_pitch = segment[np.isfinite(segment)]
             valid_prob = probs[np.isfinite(probs)]
-            median_pitch = float(np.median(valid_pitch)) if valid_pitch.size else float(current)
-            confidence = float(np.mean(valid_prob)) if valid_prob.size else 0.0
+            median_pitch = (
+                float(np.median(valid_pitch))
+                if valid_pitch.size
+                else float(current)
+            )
+            confidence = (
+                float(np.mean(valid_prob))
+                if valid_prob.size
+                else 0.0
+            )
             midi_note = int(np.clip(round(median_pitch), 0, 127))
             notes.append({
                 "start": round(start, 6),
@@ -219,25 +262,57 @@ def _segment_notes(
                 "note": librosa.midi_to_note(midi_note, unicode=False),
                 "confidence": round(confidence, 4),
             })
+
         start_idx = None
         current = None
+        reset_candidate()
 
-    for i, value in enumerate(quantized):
+    for i, value in enumerate(smoothed):
         if not np.isfinite(value):
             if start_idx is not None:
                 close(i - 1)
             continue
 
-        q = int(value)
+        proposed = int(np.rint(value))
+
         if start_idx is None:
             start_idx = i
-            current = q
+            current = proposed
+            reset_candidate()
             continue
 
-        if q != current:
-            close(i - 1)
-            start_idx = i
-            current = q
+        # Stay on the current note while the smoothed F0 remains inside the
+        # hysteresis band. This is the main vibrato protection.
+        if abs(float(value) - float(current)) < hysteresis_semitones:
+            reset_candidate()
+            continue
+
+        # F0 really moved away from the current note. A new MIDI note is only
+        # accepted if the same candidate persists long enough.
+        if proposed == current:
+            reset_candidate()
+            continue
+
+        if candidate != proposed:
+            candidate = proposed
+            candidate_start = i
+            continue
+
+        if candidate_start is None:
+            candidate_start = i
+            continue
+
+        if (i - candidate_start + 1) < stable_frames:
+            continue
+
+        # Real transition confirmed. Preserve the true transition position:
+        # close the previous note just before the candidate began and start the
+        # new note at candidate_start, not at the confirmation frame.
+        new_start = int(candidate_start)
+        close(new_start - 1)
+        start_idx = new_start
+        current = proposed
+        reset_candidate()
 
     if start_idx is not None:
         close(len(times) - 1)
@@ -332,6 +407,11 @@ def analyze_vocal_pitch(
             "sample_rate": int(sr),
             "hop_length": int(hop_length),
             "confidence_floor": float(confidence_floor),
+            "segmentation": {
+                "median_width": int(VOCAL_MEDIAN_WIDTH),
+                "hysteresis_cents": float(VOCAL_NOTE_HYSTERESIS_CENTS),
+                "stable_change_ms": float(VOCAL_NOTE_CHANGE_STABLE_MS),
+            },
             "note_count": len(notes),
             "notes": notes,
         }
