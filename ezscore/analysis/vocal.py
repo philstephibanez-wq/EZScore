@@ -28,11 +28,25 @@ APP_DIR = Path(__file__).resolve().parents[2]
 VOCAL_CACHE_DIR = APP_DIR / "data" / "analysis" / "vocal_pitch"
 VOCAL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-VOCAL_SCHEMA_VERSION = 2
-VOCAL_ANALYSIS_ENGINE = "pyin-v2-vibrato-hysteresis"
+VOCAL_SCHEMA_VERSION = 3
+VOCAL_ANALYSIS_ENGINE = "pyin-v3-adaptive-voicing"
 VOCAL_MEDIAN_WIDTH = 7
 VOCAL_NOTE_HYSTERESIS_CENTS = 70.0
 VOCAL_NOTE_CHANGE_STABLE_MS = 100.0
+
+# Voicing sensitivity: slightly more permissive, but weak frames are only
+# recovered when their energy and melodic continuity support them.
+VOCAL_CONFIDENCE_DEMUCS = 0.48
+VOCAL_CONFIDENCE_MIX = 0.66
+VOCAL_WEAK_CONFIDENCE_MARGIN = 0.10
+VOCAL_CONTINUITY_WINDOW_FRAMES = 4
+VOCAL_CONTINUITY_MAX_SEMITONES = 1.25
+VOCAL_RMS_FLOOR_RATIO = 0.55
+
+# Monitoring-only compensation. The analytical vocal timeline itself is never
+# shifted; browser playback starts vocal MIDI 40 ms earlier for A/B listening.
+VOCAL_MONITOR_OFFSET_SECONDS = -0.040
+
 DEFAULT_VOCAL_PROGRAM = 53  # GM Voice Oohs, zero-based
 
 VOCAL_MIDI_INSTRUMENTS = {
@@ -173,6 +187,81 @@ def _merge_short_gaps(notes: list[dict[str, Any]], max_gap: float = 0.08) -> lis
         else:
             merged.append(dict(note))
     return merged
+
+
+
+def _recover_continuous_weak_voicing(
+    *,
+    f0: np.ndarray,
+    voiced_flag: np.ndarray,
+    voiced_prob: np.ndarray,
+    rms: np.ndarray,
+    confidence_floor: float,
+    strong_valid: np.ndarray,
+    window_frames: int = VOCAL_CONTINUITY_WINDOW_FRAMES,
+    max_semitones: float = VOCAL_CONTINUITY_MAX_SEMITONES,
+    weak_margin: float = VOCAL_WEAK_CONFIDENCE_MARGIN,
+    rms_floor_ratio: float = VOCAL_RMS_FLOOR_RATIO,
+) -> np.ndarray:
+    """Recover quiet sung frames without broadly lowering the detector gate.
+
+    A weak pYIN frame is accepted only when:
+    - pYIN still considers it voiced;
+    - confidence is near the normal threshold;
+    - its RMS is not in the very quiet tail of the vocal stem/mix;
+    - a nearby strong frame carries a compatible pitch.
+
+    This mainly restores note attacks/tails that were being clipped while
+    rejecting isolated low-confidence detections.
+    """
+    strong_valid = np.asarray(strong_valid, dtype=bool)
+    recovered = strong_valid.copy()
+
+    finite_rms = rms[np.isfinite(rms)]
+    if finite_rms.size:
+        # Relative to this song/stem, never an absolute dB threshold.
+        rms_reference = float(np.percentile(finite_rms, 35.0))
+        rms_floor = max(1e-8, rms_reference * float(rms_floor_ratio))
+    else:
+        rms_floor = 0.0
+
+    weak_floor = max(0.0, float(confidence_floor) - float(weak_margin))
+    pitch_midi = np.full(len(f0), np.nan, dtype=float)
+    finite_f0 = np.isfinite(f0) & (f0 > 0.0)
+    pitch_midi[finite_f0] = librosa.hz_to_midi(f0[finite_f0])
+
+    strong_indices = np.flatnonzero(strong_valid)
+    if strong_indices.size == 0:
+        return recovered
+
+    for i in range(len(f0)):
+        if recovered[i]:
+            continue
+        if not bool(voiced_flag[i]):
+            continue
+        if not np.isfinite(voiced_prob[i]) or float(voiced_prob[i]) < weak_floor:
+            continue
+        if not np.isfinite(pitch_midi[i]):
+            continue
+        if i >= len(rms) or not np.isfinite(rms[i]) or float(rms[i]) < rms_floor:
+            continue
+
+        lo = max(0, i - int(window_frames))
+        hi = min(len(f0), i + int(window_frames) + 1)
+        nearby = strong_indices[(strong_indices >= lo) & (strong_indices < hi)]
+        if nearby.size == 0:
+            continue
+
+        nearest = int(
+            nearby[np.argmin(np.abs(nearby.astype(int) - int(i)))]
+        )
+        if not np.isfinite(pitch_midi[nearest]):
+            continue
+
+        if abs(float(pitch_midi[i]) - float(pitch_midi[nearest])) <= float(max_semitones):
+            recovered[i] = True
+
+    return recovered
 
 
 def _segment_notes(
@@ -369,12 +458,44 @@ def analyze_vocal_pitch(
         voiced_prob = np.asarray(voiced_prob, dtype=float)
         times = librosa.times_like(f0, sr=sr, hop_length=hop_length)
 
-        confidence_floor = 0.55 if source_kind.startswith("demucs") else 0.72
-        valid = (
+        confidence_floor = (
+            VOCAL_CONFIDENCE_DEMUCS
+            if source_kind.startswith("demucs")
+            else VOCAL_CONFIDENCE_MIX
+        )
+
+        strong_valid = (
             voiced_flag
             & np.isfinite(f0)
             & np.isfinite(voiced_prob)
             & (voiced_prob >= confidence_floor)
+        )
+
+        # RMS is aligned on the same hop as pYIN. It is used only as a
+        # relative support signal for weak frames, never as a hard absolute
+        # loudness gate.
+        rms = librosa.feature.rms(
+            y=y,
+            frame_length=frame_length,
+            hop_length=hop_length,
+            center=True,
+        )[0]
+        if len(rms) < len(f0):
+            rms = np.pad(
+                rms,
+                (0, len(f0) - len(rms)),
+                mode="edge" if len(rms) else "constant",
+            )
+        elif len(rms) > len(f0):
+            rms = rms[:len(f0)]
+
+        valid = _recover_continuous_weak_voicing(
+            f0=f0,
+            voiced_flag=voiced_flag,
+            voiced_prob=voiced_prob,
+            rms=np.asarray(rms, dtype=float),
+            confidence_floor=confidence_floor,
+            strong_valid=strong_valid,
         )
 
         midi_float = np.full(len(f0), np.nan, dtype=float)
@@ -393,7 +514,7 @@ def analyze_vocal_pitch(
                 note
                 for note in notes
                 if float(note["duration"]) >= 0.12
-                and float(note["confidence"]) >= 0.76
+                and float(note["confidence"]) >= 0.68
             ]
 
         payload = {
@@ -407,6 +528,14 @@ def analyze_vocal_pitch(
             "sample_rate": int(sr),
             "hop_length": int(hop_length),
             "confidence_floor": float(confidence_floor),
+            "voicing": {
+                "demucs_confidence": float(VOCAL_CONFIDENCE_DEMUCS),
+                "mix_confidence": float(VOCAL_CONFIDENCE_MIX),
+                "weak_confidence_margin": float(VOCAL_WEAK_CONFIDENCE_MARGIN),
+                "continuity_window_frames": int(VOCAL_CONTINUITY_WINDOW_FRAMES),
+                "continuity_max_semitones": float(VOCAL_CONTINUITY_MAX_SEMITONES),
+                "rms_floor_ratio": float(VOCAL_RMS_FLOOR_RATIO),
+            },
             "segmentation": {
                 "median_width": int(VOCAL_MEDIAN_WIDTH),
                 "hysteresis_cents": float(VOCAL_NOTE_HYSTERESIS_CENTS),
@@ -424,8 +553,13 @@ def build_vocal_midi_events(
     notes: list[dict[str, Any]],
     *,
     program: int = DEFAULT_VOCAL_PROGRAM,
+    monitor_offset_seconds: float = VOCAL_MONITOR_OFFSET_SECONDS,
 ) -> list[dict[str, Any]]:
-    """Build browser events from the persisted vocal-note timeline."""
+    """Build browser events from the persisted vocal-note timeline.
+
+    `monitor_offset_seconds` is listening compensation only. Persisted analysis
+    timestamps and exported vocal MIDI remain on the canonical audio timebase.
+    """
     events: list[dict[str, Any]] = [{
         "time": 0.0,
         "status": 0xC1,
@@ -435,11 +569,14 @@ def build_vocal_midi_events(
     }]
 
     for index, note in enumerate(notes or []):
-        start = max(0.0, float(note.get("start", 0.0) or 0.0))
-        end = max(
-            start + 0.04,
-            float(note.get("end", start + 0.04) or start + 0.04),
+        raw_start = max(0.0, float(note.get("start", 0.0) or 0.0))
+        raw_end = max(
+            raw_start + 0.04,
+            float(note.get("end", raw_start + 0.04) or raw_start + 0.04),
         )
+        offset = float(monitor_offset_seconds or 0.0)
+        start = max(0.0, raw_start + offset)
+        end = max(start + 0.04, raw_end + offset)
         midi_note = int(
             np.clip(int(note.get("midi", 60) or 60), 0, 127)
         )
