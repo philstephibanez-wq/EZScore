@@ -18,6 +18,13 @@ from ezscore.midi import (
 )
 import ezscore.transcription as _transcription
 from ezscore.midi.analysis_player import render_analysis_midi_player as _render_analysis_midi_player
+from ezscore.analysis.vocal import (
+    analyze_vocal_pitch as _analyze_vocal_pitch,
+    build_vocal_midi_file as _build_vocal_midi_file,
+    demucs_available as _vocal_demucs_available,
+    load_vocal_analysis as _load_vocal_analysis,
+    refine_sections_with_vocal as _refine_sections_with_vocal,
+)
 from ezscore.diagnostics.perf import (
     install_runtime_probes,
     perf_event,
@@ -162,12 +169,37 @@ def _ezscore_detecter_sections_structurelles(
         measures=len(mesures or []),
         threshold=float(similarity_threshold),
     ):
-        return _ORIGINAL_DETECTER_SECTIONS(
+        sections = _ORIGINAL_DETECTER_SECTIONS(
             mesures=mesures,
             resultat=resultat,
             block_measures=block_measures,
             similarity_threshold=similarity_threshold,
         )
+
+    # Experimental branch only: vocal melody is a secondary cue. With no
+    # persisted vocal analysis this is a strict no-op and R33 stays unchanged.
+    vocal_analysis = _load_vocal_analysis(active_hash) if active_hash else None
+    vocal_notes = list((vocal_analysis or {}).get("notes", []) or [])
+
+    if vocal_notes:
+        with perf_span(
+            "structure.vocal.refine",
+            notes=len(vocal_notes),
+            sections=len(sections or []),
+        ):
+            sections, vocal_info = _refine_sections_with_vocal(
+                sections=sections,
+                measures=mesures,
+                vocal_notes=vocal_notes,
+            )
+        perf_event(
+            "structure.vocal.refine.result",
+            used=bool(vocal_info.get("used")),
+            moved=int(vocal_info.get("moved", 0) or 0),
+            moves=vocal_info.get("moves", []),
+        )
+
+    return sections
 
 
 # EZScore.py imports this symbol only after app_shell has loaded.
@@ -240,6 +272,129 @@ def _analysis_instrument_label(program):
         if int(value) == int(program):
             return str(label)
     return f"Programme MIDI {int(program)}"
+
+
+
+def _safe_midi_filename(value, suffix):
+    stem = "".join(
+        ch if ch.isalnum() or ch in "._-" else "_"
+        for ch in str(value or "EZScore")
+    ).strip("_") or "EZScore"
+    return f"{stem}_{suffix}.mid"
+
+
+def _render_vocal_melody_analysis(
+    *,
+    active_hash,
+    song,
+    audio_bytes,
+    extension,
+):
+    """Independent vocal-pitch experiment for the feature branch."""
+    st.markdown("##### 🎤 Mélodie chantée — expérimental")
+    st.caption(
+        "Analyse indépendante : hauteur de la voix → notes MIDI. "
+        "Aucun timestamp d'accord, de parole ou de phonème n'est modifié."
+    )
+
+    cached = _load_vocal_analysis(active_hash)
+
+    analyse_col, structure_col = st.columns([1.0, 1.35])
+
+    with analyse_col:
+        analyse_clicked = st.button(
+            "Analyser / recalculer la voix",
+            key=f"vocal_pitch_analyse_{active_hash[:12]}",
+            type="secondary",
+        )
+
+    if analyse_clicked:
+        with st.spinner(
+            "Extraction de la voix et détection des notes chantées…"
+        ):
+            with perf_span(
+                "vocal_pitch.analyse",
+                demucs=_vocal_demucs_available(),
+                audio_bytes=len(audio_bytes or b""),
+            ):
+                cached = _analyze_vocal_pitch(
+                    audio_bytes=audio_bytes,
+                    extension=extension,
+                    audio_hash=active_hash,
+                    prefer_demucs=True,
+                )
+        perf_event(
+            "vocal_pitch.analyse.result",
+            notes=int((cached or {}).get("note_count", 0) or 0),
+            source=str((cached or {}).get("source", "")),
+        )
+        st.rerun()
+
+    if not cached:
+        if _vocal_demucs_available():
+            st.caption(
+                "Demucs est disponible : la piste voix isolée sera utilisée."
+            )
+        else:
+            st.warning(
+                "Demucs n'est pas installé : l'analyse reste possible sur le mix, "
+                "mais elle sera moins fiable. Aucune régression : cette analyse "
+                "reste totalement optionnelle."
+            )
+        return
+
+    notes = list(cached.get("notes", []) or [])
+    source = str(cached.get("source", "") or "")
+    note_count = int(cached.get("note_count", len(notes)) or len(notes))
+
+    if source.startswith("demucs"):
+        source_label = "piste voix Demucs + pYIN"
+    else:
+        source_label = "mix original + pYIN (fallback)"
+
+    st.success(
+        f"Mélodie vocale disponible : {note_count} notes · {source_label}."
+    )
+
+    if cached.get("demucs_error") and not source.startswith("demucs"):
+        st.caption(
+            "Demucs n'a pas pu être utilisé : "
+            + str(cached.get("demucs_error"))
+        )
+
+    if notes:
+        vocal_midi = _build_vocal_midi_file(notes)
+        title = (
+            str(song.get("title", "") or "").strip()
+            or Path(str(song.get("original_filename", "") or "EZScore")).stem
+        )
+        st.download_button(
+            "⬇ Télécharger le MIDI du chant",
+            data=vocal_midi,
+            file_name=_safe_midi_filename(title, "chant"),
+            mime="audio/midi",
+            key=f"vocal_midi_download_{active_hash[:12]}",
+        )
+
+    with structure_col:
+        refine_clicked = st.button(
+            "Recalculer les blocs avec la mélodie",
+            key=f"vocal_refine_blocks_{active_hash[:12]}",
+            help=(
+                "Supprime uniquement la proposition de blocs persistée. "
+                "Au rerun, R33 est recalculé puis la mélodie vocale peut déplacer "
+                "une frontière existante de ±2 mesures maximum."
+            ),
+        )
+
+    if refine_clicked:
+        _persistence.reset_structure_blocks_from_analysis(active_hash)
+        perf_event(
+            "structure.vocal.refine.requested",
+            notes=len(notes),
+        )
+        st.rerun()
+
 
 
 def _render_analysis_mp3_midi_player(
@@ -327,6 +482,13 @@ def _render_analysis_mp3_midi_player(
                 f"{selected_program}"
             ),
         )
+
+    _render_vocal_melody_analysis(
+        active_hash=active_hash,
+        song=song,
+        audio_bytes=audio_bytes,
+        extension=extension,
+    )
 
 
 def _ezscore_build_midi_file(*args, **kwargs):

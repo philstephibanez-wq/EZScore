@@ -1,119 +1,198 @@
-# EZScore — lecteur Analyse compact + sélection instrument
+# EZScore — branche `feature/vocal-midi-analysis`
 
-Cette livraison est un delta sur `EZScore_R30_SPEED_PLAYER_CLEANUP`.
-
-## Corrections
-
-### Instrument MIDI
-
-Le lecteur `Analyse` permet à nouveau de choisir :
+Base de départ :
 
 ```text
-Electric Guitar (clean)
-Acoustic Grand Piano
+master validé : 4e325e796ab32b4483127b395b1345c865fa3578
+branche       : feature/vocal-midi-analysis
 ```
 
-Le changement d'instrument ne relance pas Whisper, l'analyse harmonique ni R33.
-Il ne reconstruit que les événements MIDI.
+Cette livraison est volontairement expérimentale et additive.
 
-### Suppression des diagrammes guitare dans Analyse
+## Objectif
 
-La case :
+Ajouter une quatrième timeline primaire indépendante :
 
 ```text
-Diagrammes guitare
+audio original
+  ├─ accords
+  ├─ paroles
+  ├─ phonèmes
+  └─ hauteur vocale / notes chantées
 ```
 
-n'est plus affichée dans le lecteur de la vue Analyse.
+Puis utiliser la mélodie chantée comme **signal secondaire** pour affiner la
+proposition de blocs, sans jamais modifier les timestamps des autres timelines.
 
-Les diagrammes restent disponibles dans les vues d'édition qui utilisent le
-lecteur complet.
+## Analyse vocale
 
-### Suppression de la grande marge noire
-
-La marge provenait du lecteur complet, qui réservait :
+Nouveau module :
 
 ```text
-835 px
+ezscore/analysis/vocal.py
 ```
 
-pour :
-- bandeau de mesures;
-- diagrammes;
-- paroles synchronisées.
-
-Or la vue Analyse ne leur fournissait aucune donnée.
-
-Analyse utilise désormais un composant compact de :
+Pipeline :
 
 ```text
-285 px
+audio
+ -> Demucs vocals si disponible
+ -> sinon fallback sur le mix
+ -> librosa.pyin
+ -> F0
+ -> quantification en notes MIDI
+ -> segmentation temporelle
+ -> cache JSON
 ```
 
-avec uniquement :
+Cache :
 
 ```text
-titre / artiste
-audio MP3
-volume chanson
-volume MIDI
-chargement synthé
-état du synthé
+data/analysis/vocal_pitch/<audio_hash>.json
 ```
 
-### Texte obsolète supprimé
+Le cache est séparé de la DB et n'altère aucune analyse existante.
 
-Le message :
+## MIDI du chant
+
+Dans :
 
 ```text
-La lecture MIDI synchronisée est disponible dans Grille > Jouer.
+Analyse > Comparaison audio / accords
 ```
 
-est neutralisé car la vue `Jouer` n'existe plus.
-
-## Performance
-
-Le log fourni confirme que le correctif R33 fonctionne :
+un nouveau bloc apparaît :
 
 ```text
-structure.persisted.reuse
+🎤 Mélodie chantée — expérimental
 ```
 
-La structure persistée a été réutilisée en quelques millisecondes.
-
-Sur l'extrait fourni, le coût principal restant au premier affichage Analyse est :
+Bouton :
 
 ```text
-waveform_preview_cache ≈ 6.10 s
-timeline.create_harmonic_timeline ≈ 6.23 s
-player.render ≈ 0.28 s
-MIDI bridge ≈ 0.35 s
+Analyser / recalculer la voix
 ```
 
-Donc le lecteur MIDI n'est plus la cause de la lenteur principale.
+Après analyse :
+
+```text
+⬇ Télécharger le MIDI du chant
+```
+
+Le MIDI est monophonique et conserve les timestamps audio absolus.
+
+## Raffinement des blocs
+
+Le simple calcul de la mélodie **ne change pas les blocs**.
+
+Il faut explicitement cliquer :
+
+```text
+Recalculer les blocs avec la mélodie
+```
+
+Le comportement est alors :
+
+```text
+1. suppression uniquement des structure_blocks persistés
+2. recalcul R33 habituel
+3. lecture de la timeline vocale persistée
+4. raffinement conservateur des frontières
+5. nouvelle persistance des blocs
+```
+
+Règles de sécurité :
+
+```text
+- aucune nouvelle découpe périodique
+- aucune modification accords/paroles/phonèmes
+- aucune modification des timestamps audio
+- déplacement d'une frontière R33 : maximum ±2 mesures
+- déplacement seulement si la nouveauté mélodique est clairement plus forte
+- sans timeline vocale : résultat R33 strictement inchangé
+```
+
+Donc le moteur vocal est un **critère secondaire**, jamais le maître.
+
+## Demucs
+
+Aucune nouvelle dépendance obligatoire.
+
+Si Demucs est déjà installé :
+
+```text
+Demucs vocals + pYIN
+```
+
+Sinon :
+
+```text
+mix original + pYIN
+```
+
+Le fallback est explicitement indiqué dans l'UI et utilise un seuil de confiance
+plus strict.
+
+Pour installer Demucs ultérieurement :
+
+```powershell
+python -m pip install demucs
+```
+
+Ce n'est pas nécessaire pour démarrer les tests.
+
+## Logs
+
+Les nouvelles traces vont toujours dans :
+
+```text
+H:\EZScore\data\logs\ezscore_perf.log
+```
+
+Événements :
+
+```text
+vocal_pitch.analyse
+vocal_pitch.analyse.result
+structure.vocal.refine
+structure.vocal.refine.result
+structure.vocal.refine.requested
+```
 
 ## Fichiers livrés
 
 ```text
-.gitignore
+ezscore/analysis/vocal.py
 ezscore/ui/app_shell.py
-ezscore/midi/analysis_player.py
 readme.md
 ```
 
 Aucune DB.
-Aucun audio.
-Aucun cover.
-Aucun dossier de livraison parasite.
+Aucun MP3.
+Aucun fichier de cache vocal.
+Aucun dossier racine parasite.
 
-## Installation
+## Installation sur la branche
+
+Vérifier d'abord :
 
 ```powershell
 cd H:\EZScore
+git branch --show-current
+```
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_R30_PLAYER_UI_FIX.zip" -C H:\EZScore
+Résultat obligatoire :
 
-python -m py_compile .\ezscore\midi\analysis_player.py
+```text
+feature/vocal-midi-analysis
+```
+
+Puis :
+
+```powershell
+tar -xf "$env:USERPROFILE\Downloads\EZScore_FEATURE_VOCAL_MIDI_ANALYSIS.zip" -C H:\EZScore
+
+python -m py_compile .\ezscore\analysis\vocal.py
 python -m py_compile .\ezscore\ui\app_shell.py
 python -m py_compile .\EZScore.py
 python -m compileall -q .\ezscore
@@ -121,16 +200,19 @@ python -m compileall -q .\ezscore
 python -m streamlit run .\EZScore.py
 ```
 
-## Recette
+## Recette recommandée
 
-Dans `Analyse > Comparaison audio / accords` :
+Pour un morceau déjà analysé :
 
-1. sélectionner `Acoustic Grand Piano`;
-2. charger le synthé;
-3. vérifier le volume MP3;
-4. vérifier le volume MIDI;
-5. lancer la lecture;
-6. repasser sur `Electric Guitar (clean)`.
+1. ouvrir `Analyse`;
+2. vérifier que le lecteur accords MP3+MIDI fonctionne toujours;
+3. cliquer `Analyser / recalculer la voix`;
+4. télécharger `MIDI du chant`;
+5. écouter / vérifier grossièrement la mélodie;
+6. noter les blocs actuels;
+7. seulement ensuite cliquer `Recalculer les blocs avec la mélodie`;
+8. comparer le découpage avant/après;
+9. vérifier `ezscore_perf.log`.
 
-La case `Diagrammes guitare` ne doit plus apparaître et le lecteur doit se
-terminer immédiatement après son texte d'état, sans grande zone noire.
+Ne pas fusionner cette branche dans `master` avant comparaison sur plusieurs
+chansons.
