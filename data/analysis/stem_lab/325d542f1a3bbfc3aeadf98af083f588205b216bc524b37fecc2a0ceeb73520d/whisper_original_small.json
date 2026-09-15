@@ -1,0 +1,754 @@
+{
+  "engine": "openai-whisper",
+  "model": "small",
+  "source": "original",
+  "language": "en",
+  "text": "I met my love, where the cast works well. Dreams are dream by the old canal. I kiss my girl by the factory wall. Dirty old town, dirty old town. Clouds are drifting across the moon. Cats are prowling on their beams. Springs are girl, from the streets at night. Dirty old town, dirty old town. I heard a siren from the docks. So I trained, set the night on fire. I smelled the spring on the smoky wind. Dirty old town, dirty old town. I'm gonna make me a picture box. Shining still, tempered in the fire. I'll chop you down, like an old dead tree. Dirty old town, dirty old town. I met my love by the cast works wall. Dreams are dream by the old canal. I kiss my girl by the factory wall. Dirty old town, dirty old town. Dirty old town, dirty old town.",
+  "words": [
+    {
+      "start": 23.439999999999998,
+      "end": 24.32,
+      "text": "I"
+    },
+    {
+      "start": 24.32,
+      "end": 24.64,
+      "text": "met"
+    },
+    {
+      "start": 24.64,
+      "end": 25.06,
+      "text": "my"
+    },
+    {
+      "start": 25.06,
+      "end": 26.18,
+      "text": "love,"
+    },
+    {
+      "start": 26.54,
+      "end": 28.14,
+      "text": "where"
+    },
+    {
+      "start": 28.14,
+      "end": 28.34,
+      "text": "the"
+    },
+    {
+      "start": 28.34,
+      "end": 28.62,
+      "text": "cast"
+    },
+    {
+      "start": 28.62,
+      "end": 29.08,
+      "text": "works"
+    },
+    {
+      "start": 29.08,
+      "end": 29.54,
+      "text": "well."
+    },
+    {
+      "start": 31.499999999999996,
+      "end": 32.62,
+      "text": "Dreams"
+    },
+    {
+      "start": 32.62,
+      "end": 32.94,
+      "text": "are"
+    },
+    {
+      "start": 32.94,
+      "end": 33.54,
+      "text": "dream"
+    },
+    {
+      "start": 33.54,
+      "end": 35.8,
+      "text": "by"
+    },
+    {
+      "start": 35.8,
+      "end": 36.06,
+      "text": "the"
+    },
+    {
+      "start": 36.06,
+      "end": 36.56,
+      "text": "old"
+    },
+    {
+      "start": 36.56,
+      "end": 37.08,
+      "text": "canal."
+    },
+    {
+      "start": 38.56,
+      "end": 39.68,
+      "text": "I"
+    },
+    {
+      "start": 39.68,
+      "end": 40.14,
+      "text": "kiss"
+    },
+    {
+      "start": 40.14,
+      "end": 40.54,
+      "text": "my"
+    },
+    {
+      "start": 40.54,
+      "end": 41.26,
+      "text": "girl"
+    },
+    {
+      "start": 41.26,
+      "end": 43.5,
+      "text": "by"
+    },
+    {
+      "start": 43.5,
+      "end": 43.68,
+      "text": "the"
+    },
+    {
+      "start": 43.68,
+      "end": 44.1,
+      "text": "factory"
+    },
+    {
+      "start": 44.1,
+      "end": 45.18,
+      "text": "wall."
+    },
+    {
+      "start": 46.68,
+      "end": 48.08,
+      "text": "Dirty"
+    },
+    {
+      "start": 48.08,
+      "end": 48.46,
+      "text": "old"
+    },
+    {
+      "start": 48.46,
+      "end": 49.08,
+      "text": "town,"
+    },
+    {
+      "start": 50.06,
+      "end": 51.8,
+      "text": "dirty"
+    },
+    {
+      "start": 51.8,
+      "end": 52.32,
+      "text": "old"
+    },
+    {
+      "start": 52.32,
+      "end": 53.44,
+      "text": "town."
+    },
+    {
+      "start": 54.46,
+      "end": 55.86,
+      "text": "Clouds"
+    },
+    {
+      "start": 55.86,
+      "end": 55.98,
+      "text": "are"
+    },
+    {
+      "start": 55.98,
+      "end": 57.94,
+      "text": "drifting"
+    },
+    {
+      "start": 57.94,
+      "end": 59.4,
+      "text": "across"
+    },
+    {
+      "start": 59.4,
+      "end": 60.1,
+      "text": "the"
+    },
+    {
+      "start": 60.1,
+      "end": 60.66,
+      "text": "moon."
+    },
+    {
+      "start": 62.04,
+      "end": 63.3,
+      "text": "Cats"
+    },
+    {
+      "start": 63.3,
+      "end": 63.66,
+      "text": "are"
+    },
+    {
+      "start": 63.66,
+      "end": 66.64,
+      "text": "prowling"
+    },
+    {
+      "start": 66.64,
+      "end": 67.22,
+      "text": "on"
+    },
+    {
+      "start": 67.22,
+      "end": 67.84,
+      "text": "their"
+    },
+    {
+      "start": 67.84,
+      "end": 68.54,
+      "text": "beams."
+    },
+    {
+      "start": 68.54,
+      "end": 71.22,
+      "text": "Springs"
+    },
+    {
+      "start": 71.22,
+      "end": 71.6,
+      "text": "are"
+    },
+    {
+      "start": 71.6,
+      "end": 72.52,
+      "text": "girl,"
+    },
+    {
+      "start": 73.76,
+      "end": 74.36,
+      "text": "from"
+    },
+    {
+      "start": 74.36,
+      "end": 74.64,
+      "text": "the"
+    },
+    {
+      "start": 74.64,
+      "end": 75.24,
+      "text": "streets"
+    },
+    {
+      "start": 75.24,
+      "end": 75.66,
+      "text": "at"
+    },
+    {
+      "start": 75.66,
+      "end": 76.56,
+      "text": "night."
+    },
+    {
+      "start": 77.5,
+      "end": 78.9,
+      "text": "Dirty"
+    },
+    {
+      "start": 78.9,
+      "end": 79.4,
+      "text": "old"
+    },
+    {
+      "start": 79.4,
+      "end": 79.98,
+      "text": "town,"
+    },
+    {
+      "start": 81.78,
+      "end": 82.8,
+      "text": "dirty"
+    },
+    {
+      "start": 82.8,
+      "end": 83.28,
+      "text": "old"
+    },
+    {
+      "start": 83.28,
+      "end": 84.0,
+      "text": "town."
+    },
+    {
+      "start": 115.75999999999999,
+      "end": 117.16,
+      "text": "I"
+    },
+    {
+      "start": 117.16,
+      "end": 117.52,
+      "text": "heard"
+    },
+    {
+      "start": 117.52,
+      "end": 117.9,
+      "text": "a"
+    },
+    {
+      "start": 117.9,
+      "end": 120.2,
+      "text": "siren"
+    },
+    {
+      "start": 120.2,
+      "end": 121.34,
+      "text": "from"
+    },
+    {
+      "start": 121.34,
+      "end": 122.04,
+      "text": "the"
+    },
+    {
+      "start": 122.04,
+      "end": 122.64,
+      "text": "docks."
+    },
+    {
+      "start": 124.17999999999999,
+      "end": 125.38,
+      "text": "So"
+    },
+    {
+      "start": 125.38,
+      "end": 125.86,
+      "text": "I"
+    },
+    {
+      "start": 125.86,
+      "end": 126.46,
+      "text": "trained,"
+    },
+    {
+      "start": 128.02,
+      "end": 128.62,
+      "text": "set"
+    },
+    {
+      "start": 128.62,
+      "end": 128.86,
+      "text": "the"
+    },
+    {
+      "start": 128.86,
+      "end": 129.22,
+      "text": "night"
+    },
+    {
+      "start": 129.22,
+      "end": 129.54,
+      "text": "on"
+    },
+    {
+      "start": 129.54,
+      "end": 130.32,
+      "text": "fire."
+    },
+    {
+      "start": 131.68,
+      "end": 132.56,
+      "text": "I"
+    },
+    {
+      "start": 132.56,
+      "end": 133.18,
+      "text": "smelled"
+    },
+    {
+      "start": 133.18,
+      "end": 133.74,
+      "text": "the"
+    },
+    {
+      "start": 133.74,
+      "end": 134.28,
+      "text": "spring"
+    },
+    {
+      "start": 134.28,
+      "end": 136.48,
+      "text": "on"
+    },
+    {
+      "start": 136.48,
+      "end": 136.74,
+      "text": "the"
+    },
+    {
+      "start": 136.74,
+      "end": 137.7,
+      "text": "smoky"
+    },
+    {
+      "start": 137.7,
+      "end": 138.2,
+      "text": "wind."
+    },
+    {
+      "start": 139.7,
+      "end": 141.1,
+      "text": "Dirty"
+    },
+    {
+      "start": 141.1,
+      "end": 141.46,
+      "text": "old"
+    },
+    {
+      "start": 141.46,
+      "end": 142.14,
+      "text": "town,"
+    },
+    {
+      "start": 142.8,
+      "end": 144.88,
+      "text": "dirty"
+    },
+    {
+      "start": 144.88,
+      "end": 145.42,
+      "text": "old"
+    },
+    {
+      "start": 145.42,
+      "end": 146.5,
+      "text": "town."
+    },
+    {
+      "start": 146.98,
+      "end": 148.36,
+      "text": "I'm"
+    },
+    {
+      "start": 148.36,
+      "end": 148.68,
+      "text": "gonna"
+    },
+    {
+      "start": 148.68,
+      "end": 151.0,
+      "text": "make"
+    },
+    {
+      "start": 151.0,
+      "end": 152.08,
+      "text": "me"
+    },
+    {
+      "start": 152.08,
+      "end": 152.4,
+      "text": "a"
+    },
+    {
+      "start": 152.4,
+      "end": 152.72,
+      "text": "picture"
+    },
+    {
+      "start": 152.72,
+      "end": 153.4,
+      "text": "box."
+    },
+    {
+      "start": 155.24,
+      "end": 156.64,
+      "text": "Shining"
+    },
+    {
+      "start": 156.64,
+      "end": 157.48,
+      "text": "still,"
+    },
+    {
+      "start": 159.26,
+      "end": 160.24,
+      "text": "tempered"
+    },
+    {
+      "start": 160.24,
+      "end": 160.7,
+      "text": "in"
+    },
+    {
+      "start": 160.7,
+      "end": 161.02,
+      "text": "the"
+    },
+    {
+      "start": 161.02,
+      "end": 161.72,
+      "text": "fire."
+    },
+    {
+      "start": 162.72,
+      "end": 163.88,
+      "text": "I'll"
+    },
+    {
+      "start": 163.88,
+      "end": 164.24,
+      "text": "chop"
+    },
+    {
+      "start": 164.24,
+      "end": 164.66,
+      "text": "you"
+    },
+    {
+      "start": 164.66,
+      "end": 165.52,
+      "text": "down,"
+    },
+    {
+      "start": 165.86,
+      "end": 167.68,
+      "text": "like"
+    },
+    {
+      "start": 167.68,
+      "end": 167.92,
+      "text": "an"
+    },
+    {
+      "start": 167.92,
+      "end": 168.36,
+      "text": "old"
+    },
+    {
+      "start": 168.36,
+      "end": 168.7,
+      "text": "dead"
+    },
+    {
+      "start": 168.7,
+      "end": 169.36,
+      "text": "tree."
+    },
+    {
+      "start": 170.94,
+      "end": 172.26,
+      "text": "Dirty"
+    },
+    {
+      "start": 172.26,
+      "end": 172.68,
+      "text": "old"
+    },
+    {
+      "start": 172.68,
+      "end": 173.28,
+      "text": "town,"
+    },
+    {
+      "start": 174.84,
+      "end": 176.08,
+      "text": "dirty"
+    },
+    {
+      "start": 176.08,
+      "end": 176.58,
+      "text": "old"
+    },
+    {
+      "start": 176.58,
+      "end": 177.38,
+      "text": "town."
+    },
+    {
+      "start": 178.72,
+      "end": 179.52,
+      "text": "I"
+    },
+    {
+      "start": 179.52,
+      "end": 179.88,
+      "text": "met"
+    },
+    {
+      "start": 179.88,
+      "end": 180.36,
+      "text": "my"
+    },
+    {
+      "start": 180.36,
+      "end": 181.28,
+      "text": "love"
+    },
+    {
+      "start": 181.28,
+      "end": 183.42,
+      "text": "by"
+    },
+    {
+      "start": 183.42,
+      "end": 183.68,
+      "text": "the"
+    },
+    {
+      "start": 183.68,
+      "end": 183.94,
+      "text": "cast"
+    },
+    {
+      "start": 183.94,
+      "end": 184.42,
+      "text": "works"
+    },
+    {
+      "start": 184.42,
+      "end": 185.18,
+      "text": "wall."
+    },
+    {
+      "start": 187.08,
+      "end": 188.24,
+      "text": "Dreams"
+    },
+    {
+      "start": 188.24,
+      "end": 188.58,
+      "text": "are"
+    },
+    {
+      "start": 188.58,
+      "end": 189.18,
+      "text": "dream"
+    },
+    {
+      "start": 189.18,
+      "end": 191.6,
+      "text": "by"
+    },
+    {
+      "start": 191.6,
+      "end": 191.9,
+      "text": "the"
+    },
+    {
+      "start": 191.9,
+      "end": 192.46,
+      "text": "old"
+    },
+    {
+      "start": 192.46,
+      "end": 192.98,
+      "text": "canal."
+    },
+    {
+      "start": 194.5,
+      "end": 195.66,
+      "text": "I"
+    },
+    {
+      "start": 195.66,
+      "end": 196.1,
+      "text": "kiss"
+    },
+    {
+      "start": 196.1,
+      "end": 196.58,
+      "text": "my"
+    },
+    {
+      "start": 196.58,
+      "end": 197.48,
+      "text": "girl"
+    },
+    {
+      "start": 197.48,
+      "end": 199.58,
+      "text": "by"
+    },
+    {
+      "start": 199.58,
+      "end": 199.78,
+      "text": "the"
+    },
+    {
+      "start": 199.78,
+      "end": 200.3,
+      "text": "factory"
+    },
+    {
+      "start": 200.3,
+      "end": 201.12,
+      "text": "wall."
+    },
+    {
+      "start": 202.96,
+      "end": 204.36,
+      "text": "Dirty"
+    },
+    {
+      "start": 204.36,
+      "end": 204.8,
+      "text": "old"
+    },
+    {
+      "start": 204.8,
+      "end": 205.48,
+      "text": "town,"
+    },
+    {
+      "start": 207.16,
+      "end": 207.98,
+      "text": "dirty"
+    },
+    {
+      "start": 207.98,
+      "end": 208.58,
+      "text": "old"
+    },
+    {
+      "start": 208.58,
+      "end": 210.34,
+      "text": "town."
+    },
+    {
+      "start": 211.0,
+      "end": 211.8,
+      "text": "Dirty"
+    },
+    {
+      "start": 211.8,
+      "end": 212.32,
+      "text": "old"
+    },
+    {
+      "start": 212.32,
+      "end": 213.1,
+      "text": "town,"
+    },
+    {
+      "start": 214.84,
+      "end": 215.62,
+      "text": "dirty"
+    },
+    {
+      "start": 215.62,
+      "end": 216.22,
+      "text": "old"
+    },
+    {
+      "start": 216.22,
+      "end": 217.04,
+      "text": "town."
+    }
+  ]
+}

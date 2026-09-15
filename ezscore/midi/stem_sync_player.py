@@ -56,17 +56,17 @@ _HTML = """
     <div class="label">Chant</div>
     <label><input class="vocal-on" type="checkbox" checked> Actif</label>
     <input class="vocal-volume vol-vocal" type="range" min="0" max="1.5" step="0.01" value="0.80">
-    <span>Voice Oohs</span>
+    <select class="vocal-program" aria-label="Instrument MIDI chant"></select>
 
     <div class="label">Accords</div>
     <label><input class="chords-on" type="checkbox" checked> Actif</label>
     <input class="chords-volume vol-chords" type="range" min="0" max="1.5" step="0.01" value="0.70">
-    <span>Clean Guitar</span>
+    <select class="chords-program" aria-label="Instrument MIDI accords"></select>
 
     <div class="label">Batterie</div>
     <label><input class="drums-on" type="checkbox" checked> Actif</label>
     <input class="drums-volume vol-drums" type="range" min="0" max="1.5" step="0.01" value="0.70">
-    <span>GM Drums</span>
+    <select class="drums-program" aria-label="Kit MIDI batterie"></select>
   </div>
 
   <div class="track-status"></div>
@@ -106,6 +106,12 @@ _CSS = """
 .head{font-size:11px;font-weight:800;opacity:.65}
 .label{font-weight:800}
 .midi-table input[type="range"],.row input[type="range"]{width:100%}
+.midi-table select{
+  width:100%;min-height:30px;border-radius:6px;
+  border:1px solid color-mix(in srgb,var(--st-text-color) 30%,transparent);
+  background:color-mix(in srgb,var(--st-text-color) 7%,transparent);
+  color:var(--st-text-color);padding:3px 6px;
+}
 .vol-audio{accent-color:#4da3ff}
 .vol-vocal{accent-color:#9b59b6}
 .vol-chords{accent-color:#e67e22}
@@ -135,6 +141,9 @@ export default function(component) {
   const vocalVolume = root.querySelector(".vocal-volume");
   const chordsVolume = root.querySelector(".chords-volume");
   const drumsVolume = root.querySelector(".drums-volume");
+  const vocalProgram = root.querySelector(".vocal-program");
+  const chordsProgram = root.querySelector(".chords-program");
+  const drumsProgram = root.querySelector(".drums-program");
   const trackStatus = root.querySelector(".track-status");
 
   const availableTracks = new Set(Array.isArray(data.available_tracks) ? data.available_tracks : []);
@@ -185,6 +194,33 @@ export default function(component) {
 
   window.__ezscoreMidiScripts = window.__ezscoreMidiScripts || {};
   window.__ezscoreSoundFonts = window.__ezscoreSoundFonts || {};
+
+  const melodicPrograms = [
+    [0,"Piano"],[4,"Electric Piano"],[24,"Nylon Guitar"],[25,"Steel Guitar"],
+    [27,"Clean Guitar"],[28,"Muted Guitar"],[32,"Acoustic Bass"],[33,"Finger Bass"],
+    [40,"Violin"],[41,"Viola"],[42,"Cello"],[48,"Strings"],[52,"Choir Aahs"],
+    [53,"Voice Oohs"],[54,"Synth Voice"],[64,"Soprano Sax"],[65,"Alto Sax"],
+    [66,"Tenor Sax"],[67,"Baritone Sax"],[73,"Flute"],[80,"Square Lead"],
+    [81,"Saw Lead"],[88,"Fantasia"]
+  ];
+  const drumKits = [
+    [0,"Standard Kit"],[8,"Room Kit"],[16,"Power Kit"],[24,"Electronic Kit"],
+    [25,"TR-808 Kit"],[32,"Jazz Kit"],[40,"Brush Kit"],[48,"Orchestra Kit"]
+  ];
+
+  function fillSelect(node, entries, selected) {
+    node.innerHTML = "";
+    entries.forEach(([value,label]) => {
+      const option = document.createElement("option");
+      option.value = String(value);
+      option.textContent = label;
+      if (Number(value) === Number(selected)) option.selected = true;
+      node.appendChild(option);
+    });
+  }
+  fillSelect(vocalProgram, melodicPrograms, 53);
+  fillSelect(chordsProgram, melodicPrograms, 27);
+  fillSelect(drumsProgram, drumKits, 0);
 
   function trackEnabled(name) {
     if (name === "vocal") return Boolean(vocalOn.checked);
@@ -268,9 +304,10 @@ export default function(component) {
 
   function selectPrograms() {
     if (!synth || soundFontId === null) return;
-    try { synth.midiProgramSelect(0,soundFontId,0,53); } catch (_) {}
-    try { synth.midiProgramSelect(1,soundFontId,0,27); } catch (_) {}
-    // Channel 10 remains percussion according to GM convention.
+    synth.midiProgramSelect(0, soundFontId, 0, Number(vocalProgram.value || 53));
+    synth.midiProgramSelect(1, soundFontId, 0, Number(chordsProgram.value || 27));
+    // General MIDI percussion kits live on bank 128, channel 10.
+    synth.midiProgramSelect(9, soundFontId, 128, Number(drumsProgram.value || 0));
   }
 
   function resetAt(time) {
@@ -286,11 +323,7 @@ export default function(component) {
     const ch = Number(event.channel || 0);
 
     if (event.kind === "program") {
-      if (event.track === "vocal") {
-        try { synth.midiProgramSelect(0,soundFontId,0,Number(event.program||53)); } catch (_) {}
-      } else if (event.track === "chords") {
-        try { synth.midiProgramSelect(1,soundFontId,0,Number(event.program||27)); } catch (_) {}
-      }
+      // Instrument selectors are authoritative in the editor player.
       return;
     }
 
@@ -421,6 +454,16 @@ export default function(component) {
   for (const control of [vocalVolume,chordsVolume,drumsVolume]) {
     control.addEventListener("input", () => {
       if (ready) setVolumes();
+    });
+  }
+
+  for (const control of [vocalProgram,chordsProgram,drumsProgram]) {
+    control.addEventListener("change", () => {
+      if (ready) {
+        silence();
+        selectPrograms();
+        resetAt(audio.currentTime);
+      }
     });
   }
 

@@ -494,243 +494,34 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
         st.warning("Les stems ne sont pas encore disponibles. Lance l'extraction.")
         return
 
-    st.subheader("Lecteur synchronisé")
-    player_mode = st.radio(
-        "Type de lecteur",
-        ["STEM audio", "MP3 + MIDI"],
-        horizontal=True,
-        key=f"ezstem_player_mode_{str(audio_hash)[:12]}",
-        help=(
-            "Un seul lecteur lourd est monté à la fois afin d'éviter de saturer "
-            "la connexion Streamlit avec plusieurs payloads audio."
-        ),
-    )
-
-    if not _stem_ffmpeg_available():
-        st.error(
-            "FFmpeg est requis pour fabriquer les pré-écoutes MP3 du lecteur."
-        )
-        return
-
-    speech_for_player = _load_speech(audio_hash) or {}
-    cached_words = list(speech_for_player.get("words", []) or [])
-
-    if player_mode == "STEM audio":
-        st.caption(
-            "WebAudio : une horloge commune pour original + stems. "
-            "Chaque piste peut être activée/désactivée, réglée en volume et égalisée."
-        )
-        _render_stem_player(
-            source,
-            stems,
-            preview_dir=_work_dir(audio_hash) / "browser_preview",
-            key=(
-                f"ezstem_player_{str(audio_hash)[:12]}_"
-                f"{len(cached_words)}"
-            ),
-            words=cached_words,
-        )
-    else:
-        st.caption(
-            "Le lecteur MP3 + MIDI est affiché plus bas dès que le bundle MIDI est disponible."
-        )
-
-    st.subheader("Stems")
-    _download_stems(stems)
-
-    st.subheader("MIDI dérivé des stems")
+    st.divider()
+    st.markdown("## Étape 2 — Paroles")
     st.caption(
-        "Trois pistes MIDI de contrôle, toutes calées en secondes sur l'audio original : "
-        "chant, accords et batterie. Aucun timestamp canonique n'est déplacé."
-    )
-
-    structure_for_midi = _load_structure(audio_hash)
-    midi_dir = _work_dir(audio_hash) / "midi"
-
-    if structure_for_midi is None:
-        st.info(
-            "Lance d'abord l'analyse structurelle pour disposer de la timeline "
-            "d'accords et des mesures. Le MIDI chant/batterie n'est pas généré "
-            "isolément afin de conserver un bundle cohérent."
-        )
-    else:
-        structure_path = _structure_cache_path(audio_hash)
-        job = load_stem_midi_job(midi_dir)
-        job_state = str(job.get("state", "idle") or "idle")
-
-        if st.button(
-            "Lancer / relancer la génération MIDI",
-            type="primary",
-            width="stretch",
-            disabled=job_state in {"starting", "running"},
-            key=f"ezstem_midi_generate_{str(audio_hash)[:12]}",
-        ):
-            try:
-                launch_stem_midi_job(
-                    vocals_path=stems["vocals"],
-                    drums_path=stems["drums"],
-                    structure_path=structure_path,
-                    output_dir=midi_dir,
-                )
-            except Exception as exc:
-                st.error("Impossible de lancer le processus MIDI : " + str(exc))
-            st.rerun()
-
-        job = load_stem_midi_job(midi_dir)
-        job_state = str(job.get("state", "idle") or "idle")
-
-        if job_state in {"starting", "running"}:
-            st.info(
-                str(job.get("message") or "Génération MIDI en cours…")
-                + " L'application reste utilisable pendant le calcul."
-            )
-            if st.button(
-                "↻ Actualiser l'état MIDI",
-                width="stretch",
-                key=f"ezstem_midi_refresh_{str(audio_hash)[:12]}",
-            ):
-                st.rerun()
-        elif job_state == "error":
-            st.error("Génération MIDI échouée : " + str(job.get("message", "")))
-            with st.expander("Détail du processus MIDI", expanded=False):
-                st.code(str(job.get("traceback", "") or ""), language="text")
-        elif job_state == "done":
-            st.success(str(job.get("message") or "MIDI prêts."))
-
-        meta_path = midi_dir / "stem_midi.json"
-        if meta_path.is_file():
-            try:
-                midi_meta = json.loads(meta_path.read_text(encoding="utf-8"))
-            except Exception:
-                midi_meta = {}
-
-            midi_state = str(midi_meta.get("state", "complete") or "complete")
-            available_tracks = list(midi_meta.get("available_tracks", []) or [])
-            pending_tracks = list(midi_meta.get("pending_tracks", []) or [])
-            if midi_state == "partial":
-                st.warning(
-                    "Bundle MIDI partiel prêt · "
-                    f"pistes disponibles : {', '.join(available_tracks) or 'aucune'} · "
-                    f"en cours : {', '.join(pending_tracks) or 'aucune'}."
-                )
-            else:
-                st.success(
-                    "MIDI disponibles · "
-                    f"{int(midi_meta.get('vocal_note_count', 0))} notes chant · "
-                    f"{int(midi_meta.get('drum_beat_count', 0))} beats batterie."
-                )
-
-            midi_cols = st.columns(4)
-            midi_items = [
-                ("Chant", "vocal.mid", "vocal"),
-                ("Accords", "chords.mid", "chords"),
-                ("Batterie", "drums.mid", "drums"),
-                ("Combiné", "stem_mix.mid", "combined"),
-            ]
-            for col, (label, filename, key_name) in zip(midi_cols, midi_items):
-                path = midi_dir / filename
-                with col:
-                    if path.is_file():
-                        st.download_button(
-                            f"⬇ MIDI {label}",
-                            data=path.read_bytes(),
-                            file_name=filename,
-                            mime="audio/midi",
-                            width="stretch",
-                            key=f"ezstem_midi_dl_{key_name}_{str(audio_hash)[:12]}",
-                        )
-                    else:
-                        st.button(
-                            f"{label} absent",
-                            disabled=True,
-                            width="stretch",
-                            key=f"ezstem_midi_missing_{key_name}_{str(audio_hash)[:12]}",
-                        )
-
-            st.download_button(
-                "⬇ Exporter le diagnostic MIDI JSON",
-                data=meta_path.read_bytes(),
-                file_name="stem_midi.json",
-                mime="application/json",
-                width="stretch",
-                key=f"ezstem_midi_json_{str(audio_hash)[:12]}",
-            )
-
-            browser_events = dict(midi_meta.get("browser_events", {}) or {})
-
-            # Compatibility with R7/R7.1 bundles: derive browser events from the
-            # already-exported note/beat analyses. No pYIN/Demucs rerun required.
-            if not browser_events:
-                vocal_notes = list(
-                    (midi_meta.get("vocal_analysis", {}) or {}).get("notes", []) or []
-                )
-                drum_analysis = dict(midi_meta.get("drum_analysis", {}) or {})
-                if vocal_notes and drum_analysis and structure_for_midi:
-                    browser_events = browser_events_from_bundle(
-                        vocal_notes=vocal_notes,
-                        structure=structure_for_midi,
-                        drum_analysis=drum_analysis,
-                        beats_per_bar=int(
-                            midi_meta.get(
-                                "beats_per_bar",
-                                structure_for_midi.get("beats_per_bar", 4),
-                            )
-                            or 4
-                        ),
-                    )
-                    midi_meta["browser_events"] = browser_events
-                    meta_path.write_text(
-                        json.dumps(midi_meta, ensure_ascii=False, indent=2),
-                        encoding="utf-8",
-                    )
-
-            if player_mode == "MP3 + MIDI":
-                if browser_events:
-                    st.markdown("#### Lecteur MP3 + MIDI synchronisés")
-                    st.caption(
-                        "MP3 original = horloge maître. "
-                        "Chant, accords et batterie MIDI sont indépendants."
-                    )
-                    preview_path = _make_browser_preview(
-                        source,
-                        _work_dir(audio_hash) / "browser_preview",
-                    )
-                    render_stem_midi_sync_player(
-                        audio_path=preview_path,
-                        midi_metadata=midi_meta,
-                        key=f"ezstem_midi_sync_{str(audio_hash)[:12]}",
-                    )
-                else:
-                    st.warning(
-                        "Impossible de construire les événements navigateur à partir "
-                        "du bundle MIDI actuel."
-                    )
-
-    st.subheader("Analyse des paroles")
-    st.caption(
-        "Source : audio original complet. "
-        "Les stems Demucs ne sont pas utilisés pour la reconnaissance des paroles."
+        "Whisper small analyse l'audio original. "
+        "Les timestamps de mots restent sur l'horloge de l'audio original."
     )
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    st.caption(f"Whisper : {device} · modèle `small` · source `original`")
-
     speech = _load_speech(audio_hash)
-    if st.button(
-        "Analyser les paroles",
-        type="primary",
-        width="stretch",
-        key=f"ezstem_speech_{str(audio_hash)[:12]}",
-    ):
-        with st.spinner("Whisper small analyse l'audio original…"):
-            speech = _transcribe_original(source, audio_hash)
-        st.rerun()
 
-    if speech:
-        words = list(speech.get("words", []) or [])
-        st.success(
-            f"Transcription originale disponible · "
-            f"langue `{speech.get('language', 'auto')}` · {len(words)} mots."
-        )
+    if speech is None:
+        if st.button(
+            "Analyser les paroles",
+            type="primary",
+            width="stretch",
+            key=f"ezstem_speech_{str(audio_hash)[:12]}",
+        ):
+            with st.spinner("Whisper small analyse l'audio original…"):
+                _transcribe_original(source, audio_hash)
+            st.rerun()
+        st.info("Étape 2 requise avant l'analyse structurelle.")
+        return
+
+    words = list(speech.get("words", []) or [])
+    st.success(
+        f"Paroles prêtes · modèle small · langue "
+        f"`{speech.get('language', 'auto')}` · {len(words)} mots."
+    )
+    with st.expander("Voir / contrôler la transcription", expanded=False):
         tab_text, tab_words = st.tabs(["Paroles", "Mots horodatés"])
         with tab_text:
             st.text_area(
@@ -752,63 +543,43 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                 hide_index=True,
                 width="stretch",
             )
-    else:
-        st.info("Clique `Analyser les paroles`.")
 
-    st.subheader("Analyse structurelle — accords + paroles")
+    st.divider()
+    st.markdown("## Étape 3 — Structure musicale")
     st.caption(
-        "Harmonie principale = other.wav. Bass = indice faible de fondamentale. "
-        "Rythme = drums.wav. Les blocs restent visuels."
+        "drums → tempo / beats / mesures · other → accords · "
+        "bass → appui faible de fondamentale · paroles → répétitions/structure."
     )
 
-    col_meter, col_threshold = st.columns(2)
-    with col_meter:
+    structure = _load_structure(audio_hash)
+    if structure is None:
         beats_per_bar = st.selectbox(
-            "Temps par mesure (prototype)",
+            "Temps par mesure",
             [2, 3, 4, 6],
             index=2,
             key=f"ezstem_bpb_{str(audio_hash)[:12]}",
         )
-    with col_threshold:
-        st.slider(
-            "Seuil similarité harmonique",
-            min_value=0.55,
-            max_value=0.90,
-            value=0.72,
-            step=0.01,
-            disabled=True,
-            help="Checkpoint R3 : seuil fixé à 0.72 comme STEM_LAB.",
-            key=f"ezstem_threshold_{str(audio_hash)[:12]}",
-        )
-
-    if st.button(
-        "Analyser les motifs structurels",
-        type="primary",
-        width="stretch",
-        key=f"ezstem_structure_{str(audio_hash)[:12]}",
-    ):
-        with st.spinner(
-            "Analyse des progressions d'accords et des répétitions structurelles…"
+        if st.button(
+            "Analyser la structure",
+            type="primary",
+            width="stretch",
+            key=f"ezstem_structure_{str(audio_hash)[:12]}",
         ):
-            try:
+            with st.spinner("Analyse structurelle en cours…"):
                 _analyze_structure(
                     audio_hash=audio_hash,
                     stems=stems,
                     beats_per_bar=int(beats_per_bar),
                 )
-            except Exception as exc:
-                st.error("Analyse structurelle impossible : " + str(exc))
-                return
-        st.rerun()
+            st.rerun()
+        st.info("Étape 3 requise avant la génération MIDI.")
+        return
 
-    structure = _load_structure(audio_hash)
-    if structure:
-        st.success(
-            f"Tempo ≈ {float(structure.get('tempo', 0.0)):.1f} BPM · "
-            f"{int(structure.get('measure_count', 0))} mesures · "
-            f"{len(structure.get('harmonic_motifs', []) or [])} motifs harmoniques."
-        )
-
+    st.success(
+        f"Structure prête · tempo ≈ {float(structure.get('tempo', 0.0)):.1f} BPM · "
+        f"{int(structure.get('measure_count', 0))} mesures."
+    )
+    with st.expander("Voir les progressions et blocs détectés", expanded=False):
         motifs = list(structure.get("harmonic_motifs", []) or [])
         if motifs:
             st.dataframe(
@@ -824,63 +595,186 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                 hide_index=True,
                 width="stretch",
             )
-
-        st.markdown("#### Blocs + paroles")
-        st.caption(
-            "Prévisualisation non destructive : aucun timestamp de parole, "
-            "beat, mesure ou accord n'est déplacé."
+        st.dataframe(
+            [
+                {
+                    "Mesure": m.get("measure"),
+                    "Début": round(float(m.get("time_start", 0.0)), 2),
+                    "Fin": round(float(m.get("time_end", 0.0)), 2),
+                    "Accords / temps": " · ".join(m.get("beat_chords", [])),
+                }
+                for m in list(structure.get("measures", []) or [])
+            ],
+            hide_index=True,
+            width="stretch",
         )
-        for block in list(structure.get("visual_blocks", []) or []):
-            with st.container(border=True):
-                c1, c2 = st.columns([3, 1])
-                with c1:
-                    st.markdown(
-                        f"### Bloc {block.get('cluster', '?')} · "
-                        f"mesures {block.get('measure_start', 0)}–"
-                        f"{block.get('measure_end', 0)}"
-                    )
-                with c2:
-                    st.caption(
-                        f"{float(block.get('time_start', 0.0)):.1f}s → "
-                        f"{float(block.get('time_end', 0.0)):.1f}s"
-                    )
-                patterns = list(block.get("chord_patterns", []) or [])
-                if patterns:
-                    st.markdown(
-                        "<div style='font-family:monospace;font-size:.88rem;"
-                        "opacity:.75;overflow-wrap:anywhere;'>"
-                        + "  ·  ".join(patterns)
-                        + "</div>",
-                        unsafe_allow_html=True,
-                    )
-                lyrics = str(block.get("lyrics", "") or "").strip()
-                if lyrics:
-                    st.markdown(
-                        "<div style='margin-top:.65rem;padding:.75rem 1rem;"
-                        "border-left:4px solid #2f80ed;"
-                        "font-size:1.08rem;line-height:1.55;'>"
-                        + lyrics
-                        + "</div>",
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    st.caption("Section instrumentale / aucune parole détectée.")
 
-        with st.expander("Progressions harmoniques détectées"):
-            st.dataframe(
-                [
-                    {
-                        "Mesure": m.get("measure"),
-                        "Début": round(float(m.get("time_start", 0.0)), 2),
-                        "Fin": round(float(m.get("time_end", 0.0)), 2),
-                        "Accords / temps": " · ".join(m.get("beat_chords", [])),
-                        "Motif": m.get("pattern", ""),
-                    }
-                    for m in list(structure.get("measures", []) or [])
-                ],
-                hide_index=True,
-                width="stretch",
+    st.divider()
+    st.markdown("## Étape 4 — MIDI")
+    st.caption(
+        "Génération séquentielle : accords + batterie, puis chant. "
+        "Le lecteur n'est activé que lorsque les trois pistes sont terminées."
+    )
+
+    midi_dir = _work_dir(audio_hash) / "midi"
+    structure_path = _structure_cache_path(audio_hash)
+    meta_path = midi_dir / "stem_midi.json"
+    job = load_stem_midi_job(midi_dir)
+    job_state = str(job.get("state", "idle") or "idle")
+
+    if job_state in {"starting", "running"}:
+        st.info(str(job.get("message") or "Génération MIDI en cours…"))
+        if st.button(
+            "↻ Actualiser l'état MIDI",
+            width="stretch",
+            key=f"ezstem_midi_refresh_{str(audio_hash)[:12]}",
+        ):
+            st.rerun()
+        st.caption(
+            "Le lecteur sera disponible automatiquement lorsque Chant + Accords + Batterie seront terminés."
+        )
+        return
+
+    if job_state == "error":
+        st.error("Génération MIDI échouée : " + str(job.get("message", "")))
+        with st.expander("Détail de l'erreur", expanded=True):
+            st.code(str(job.get("traceback", "") or ""), language="text")
+        return
+
+    midi_meta = None
+    if meta_path.is_file():
+        midi_meta = json.loads(meta_path.read_text(encoding="utf-8"))
+
+    midi_complete = bool(
+        midi_meta
+        and str(midi_meta.get("state", "complete") or "complete") == "complete"
+        and set(midi_meta.get("available_tracks", ["vocal", "chords", "drums"]))
+            >= {"vocal", "chords", "drums"}
+        and (midi_dir / "vocal.mid").is_file()
+        and (midi_dir / "chords.mid").is_file()
+        and (midi_dir / "drums.mid").is_file()
+    )
+
+    if not midi_complete:
+        if st.button(
+            "Générer Chant + Accords + Batterie MIDI",
+            type="primary",
+            width="stretch",
+            key=f"ezstem_midi_generate_{str(audio_hash)[:12]}",
+        ):
+            launch_stem_midi_job(
+                vocals_path=stems["vocals"],
+                drums_path=stems["drums"],
+                structure_path=structure_path,
+                output_dir=midi_dir,
             )
+            st.rerun()
+        st.info("Aucun bundle MIDI complet disponible.")
+        return
+
+    st.success(
+        "MIDI prêts · "
+        f"{int(midi_meta.get('vocal_note_count', 0))} notes chant · "
+        f"{int(midi_meta.get('drum_beat_count', 0))} beats batterie."
+    )
+
+    midi_cols = st.columns(4)
+    for col, (label, filename, key_name) in zip(
+        midi_cols,
+        [
+            ("Chant", "vocal.mid", "vocal"),
+            ("Accords", "chords.mid", "chords"),
+            ("Batterie", "drums.mid", "drums"),
+            ("Combiné", "stem_mix.mid", "combined"),
+        ],
+    ):
+        path = midi_dir / filename
+        with col:
+            st.download_button(
+                f"⬇ MIDI {label}",
+                data=path.read_bytes(),
+                file_name=filename,
+                mime="audio/midi",
+                width="stretch",
+                key=f"ezstem_midi_dl_{key_name}_{str(audio_hash)[:12]}",
+            )
+
+    st.download_button(
+        "⬇ Exporter le diagnostic MIDI JSON",
+        data=meta_path.read_bytes(),
+        file_name="stem_midi.json",
+        mime="application/json",
+        width="stretch",
+        key=f"ezstem_midi_json_{str(audio_hash)[:12]}",
+    )
+
+    st.divider()
+    st.markdown("## Étape 5 — Lecteur de contrôle")
+    player_mode = st.radio(
+        "Type de lecteur",
+        ["MP3 + MIDI", "STEM audio"],
+        horizontal=True,
+        key=f"ezstem_player_mode_{str(audio_hash)[:12]}",
+    )
+
+    if not _stem_ffmpeg_available():
+        st.error("FFmpeg est requis pour le lecteur.")
+        return
+
+    if player_mode == "MP3 + MIDI":
+        st.caption(
+            "MP3 original = horloge maître. "
+            "Les trois pistes MIDI sont maintenant complètes et activables."
+        )
+        preview_path = _make_browser_preview(
+            source,
+            _work_dir(audio_hash) / "browser_preview",
+        )
+        render_stem_midi_sync_player(
+            audio_path=preview_path,
+            midi_metadata=midi_meta,
+            key=f"ezstem_midi_sync_{str(audio_hash)[:12]}",
+        )
+    else:
+        st.caption(
+            "Mixeur WebAudio des stems Demucs, sans modifier la timeline."
+        )
+        _render_stem_player(
+            source,
+            stems,
+            preview_dir=_work_dir(audio_hash) / "browser_preview",
+            key=f"ezstem_player_{str(audio_hash)[:12]}_{len(words)}",
+            words=words,
+        )
+
+    st.divider()
+    st.markdown("## Étape 6 — Prévisualisation des blocs")
+    for block in list(structure.get("visual_blocks", []) or []):
+        with st.container(border=True):
+            c1, c2 = st.columns([3, 1])
+            with c1:
+                st.markdown(
+                    f"### Bloc {block.get('cluster', '?')} · "
+                    f"mesures {block.get('measure_start', 0)}–"
+                    f"{block.get('measure_end', 0)}"
+                )
+            with c2:
+                st.caption(
+                    f"{float(block.get('time_start', 0.0)):.1f}s → "
+                    f"{float(block.get('time_end', 0.0)):.1f}s"
+                )
+            lyrics = str(block.get("lyrics", "") or "").strip()
+            if lyrics:
+                st.markdown(
+                    "<div style='margin-top:.65rem;padding:.75rem 1rem;"
+                    "border-left:4px solid #2f80ed;"
+                    "font-size:1.08rem;line-height:1.55;'>"
+                    + lyrics
+                    + "</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.caption("Section instrumentale / aucune parole détectée.")
 
     with st.expander("Architecture / emplacements"):
         st.code(

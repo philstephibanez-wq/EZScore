@@ -1,60 +1,48 @@
-# EZScore — STEM pipeline R8.1 / player MIDI progressif
+# EZScore — STEM pipeline R8.2 / workflow séquentiel + instruments MIDI
 
-## Règle contractuelle
+## Workflow
 
-Aucune erreur masquée. Aucun fallback silencieux.
-
-## Problème corrigé
-
-En R8, le player MP3+MIDI n'apparaissait qu'après la fin complète du worker.
-La raison : `stem_midi.json` n'était écrit qu'après l'analyse vocale pYIN,
-qui est l'étape la plus longue.
-
-La capture montrait donc correctement :
+La page STEM est désormais strictement séquentielle :
 
 ```text
-Analyse chant + batterie + accords en cours…
+1. Séparation STEM
+2. Paroles Whisper small
+3. Structure musicale
+4. MIDI Chant + Accords + Batterie
+5. Lecteur de contrôle
+6. Prévisualisation des blocs
 ```
 
-mais aucun bundle exploitable n'existait encore pour le player.
+Chaque étape bloque explicitement la suivante tant qu'elle n'est pas terminée.
 
-## R8.1
+Le lecteur MP3+MIDI n'est plus affiché avec une piste Chant désactivée/pending.
+Il apparaît uniquement lorsque les trois pistes MIDI sont complètes.
 
-Le worker est maintenant explicitement découpé en deux étapes.
+## Instruments
 
-### Étape 1
-- batterie analysée ;
-- MIDI accords écrit ;
-- MIDI batterie écrit ;
-- `stem_midi.json` partiel écrit ;
-- player MP3+MIDI immédiatement disponible avec Accords + Batterie.
+Le lecteur MP3+MIDI permet désormais de changer en temps réel :
 
-### Étape 2
-- analyse pYIN du chant ;
-- MIDI Chant écrit ;
-- MIDI combiné écrit ;
-- `stem_midi.json` remplacé atomiquement par la version complète.
+- instrument du Chant ;
+- instrument des Accords ;
+- kit de Batterie GM.
 
-Ce n'est pas un fallback : l'interface indique clairement que Chant est
-`en cours` et désactive cette piste jusqu'à ce qu'elle existe.
+Exemples chant/accords :
+Piano, guitares nylon/steel/clean/muted, strings, choir, Voice Oohs,
+saxophones, flute, synth leads.
 
-## Timeline
+Kits batterie :
+Standard, Room, Power, Electronic, TR-808, Jazz, Brush, Orchestra.
 
-Toujours inchangée :
+Les sélecteurs du player sont autoritaires : les événements `program` du
+bundle MIDI ne réécrasent plus un choix utilisateur.
 
-```text
-MP3 original = horloge maître
-MIDI = dérivé, jamais maître
-```
+## Contrat
 
-Aucun timestamp n'est déplacé.
-
-## HTTP média
-
-R8 reste conservé :
-- aucun audio base64 dans Bidi ;
-- audio servi par Streamlit MediaFileManager en HTTP ;
-- petits événements MIDI JSON uniquement.
+- audio original = horloge maître ;
+- aucun glissement temporel ;
+- aucune erreur masquée ;
+- aucun fallback silencieux ;
+- HTTP media R8 conservé, pas de base64 audio dans Bidi.
 
 ## Compilation
 
