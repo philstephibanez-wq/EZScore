@@ -27,6 +27,13 @@ from ezscore.analysis.vocal import (
     load_vocal_analysis as _load_vocal_analysis,
     refine_sections_with_vocal as _refine_sections_with_vocal,
 )
+from ezscore.analysis.stems import (
+    cached_stem_paths as _cached_stem_paths,
+    demucs_available as _stems_demucs_available,
+    ensure_stems as _ensure_stems,
+    load_stem_manifest as _load_stem_manifest,
+    stems_cache_complete as _stems_cache_complete,
+)
 from ezscore.diagnostics.perf import (
     install_runtime_probes,
     perf_event,
@@ -191,9 +198,9 @@ def _ezscore_detecter_sections_structurelles(
         ):
             sections, vocal_info = _refine_sections_with_vocal(
                 sections=sections,
-                measures=mesures,
+                mesures=mesures,
                 vocal_notes=vocal_notes,
-            )
+    )
         perf_event(
             "structure.vocal.refine.result",
             used=bool(vocal_info.get("used")),
@@ -283,6 +290,127 @@ def _safe_midi_filename(value, suffix):
         for ch in str(value or "EZScore")
     ).strip("_") or "EZScore"
     return f"{stem}_{suffix}.mid"
+
+
+
+def _render_stem_pipeline_analysis(
+    *,
+    active_hash,
+    audio_bytes,
+    extension,
+):
+    """Visible, non-destructive checkpoint for the new 4-stem workflow."""
+    st.markdown("##### 🧩 Analyse STEM — nouveau pipeline")
+    st.caption(
+        "Audio original = horloge maître. Paroles = original + Whisper small. "
+        "Demucs prépare vocals / drums / bass / other."
+    )
+
+    available = _stems_demucs_available()
+    complete = _stems_cache_complete(active_hash)
+    paths = _cached_stem_paths(active_hash)
+    manifest = _load_stem_manifest(active_hash) if complete else None
+
+    if not available:
+        st.warning(
+            "Demucs n'est pas disponible dans cet environnement. "
+            "L'analyse EZScore historique reste active et inchangée."
+        )
+        return
+
+    if complete:
+        st.success(
+            "4 stems en cache · htdemucs · timebase de l'audio original."
+        )
+    else:
+        st.info(
+            "Pipeline STEM disponible. Les quatre stems ne sont pas encore "
+            "préparés pour ce morceau."
+        )
+
+    roles = [
+        ("Original", "Paroles / Whisper small", "actif"),
+        ("vocals.wav", "Mélodie / F0", "préparé" if "vocals" in paths else "à générer"),
+        ("drums.wav", "Tempo / beats / mesures", "préparé" if "drums" in paths else "à générer"),
+        ("bass.wav", "Fondamentale auxiliaire", "préparé" if "bass" in paths else "à générer"),
+        ("other.wav", "Harmonie / accords", "préparé" if "other" in paths else "à générer"),
+    ]
+    st.dataframe(
+        [{"Source": src, "Rôle": role, "État": state} for src, role, state in roles],
+        hide_index=True,
+        width="stretch",
+    )
+
+    if not complete:
+        if st.button(
+            "Préparer les 4 stems",
+            key=f"stem_pipeline_prepare_{active_hash[:12]}",
+            type="primary",
+        ):
+            with st.spinner("Demucs : séparation vocals / drums / bass / other…"):
+                try:
+                    with perf_span(
+                        "stem_pipeline.ensure",
+                        audio_bytes=len(audio_bytes or b""),
+                        force=False,
+                    ):
+                        result = _ensure_stems(
+                            audio_bytes=audio_bytes,
+                            extension=extension,
+                            audio_hash=active_hash,
+                            force=False,
+                        )
+                    perf_event(
+                        "stem_pipeline.ensure.result",
+                        status=str(result.get("status", "")),
+                        stems=len(result.get("paths", {}) or {}),
+                    )
+                except Exception as exc:
+                    perf_event(
+                        "stem_pipeline.ensure.result",
+                        status="error",
+                        error_type=type(exc).__name__,
+                        error=str(exc),
+                    )
+                    st.error("Séparation STEM impossible : " + str(exc))
+                    return
+            st.rerun()
+    else:
+        with st.expander("Détails / maintenance STEM", expanded=False):
+            st.code(
+                "Original → Whisper small → paroles\n"
+                "vocals  → mélodie / F0\n"
+                "drums   → tempo / beats / mesures\n"
+                "bass    → fondamentale auxiliaire\n"
+                "other   → harmonie / accords",
+                language="text",
+            )
+            if paths:
+                st.caption(f"Cache : {next(iter(paths.values())).parent}")
+            if st.button(
+                "Recalculer les 4 stems",
+                key=f"stem_pipeline_rebuild_{active_hash[:12]}",
+                type="secondary",
+            ):
+                with st.spinner("Recalcul Demucs des quatre stems…"):
+                    try:
+                        _ensure_stems(
+                            audio_bytes=audio_bytes,
+                            extension=extension,
+                            audio_hash=active_hash,
+                            force=True,
+                        )
+                    except Exception as exc:
+                        st.error("Recalcul STEM impossible : " + str(exc))
+                        return
+                st.rerun()
+
+    if manifest:
+        st.caption(
+            "Checkpoint R2 : stems préparés et visibles. "
+            "Le moteur musical historique reste le fallback tant que "
+            "drums/other/bass ne sont pas encore branchés."
+        )
 
 
 def _render_vocal_melody_analysis(
@@ -526,6 +654,12 @@ def _render_analysis_mp3_midi_player(
                 f"{1 if vocal_events else 0}"
             ),
         )
+
+    _render_stem_pipeline_analysis(
+        active_hash=active_hash,
+        audio_bytes=audio_bytes,
+        extension=extension,
+    )
 
     _render_vocal_melody_analysis(
         active_hash=active_hash,
