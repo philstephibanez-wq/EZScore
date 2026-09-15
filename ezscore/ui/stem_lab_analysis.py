@@ -52,6 +52,7 @@ from ezscore.player.stem_webaudio import (
 
 APP_DIR = Path(__file__).resolve().parents[2]
 LAB_CACHE_DIR = APP_DIR / "data" / "analysis" / "stem_lab"
+MIN_VISUAL_BLOCK_MEASURES = 4
 
 
 def _work_dir(audio_hash: str) -> Path:
@@ -214,6 +215,98 @@ def _structure_cache_path(audio_hash: str) -> Path:
     return _work_dir(audio_hash) / "structure_analysis.json"
 
 
+
+def _coalesce_boundaries(
+    boundaries: list[int],
+    *,
+    measure_count: int,
+    min_measures: int = MIN_VISUAL_BLOCK_MEASURES,
+) -> list[int]:
+    """Reject only boundaries that would create micro-blocks.
+
+    This is not fixed 4-bar slicing: recurrence-derived boundaries remain the
+    source of structure. The minimum only prevents 1–3 measure visual blocks.
+    """
+    count = max(0, int(measure_count))
+    if count <= 0:
+        return []
+
+    minimum = max(2, int(min_measures))
+    candidates = sorted({1, *[int(x) for x in boundaries if 1 <= int(x) <= count]})
+    kept = [1]
+
+    for boundary in candidates[1:]:
+        if boundary - kept[-1] >= minimum:
+            kept.append(boundary)
+
+    while len(kept) > 1 and (count - kept[-1] + 1) < minimum:
+        kept.pop()
+
+    return kept
+
+
+def _build_visual_blocks(
+    *,
+    boundaries: list[int],
+    measures: list[dict[str, Any]],
+    words: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not measures:
+        return []
+
+    starts = _coalesce_boundaries(
+        boundaries,
+        measure_count=len(measures),
+        min_measures=MIN_VISUAL_BLOCK_MEASURES,
+    )
+    if not starts:
+        starts = [1]
+
+    earliest_word = min(
+        (float(w.get("start", 0.0)) for w in words),
+        default=None,
+    )
+    latest_word = max(
+        (float(w.get("end", w.get("start", 0.0))) for w in words),
+        default=None,
+    )
+
+    blocks: list[dict[str, Any]] = []
+    for idx, m0 in enumerate(starts):
+        m1 = starts[idx + 1] - 1 if idx + 1 < len(starts) else len(measures)
+        first = measures[m0 - 1]
+        last = measures[m1 - 1]
+        t0 = float(first["time_start"])
+        t1 = float(last["time_end"])
+
+        if idx == 0 and earliest_word is not None:
+            t0 = min(t0, earliest_word)
+        if idx == len(starts) - 1 and latest_word is not None:
+            t1 = max(t1, latest_word)
+
+        block_words = [
+            str(w.get("text", "") or "").strip()
+            for w in words
+            if float(w.get("end", 0.0) or 0.0) > t0
+            and float(w.get("start", 0.0) or 0.0) < t1
+        ]
+        blocks.append({
+            "cluster": chr(ord("A") + (idx % 26)),
+            "measure_start": int(m0),
+            "measure_end": int(m1),
+            "measure_count": int(m1 - m0 + 1),
+            "time_start": t0,
+            "time_end": t1,
+            "lyrics": " ".join(x for x in block_words if x),
+            "chord_patterns": [
+                measures[n - 1]["pattern"]
+                for n in range(m0, m1 + 1)
+            ],
+            "visual_only": True,
+        })
+    return blocks
+
+
 def _analyze_structure(
     *,
     audio_hash: str,
@@ -339,61 +432,17 @@ def _analyze_structure(
 
     speech = _load_speech(audio_hash) or {}
     words = list(speech.get("words", []) or [])
-    earliest_word = min(
-        (float(w.get("start", 0.0)) for w in words),
-        default=None,
-    )
-    latest_word = max(
-        (float(w.get("end", w.get("start", 0.0))) for w in words),
-        default=None,
-    )
 
-    # Visual-only blocks: recurrence starts are used as boundary hints.
-    boundaries = {1}
+    candidate_boundaries = [1]
     for item in selected[:8]:
-        boundaries.add(int(item["a_measure_start"]))
-        boundaries.add(int(item["b_measure_start"]))
-    boundaries = sorted(x for x in boundaries if 1 <= x <= len(measures))
-    if not boundaries:
-        boundaries = [1]
+        candidate_boundaries.append(int(item["a_measure_start"]))
+        candidate_boundaries.append(int(item["b_measure_start"]))
 
-    blocks = []
-    for idx, m0 in enumerate(boundaries):
-        m1 = (
-            boundaries[idx + 1] - 1
-            if idx + 1 < len(boundaries)
-            else len(measures)
-        )
-        if m1 < m0:
-            continue
-        first = measures[m0 - 1]
-        last = measures[m1 - 1]
-        t0 = float(first["time_start"])
-        t1 = float(last["time_end"])
-        if idx == 0 and earliest_word is not None:
-            t0 = min(t0, earliest_word)
-        if idx == len(boundaries) - 1 and latest_word is not None:
-            t1 = max(t1, latest_word)
-
-        block_words = [
-            str(w.get("text", "") or "").strip()
-            for w in words
-            if float(w.get("end", 0.0) or 0.0) > t0
-            and float(w.get("start", 0.0) or 0.0) < t1
-        ]
-        blocks.append({
-            "cluster": chr(ord("A") + (idx % 26)),
-            "measure_start": m0,
-            "measure_end": m1,
-            "time_start": t0,
-            "time_end": t1,
-            "lyrics": " ".join(x for x in block_words if x),
-            "chord_patterns": [
-                measures[n - 1]["pattern"]
-                for n in range(m0, m1 + 1)
-            ],
-            "visual_only": True,
-        })
+    blocks = _build_visual_blocks(
+        boundaries=candidate_boundaries,
+        measures=measures,
+        words=words,
+    )
 
     payload = {
         "tempo": float(np.asarray(tempo).reshape(-1)[0]),
@@ -402,6 +451,7 @@ def _analyze_structure(
         "measures": measures,
         "harmonic_motifs": selected,
         "visual_blocks": blocks,
+        "visual_block_min_measures": MIN_VISUAL_BLOCK_MEASURES,
         "lyrics_source": "original",
         "timebase": "original_audio_seconds",
     }
@@ -416,7 +466,37 @@ def _load_structure(audio_hash: str) -> dict[str, Any] | None:
     path = _structure_cache_path(audio_hash)
     if not path.is_file():
         return None
-    return json.loads(path.read_text(encoding="utf-8"))
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    measures = list(payload.get("measures", []) or [])
+    blocks = list(payload.get("visual_blocks", []) or [])
+    needs_normalization = any(
+        int(block.get("measure_end", 0) or 0)
+        - int(block.get("measure_start", 0) or 0)
+        + 1
+        < MIN_VISUAL_BLOCK_MEASURES
+        for block in blocks
+    )
+
+    if needs_normalization and measures:
+        speech = _load_speech(audio_hash) or {}
+        words = list(speech.get("words", []) or [])
+        starts = [
+            int(block.get("measure_start", 1) or 1)
+            for block in blocks
+        ]
+        payload["visual_blocks"] = _build_visual_blocks(
+            boundaries=starts,
+            measures=measures,
+            words=words,
+        )
+        payload["visual_block_min_measures"] = MIN_VISUAL_BLOCK_MEASURES
+        path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    return payload
 
 
 def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
@@ -609,7 +689,8 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                 st.markdown(
                     f"### Bloc {block.get('cluster', '?')} · "
                     f"mesures {block.get('measure_start', 0)}–"
-                    f"{block.get('measure_end', 0)}"
+                    f"{block.get('measure_end', 0)} · "
+                    f"{int(block.get('measure_end', 0)) - int(block.get('measure_start', 0)) + 1} mesures"
                 )
             with c2:
                 st.caption(

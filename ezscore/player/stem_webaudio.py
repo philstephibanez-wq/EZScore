@@ -187,9 +187,9 @@ _PLAYER_CSS = """
   gap:8px; align-items:center;
 }
 .mixer-head { font-size:11px; font-weight:800; opacity:.65; padding:0 4px 5px; }
-.tracks { display:grid; gap:6px; }
+.tracks { display:grid; gap:3px; }
 .track {
-  padding:7px 4px;
+  padding:5px 4px;
   border-top:1px solid color-mix(in srgb, var(--st-text-color) 12%, transparent);
 }
 .track-name { font-weight:800; }
@@ -740,12 +740,13 @@ def render_player(
         "payload Bidi = métadonnées/URLs uniquement · WAV Demucs intacts."
     )
 
+    player_words = list(words or [])
     _STEM_PLAYER(
         data={
             "tracks": tracks,
-            "words": list(words or []),
+            "words": player_words,
         },
         key=key,
         width="stretch",
-        height=440,
+        height=610 if player_words else 530,
     )

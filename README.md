@@ -119,3 +119,12 @@ existe réellement. Si le worker a disparu sans mettre à jour le statut,
 le job passe explicitement en erreur `worker_dead`.
 
 Aucun état `running` fantôme n'est conservé indéfiniment.
+
+
+## R9.1 — ergonomie lecteurs et blocs
+
+- Sélecteurs MIDI : thème sombre explicite, texte clair, numéro GM.
+- Lecteur STEM : hauteur adaptée pour éviter le scroll interne.
+- Blocs : minimum structurel de 4 mesures, sans découpage fixe en groupes de 4.
+- Anciennes structures avec blocs de 1–3 mesures normalisées à l'ouverture.
+- Aucun timestamp canonique de beat, mesure, accord ou parole n'est déplacé.

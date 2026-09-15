@@ -107,10 +107,21 @@ _CSS = """
 .label{font-weight:800}
 .midi-table input[type="range"],.row input[type="range"]{width:100%}
 .midi-table select{
-  width:100%;min-height:30px;border-radius:6px;
-  border:1px solid color-mix(in srgb,var(--st-text-color) 30%,transparent);
-  background:color-mix(in srgb,var(--st-text-color) 7%,transparent);
-  color:var(--st-text-color);padding:3px 6px;
+  width:100%;min-height:34px;border-radius:6px;
+  border:1px solid #64748b;
+  background:#111827;
+  color:#f8fafc;
+  padding:4px 8px;
+  color-scheme:dark;
+  font-weight:650;
+}
+.midi-table select:focus{
+  outline:2px solid #60a5fa;
+  outline-offset:1px;
+}
+.midi-table select option{
+  background:#111827;
+  color:#f8fafc;
 }
 .vol-audio{accent-color:#4da3ff}
 .vol-vocal{accent-color:#9b59b6}
@@ -196,16 +207,16 @@ export default function(component) {
   window.__ezscoreSoundFonts = window.__ezscoreSoundFonts || {};
 
   const melodicPrograms = [
-    [0,"Piano"],[4,"Electric Piano"],[24,"Nylon Guitar"],[25,"Steel Guitar"],
-    [27,"Clean Guitar"],[28,"Muted Guitar"],[32,"Acoustic Bass"],[33,"Finger Bass"],
-    [40,"Violin"],[41,"Viola"],[42,"Cello"],[48,"Strings"],[52,"Choir Aahs"],
-    [53,"Voice Oohs"],[54,"Synth Voice"],[64,"Soprano Sax"],[65,"Alto Sax"],
-    [66,"Tenor Sax"],[67,"Baritone Sax"],[73,"Flute"],[80,"Square Lead"],
-    [81,"Saw Lead"],[88,"Fantasia"]
+    [0,"000 — Piano"],[4,"004 — Electric Piano"],[24,"024 — Nylon Guitar"],[25,"025 — Steel Guitar"],
+    [27,"027 — Clean Guitar"],[28,"028 — Muted Guitar"],[32,"032 — Acoustic Bass"],[33,"033 — Finger Bass"],
+    [40,"040 — Violin"],[41,"041 — Viola"],[42,"042 — Cello"],[48,"048 — Strings"],[52,"052 — Choir Aahs"],
+    [53,"053 — Voice Oohs"],[54,"054 — Synth Voice"],[64,"064 — Soprano Sax"],[65,"065 — Alto Sax"],
+    [66,"066 — Tenor Sax"],[67,"067 — Baritone Sax"],[73,"073 — Flute"],[80,"080 — Square Lead"],
+    [81,"081 — Saw Lead"],[88,"088 — Fantasia"]
   ];
   const drumKits = [
-    [0,"Standard Kit"],[8,"Room Kit"],[16,"Power Kit"],[24,"Electronic Kit"],
-    [25,"TR-808 Kit"],[32,"Jazz Kit"],[40,"Brush Kit"],[48,"Orchestra Kit"]
+    [0,"000 — Standard Kit"],[8,"008 — Room Kit"],[16,"016 — Power Kit"],[24,"024 — Electronic Kit"],
+    [25,"025 — TR-808 Kit"],[32,"032 — Jazz Kit"],[40,"040 — Brush Kit"],[48,"048 — Orchestra Kit"]
   ];
 
   function fillSelect(node, entries, selected) {
