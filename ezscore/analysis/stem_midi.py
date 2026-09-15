@@ -19,7 +19,10 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import struct
+import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -539,3 +542,89 @@ def generate_stem_midi_bundle(
         encoding="utf-8",
     )
     return metadata
+
+
+def _job_status_path(output_dir: Path) -> Path:
+    return Path(output_dir) / "job_status.json"
+
+
+def load_stem_midi_job(output_dir: Path) -> dict[str, Any]:
+    path = _job_status_path(output_dir)
+    if not path.is_file():
+        return {"state": "idle"}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {"state": "unknown"}
+
+
+def launch_stem_midi_job(
+    *,
+    vocals_path: Path,
+    drums_path: Path,
+    structure_path: Path,
+    output_dir: Path,
+) -> dict[str, Any]:
+    """Launch heavy STEM->MIDI work outside the Streamlit request thread."""
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    previous = load_stem_midi_job(output_dir)
+    if str(previous.get("state", "")) in {"starting", "running"}:
+        return previous
+
+    status_path = _job_status_path(output_dir)
+    log_path = output_dir / "job.log"
+    status_path.write_text(
+        json.dumps(
+            {
+                "state": "starting",
+                "pid": None,
+                "message": "Préparation du processus MIDI…",
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "ezscore.analysis.stem_midi_worker",
+        "--vocals",
+        str(Path(vocals_path)),
+        "--drums",
+        str(Path(drums_path)),
+        "--structure",
+        str(Path(structure_path)),
+        "--output",
+        str(output_dir),
+    ]
+
+    creationflags = 0
+    if os.name == "nt":
+        creationflags = int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+    with open(log_path, "ab", buffering=0) as log_file:
+        proc = subprocess.Popen(
+            cmd,
+            cwd=str(Path(__file__).resolve().parents[2]),
+            stdin=subprocess.DEVNULL,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            close_fds=(os.name != "nt"),
+            creationflags=creationflags,
+        )
+
+    payload = {
+        "state": "running",
+        "pid": int(proc.pid),
+        "message": "Génération MIDI en cours dans un processus séparé.",
+        "log": str(log_path),
+    }
+    status_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return payload

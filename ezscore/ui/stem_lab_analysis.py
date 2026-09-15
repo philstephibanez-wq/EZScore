@@ -36,7 +36,10 @@ from ezscore.analysis.stems import (
     stems_cache_complete,
 )
 import ezscore.persistence as _persistence
-from ezscore.analysis.stem_midi import generate_stem_midi_bundle
+from ezscore.analysis.stem_midi import (
+    launch_stem_midi_job,
+    load_stem_midi_job,
+)
 from ezscore.player.stem_webaudio import (
     ffmpeg_available as _stem_ffmpeg_available,
     render_player as _render_stem_player,
@@ -530,24 +533,48 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
             "isolément afin de conserver un bundle cohérent."
         )
     else:
+        structure_path = _structure_cache_path(audio_hash)
+        job = load_stem_midi_job(midi_dir)
+        job_state = str(job.get("state", "idle") or "idle")
+
         if st.button(
-            "Générer / régénérer les MIDI",
+            "Lancer / relancer la génération MIDI",
             type="primary",
             width="stretch",
+            disabled=job_state in {"starting", "running"},
             key=f"ezstem_midi_generate_{str(audio_hash)[:12]}",
         ):
-            with st.spinner("Génération MIDI chant + accords + batterie…"):
-                try:
-                    generate_stem_midi_bundle(
-                        vocals_path=stems["vocals"],
-                        drums_path=stems["drums"],
-                        structure=structure_for_midi,
-                        output_dir=midi_dir,
-                    )
-                except Exception as exc:
-                    st.error("Génération MIDI impossible : " + str(exc))
-                    return
+            try:
+                launch_stem_midi_job(
+                    vocals_path=stems["vocals"],
+                    drums_path=stems["drums"],
+                    structure_path=structure_path,
+                    output_dir=midi_dir,
+                )
+            except Exception as exc:
+                st.error("Impossible de lancer le processus MIDI : " + str(exc))
             st.rerun()
+
+        job = load_stem_midi_job(midi_dir)
+        job_state = str(job.get("state", "idle") or "idle")
+
+        if job_state in {"starting", "running"}:
+            st.info(
+                str(job.get("message") or "Génération MIDI en cours…")
+                + " L'application reste utilisable pendant le calcul."
+            )
+            if st.button(
+                "↻ Actualiser l'état MIDI",
+                width="stretch",
+                key=f"ezstem_midi_refresh_{str(audio_hash)[:12]}",
+            ):
+                st.rerun()
+        elif job_state == "error":
+            st.error("Génération MIDI échouée : " + str(job.get("message", "")))
+            with st.expander("Détail du processus MIDI", expanded=False):
+                st.code(str(job.get("traceback", "") or ""), language="text")
+        elif job_state == "done":
+            st.success(str(job.get("message") or "MIDI prêts."))
 
         meta_path = midi_dir / "stem_midi.json"
         if meta_path.is_file():
