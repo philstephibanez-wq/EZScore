@@ -487,7 +487,7 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
     st.subheader("Lecteur synchronisé")
     st.caption(
         "WebAudio : une horloge commune pour original + stems. "
-        "Chaque piste peut être activée/désactivée, réglée en volume et égalisée en 3 bandes."
+        "Chaque piste peut être activée/désactivée, réglée en volume et égalisée par crossover 3 bandes."
     )
 
     if not _stem_ffmpeg_available():

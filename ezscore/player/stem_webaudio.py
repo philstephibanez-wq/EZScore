@@ -150,7 +150,7 @@ _PLAYER_HTML = """
   <div class="master-row">
     <div class="master-name">Master</div>
     <div class="master-value">100%</div>
-    <input class="master-volume" type="range" min="0" max="1.25" step="0.01" value="1">
+    <input class="master-volume master-control" type="range" min="0" max="1.25" step="0.01" value="1">
   </div>
 
   <div class="lyrics-wrap">
@@ -159,7 +159,7 @@ _PLAYER_HTML = """
   </div>
 
   <div class="hint">
-    WebAudio : horloge unique · ON/OFF, volume et EQ 3 bandes en temps réel.
+    WebAudio : crossover 3 bandes · compensation de niveau · réglages en temps réel.
   </div>
 </div>
 """
@@ -200,6 +200,19 @@ _PLAYER_CSS = """
 
 .control-cell { display:grid; grid-template-columns:1fr auto; gap:5px; align-items:center; }
 .control-cell input[type="range"] { width:100%; min-width:0; }
+.volume-control input[type="range"],
+.master-control {
+  accent-color:#4da3ff;
+}
+.low-control input[type="range"] {
+  accent-color:#e67e22;
+}
+.mid-control input[type="range"] {
+  accent-color:#9b59b6;
+}
+.high-control input[type="range"] {
+  accent-color:#2ecc71;
+}
 .control-value {
   width:42px; text-align:right; font-size:10px; opacity:.72;
   font-variant-numeric:tabular-nums;
@@ -309,27 +322,41 @@ export default function(component) {
     return bytes.buffer;
   }
 
+  function dbToLinear(db) {
+    return Math.pow(10, Number(db || 0) / 20);
+  }
+
+  function compensationFor(state) {
+    const avg = (
+      dbToLinear(state.low) +
+      dbToLinear(state.mid) +
+      dbToLinear(state.high)
+    ) / 3;
+    if (!Number.isFinite(avg) || avg <= 0.0001) return 1.0;
+    return Math.max(0.72, Math.min(1.25, 1 / avg));
+  }
+
   function applyTrackState(index, smooth = true) {
     if (!ready || !trackNodes[index] || !context) return;
     const state = trackState[index];
     const nodes = trackNodes[index];
     const now = context.currentTime;
-    const target = state.enabled ? state.volume : 0;
 
-    if (smooth) {
-      nodes.gain.gain.setTargetAtTime(target, now, 0.015);
-      nodes.low.gain.setTargetAtTime(state.low, now, 0.015);
-      nodes.mid.gain.setTargetAtTime(state.mid, now, 0.015);
-      nodes.high.gain.setTargetAtTime(state.high, now, 0.015);
-    } else {
-      nodes.gain.gain.value = target;
-      nodes.low.gain.value = state.low;
-      nodes.mid.gain.value = state.mid;
-      nodes.high.gain.value = state.high;
-    }
+    const enabledGain = state.enabled ? state.volume : 0;
+    const comp = compensationFor(state);
+
+    const setValue = (param, value) => {
+      if (smooth) param.setTargetAtTime(value, now, 0.015);
+      else param.value = value;
+    };
+
+    setValue(nodes.lowGain.gain, dbToLinear(state.low));
+    setValue(nodes.midGain.gain, dbToLinear(state.mid));
+    setValue(nodes.highGain.gain, dbToLinear(state.high));
+    setValue(nodes.trackGain.gain, enabledGain * comp);
   }
 
-  function applyMasterState(smooth = true) {
+  function applyMasterState(smooth = true) {function applyMasterState(smooth = true) {
     if (!ready || !masterGain || !context) return;
     const now = context.currentTime;
     if (smooth) masterGain.gain.setTargetAtTime(masterState, now, 0.015);
@@ -357,31 +384,50 @@ export default function(component) {
       const buffer = await context.decodeAudioData(decodeBase64(String(defs[i].base64 || "")));
       decoded.push(buffer);
 
-      const low = context.createBiquadFilter();
-      low.type = "lowshelf";
-      low.frequency.value = 180;
-      low.gain.value = trackState[i].low;
+      const lowLP = context.createBiquadFilter();
+      lowLP.type = "lowpass";
+      lowLP.frequency.value = 250;
+      lowLP.Q.value = 0.707;
 
-      const mid = context.createBiquadFilter();
-      mid.type = "peaking";
-      mid.frequency.value = 1200;
-      mid.Q.value = 0.9;
-      mid.gain.value = trackState[i].mid;
+      const midHP = context.createBiquadFilter();
+      midHP.type = "highpass";
+      midHP.frequency.value = 250;
+      midHP.Q.value = 0.707;
 
-      const high = context.createBiquadFilter();
-      high.type = "highshelf";
-      high.frequency.value = 5000;
-      high.gain.value = trackState[i].high;
+      const midLP = context.createBiquadFilter();
+      midLP.type = "lowpass";
+      midLP.frequency.value = 4000;
+      midLP.Q.value = 0.707;
 
-      const gain = context.createGain();
-      gain.gain.value = trackState[i].enabled ? trackState[i].volume : 0;
+      const highHP = context.createBiquadFilter();
+      highHP.type = "highpass";
+      highHP.frequency.value = 4000;
+      highHP.Q.value = 0.707;
 
-      low.connect(mid);
-      mid.connect(high);
-      high.connect(gain);
-      gain.connect(masterGain);
+      const lowGain = context.createGain();
+      const midGain = context.createGain();
+      const highGain = context.createGain();
+      const bandSum = context.createGain();
+      const trackGain = context.createGain();
 
-      trackNodes.push({low, mid, high, gain});
+      lowLP.connect(lowGain);
+      lowGain.connect(bandSum);
+
+      midHP.connect(midLP);
+      midLP.connect(midGain);
+      midGain.connect(bandSum);
+
+      highHP.connect(highGain);
+      highGain.connect(bandSum);
+
+      bandSum.connect(trackGain);
+      trackGain.connect(masterGain);
+
+      trackNodes.push({
+        lowLP, midHP, midLP, highHP,
+        lowGain, midGain, highGain,
+        bandSum, trackGain,
+      });
       if (i === 0) duration = Number(buffer.duration || 0);
     }
 
@@ -411,7 +457,9 @@ export default function(component) {
     sources = decoded.map((buffer, index) => {
       const source = context.createBufferSource();
       source.buffer = buffer;
-      source.connect(trackNodes[index].low);
+      source.connect(trackNodes[index].lowLP);
+      source.connect(trackNodes[index].midHP);
+      source.connect(trackNodes[index].highHP);
       const safeOffset = Math.max(
         0,
         Math.min(Number(offset) || 0, Math.max(0, buffer.duration - 0.001))
@@ -456,9 +504,9 @@ export default function(component) {
     renderLyrics(t);
   }
 
-  function makeSlider(index, field, min, max, step, suffix) {
+  function makeSlider(index, field, min, max, step, suffix, categoryClass = "") {
     const wrap = document.createElement("div");
-    wrap.className = "control-cell";
+    wrap.className = "control-cell" + (categoryClass ? " " + categoryClass : "");
 
     const slider = document.createElement("input");
     slider.type = "range";
@@ -509,10 +557,10 @@ export default function(component) {
     });
     toggleWrap.append(toggle, toggleText);
 
-    const volume = makeSlider(index, "volume", 0, 1.25, 0.01, "%");
-    const low = makeSlider(index, "low", -12, 12, 1, "dB");
-    const mid = makeSlider(index, "mid", -12, 12, 1, "dB");
-    const high = makeSlider(index, "high", -12, 12, 1, "dB");
+    const volume = makeSlider(index, "volume", 0, 1.25, 0.01, "%", "volume-control");
+    const low = makeSlider(index, "low", -6, 6, 1, "dB", "low-control");
+    const mid = makeSlider(index, "mid", -6, 6, 1, "dB", "mid-control");
+    const high = makeSlider(index, "high", -6, 6, 1, "dB", "high-control");
 
     const reset = document.createElement("button");
     reset.type = "button";

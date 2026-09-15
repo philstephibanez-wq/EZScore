@@ -1,43 +1,29 @@
-# EZScore — STEM pipeline R5 / EQ 3 bandes
+# EZScore — STEM pipeline R6 / crossover 3 bandes coloré
 
 Branche cible : `feature/stem-analysis-pipeline`
 
-R5 ajoute une mini-table de mixage WebAudio par piste :
+R6 remplace l'ancien EQ en série par un vrai découpage fréquentiel parallèle :
 
 ```text
-Piste | ON | Volume | Graves | Médiums | Aigus | Reset EQ
+                    ┌─ low-pass 250 Hz ─ Gain LOW ─┐
+BufferSource ───────┼─ HP 250 → LP 4 kHz ─ Gain MID ├─ somme ─ Gain piste ─ Master
+                    └─ high-pass 4 kHz ─ Gain HIGH ─┘
 ```
 
-Pistes :
-- Original
-- Chant
-- Batterie
-- Basse
-- Other
+Réglages :
+- Graves : < 250 Hz
+- Médiums : 250 Hz – 4 kHz
+- Aigus : > 4 kHz
+- Plage EQ : -6 dB à +6 dB
+- Compensation statique de niveau après EQ
 
-EQ WebAudio par piste :
+Couleurs par catégorie :
+- Volume / Master : bleu
+- Graves : orange
+- Médiums : violet
+- Aigus : vert
 
-```text
-BufferSource
-→ lowshelf 180 Hz
-→ peaking 1.2 kHz / Q 0.9
-→ highshelf 5 kHz
-→ Gain piste
-→ Master Gain
-→ sortie
-```
-
-Plage EQ : `-12 dB` à `+12 dB`, neutre à `0 dB`.
-
-Volumes piste : `0 à 125 %`.
-Master global : `0 à 125 %`.
-
-R5 corrige aussi l'état ON/OFF avant la première lecture : l'état du mixer est
-stocké en JavaScript avant la création de l'AudioContext puis réappliqué après
-le décodage. Une piste coupée avant Lecture reste donc réellement muette.
-
-Tous les changements ON/OFF, volume et EQ sont appliqués en temps réel avec
-`setTargetAtTime()` sans recréer les sources.
+Les états ON/OFF avant et pendant la lecture restent conservés.
 
 Installation :
 
@@ -50,7 +36,7 @@ python -m py_compile .\ezscore\ui\stem_lab_analysis.py
 git status --short
 ```
 
-Ne pas ajouter : `data/EZScore.sqlite3`, `data/logs/ezscore_perf.log`,
-`data/analysis/`.
+Ne pas ajouter :
+`data/EZScore.sqlite3`, `data/logs/ezscore_perf.log`, `data/analysis/`.
 
 L'utilisateur effectue lui-même commit/push.
