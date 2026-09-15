@@ -115,35 +115,124 @@ def analyze_vocal_notes(
     vocals_path: Path,
     *,
     sample_rate: int = 16000,
+    chunk_seconds: float = 20.0,
+    progress_callback=None,
 ) -> dict[str, Any]:
-    """Extract monophonic vocal notes directly from cached vocals.wav."""
+    """Extract monophonic vocal notes from vocals.wav with bounded pYIN chunks.
+
+    Why chunks:
+    - one whole-song ``librosa.pyin`` call gave no observable progress and could
+      remain indefinitely in the same state;
+    - bounded chunks expose the exact chunk that is running;
+    - timestamps remain absolute seconds on the original audio timebase.
+
+    ``progress_callback`` receives serializable dictionaries.
+    """
     y, sr = librosa.load(str(vocals_path), sr=int(sample_rate), mono=True)
     if y.size == 0:
         raise RuntimeError("vocals.wav vide.")
 
     frame_length = 2048
     hop_length = 256
+    chunk_samples = max(frame_length * 4, int(round(float(chunk_seconds) * sr)))
+    total_chunks = max(1, int(math.ceil(len(y) / chunk_samples)))
+    duration = float(len(y) / sr)
 
-    f0, voiced_flag, voiced_prob = librosa.pyin(
-        y,
-        fmin=librosa.note_to_hz("C2"),
-        fmax=librosa.note_to_hz("C6"),
-        sr=sr,
-        frame_length=frame_length,
-        hop_length=hop_length,
-        fill_na=np.nan,
+    if progress_callback:
+        progress_callback({
+            "stage": "vocal_load_done",
+            "message": "vocals.wav chargé.",
+            "duration_seconds": round(duration, 3),
+            "samples": int(len(y)),
+            "sample_rate": int(sr),
+            "chunk_seconds": float(chunk_seconds),
+            "chunk_total": int(total_chunks),
+            "percent": 0.0,
+        })
+
+    f0_parts = []
+    voiced_parts = []
+    prob_parts = []
+    time_parts = []
+
+    for chunk_index in range(total_chunks):
+        sample_start = chunk_index * chunk_samples
+        sample_end = min(len(y), (chunk_index + 1) * chunk_samples)
+        chunk = y[sample_start:sample_end]
+        absolute_start = sample_start / sr
+
+        if progress_callback:
+            progress_callback({
+                "stage": "vocal_pyin",
+                "message": (
+                    f"pYIN chant : segment {chunk_index + 1}/{total_chunks} "
+                    f"({absolute_start:.1f}s → {sample_end / sr:.1f}s)"
+                ),
+                "chunk_index": int(chunk_index + 1),
+                "chunk_total": int(total_chunks),
+                "time_start": round(float(absolute_start), 3),
+                "time_end": round(float(sample_end / sr), 3),
+                "percent": round(chunk_index / total_chunks, 4),
+            })
+
+        f0, voiced_flag, voiced_prob = librosa.pyin(
+            chunk,
+            fmin=librosa.note_to_hz("C2"),
+            fmax=librosa.note_to_hz("C6"),
+            sr=sr,
+            frame_length=frame_length,
+            hop_length=hop_length,
+            fill_na=np.nan,
+        )
+
+        f0 = np.asarray(f0, dtype=float)
+        voiced_flag = np.asarray(voiced_flag, dtype=bool)
+        voiced_prob = np.asarray(voiced_prob, dtype=float)
+        times = librosa.times_like(f0, sr=sr, hop_length=hop_length) + absolute_start
+
+        f0_parts.append(f0)
+        voiced_parts.append(voiced_flag)
+        prob_parts.append(voiced_prob)
+        time_parts.append(times)
+
+        if progress_callback:
+            progress_callback({
+                "stage": "vocal_pyin",
+                "message": f"pYIN chant : segment {chunk_index + 1}/{total_chunks} terminé.",
+                "chunk_index": int(chunk_index + 1),
+                "chunk_total": int(total_chunks),
+                "percent": round((chunk_index + 1) / total_chunks, 4),
+            })
+
+    f0 = np.concatenate(f0_parts) if f0_parts else np.array([], dtype=float)
+    voiced_flag = (
+        np.concatenate(voiced_parts) if voiced_parts else np.array([], dtype=bool)
     )
+    voiced_prob = (
+        np.concatenate(prob_parts) if prob_parts else np.array([], dtype=float)
+    )
+    times = np.concatenate(time_parts) if time_parts else np.array([], dtype=float)
 
-    f0 = np.asarray(f0, dtype=float)
-    voiced_flag = np.asarray(voiced_flag, dtype=bool)
-    voiced_prob = np.asarray(voiced_prob, dtype=float)
-    times = librosa.times_like(f0, sr=sr, hop_length=hop_length)
+    if not len(f0):
+        return {
+            "source": "vocals.wav",
+            "timebase": "original_audio_seconds",
+            "sample_rate": int(sr),
+            "hop_length": int(hop_length),
+            "note_count": 0,
+            "notes": [],
+        }
 
-    valid = voiced_flag & np.isfinite(f0) & np.isfinite(voiced_prob) & (voiced_prob >= 0.48)
+    valid = (
+        voiced_flag
+        & np.isfinite(f0)
+        & np.isfinite(voiced_prob)
+        & (voiced_prob >= 0.48)
+    )
     midi_float = np.full(len(f0), np.nan, dtype=float)
     midi_float[valid] = librosa.hz_to_midi(f0[valid])
 
-    # 7-frame median around valid values.
+    # Median smoothing of valid neighboring frames.
     smoothed = midi_float.copy()
     half = 3
     for i in range(len(smoothed)):
@@ -179,7 +268,12 @@ def analyze_vocal_notes(
                 "end": round(end, 6),
                 "duration": round(end - start, 6),
                 "midi": int(np.clip(current_note, 0, 127)),
-                "note": str(librosa.midi_to_note(int(np.clip(current_note, 0, 127)), unicode=False)),
+                "note": str(
+                    librosa.midi_to_note(
+                        int(np.clip(current_note, 0, 127)),
+                        unicode=False,
+                    )
+                ),
                 "confidence": round(conf, 4),
             })
         current_note = None
@@ -223,15 +317,24 @@ def analyze_vocal_notes(
     if current_note is not None:
         close(len(times) - 1)
 
+    if progress_callback:
+        progress_callback({
+            "stage": "vocal_notes_done",
+            "message": f"Analyse chant terminée : {len(notes)} notes.",
+            "note_count": int(len(notes)),
+            "percent": 1.0,
+        })
+
     return {
         "source": "vocals.wav",
         "timebase": "original_audio_seconds",
         "sample_rate": int(sr),
         "hop_length": int(hop_length),
+        "chunk_seconds": float(chunk_seconds),
+        "chunk_count": int(total_chunks),
         "note_count": len(notes),
         "notes": notes,
     }
-
 
 def build_vocal_midi(
     notes: list[dict[str, Any]],
@@ -552,6 +655,27 @@ def generate_stem_midi_bundle(
     return metadata
 
 
+def _pid_is_alive(pid: int | None) -> bool:
+    if pid is None:
+        return False
+    try:
+        value = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if value <= 0:
+        return False
+    try:
+        os.kill(value, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # Process exists but cannot be signalled by this user.
+        return True
+    except OSError:
+        return False
+    return True
+
+
 def _job_status_path(output_dir: Path) -> Path:
     return Path(output_dir) / "job_status.json"
 
@@ -560,10 +684,28 @@ def load_stem_midi_job(output_dir: Path) -> dict[str, Any]:
     path = _job_status_path(output_dir)
     if not path.is_file():
         return {"state": "idle"}
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return {"state": "unknown"}
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    state = str(payload.get("state", "") or "")
+    pid = payload.get("pid")
+
+    if state in {"starting", "running"} and pid is not None and not _pid_is_alive(pid):
+        stale = dict(payload)
+        stale.update({
+            "state": "error",
+            "stage": "worker_dead",
+            "message": (
+                f"Le worker MIDI PID {pid} n'existe plus alors que le job était "
+                "encore marqué en cours."
+            ),
+        })
+        path.write_text(
+            json.dumps(stale, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        return stale
+
+    return payload
 
 
 def launch_stem_midi_job(
