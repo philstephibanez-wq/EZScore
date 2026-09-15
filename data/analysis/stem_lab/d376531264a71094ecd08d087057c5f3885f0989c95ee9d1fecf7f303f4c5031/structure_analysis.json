@@ -1,0 +1,990 @@
+{
+  "tempo": 99.38401442307692,
+  "beats_per_bar": 4,
+  "measure_count": 72,
+  "measures": [
+    {
+      "measure": 1,
+      "time_start": 7.7090249433106575,
+      "time_end": 10.00780045351474,
+      "beat_chords": [
+        "A",
+        "A",
+        "A",
+        "A"
+      ],
+      "pattern": "A · A · A · A"
+    },
+    {
+      "measure": 2,
+      "time_start": 10.00780045351474,
+      "time_end": 12.30657596371882,
+      "beat_chords": [
+        "A",
+        "A",
+        "Em",
+        "Em"
+      ],
+      "pattern": "A · A · Em · Em"
+    },
+    {
+      "measure": 3,
+      "time_start": 12.30657596371882,
+      "time_end": 14.628571428571428,
+      "beat_chords": [
+        "A",
+        "Gm",
+        "A",
+        "A"
+      ],
+      "pattern": "A · Gm · A · A"
+    },
+    {
+      "measure": 4,
+      "time_start": 14.628571428571428,
+      "time_end": 16.904126984126986,
+      "beat_chords": [
+        "A",
+        "A",
+        "D",
+        "Dm"
+      ],
+      "pattern": "A · A · D · Dm"
+    },
+    {
+      "measure": 5,
+      "time_start": 16.904126984126986,
+      "time_end": 19.388662131519276,
+      "beat_chords": [
+        "Dm",
+        "Dm",
+        "D",
+        "Dm"
+      ],
+      "pattern": "Dm · Dm · D · Dm"
+    },
+    {
+      "measure": 6,
+      "time_start": 19.388662131519276,
+      "time_end": 21.89641723356009,
+      "beat_chords": [
+        "Gm",
+        "Gm",
+        "Gm",
+        "Gm"
+      ],
+      "pattern": "Gm · Gm · Gm · Gm"
+    },
+    {
+      "measure": 7,
+      "time_start": 21.89641723356009,
+      "time_end": 24.357732426303855,
+      "beat_chords": [
+        "Gm",
+        "Gm",
+        "Gm",
+        "Gm"
+      ],
+      "pattern": "Gm · Gm · Gm · Gm"
+    },
+    {
+      "measure": 8,
+      "time_start": 24.357732426303855,
+      "time_end": 26.70294784580499,
+      "beat_chords": [
+        "Gm",
+        "Gm",
+        "Dm",
+        "Dm"
+      ],
+      "pattern": "Gm · Gm · Dm · Dm"
+    },
+    {
+      "measure": 9,
+      "time_start": 26.70294784580499,
+      "time_end": 28.978503401360545,
+      "beat_chords": [
+        "Dm",
+        "Dm",
+        "Dm",
+        "Dm"
+      ],
+      "pattern": "Dm · Dm · Dm · Dm"
+    },
+    {
+      "measure": 10,
+      "time_start": 28.978503401360545,
+      "time_end": 31.30049886621315,
+      "beat_chords": [
+        "Dm",
+        "Em",
+        "Em",
+        "A"
+      ],
+      "pattern": "Dm · Em · Em · A"
+    },
+    {
+      "measure": 11,
+      "time_start": 31.30049886621315,
+      "time_end": 33.715374149659866,
+      "beat_chords": [
+        "A",
+        "A",
+        "A",
+        "A"
+      ],
+      "pattern": "A · A · A · A"
+    },
+    {
+      "measure": 12,
+      "time_start": 33.715374149659866,
+      "time_end": 36.08380952380952,
+      "beat_chords": [
+        "A",
+        "Dm",
+        "Dm",
+        "Dm"
+      ],
+      "pattern": "A · Dm · Dm · Dm"
+    },
+    {
+      "measure": 13,
+      "time_start": 36.08380952380952,
+      "time_end": 38.47546485260771,
+      "beat_chords": [
+        "Gm",
+        "D",
+        "Gm",
+        "G"
+      ],
+      "pattern": "Gm · D · Gm · G"
+    },
+    {
+      "measure": 14,
+      "time_start": 38.47546485260771,
+      "time_end": 40.820680272108845,
+      "beat_chords": [
+        "Gm",
+        "G",
+        "Gm",
+        "Gm"
+      ],
+      "pattern": "Gm · G · Gm · Gm"
+    },
+    {
+      "measure": 15,
+      "time_start": 40.820680272108845,
+      "time_end": 43.21233560090703,
+      "beat_chords": [
+        "Em",
+        "Gm",
+        "Gm",
+        "Em"
+      ],
+      "pattern": "Em · Gm · Gm · Em"
+    },
+    {
+      "measure": 16,
+      "time_start": 43.21233560090703,
+      "time_end": 45.627210884353744,
+      "beat_chords": [
+        "Em",
+        "Dm",
+        "Dm",
+        "Am"
+      ],
+      "pattern": "Em · Dm · Dm · Am"
+    },
+    {
+      "measure": 17,
+      "time_start": 45.627210884353744,
+      "time_end": 48.042086167800456,
+      "beat_chords": [
+        "Am",
+        "Dm",
+        "Dm",
+        "Dm"
+      ],
+      "pattern": "Am · Dm · Dm · Dm"
+    },
+    {
+      "measure": 18,
+      "time_start": 48.042086167800456,
+      "time_end": 50.45696145124717,
+      "beat_chords": [
+        "Dm",
+        "A",
+        "A",
+        "Gm"
+      ],
+      "pattern": "Dm · A · A · Gm"
+    },
+    {
+      "measure": 19,
+      "time_start": 50.45696145124717,
+      "time_end": 52.87183673469388,
+      "beat_chords": [
+        "Gm",
+        "Em",
+        "A",
+        "A"
+      ],
+      "pattern": "Gm · Em · A · A"
+    },
+    {
+      "measure": 20,
+      "time_start": 52.87183673469388,
+      "time_end": 55.33315192743764,
+      "beat_chords": [
+        "A",
+        "Dm",
+        "Dm",
+        "Am"
+      ],
+      "pattern": "A · Dm · Dm · Am"
+    },
+    {
+      "measure": 21,
+      "time_start": 55.33315192743764,
+      "time_end": 57.72480725623583,
+      "beat_chords": [
+        "Am",
+        "Dm",
+        "C",
+        "C"
+      ],
+      "pattern": "Am · Dm · C · C"
+    },
+    {
+      "measure": 22,
+      "time_start": 57.72480725623583,
+      "time_end": 60.13968253968254,
+      "beat_chords": [
+        "Em",
+        "Gm",
+        "Gm",
+        "Bb"
+      ],
+      "pattern": "Em · Gm · Gm · Bb"
+    },
+    {
+      "measure": 23,
+      "time_start": 60.13968253968254,
+      "time_end": 62.531337868480726,
+      "beat_chords": [
+        "Gm",
+        "Dm",
+        "Dm",
+        "Dm"
+      ],
+      "pattern": "Gm · Dm · Dm · Dm"
+    },
+    {
+      "measure": 24,
+      "time_start": 62.531337868480726,
+      "time_end": 64.87655328798186,
+      "beat_chords": [
+        "A",
+        "Em",
+        "A",
+        "A"
+      ],
+      "pattern": "A · Em · A · A"
+    },
+    {
+      "measure": 25,
+      "time_start": 64.87655328798186,
+      "time_end": 67.221768707483,
+      "beat_chords": [
+        "A",
+        "Dm",
+        "Dm",
+        "D"
+      ],
+      "pattern": "A · Dm · Dm · D"
+    },
+    {
+      "measure": 26,
+      "time_start": 67.221768707483,
+      "time_end": 69.5437641723356,
+      "beat_chords": [
+        "Gm",
+        "Gm",
+        "Gm",
+        "Gm"
+      ],
+      "pattern": "Gm · Gm · Gm · Gm"
+    },
+    {
+      "measure": 27,
+      "time_start": 69.5437641723356,
+      "time_end": 72.00507936507937,
+      "beat_chords": [
+        "Gm",
+        "Dm",
+        "Dm",
+        "Dm"
+      ],
+      "pattern": "Gm · Dm · Dm · Dm"
+    },
+    {
+      "measure": 28,
+      "time_start": 72.00507936507937,
+      "time_end": 74.41995464852607,
+      "beat_chords": [
+        "Em",
+        "Em",
+        "A",
+        "G"
+      ],
+      "pattern": "Em · Em · A · G"
+    },
+    {
+      "measure": 29,
+      "time_start": 74.41995464852607,
+      "time_end": 76.83482993197279,
+      "beat_chords": [
+        "Dm",
+        "Dm",
+        "Dm",
+        "D"
+      ],
+      "pattern": "Dm · Dm · Dm · D"
+    },
+    {
+      "measure": 30,
+      "time_start": 76.83482993197279,
+      "time_end": 79.27292517006802,
+      "beat_chords": [
+        "Gm",
+        "Gm",
+        "Gm",
+        "Gm"
+      ],
+      "pattern": "Gm · Gm · Gm · Gm"
+    },
+    {
+      "measure": 31,
+      "time_start": 79.27292517006802,
+      "time_end": 81.78068027210884,
+      "beat_chords": [
+        "Gm",
+        "Gm",
+        "Gm",
+        "Gm"
+      ],
+      "pattern": "Gm · Gm · Gm · Gm"
+    },
+    {
+      "measure": 32,
+      "time_start": 81.78068027210884,
+      "time_end": 84.12589569160998,
+      "beat_chords": [
+        "Dm",
+        "Dm",
+        "Dm",
+        "D"
+      ],
+      "pattern": "Dm · Dm · Dm · D"
+    },
+    {
+      "measure": 33,
+      "time_start": 84.12589569160998,
+      "time_end": 86.44789115646259,
+      "beat_chords": [
+        "Dm",
+        "Dm",
+        "Dm",
+        "Gm"
+      ],
+      "pattern": "Dm · Dm · Dm · Gm"
+    },
+    {
+      "measure": 34,
+      "time_start": 86.44789115646259,
+      "time_end": 88.79310657596372,
+      "beat_chords": [
+        "Em",
+        "Em",
+        "A",
+        "Em"
+      ],
+      "pattern": "Em · Em · A · Em"
+    },
+    {
+      "measure": 35,
+      "time_start": 88.79310657596372,
+      "time_end": 91.23120181405896,
+      "beat_chords": [
+        "Em",
+        "A",
+        "A",
+        "A"
+      ],
+      "pattern": "Em · A · A · A"
+    },
+    {
+      "measure": 36,
+      "time_start": 91.23120181405896,
+      "time_end": 93.5764172335601,
+      "beat_chords": [
+        "Dm",
+        "Dm",
+        "Dm",
+        "Dm"
+      ],
+      "pattern": "Dm · Dm · Dm · Dm"
+    },
+    {
+      "measure": 37,
+      "time_start": 93.5764172335601,
+      "time_end": 95.96807256235827,
+      "beat_chords": [
+        "Dm",
+        "D",
+        "D",
+        "D"
+      ],
+      "pattern": "Dm · D · D · D"
+    },
+    {
+      "measure": 38,
+      "time_start": 95.96807256235827,
+      "time_end": 98.26684807256235,
+      "beat_chords": [
+        "Gm",
+        "Gm",
+        "Gm",
+        "Gm"
+      ],
+      "pattern": "Gm · Gm · Gm · Gm"
+    },
+    {
+      "measure": 39,
+      "time_start": 98.26684807256235,
+      "time_end": 100.58884353741496,
+      "beat_chords": [
+        "Gm",
+        "Gm",
+        "Gm",
+        "Gm"
+      ],
+      "pattern": "Gm · Gm · Gm · Gm"
+    },
+    {
+      "measure": 40,
+      "time_start": 100.58884353741496,
+      "time_end": 102.91083900226758,
+      "beat_chords": [
+        "Dm",
+        "Dm",
+        "Dm",
+        "Dm"
+      ],
+      "pattern": "Dm · Dm · Dm · Dm"
+    },
+    {
+      "measure": 41,
+      "time_start": 102.91083900226758,
+      "time_end": 105.32571428571428,
+      "beat_chords": [
+        "Dm",
+        "Dm",
+        "Dm",
+        "Em"
+      ],
+      "pattern": "Dm · Dm · Dm · Em"
+    },
+    {
+      "measure": 42,
+      "time_start": 105.32571428571428,
+      "time_end": 107.740589569161,
+      "beat_chords": [
+        "A",
+        "A",
+        "Em",
+        "A"
+      ],
+      "pattern": "A · A · Em · A"
+    },
+    {
+      "measure": 43,
+      "time_start": 107.740589569161,
+      "time_end": 110.15546485260771,
+      "beat_chords": [
+        "A",
+        "A",
+        "A",
+        "Dm"
+      ],
+      "pattern": "A · A · A · Dm"
+    },
+    {
+      "measure": 44,
+      "time_start": 110.15546485260771,
+      "time_end": 112.5471201814059,
+      "beat_chords": [
+        "Dm",
+        "Dm",
+        "D",
+        "D"
+      ],
+      "pattern": "Dm · Dm · D · D"
+    },
+    {
+      "measure": 45,
+      "time_start": 112.5471201814059,
+      "time_end": 114.8691156462585,
+      "beat_chords": [
+        "Gm",
+        "Gm",
+        "Em",
+        "Gm"
+      ],
+      "pattern": "Gm · Gm · Em · Gm"
+    },
+    {
+      "measure": 46,
+      "time_start": 114.8691156462585,
+      "time_end": 117.26077097505669,
+      "beat_chords": [
+        "Gm",
+        "Em",
+        "G",
+        "Gm"
+      ],
+      "pattern": "Gm · Em · G · Gm"
+    },
+    {
+      "measure": 47,
+      "time_start": 117.26077097505669,
+      "time_end": 119.6756462585034,
+      "beat_chords": [
+        "Gm",
+        "Em",
+        "Em",
+        "Dm"
+      ],
+      "pattern": "Gm · Em · Em · Dm"
+    },
+    {
+      "measure": 48,
+      "time_start": 119.6756462585034,
+      "time_end": 122.09052154195011,
+      "beat_chords": [
+        "Dm",
+        "Am",
+        "Am",
+        "Dm"
+      ],
+      "pattern": "Dm · Am · Am · Dm"
+    },
+    {
+      "measure": 49,
+      "time_start": 122.09052154195011,
+      "time_end": 124.52861678004535,
+      "beat_chords": [
+        "Dm",
+        "Dm",
+        "Dm",
+        "A"
+      ],
+      "pattern": "Dm · Dm · Dm · A"
+    },
+    {
+      "measure": 50,
+      "time_start": 124.52861678004535,
+      "time_end": 126.96671201814058,
+      "beat_chords": [
+        "C#m",
+        "Gm",
+        "D",
+        "Em"
+      ],
+      "pattern": "C#m · Gm · D · Em"
+    },
+    {
+      "measure": 51,
+      "time_start": 126.96671201814058,
+      "time_end": 129.40480725623584,
+      "beat_chords": [
+        "Em",
+        "C#m",
+        "G",
+        "Dm"
+      ],
+      "pattern": "Em · C#m · G · Dm"
+    },
+    {
+      "measure": 52,
+      "time_start": 129.40480725623584,
+      "time_end": 131.86612244897958,
+      "beat_chords": [
+        "Dm",
+        "Am",
+        "Dm",
+        "Dm"
+      ],
+      "pattern": "Dm · Am · Dm · Dm"
+    },
+    {
+      "measure": 53,
+      "time_start": 131.86612244897958,
+      "time_end": 134.3738775510204,
+      "beat_chords": [
+        "G",
+        "Gm",
+        "G",
+        "A"
+      ],
+      "pattern": "G · Gm · G · A"
+    },
+    {
+      "measure": 54,
+      "time_start": 134.3738775510204,
+      "time_end": 136.81197278911566,
+      "beat_chords": [
+        "C#",
+        "D",
+        "D",
+        "Em"
+      ],
+      "pattern": "C# · D · D · Em"
+    },
+    {
+      "measure": 55,
+      "time_start": 136.81197278911566,
+      "time_end": 139.2732879818594,
+      "beat_chords": [
+        "Em",
+        "C#m",
+        "C#m",
+        "Dm"
+      ],
+      "pattern": "Em · C#m · C#m · Dm"
+    },
+    {
+      "measure": 56,
+      "time_start": 139.2732879818594,
+      "time_end": 141.73460317460317,
+      "beat_chords": [
+        "Dm",
+        "Am",
+        "Dm",
+        "Dm"
+      ],
+      "pattern": "Dm · Am · Dm · Dm"
+    },
+    {
+      "measure": 57,
+      "time_start": 141.73460317460317,
+      "time_end": 144.31201814058957,
+      "beat_chords": [
+        "Dm",
+        "Dm",
+        "Dm",
+        "Gm"
+      ],
+      "pattern": "Dm · Dm · Dm · Gm"
+    },
+    {
+      "measure": 58,
+      "time_start": 144.31201814058957,
+      "time_end": 146.9126530612245,
+      "beat_chords": [
+        "Gm",
+        "Gm",
+        "Gm",
+        "D"
+      ],
+      "pattern": "Gm · Gm · Gm · D"
+    },
+    {
+      "measure": 59,
+      "time_start": 146.9126530612245,
+      "time_end": 149.28108843537416,
+      "beat_chords": [
+        "Dm",
+        "D",
+        "Em",
+        "A"
+      ],
+      "pattern": "Dm · D · Em · A"
+    },
+    {
+      "measure": 60,
+      "time_start": 149.28108843537416,
+      "time_end": 151.6263038548753,
+      "beat_chords": [
+        "A",
+        "A",
+        "D",
+        "Dm"
+      ],
+      "pattern": "A · A · D · Dm"
+    },
+    {
+      "measure": 61,
+      "time_start": 151.6263038548753,
+      "time_end": 153.97151927437642,
+      "beat_chords": [
+        "Dm",
+        "D",
+        "Gm",
+        "Gm"
+      ],
+      "pattern": "Dm · D · Gm · Gm"
+    },
+    {
+      "measure": 62,
+      "time_start": 153.97151927437642,
+      "time_end": 156.29351473922904,
+      "beat_chords": [
+        "Gm",
+        "Gm",
+        "Dm",
+        "Dm"
+      ],
+      "pattern": "Gm · Gm · Dm · Dm"
+    },
+    {
+      "measure": 63,
+      "time_start": 156.29351473922904,
+      "time_end": 158.61551020408163,
+      "beat_chords": [
+        "Dm",
+        "D",
+        "Em",
+        "A"
+      ],
+      "pattern": "Dm · D · Em · A"
+    },
+    {
+      "measure": 64,
+      "time_start": 158.61551020408163,
+      "time_end": 160.93750566893425,
+      "beat_chords": [
+        "A",
+        "A",
+        "D",
+        "Dm"
+      ],
+      "pattern": "A · A · D · Dm"
+    },
+    {
+      "measure": 65,
+      "time_start": 160.93750566893425,
+      "time_end": 163.25950113378684,
+      "beat_chords": [
+        "Dm",
+        "D",
+        "Gm",
+        "Gm"
+      ],
+      "pattern": "Dm · D · Gm · Gm"
+    },
+    {
+      "measure": 66,
+      "time_start": 163.25950113378684,
+      "time_end": 165.58149659863946,
+      "beat_chords": [
+        "Gm",
+        "Gm",
+        "D",
+        "Dm"
+      ],
+      "pattern": "Gm · Gm · D · Dm"
+    },
+    {
+      "measure": 67,
+      "time_start": 165.58149659863946,
+      "time_end": 167.90349206349205,
+      "beat_chords": [
+        "Dm",
+        "D",
+        "Em",
+        "Em"
+      ],
+      "pattern": "Dm · D · Em · Em"
+    },
+    {
+      "measure": 68,
+      "time_start": 167.90349206349205,
+      "time_end": 170.22548752834467,
+      "beat_chords": [
+        "A",
+        "A",
+        "D",
+        "Dm"
+      ],
+      "pattern": "A · A · D · Dm"
+    },
+    {
+      "measure": 69,
+      "time_start": 170.22548752834467,
+      "time_end": 172.5474829931973,
+      "beat_chords": [
+        "Dm",
+        "Dm",
+        "G",
+        "Gm"
+      ],
+      "pattern": "Dm · Dm · G · Gm"
+    },
+    {
+      "measure": 70,
+      "time_start": 172.5474829931973,
+      "time_end": 174.86947845804988,
+      "beat_chords": [
+        "Gm",
+        "Gm",
+        "D",
+        "Dm"
+      ],
+      "pattern": "Gm · Gm · D · Dm"
+    },
+    {
+      "measure": 71,
+      "time_start": 174.86947845804988,
+      "time_end": 177.1914739229025,
+      "beat_chords": [
+        "Dm",
+        "Dm",
+        "A",
+        "Em"
+      ],
+      "pattern": "Dm · Dm · A · Em"
+    },
+    {
+      "measure": 72,
+      "time_start": 177.1914739229025,
+      "time_end": 179.49024943310658,
+      "beat_chords": [
+        "A",
+        "A",
+        "A",
+        "Dm"
+      ],
+      "pattern": "A · A · A · Dm"
+    }
+  ],
+  "harmonic_motifs": [
+    {
+      "a_measure_start": 6,
+      "a_measure_end": 11,
+      "b_measure_start": 38,
+      "b_measure_end": 43,
+      "length": 6,
+      "harmonic_score": 0.75
+    }
+  ],
+  "visual_blocks": [
+    {
+      "cluster": "A",
+      "measure_start": 1,
+      "measure_end": 5,
+      "time_start": 0.0,
+      "time_end": 19.388662131519276,
+      "lyrics": "Tendre la neige, tu ne viendras pas ce soir Tendre la neige et mon cœur s 'habille de moi Ce soyeux",
+      "chord_patterns": [
+        "A · A · A · A",
+        "A · A · Em · Em",
+        "A · Gm · A · A",
+        "A · A · D · Dm",
+        "Dm · Dm · D · Dm"
+      ],
+      "visual_only": true
+    },
+    {
+      "cluster": "B",
+      "measure_start": 6,
+      "measure_end": 37,
+      "time_start": 19.388662131519276,
+      "time_end": 95.96807256235827,
+      "lyrics": "soyeux cortège, tout en larmes blanches Loiseaux sur la branche, fleur le sort il est jeu Tu ne viendras pas ce soir, crie mon désespoir Mets -t -on de la neige, impassible ma neige Loiseaux sur Tendre la neige, tu ne viendras pas ce soir Tendre la neige, tout est blanc, tu désespoir Riste certitude,",
+      "chord_patterns": [
+        "Gm · Gm · Gm · Gm",
+        "Gm · Gm · Gm · Gm",
+        "Gm · Gm · Dm · Dm",
+        "Dm · Dm · Dm · Dm",
+        "Dm · Em · Em · A",
+        "A · A · A · A",
+        "A · Dm · Dm · Dm",
+        "Gm · D · Gm · G",
+        "Gm · G · Gm · Gm",
+        "Em · Gm · Gm · Em",
+        "Em · Dm · Dm · Am",
+        "Am · Dm · Dm · Dm",
+        "Dm · A · A · Gm",
+        "Gm · Em · A · A",
+        "A · Dm · Dm · Am",
+        "Am · Dm · C · C",
+        "Em · Gm · Gm · Bb",
+        "Gm · Dm · Dm · Dm",
+        "A · Em · A · A",
+        "A · Dm · Dm · D",
+        "Gm · Gm · Gm · Gm",
+        "Gm · Dm · Dm · Dm",
+        "Em · Em · A · G",
+        "Dm · Dm · Dm · D",
+        "Gm · Gm · Gm · Gm",
+        "Gm · Gm · Gm · Gm",
+        "Dm · Dm · Dm · D",
+        "Dm · Dm · Dm · Gm",
+        "Em · Em · A · Em",
+        "Em · A · A · A",
+        "Dm · Dm · Dm · Dm",
+        "Dm · D · D · D"
+      ],
+      "visual_only": true
+    },
+    {
+      "cluster": "C",
+      "measure_start": 38,
+      "measure_end": 72,
+      "time_start": 95.96807256235827,
+      "time_end": 179.49024943310658,
+      "lyrics": "certitude, le froid est l 'absence C 'est odieux, silence, blanche solitude Tu ne viendras pas ce soir, ne crie mon désespoir Mets -t -on de la neige, impassible ma neige Mets -t -on de la neige, impassible ma neige La la la la, la la la la la La la la",
+      "chord_patterns": [
+        "Gm · Gm · Gm · Gm",
+        "Gm · Gm · Gm · Gm",
+        "Dm · Dm · Dm · Dm",
+        "Dm · Dm · Dm · Em",
+        "A · A · Em · A",
+        "A · A · A · Dm",
+        "Dm · Dm · D · D",
+        "Gm · Gm · Em · Gm",
+        "Gm · Em · G · Gm",
+        "Gm · Em · Em · Dm",
+        "Dm · Am · Am · Dm",
+        "Dm · Dm · Dm · A",
+        "C#m · Gm · D · Em",
+        "Em · C#m · G · Dm",
+        "Dm · Am · Dm · Dm",
+        "G · Gm · G · A",
+        "C# · D · D · Em",
+        "Em · C#m · C#m · Dm",
+        "Dm · Am · Dm · Dm",
+        "Dm · Dm · Dm · Gm",
+        "Gm · Gm · Gm · D",
+        "Dm · D · Em · A",
+        "A · A · D · Dm",
+        "Dm · D · Gm · Gm",
+        "Gm · Gm · Dm · Dm",
+        "Dm · D · Em · A",
+        "A · A · D · Dm",
+        "Dm · D · Gm · Gm",
+        "Gm · Gm · D · Dm",
+        "Dm · D · Em · Em",
+        "A · A · D · Dm",
+        "Dm · Dm · G · Gm",
+        "Gm · Gm · D · Dm",
+        "Dm · Dm · A · Em",
+        "A · A · A · Dm"
+      ],
+      "visual_only": true
+    }
+  ],
+  "lyrics_source": "original",
+  "timebase": "original_audio_seconds"
+}
