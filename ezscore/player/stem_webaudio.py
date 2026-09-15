@@ -141,137 +141,108 @@ _PLAYER_HTML = """
 
   <input class="seek" type="range" min="0" max="1" step="0.001" value="0">
 
+  <div class="mixer-head">
+    <div>Piste</div><div>ON</div><div>Volume</div>
+    <div>Graves</div><div>Médiums</div><div>Aigus</div><div></div>
+  </div>
   <div class="tracks"></div>
+
+  <div class="master-row">
+    <div class="master-name">Master</div>
+    <div class="master-value">100%</div>
+    <input class="master-volume" type="range" min="0" max="1.25" step="0.01" value="1">
+  </div>
 
   <div class="lyrics-wrap">
     <div class="lyrics-title">Paroles synchronisées</div>
-    <div class="lyrics-strip">
-      <div class="lyrics-track"></div>
-    </div>
+    <div class="lyrics-strip"><div class="lyrics-track"></div></div>
   </div>
 
   <div class="hint">
-    WebAudio : une horloge unique pour toutes les pistes. Aucun micro-seek pendant la lecture.
+    WebAudio : horloge unique · ON/OFF, volume et EQ 3 bandes en temps réel.
   </div>
 </div>
 """
 
 _PLAYER_CSS = """
-:host {
-  display:block;
-  width:100%;
-}
+:host { display:block; width:100%; }
 .stem-player {
-  box-sizing:border-box;
-  width:100%;
+  box-sizing:border-box; width:100%;
   border:1px solid color-mix(in srgb, var(--st-text-color) 25%, transparent);
-  border-radius:10px;
-  padding:12px;
+  border-radius:10px; padding:12px;
   background:color-mix(in srgb, var(--st-text-color) 4%, transparent);
-  color:var(--st-text-color);
-  font-family:var(--st-font);
+  color:var(--st-text-color); font-family:var(--st-font);
 }
-.transport {
-  display:flex;
-  align-items:center;
-  gap:8px;
-  flex-wrap:wrap;
-}
-.transport button {
-  min-height:34px;
-  border-radius:7px;
+.transport { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.transport button, .eq-reset {
+  min-height:30px; border-radius:7px;
   border:1px solid color-mix(in srgb, var(--st-text-color) 35%, transparent);
   background:color-mix(in srgb, var(--st-text-color) 8%, transparent);
-  color:var(--st-text-color);
-  cursor:pointer;
-  padding:5px 10px;
+  color:var(--st-text-color); cursor:pointer; padding:4px 8px;
 }
-.time {
-  margin-left:auto;
-  font-variant-numeric:tabular-nums;
-  font-size:12px;
-  opacity:.75;
-}
-.seek {
-  width:100%;
-  margin:10px 0 12px;
-}
-.tracks {
+.time { margin-left:auto; font-variant-numeric:tabular-nums; font-size:12px; opacity:.75; }
+.seek { width:100%; margin:10px 0 14px; }
+
+.mixer-head, .track {
   display:grid;
-  gap:8px;
+  grid-template-columns:minmax(82px,1.2fr) 52px minmax(110px,1.3fr)
+                        minmax(90px,1fr) minmax(90px,1fr) minmax(90px,1fr) 64px;
+  gap:8px; align-items:center;
 }
+.mixer-head { font-size:11px; font-weight:800; opacity:.65; padding:0 4px 5px; }
+.tracks { display:grid; gap:6px; }
 .track {
-  display:grid;
-  grid-template-columns:minmax(90px, 130px) 74px 1fr;
-  gap:10px;
-  align-items:center;
+  padding:7px 4px;
+  border-top:1px solid color-mix(in srgb, var(--st-text-color) 12%, transparent);
 }
-.track-name {
-  font-weight:700;
+.track-name { font-weight:800; }
+.track-toggle { display:flex; align-items:center; gap:5px; font-size:11px; }
+
+.control-cell { display:grid; grid-template-columns:1fr auto; gap:5px; align-items:center; }
+.control-cell input[type="range"] { width:100%; min-width:0; }
+.control-value {
+  width:42px; text-align:right; font-size:10px; opacity:.72;
+  font-variant-numeric:tabular-nums;
 }
-.track-toggle {
-  display:flex;
-  align-items:center;
-  gap:5px;
-  font-size:12px;
-}
-.track input[type="range"] {
-  width:100%;
-}
-.lyrics-wrap {
-  margin-top:14px;
-  padding-top:10px;
+.eq-reset { font-size:10px; }
+
+.master-row {
+  display:grid; grid-template-columns:82px 48px 1fr;
+  gap:8px; align-items:center; margin-top:12px; padding-top:10px;
   border-top:1px solid color-mix(in srgb, var(--st-text-color) 18%, transparent);
 }
-.lyrics-title {
-  font-size:12px;
-  font-weight:700;
-  opacity:.8;
-  margin-bottom:6px;
+.master-name { font-weight:900; }
+.master-value { font-size:11px; opacity:.75; font-variant-numeric:tabular-nums; }
+.master-volume { width:100%; }
+
+.lyrics-wrap {
+  margin-top:14px; padding-top:10px;
+  border-top:1px solid color-mix(in srgb, var(--st-text-color) 18%, transparent);
 }
+.lyrics-title { font-size:12px; font-weight:700; opacity:.8; margin-bottom:6px; }
 .lyrics-strip {
-  position:relative;
-  overflow:hidden;
-  min-height:62px;
-  border-radius:8px;
+  position:relative; overflow:hidden; min-height:62px; border-radius:8px;
   background:color-mix(in srgb, var(--st-text-color) 5%, transparent);
 }
 .lyrics-track {
-  position:absolute;
-  left:50%;
-  top:50%;
-  transform:translate(0,-50%);
-  white-space:nowrap;
-  transition:transform 80ms linear;
+  position:absolute; left:50%; top:50%; transform:translate(0,-50%);
+  white-space:nowrap; transition:transform 80ms linear;
 }
 .lyric-word {
-  display:inline-block;
-  margin:0 5px;
-  font-size:18px;
-  opacity:.30;
+  display:inline-block; margin:0 5px; font-size:18px; opacity:.30;
   transition:opacity 80ms linear, transform 80ms linear;
 }
-.lyric-word.past {
-  opacity:.48;
-}
-.lyric-word.current {
-  opacity:1;
-  font-weight:800;
-  transform:scale(1.08);
-}
-.hint {
-  margin-top:10px;
-  font-size:11px;
-  opacity:.68;
-}
-@media(max-width:650px) {
-  .track {
-    grid-template-columns:1fr;
-  }
-  .time {
-    width:100%;
-    margin-left:0;
-  }
+.lyric-word.past { opacity:.48; }
+.lyric-word.current { opacity:1; font-weight:800; transform:scale(1.08); }
+.hint { margin-top:10px; font-size:11px; opacity:.68; }
+
+@media(max-width:950px) {
+  .mixer-head { display:none; }
+  .track { grid-template-columns:1fr 58px; }
+  .track-name { grid-column:1; }
+  .track-toggle { grid-column:2; justify-self:end; }
+  .control-cell, .eq-reset { grid-column:1 / -1; }
+  .eq-reset { justify-self:start; }
 }
 """
 
@@ -286,6 +257,8 @@ export default function(component) {
   const seek = root.querySelector(".seek");
   const timeLabel = root.querySelector(".time");
   const tracksNode = root.querySelector(".tracks");
+  const masterVolume = root.querySelector(".master-volume");
+  const masterValue = root.querySelector(".master-value");
   const lyricsWrap = root.querySelector(".lyrics-wrap");
   const lyricsStrip = root.querySelector(".lyrics-strip");
   const lyricsTrack = root.querySelector(".lyrics-track");
@@ -293,9 +266,20 @@ export default function(component) {
   const defs = Array.isArray(data.tracks) ? data.tracks : [];
   const words = Array.isArray(data.words) ? data.words : [];
 
+  // Authoritative UI state exists before any AudioContext/node creation.
+  const trackState = defs.map((track) => ({
+    enabled: Boolean(track.enabled),
+    volume: Number(track.volume ?? 0.8),
+    low: Number(track.low ?? 0),
+    mid: Number(track.mid ?? 0),
+    high: Number(track.high ?? 0),
+  }));
+  let masterState = 1.0;
+
   let context = null;
   let decoded = [];
-  let gains = [];
+  let trackNodes = [];
+  let masterGain = null;
   let sources = [];
   let ready = false;
   let playing = false;
@@ -309,8 +293,8 @@ export default function(component) {
   function fmt(seconds) {
     seconds = Math.max(0, Number(seconds) || 0);
     const m = Math.floor(seconds / 60);
-    const s = Math.floor(seconds % 60);
-    return m + ":" + String(s).padStart(2, "0");
+    const sec = Math.floor(seconds % 60);
+    return m + ":" + String(sec).padStart(2, "0");
   }
 
   function currentTime() {
@@ -321,10 +305,35 @@ export default function(component) {
   function decodeBase64(base64) {
     const binary = atob(base64);
     const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) {
-      bytes[i] = binary.charCodeAt(i);
-    }
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
     return bytes.buffer;
+  }
+
+  function applyTrackState(index, smooth = true) {
+    if (!ready || !trackNodes[index] || !context) return;
+    const state = trackState[index];
+    const nodes = trackNodes[index];
+    const now = context.currentTime;
+    const target = state.enabled ? state.volume : 0;
+
+    if (smooth) {
+      nodes.gain.gain.setTargetAtTime(target, now, 0.015);
+      nodes.low.gain.setTargetAtTime(state.low, now, 0.015);
+      nodes.mid.gain.setTargetAtTime(state.mid, now, 0.015);
+      nodes.high.gain.setTargetAtTime(state.high, now, 0.015);
+    } else {
+      nodes.gain.gain.value = target;
+      nodes.low.gain.value = state.low;
+      nodes.mid.gain.value = state.mid;
+      nodes.high.gain.value = state.high;
+    }
+  }
+
+  function applyMasterState(smooth = true) {
+    if (!ready || !masterGain || !context) return;
+    const now = context.currentTime;
+    if (smooth) masterGain.gain.setTargetAtTime(masterState, now, 0.015);
+    else masterGain.gain.value = masterState;
   }
 
   async function ensureReady() {
@@ -336,31 +345,53 @@ export default function(component) {
     playButton.disabled = true;
     playButton.textContent = "Chargement audio…";
 
-    context = new (window.AudioContext || window.webkitAudioContext)({
-      latencyHint: "interactive"
-    });
+    context = new (window.AudioContext || window.webkitAudioContext)({latencyHint:"interactive"});
+    masterGain = context.createGain();
+    masterGain.gain.value = masterState;
+    masterGain.connect(context.destination);
 
     decoded = [];
-    gains = [];
+    trackNodes = [];
 
     for (let i = 0; i < defs.length; i += 1) {
-      const buffer = await context.decodeAudioData(
-        decodeBase64(String(defs[i].base64 || ""))
-      );
+      const buffer = await context.decodeAudioData(decodeBase64(String(defs[i].base64 || "")));
       decoded.push(buffer);
 
-      const gain = context.createGain();
-      gain.gain.value = defs[i].enabled ? Number(defs[i].volume ?? 0.8) : 0;
-      gain.connect(context.destination);
-      gains.push(gain);
+      const low = context.createBiquadFilter();
+      low.type = "lowshelf";
+      low.frequency.value = 180;
+      low.gain.value = trackState[i].low;
 
-      if (i === 0) {
-        duration = Number(buffer.duration || 0);
-      }
+      const mid = context.createBiquadFilter();
+      mid.type = "peaking";
+      mid.frequency.value = 1200;
+      mid.Q.value = 0.9;
+      mid.gain.value = trackState[i].mid;
+
+      const high = context.createBiquadFilter();
+      high.type = "highshelf";
+      high.frequency.value = 5000;
+      high.gain.value = trackState[i].high;
+
+      const gain = context.createGain();
+      gain.gain.value = trackState[i].enabled ? trackState[i].volume : 0;
+
+      low.connect(mid);
+      mid.connect(high);
+      high.connect(gain);
+      gain.connect(masterGain);
+
+      trackNodes.push({low, mid, high, gain});
+      if (i === 0) duration = Number(buffer.duration || 0);
     }
 
     seek.max = String(Math.max(0.001, duration));
     ready = true;
+
+    // Re-apply latest UI state after decoding, fixing pre-play mute/volume races.
+    trackState.forEach((_, i) => applyTrackState(i, false));
+    applyMasterState(false);
+
     playButton.disabled = false;
     playButton.textContent = "▶ Lecture";
   }
@@ -375,13 +406,12 @@ export default function(component) {
 
   function startSources(offset) {
     stopSources();
-
     const when = context.currentTime + 0.030;
+
     sources = decoded.map((buffer, index) => {
       const source = context.createBufferSource();
       source.buffer = buffer;
-      source.connect(gains[index]);
-
+      source.connect(trackNodes[index].low);
       const safeOffset = Math.max(
         0,
         Math.min(Number(offset) || 0, Math.max(0, buffer.duration - 0.001))
@@ -399,10 +429,7 @@ export default function(component) {
     await ensureReady();
     if (context.state === "suspended") await context.resume();
     if (playing) return;
-
-    if (position >= duration - 0.01) {
-      position = 0;
-    }
+    if (position >= duration - 0.01) position = 0;
     startSources(position);
   }
 
@@ -429,6 +456,38 @@ export default function(component) {
     renderLyrics(t);
   }
 
+  function makeSlider(index, field, min, max, step, suffix) {
+    const wrap = document.createElement("div");
+    wrap.className = "control-cell";
+
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = String(min);
+    slider.max = String(max);
+    slider.step = String(step);
+    slider.value = String(trackState[index][field]);
+
+    const value = document.createElement("span");
+    value.className = "control-value";
+
+    function renderValue() {
+      const v = Number(slider.value);
+      value.textContent = suffix === "dB"
+        ? ((v > 0 ? "+" : "") + v.toFixed(0) + " dB")
+        : (Math.round(v * 100) + "%");
+    }
+
+    slider.addEventListener("input", () => {
+      trackState[index][field] = Number(slider.value);
+      renderValue();
+      applyTrackState(index, true);
+    });
+
+    renderValue();
+    wrap.append(slider, value);
+    return {wrap, slider, value};
+  }
+
   defs.forEach((track, index) => {
     const row = document.createElement("div");
     row.className = "track";
@@ -439,39 +498,47 @@ export default function(component) {
 
     const toggleWrap = document.createElement("label");
     toggleWrap.className = "track-toggle";
-
     const toggle = document.createElement("input");
     toggle.type = "checkbox";
-    toggle.checked = Boolean(track.enabled);
-
+    toggle.checked = trackState[index].enabled;
     const toggleText = document.createElement("span");
     toggleText.textContent = "Actif";
-
+    toggle.addEventListener("change", () => {
+      trackState[index].enabled = Boolean(toggle.checked);
+      applyTrackState(index, true);
+    });
     toggleWrap.append(toggle, toggleText);
 
-    const volume = document.createElement("input");
-    volume.type = "range";
-    volume.min = "0";
-    volume.max = "1";
-    volume.step = "0.01";
-    volume.value = String(
-      track.volume === undefined ? 0.8 : Number(track.volume)
-    );
+    const volume = makeSlider(index, "volume", 0, 1.25, 0.01, "%");
+    const low = makeSlider(index, "low", -12, 12, 1, "dB");
+    const mid = makeSlider(index, "mid", -12, 12, 1, "dB");
+    const high = makeSlider(index, "high", -12, 12, 1, "dB");
 
-    toggle.addEventListener("change", () => {
-      if (ready && gains[index]) {
-        gains[index].gain.value = toggle.checked ? Number(volume.value) : 0;
-      }
+    const reset = document.createElement("button");
+    reset.type = "button";
+    reset.className = "eq-reset";
+    reset.textContent = "Reset EQ";
+    reset.addEventListener("click", () => {
+      trackState[index].low = 0;
+      trackState[index].mid = 0;
+      trackState[index].high = 0;
+      low.slider.value = "0";
+      mid.slider.value = "0";
+      high.slider.value = "0";
+      low.value.textContent = "0 dB";
+      mid.value.textContent = "0 dB";
+      high.value.textContent = "0 dB";
+      applyTrackState(index, true);
     });
 
-    volume.addEventListener("input", () => {
-      if (ready && gains[index] && toggle.checked) {
-        gains[index].gain.value = Number(volume.value);
-      }
-    });
-
-    row.append(name, toggleWrap, volume);
+    row.append(name, toggleWrap, volume.wrap, low.wrap, mid.wrap, high.wrap, reset);
     tracksNode.appendChild(row);
+  });
+
+  masterVolume.addEventListener("input", () => {
+    masterState = Number(masterVolume.value);
+    masterValue.textContent = Math.round(masterState * 100) + "%";
+    applyMasterState(true);
   });
 
   const lyricNodes = words.map((word) => {
@@ -481,24 +548,16 @@ export default function(component) {
     lyricsTrack.appendChild(span);
     return span;
   });
-
-  if (!words.length) {
-    lyricsWrap.style.display = "none";
-  }
+  if (!words.length) lyricsWrap.style.display = "none";
 
   function findWordIndex(time) {
     if (!words.length) return -1;
-    let low = 0;
-    let high = words.length - 1;
-    let answer = 0;
+    let low = 0, high = words.length - 1, answer = 0;
     while (low <= high) {
       const middle = (low + high) >> 1;
       if (Number(words[middle].start || 0) <= time) {
-        answer = middle;
-        low = middle + 1;
-      } else {
-        high = middle - 1;
-      }
+        answer = middle; low = middle + 1;
+      } else high = middle - 1;
     }
     return answer;
   }
@@ -523,14 +582,8 @@ export default function(component) {
 
     if (next) {
       const start = Number(words[index].start || 0);
-      const nextStart = Math.max(
-        start + 0.04,
-        Number(words[index + 1].start || start + 0.5)
-      );
-      const progress = Math.max(
-        0,
-        Math.min(1, (time - start) / (nextStart - start))
-      );
+      const nextStart = Math.max(start + 0.04, Number(words[index + 1].start || start + 0.5));
+      const progress = Math.max(0, Math.min(1, (time - start) / (nextStart - start)));
       const nextCenter = next.offsetLeft + next.offsetWidth / 2;
       targetCenter = currentCenter + (nextCenter - currentCenter) * progress;
     }
@@ -541,16 +594,11 @@ export default function(component) {
 
   function tick() {
     if (disposed) return;
-
     const t = currentTime();
     seek.value = String(t);
     timeLabel.textContent = fmt(t) + " / " + fmt(duration);
     renderLyrics(t);
-
-    if (playing && t >= duration - 0.01) {
-      stopAll();
-    }
-
+    if (playing && t >= duration - 0.01) stopAll();
     raf = requestAnimationFrame(tick);
   }
 
@@ -565,9 +613,7 @@ export default function(component) {
     disposed = true;
     if (raf !== null) cancelAnimationFrame(raf);
     stopSources();
-    try {
-      if (context) context.close();
-    } catch (_) {}
+    try { if (context) context.close(); } catch (_) {}
   };
 }
 """
@@ -612,6 +658,9 @@ def render_player(
             "base64": base64.b64encode(preview.read_bytes()).decode("ascii"),
             "enabled": enabled,
             "volume": volume,
+            "low": 0.0,
+            "mid": 0.0,
+            "high": 0.0,
             "source_bytes": int(path.stat().st_size),
             "preview_bytes": int(preview.stat().st_size),
         })

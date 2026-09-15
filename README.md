@@ -1,93 +1,56 @@
-# EZScore — STEM pipeline R4 / lecteur WebAudio complet
+# EZScore — STEM pipeline R5 / EQ 3 bandes
 
-Branche cible :
+Branche cible : `feature/stem-analysis-pipeline`
 
-```text
-feature/stem-analysis-pipeline
-```
-
-R4 corrige le manque principal de R3 : le lecteur est désormais le même
-workflow WebAudio que dans `EZScore_STEM_LAB`.
-
-## Lecteur
-
-Le bloc **Lecteur synchronisé** contient :
+R5 ajoute une mini-table de mixage WebAudio par piste :
 
 ```text
-▶ Lecture
-⏸ Pause
-⏹ Stop
-seek
-
-Original   [✓ Actif] [volume]
-Chant      [✓ Actif] [volume]
-Batterie   [  Actif] [volume]
-Basse      [  Actif] [volume]
-Other      [  Actif] [volume]
-
-Paroles synchronisées
+Piste | ON | Volume | Graves | Médiums | Aigus | Reset EQ
 ```
 
-Un seul `AudioContext` pilote toutes les pistes.
+Pistes :
+- Original
+- Chant
+- Batterie
+- Basse
+- Other
 
-Les stems démarrent au même `when` WebAudio et au même offset. Il n'y a pas de
-micro-seek permanent pendant la lecture.
-
-Les pistes sont activables/désactivables en temps réel et chaque piste a son
-propre `GainNode`.
-
-## Préviews navigateur
-
-Les WAV Demucs restent intacts.
-
-Pour éviter de transférer plusieurs centaines de Mo au navigateur, le player
-fabrique/cache des copies MP3 96 kb/s dans :
+EQ WebAudio par piste :
 
 ```text
-data/analysis/stem_lab/<audio_hash>/browser_preview/
+BufferSource
+→ lowshelf 180 Hz
+→ peaking 1.2 kHz / Q 0.9
+→ highshelf 5 kHz
+→ Gain piste
+→ Master Gain
+→ sortie
 ```
 
-L'original MP3 est copié sans transcodage lorsqu'il est déjà en MP3.
+Plage EQ : `-12 dB` à `+12 dB`, neutre à `0 dB`.
 
-## Paroles dans le lecteur
+Volumes piste : `0 à 125 %`.
+Master global : `0 à 125 %`.
 
-Si Whisper `small` a déjà été lancé sur l'audio original, les mots horodatés
-sont affichés/surlignés dans le lecteur.
+R5 corrige aussi l'état ON/OFF avant la première lecture : l'état du mixer est
+stocké en JavaScript avant la création de l'AudioContext puis réappliqué après
+le décodage. Une piste coupée avant Lecture reste donc réellement muette.
 
-Le player est reconstruit après transcription grâce à une clé contenant le
-nombre de mots.
+Tous les changements ON/OFF, volume et EQ sont appliqués en temps réel avec
+`setTargetAtTime()` sans recréer les sources.
 
-## Workflow inchangé
-
-```text
-Original → Whisper small → paroles
-vocals   → mélodie / F0
-drums    → tempo / beats / mesures
-bass     → fondamentale auxiliaire
-other    → harmonie / accords
-```
-
-Audio original = horloge maître.
-
-## Installation
-
-Dézipper directement dans `H:\EZScore`, sans dossier intermédiaire.
+Installation :
 
 ```powershell
 cd H:\EZScore
 python -m py_compile .\ezscore\analysis\stems.py
+python -m py_compile .\ezscore\player\stem_webaudio.py
 python -m py_compile .\ezscore\ui\app_shell.py
 python -m py_compile .\ezscore\ui\stem_lab_analysis.py
-python -m py_compile .\ezscore\player\stem_webaudio.py
 git status --short
 ```
 
-Ne pas ajouter au commit :
+Ne pas ajouter : `data/EZScore.sqlite3`, `data/logs/ezscore_perf.log`,
+`data/analysis/`.
 
-```text
-data/EZScore.sqlite3
-data/logs/ezscore_perf.log
-data/analysis/
-```
-
-L'utilisateur effectue lui-même commit et push.
+L'utilisateur effectue lui-même commit/push.
