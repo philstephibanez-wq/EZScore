@@ -3,7 +3,7 @@
   "model": "small",
   "source": "original",
   "language": "fr",
-  "text": "Tendre la neige, tu ne viendras pas ce soir Tendre la neige et mon cœur s'habille de moi Ce soyeux cortège, tout en larmes blanches Loiseaux sur la branche, fleur le sort il est jeu Tu ne viendras pas ce soir, crie mon désespoir Mets-t-on de la neige, impassible ma neige Loiseaux sur la branche, fleur le sort il est jeu Tendre la neige, tu ne viendras pas ce soir Tendre la neige, tout est blanc, tu désespoir Riste certitude, le froid est l'absence C'est odieux, silence, blanche solitude Tu ne viendras pas ce soir, ne crie mon désespoir Mets-t-on de la neige, impassible ma neige Mets-t-on de la neige, impassible ma neige La la la la, la la la la la La la la la",
+  "text": "Tendre la neige, tu ne viendras pas ce soir Tendre la neige et mon cœur s'habille de moi Ce soyeux cortège, tout en larmes blanches Loiseaux sur la branche, fleur le sort il est jeu Tu ne viendras pas ce soir, crie mon désespoir Mets-t-on de la neige, impassible ma neige Loiseaux sur la branche, fleur le sort il est jeu Tendre la neige, tu ne viendras pas ce soir Tendre la neige, tout est blanc, tu désespoir Riste certitude, le froid est l'absence C'est odieux, silence, blanche solitude Tu ne viendras pas ce soir, ne crie mon désespoir Mets-t-on de la neige, impassible ma neige Mets-t-on de la neige, impassible ma neige La la la la la la la la la la La la la la la la la la... ...",
   "words": [
     {
       "start": 0.0,
@@ -576,57 +576,62 @@
       "text": "neige"
     },
     {
-      "start": 143.16,
-      "end": 144.56,
+      "start": 143.54000000000002,
+      "end": 144.74,
       "text": "La"
     },
     {
-      "start": 144.56,
-      "end": 145.96,
+      "start": 144.74,
+      "end": 145.94,
       "text": "la"
     },
     {
-      "start": 145.96,
+      "start": 145.94,
       "end": 146.78,
       "text": "la"
     },
     {
       "start": 146.78,
       "end": 147.4,
-      "text": "la,"
+      "text": "la"
     },
     {
       "start": 147.4,
-      "end": 148.12,
+      "end": 147.96,
       "text": "la"
     },
     {
-      "start": 148.12,
-      "end": 148.56,
+      "start": 147.96,
+      "end": 148.2,
       "text": "la"
     },
     {
-      "start": 148.56,
-      "end": 149.36,
+      "start": 148.2,
+      "end": 148.78,
       "text": "la"
     },
     {
-      "start": 149.36,
-      "end": 149.46,
+      "start": 148.78,
+      "end": 149.96,
       "text": "la"
     },
     {
-      "start": 149.46,
-      "end": 150.46,
+      "start": 149.96,
+      "end": 150.4,
       "text": "la"
     },
     {
-      "start": 150.46,
+      "start": 150.4,
       "end": 150.54,
-      "text": "La"
+      "text": "la"
     },
     {
       "start": 150.54,
+      "end": 150.64,
+      "text": "La"
+    },
+    {
+      "start": 150.64,
       "end": 150.92,
       "text": "la"
     },
@@ -634,6 +639,36 @@
       "start": 150.92,
       "end": 151.12,
       "text": "la"
+    },
+    {
+      "start": 151.12,
+      "end": 151.14,
+      "text": "la"
+    },
+    {
+      "start": 151.14,
+      "end": 155.18,
+      "text": "la"
+    },
+    {
+      "start": 155.18,
+      "end": 156.26,
+      "text": "la"
+    },
+    {
+      "start": 156.26,
+      "end": 157.36,
+      "text": "la"
+    },
+    {
+      "start": 157.36,
+      "end": 172.54,
+      "text": "la..."
+    },
+    {
+      "start": 180.82,
+      "end": 182.22,
+      "text": "..."
     }
   ]
 }
