@@ -1,180 +1,97 @@
-# EZScore — branche `feature/vocal-midi-analysis`
+# EZScore — feature/vocal-midi-analysis — lecteur 3 pistes
 
-Base de départ :
-
-```text
-master validé : 4e325e796ab32b4483127b395b1345c865fa3578
-branche       : feature/vocal-midi-analysis
-```
-
-Cette livraison est volontairement expérimentale et additive.
-
-## Objectif
-
-Ajouter une quatrième timeline primaire indépendante :
+Branche cible obligatoire :
 
 ```text
-audio original
-  ├─ accords
-  ├─ paroles
-  ├─ phonèmes
-  └─ hauteur vocale / notes chantées
+feature/vocal-midi-analysis
 ```
 
-Puis utiliser la mélodie chantée comme **signal secondaire** pour affiner la
-proposition de blocs, sans jamais modifier les timestamps des autres timelines.
+## Lecteur d'analyse
 
-## Analyse vocale
-
-Nouveau module :
+Le lecteur joue désormais, sur la même horloge MP3 :
 
 ```text
-ezscore/analysis/vocal.py
+MP3 original
++ MIDI accords
++ MIDI chant
 ```
 
-Pipeline :
+Volumes indépendants :
 
 ```text
-audio
- -> Demucs vocals si disponible
- -> sinon fallback sur le mix
- -> librosa.pyin
- -> F0
- -> quantification en notes MIDI
- -> segmentation temporelle
- -> cache JSON
+Volume chanson
+Volume accords MIDI
+Volume chant MIDI
 ```
 
-Cache :
+Le chant MIDI n'est actif que si une analyse vocale persistée existe.
+
+## Instrument du chant
+
+Sélecteur dédié :
 
 ```text
-data/analysis/vocal_pitch/<audio_hash>.json
+Instrument du chant MIDI
 ```
 
-Le cache est séparé de la DB et n'altère aucune analyse existante.
-
-## MIDI du chant
-
-Dans :
+Choix :
 
 ```text
-Analyse > Comparaison audio / accords
+Alto Sax
+Tenor Sax
+Soprano Sax
+Baritone Sax
+Voice Oohs
+Acoustic Grand Piano
 ```
 
-un nouveau bloc apparaît :
+Valeur par défaut :
 
 ```text
-🎤 Mélodie chantée — expérimental
+Alto Sax
 ```
 
-Bouton :
+Le but est de distinguer clairement la ligne mélodique de l'accompagnement lors
+de la comparaison à l'oreille.
+
+## Synchronisation
+
+Le MP3 reste l'horloge maître.
+
+FluidSynth utilise deux canaux :
 
 ```text
-Analyser / recalculer la voix
+canal 1 = accords
+canal 2 = chant
 ```
 
-Après analyse :
+Un seek du MP3 recale les deux curseurs MIDI.
+
+## Aucun changement du moteur d'analyse
+
+Cette livraison ne change pas :
 
 ```text
-⬇ Télécharger le MIDI du chant
+accords
+Whisper
+phonèmes
+R33
+raffinement expérimental des blocs
+timestamps
 ```
 
-Le MIDI est monophonique et conserve les timestamps audio absolus.
+Elle ajoute uniquement la lecture de la timeline vocale déjà calculée.
 
-## Raffinement des blocs
-
-Le simple calcul de la mélodie **ne change pas les blocs**.
-
-Il faut explicitement cliquer :
-
-```text
-Recalculer les blocs avec la mélodie
-```
-
-Le comportement est alors :
-
-```text
-1. suppression uniquement des structure_blocks persistés
-2. recalcul R33 habituel
-3. lecture de la timeline vocale persistée
-4. raffinement conservateur des frontières
-5. nouvelle persistance des blocs
-```
-
-Règles de sécurité :
-
-```text
-- aucune nouvelle découpe périodique
-- aucune modification accords/paroles/phonèmes
-- aucune modification des timestamps audio
-- déplacement d'une frontière R33 : maximum ±2 mesures
-- déplacement seulement si la nouveauté mélodique est clairement plus forte
-- sans timeline vocale : résultat R33 strictement inchangé
-```
-
-Donc le moteur vocal est un **critère secondaire**, jamais le maître.
-
-## Demucs
-
-Aucune nouvelle dépendance obligatoire.
-
-Si Demucs est déjà installé :
-
-```text
-Demucs vocals + pYIN
-```
-
-Sinon :
-
-```text
-mix original + pYIN
-```
-
-Le fallback est explicitement indiqué dans l'UI et utilise un seuil de confiance
-plus strict.
-
-Pour installer Demucs ultérieurement :
-
-```powershell
-python -m pip install demucs
-```
-
-Ce n'est pas nécessaire pour démarrer les tests.
-
-## Logs
-
-Les nouvelles traces vont toujours dans :
-
-```text
-H:\EZScore\data\logs\ezscore_perf.log
-```
-
-Événements :
-
-```text
-vocal_pitch.analyse
-vocal_pitch.analyse.result
-structure.vocal.refine
-structure.vocal.refine.result
-structure.vocal.refine.requested
-```
-
-## Fichiers livrés
+## Fichiers
 
 ```text
 ezscore/analysis/vocal.py
+ezscore/midi/analysis_player.py
 ezscore/ui/app_shell.py
 readme.md
 ```
 
-Aucune DB.
-Aucun MP3.
-Aucun fichier de cache vocal.
-Aucun dossier racine parasite.
-
-## Installation sur la branche
-
-Vérifier d'abord :
+## Installation
 
 ```powershell
 cd H:\EZScore
@@ -190,9 +107,10 @@ feature/vocal-midi-analysis
 Puis :
 
 ```powershell
-tar -xf "$env:USERPROFILE\Downloads\EZScore_FEATURE_VOCAL_MIDI_ANALYSIS.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_FEATURE_VOCAL_DUAL_PLAYER.zip" -C H:\EZScore
 
 python -m py_compile .\ezscore\analysis\vocal.py
+python -m py_compile .\ezscore\midi\analysis_player.py
 python -m py_compile .\ezscore\ui\app_shell.py
 python -m py_compile .\EZScore.py
 python -m compileall -q .\ezscore
@@ -200,19 +118,17 @@ python -m compileall -q .\ezscore
 python -m streamlit run .\EZScore.py
 ```
 
-## Recette recommandée
+## Recette
 
-Pour un morceau déjà analysé :
+1. Ouvrir `Analyse`.
+2. Vérifier MP3 + MIDI accords.
+3. Calculer la mélodie vocale si nécessaire.
+4. Vérifier l'apparition de `Instrument du chant MIDI`.
+5. Garder `Alto Sax`.
+6. Charger le synthé MIDI.
+7. Lancer la lecture.
+8. Régler séparément les trois volumes.
+9. Mettre les accords MIDI à zéro pour contrôler voix détectée + chanson.
+10. Mettre la chanson à zéro pour écouter uniquement les deux MIDI.
 
-1. ouvrir `Analyse`;
-2. vérifier que le lecteur accords MP3+MIDI fonctionne toujours;
-3. cliquer `Analyser / recalculer la voix`;
-4. télécharger `MIDI du chant`;
-5. écouter / vérifier grossièrement la mélodie;
-6. noter les blocs actuels;
-7. seulement ensuite cliquer `Recalculer les blocs avec la mélodie`;
-8. comparer le découpage avant/après;
-9. vérifier `ezscore_perf.log`.
-
-Ne pas fusionner cette branche dans `master` avant comparaison sur plusieurs
-chansons.
+Ne pas fusionner dans master avant validation sur plusieurs morceaux.

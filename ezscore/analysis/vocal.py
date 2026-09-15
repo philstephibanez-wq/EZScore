@@ -32,6 +32,15 @@ VOCAL_SCHEMA_VERSION = 1
 VOCAL_ANALYSIS_ENGINE = "pyin-v1"
 DEFAULT_VOCAL_PROGRAM = 53  # GM Voice Oohs, zero-based
 
+VOCAL_MIDI_INSTRUMENTS = {
+    "Alto Sax": 65,
+    "Tenor Sax": 66,
+    "Soprano Sax": 64,
+    "Baritone Sax": 67,
+    "Voice Oohs": 53,
+    "Acoustic Grand Piano": 0,
+}
+
 
 def demucs_available() -> bool:
     try:
@@ -328,6 +337,63 @@ def analyze_vocal_pitch(
         }
         save_vocal_analysis(audio_hash, payload)
         return payload
+
+
+
+def build_vocal_midi_events(
+    notes: list[dict[str, Any]],
+    *,
+    program: int = DEFAULT_VOCAL_PROGRAM,
+) -> list[dict[str, Any]]:
+    """Build browser events from the persisted vocal-note timeline."""
+    events: list[dict[str, Any]] = [{
+        "time": 0.0,
+        "status": 0xC1,
+        "data1": int(program) & 0x7F,
+        "data2": None,
+        "kind": "program",
+    }]
+
+    for index, note in enumerate(notes or []):
+        start = max(0.0, float(note.get("start", 0.0) or 0.0))
+        end = max(
+            start + 0.04,
+            float(note.get("end", start + 0.04) or start + 0.04),
+        )
+        midi_note = int(
+            np.clip(int(note.get("midi", 60) or 60), 0, 127)
+        )
+        confidence = float(note.get("confidence", 0.75) or 0.75)
+        velocity = int(
+            np.clip(round(58 + 48 * confidence), 42, 110)
+        )
+
+        events.append({
+            "time": start,
+            "status": 0x91,
+            "data1": midi_note,
+            "data2": velocity,
+            "kind": "note_on",
+            "note_index": index,
+        })
+        events.append({
+            "time": end,
+            "status": 0x81,
+            "data1": midi_note,
+            "data2": 0,
+            "kind": "note_off",
+            "note_index": index,
+        })
+
+    priority = {"program": 0, "note_off": 1, "note_on": 2}
+    events.sort(
+        key=lambda event: (
+            float(event["time"]),
+            priority.get(str(event["kind"]), 9),
+            int(event.get("data1", 0) or 0),
+        )
+    )
+    return events
 
 
 def _vlq(value: int) -> bytes:

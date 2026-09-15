@@ -20,6 +20,8 @@ import ezscore.transcription as _transcription
 from ezscore.midi.analysis_player import render_analysis_midi_player as _render_analysis_midi_player
 from ezscore.analysis.vocal import (
     analyze_vocal_pitch as _analyze_vocal_pitch,
+    VOCAL_MIDI_INSTRUMENTS as _VOCAL_MIDI_INSTRUMENTS,
+    build_vocal_midi_events as _build_vocal_midi_events,
     build_vocal_midi_file as _build_vocal_midi_file,
     demucs_available as _vocal_demucs_available,
     load_vocal_analysis as _load_vocal_analysis,
@@ -440,7 +442,7 @@ def _render_analysis_mp3_midi_player(
         beats=len(beats or []),
         program=selected_program,
     ):
-        events = _build_chord_midi_events(
+        chord_events = _build_chord_midi_events(
             beats=beats,
             signature=signature,
             beats_per_measure=beats_per_measure,
@@ -449,8 +451,39 @@ def _render_analysis_mp3_midi_player(
             strum_ms=selected_strum_ms,
         )
 
-    if not events:
+    if not chord_events:
         return
+
+    vocal_analysis = _load_vocal_analysis(active_hash)
+    vocal_notes = list((vocal_analysis or {}).get("notes", []) or [])
+
+    vocal_instrument_label = "Alto Sax"
+    vocal_program = int(
+        _VOCAL_MIDI_INSTRUMENTS[vocal_instrument_label]
+    )
+    vocal_events = []
+
+    if vocal_notes:
+        vocal_labels = list(_VOCAL_MIDI_INSTRUMENTS.keys())
+        vocal_instrument_label = st.selectbox(
+            "Instrument du chant MIDI",
+            vocal_labels,
+            index=0,
+            key=f"analysis_vocal_instrument_{active_hash[:12]}",
+        )
+        vocal_program = int(
+            _VOCAL_MIDI_INSTRUMENTS[vocal_instrument_label]
+        )
+
+        with perf_span(
+            "analysis.player.build_vocal_events",
+            notes=len(vocal_notes),
+            program=vocal_program,
+        ):
+            vocal_events = _build_vocal_midi_events(
+                vocal_notes,
+                program=vocal_program,
+            )
 
     title = (
         str(song.get("title", "") or "").strip()
@@ -459,27 +492,38 @@ def _render_analysis_mp3_midi_player(
     )
     artist = str(song.get("artist", "") or "").strip()
 
-    st.caption(
-        "MP3 maître + synthé MIDI synchronisé. "
-        "Les volumes chanson et MIDI sont réglables séparément."
-    )
+    if vocal_events:
+        st.caption(
+            "MP3 maître + accords MIDI + chant MIDI synchronisés. "
+            "Les trois volumes sont indépendants."
+        )
+    else:
+        st.caption(
+            "MP3 maître + accords MIDI synchronisés. "
+            "Analyse la mélodie chantée pour activer la troisième piste."
+        )
 
     with perf_span(
         "analysis.player.render",
-        events=len(events),
+        chord_events=len(chord_events),
+        vocal_events=len(vocal_events),
         audio_bytes=len(audio_bytes),
     ):
         _render_analysis_midi_player(
             audio_bytes=audio_bytes,
             extension=extension,
-            midi_events=events,
-            instrument_label=instrument_label,
-            program=selected_program,
+            chord_events=chord_events,
+            chord_instrument_label=instrument_label,
+            chord_program=selected_program,
+            vocal_events=vocal_events,
+            vocal_instrument_label=vocal_instrument_label,
+            vocal_program=vocal_program,
             title=title,
             artist=artist,
             key=(
                 f"analysis_mp3_midi_{active_hash[:12]}_"
-                f"{selected_program}"
+                f"{selected_program}_{vocal_program}_"
+                f"{1 if vocal_events else 0}"
             ),
         )
 
