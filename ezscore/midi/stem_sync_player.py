@@ -69,6 +69,7 @@ _HTML = """
     <span>GM Drums</span>
   </div>
 
+  <div class="track-status"></div>
   <div class="hint">
     MP3 original = horloge maître · Chant / Accords / Batterie suivent audio.currentTime.
   </div>
@@ -134,11 +135,37 @@ export default function(component) {
   const vocalVolume = root.querySelector(".vocal-volume");
   const chordsVolume = root.querySelector(".chords-volume");
   const drumsVolume = root.querySelector(".drums-volume");
+  const trackStatus = root.querySelector(".track-status");
+
+  const availableTracks = new Set(Array.isArray(data.available_tracks) ? data.available_tracks : []);
+  const pendingTracks = new Set(Array.isArray(data.pending_tracks) ? data.pending_tracks : []);
 
   audio.src = String(data.audio_url || "");
   audio.volume = Number(audioVolume.value);
 
   const tracks = data.tracks || {};
+
+  function applyAvailability() {
+    const controls = {
+      vocal: [vocalOn, vocalVolume],
+      chords: [chordsOn, chordsVolume],
+      drums: [drumsOn, drumsVolume],
+    };
+    for (const [name, items] of Object.entries(controls)) {
+      const available = availableTracks.has(name);
+      items.forEach((item) => { item.disabled = !available; });
+      if (!available) items[0].checked = false;
+    }
+    if (trackStatus) {
+      const ready = Array.from(availableTracks).join(", ") || "aucune";
+      const pending = Array.from(pendingTracks).join(", ");
+      trackStatus.textContent = pending
+        ? ("Pistes prêtes : " + ready + " · en cours : " + pending)
+        : ("Pistes prêtes : " + ready);
+    }
+  }
+  applyAvailability();
+
   const allEvents = []
     .concat((tracks.vocal || []).map(e => ({...e, track:"vocal"})))
     .concat((tracks.chords || []).map(e => ({...e, track:"chords"})))
@@ -444,10 +471,21 @@ def render_stem_midi_sync_player(
             "Aucun événement MIDI navigateur disponible pour le lecteur synchronisé."
         )
 
+    if not midi_metadata.get("available_tracks"):
+        inferred = [
+            name for name in ("vocal", "chords", "drums")
+            if list(tracks.get(name, []) or [])
+        ]
+        midi_metadata = dict(midi_metadata)
+        midi_metadata["available_tracks"] = inferred
+        midi_metadata["pending_tracks"] = []
+
     _COMPONENT(
         data={
             "audio_url": audio_url,
             "tracks": tracks,
+            "available_tracks": list(midi_metadata.get("available_tracks", []) or []),
+            "pending_tracks": list(midi_metadata.get("pending_tracks", []) or []),
             "soundfont_urls": list(SOUNDFONT_FALLBACKS),
             "libfluid_url": LIBFLUID_URL,
             "jssynth_url": JSSYNTH_URL,

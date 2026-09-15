@@ -1,0 +1,934 @@
+{
+  "engine": "openai-whisper",
+  "model": "small",
+  "source": "original",
+  "language": "en",
+  "text": "Take a look at my girlfriend, she's the only one I got Not much of a girlfriend, but never seem to get along Take a jumbo across the water, like to see America I see the girls in California, I'm hoping it's going to come true But there's not a lot I can do Could we ask you for breakfast? Moved here, moved here We gotta have a minting song, cause everyone's a millionaire I'm a winner, I'm a sinner, do you want my autograph? I'm a loser, I'm a whore, a joker, I made my jokes upon you Well there's nothing better to do Ba ba da da da Ba ba da da da da Don't you look at my girlfriend, she's the only one I got Not much of a girlfriend, but never seem to get along Take a jumbo across the water, like to see America I see the girls in California, I'm hoping it's going to come true But there's not a lot I can do Ba ba da da da Ba ba da da da Hey oh, hey oh, hey oh",
+  "words": [
+    {
+      "start": 6.919999999999998,
+      "end": 7.52,
+      "text": "Take"
+    },
+    {
+      "start": 7.52,
+      "end": 7.76,
+      "text": "a"
+    },
+    {
+      "start": 7.76,
+      "end": 7.94,
+      "text": "look"
+    },
+    {
+      "start": 7.94,
+      "end": 8.18,
+      "text": "at"
+    },
+    {
+      "start": 8.18,
+      "end": 8.42,
+      "text": "my"
+    },
+    {
+      "start": 8.42,
+      "end": 9.12,
+      "text": "girlfriend,"
+    },
+    {
+      "start": 9.44,
+      "end": 10.48,
+      "text": "she's"
+    },
+    {
+      "start": 10.48,
+      "end": 10.6,
+      "text": "the"
+    },
+    {
+      "start": 10.6,
+      "end": 10.88,
+      "text": "only"
+    },
+    {
+      "start": 10.88,
+      "end": 11.22,
+      "text": "one"
+    },
+    {
+      "start": 11.22,
+      "end": 11.42,
+      "text": "I"
+    },
+    {
+      "start": 11.42,
+      "end": 11.8,
+      "text": "got"
+    },
+    {
+      "start": 13.36,
+      "end": 13.96,
+      "text": "Not"
+    },
+    {
+      "start": 13.96,
+      "end": 14.44,
+      "text": "much"
+    },
+    {
+      "start": 14.44,
+      "end": 14.6,
+      "text": "of"
+    },
+    {
+      "start": 14.6,
+      "end": 14.84,
+      "text": "a"
+    },
+    {
+      "start": 14.84,
+      "end": 15.46,
+      "text": "girlfriend,"
+    },
+    {
+      "start": 16.06,
+      "end": 16.56,
+      "text": "but"
+    },
+    {
+      "start": 16.56,
+      "end": 16.84,
+      "text": "never"
+    },
+    {
+      "start": 16.84,
+      "end": 17.16,
+      "text": "seem"
+    },
+    {
+      "start": 17.16,
+      "end": 17.32,
+      "text": "to"
+    },
+    {
+      "start": 17.32,
+      "end": 17.56,
+      "text": "get"
+    },
+    {
+      "start": 17.56,
+      "end": 18.0,
+      "text": "along"
+    },
+    {
+      "start": 19.759999999999998,
+      "end": 20.36,
+      "text": "Take"
+    },
+    {
+      "start": 20.36,
+      "end": 20.52,
+      "text": "a"
+    },
+    {
+      "start": 20.52,
+      "end": 21.22,
+      "text": "jumbo"
+    },
+    {
+      "start": 21.22,
+      "end": 21.86,
+      "text": "across"
+    },
+    {
+      "start": 21.86,
+      "end": 22.1,
+      "text": "the"
+    },
+    {
+      "start": 22.1,
+      "end": 22.54,
+      "text": "water,"
+    },
+    {
+      "start": 22.82,
+      "end": 23.1,
+      "text": "like"
+    },
+    {
+      "start": 23.1,
+      "end": 23.3,
+      "text": "to"
+    },
+    {
+      "start": 23.3,
+      "end": 23.48,
+      "text": "see"
+    },
+    {
+      "start": 23.48,
+      "end": 24.1,
+      "text": "America"
+    },
+    {
+      "start": 25.6,
+      "end": 26.28,
+      "text": "I"
+    },
+    {
+      "start": 26.28,
+      "end": 26.6,
+      "text": "see"
+    },
+    {
+      "start": 26.6,
+      "end": 26.78,
+      "text": "the"
+    },
+    {
+      "start": 26.78,
+      "end": 27.22,
+      "text": "girls"
+    },
+    {
+      "start": 27.22,
+      "end": 27.62,
+      "text": "in"
+    },
+    {
+      "start": 27.62,
+      "end": 28.56,
+      "text": "California,"
+    },
+    {
+      "start": 28.76,
+      "end": 29.18,
+      "text": "I'm"
+    },
+    {
+      "start": 29.18,
+      "end": 29.5,
+      "text": "hoping"
+    },
+    {
+      "start": 29.5,
+      "end": 29.84,
+      "text": "it's"
+    },
+    {
+      "start": 29.84,
+      "end": 30.12,
+      "text": "going"
+    },
+    {
+      "start": 30.12,
+      "end": 30.42,
+      "text": "to"
+    },
+    {
+      "start": 30.42,
+      "end": 30.7,
+      "text": "come"
+    },
+    {
+      "start": 30.7,
+      "end": 31.36,
+      "text": "true"
+    },
+    {
+      "start": 32.040000000000006,
+      "end": 32.38,
+      "text": "But"
+    },
+    {
+      "start": 32.38,
+      "end": 32.62,
+      "text": "there's"
+    },
+    {
+      "start": 32.62,
+      "end": 32.94,
+      "text": "not"
+    },
+    {
+      "start": 32.94,
+      "end": 33.28,
+      "text": "a"
+    },
+    {
+      "start": 33.28,
+      "end": 33.64,
+      "text": "lot"
+    },
+    {
+      "start": 33.64,
+      "end": 33.96,
+      "text": "I"
+    },
+    {
+      "start": 33.96,
+      "end": 34.22,
+      "text": "can"
+    },
+    {
+      "start": 34.22,
+      "end": 36.0,
+      "text": "do"
+    },
+    {
+      "start": 37.14,
+      "end": 37.82,
+      "text": "Could"
+    },
+    {
+      "start": 37.82,
+      "end": 38.14,
+      "text": "we"
+    },
+    {
+      "start": 38.14,
+      "end": 38.46,
+      "text": "ask"
+    },
+    {
+      "start": 38.46,
+      "end": 38.66,
+      "text": "you"
+    },
+    {
+      "start": 38.66,
+      "end": 38.88,
+      "text": "for"
+    },
+    {
+      "start": 38.88,
+      "end": 39.76,
+      "text": "breakfast?"
+    },
+    {
+      "start": 40.78,
+      "end": 41.32,
+      "text": "Moved"
+    },
+    {
+      "start": 41.32,
+      "end": 41.58,
+      "text": "here,"
+    },
+    {
+      "start": 41.76,
+      "end": 41.92,
+      "text": "moved"
+    },
+    {
+      "start": 41.92,
+      "end": 42.4,
+      "text": "here"
+    },
+    {
+      "start": 43.78,
+      "end": 44.46,
+      "text": "We"
+    },
+    {
+      "start": 44.46,
+      "end": 44.72,
+      "text": "gotta"
+    },
+    {
+      "start": 44.72,
+      "end": 45.14,
+      "text": "have"
+    },
+    {
+      "start": 45.14,
+      "end": 45.32,
+      "text": "a"
+    },
+    {
+      "start": 45.32,
+      "end": 45.98,
+      "text": "minting"
+    },
+    {
+      "start": 45.98,
+      "end": 46.32,
+      "text": "song,"
+    },
+    {
+      "start": 46.32,
+      "end": 47.26,
+      "text": "cause"
+    },
+    {
+      "start": 47.26,
+      "end": 47.96,
+      "text": "everyone's"
+    },
+    {
+      "start": 47.96,
+      "end": 48.1,
+      "text": "a"
+    },
+    {
+      "start": 48.1,
+      "end": 48.52,
+      "text": "millionaire"
+    },
+    {
+      "start": 50.36,
+      "end": 51.12,
+      "text": "I'm"
+    },
+    {
+      "start": 51.12,
+      "end": 51.24,
+      "text": "a"
+    },
+    {
+      "start": 51.24,
+      "end": 51.74,
+      "text": "winner,"
+    },
+    {
+      "start": 52.6,
+      "end": 52.72,
+      "text": "I'm"
+    },
+    {
+      "start": 52.72,
+      "end": 52.86,
+      "text": "a"
+    },
+    {
+      "start": 52.86,
+      "end": 53.3,
+      "text": "sinner,"
+    },
+    {
+      "start": 53.3,
+      "end": 53.88,
+      "text": "do"
+    },
+    {
+      "start": 53.88,
+      "end": 54.06,
+      "text": "you"
+    },
+    {
+      "start": 54.06,
+      "end": 54.26,
+      "text": "want"
+    },
+    {
+      "start": 54.26,
+      "end": 54.5,
+      "text": "my"
+    },
+    {
+      "start": 54.5,
+      "end": 54.92,
+      "text": "autograph?"
+    },
+    {
+      "start": 56.74,
+      "end": 57.5,
+      "text": "I'm"
+    },
+    {
+      "start": 57.5,
+      "end": 57.66,
+      "text": "a"
+    },
+    {
+      "start": 57.66,
+      "end": 58.12,
+      "text": "loser,"
+    },
+    {
+      "start": 58.74,
+      "end": 58.88,
+      "text": "I'm"
+    },
+    {
+      "start": 58.88,
+      "end": 58.98,
+      "text": "a"
+    },
+    {
+      "start": 58.98,
+      "end": 59.06,
+      "text": "whore,"
+    },
+    {
+      "start": 59.26,
+      "end": 59.7,
+      "text": "joker,"
+    },
+    {
+      "start": 59.7,
+      "end": 60.08,
+      "text": "I"
+    },
+    {
+      "start": 60.08,
+      "end": 60.38,
+      "text": "made"
+    },
+    {
+      "start": 60.38,
+      "end": 60.64,
+      "text": "my"
+    },
+    {
+      "start": 60.64,
+      "end": 60.98,
+      "text": "jokes"
+    },
+    {
+      "start": 60.98,
+      "end": 61.54,
+      "text": "upon"
+    },
+    {
+      "start": 61.54,
+      "end": 62.14,
+      "text": "you"
+    },
+    {
+      "start": 62.14,
+      "end": 63.22,
+      "text": "Well"
+    },
+    {
+      "start": 63.22,
+      "end": 63.4,
+      "text": "there's"
+    },
+    {
+      "start": 63.4,
+      "end": 63.88,
+      "text": "nothing"
+    },
+    {
+      "start": 63.88,
+      "end": 64.5,
+      "text": "better"
+    },
+    {
+      "start": 64.5,
+      "end": 64.96,
+      "text": "to"
+    },
+    {
+      "start": 64.96,
+      "end": 66.42,
+      "text": "do"
+    },
+    {
+      "start": 67.75999999999999,
+      "end": 68.52,
+      "text": "Ba"
+    },
+    {
+      "start": 68.52,
+      "end": 68.84,
+      "text": "ba"
+    },
+    {
+      "start": 68.84,
+      "end": 69.04,
+      "text": "da"
+    },
+    {
+      "start": 69.04,
+      "end": 69.22,
+      "text": "da"
+    },
+    {
+      "start": 69.22,
+      "end": 69.38,
+      "text": "da"
+    },
+    {
+      "start": 74.32,
+      "end": 74.88,
+      "text": "Ba"
+    },
+    {
+      "start": 74.88,
+      "end": 75.06,
+      "text": "ba"
+    },
+    {
+      "start": 75.06,
+      "end": 75.34,
+      "text": "da"
+    },
+    {
+      "start": 75.34,
+      "end": 75.52,
+      "text": "da"
+    },
+    {
+      "start": 75.52,
+      "end": 75.74,
+      "text": "da"
+    },
+    {
+      "start": 75.74,
+      "end": 76.06,
+      "text": "da"
+    },
+    {
+      "start": 89.42000000000002,
+      "end": 89.98,
+      "text": "Don't"
+    },
+    {
+      "start": 89.98,
+      "end": 90.26,
+      "text": "you"
+    },
+    {
+      "start": 90.26,
+      "end": 90.62,
+      "text": "look"
+    },
+    {
+      "start": 90.62,
+      "end": 90.86,
+      "text": "at"
+    },
+    {
+      "start": 90.86,
+      "end": 91.1,
+      "text": "my"
+    },
+    {
+      "start": 91.1,
+      "end": 91.68,
+      "text": "girlfriend,"
+    },
+    {
+      "start": 92.14,
+      "end": 93.12,
+      "text": "she's"
+    },
+    {
+      "start": 93.12,
+      "end": 93.28,
+      "text": "the"
+    },
+    {
+      "start": 93.28,
+      "end": 93.5,
+      "text": "only"
+    },
+    {
+      "start": 93.5,
+      "end": 93.88,
+      "text": "one"
+    },
+    {
+      "start": 93.88,
+      "end": 94.08,
+      "text": "I"
+    },
+    {
+      "start": 94.08,
+      "end": 94.34,
+      "text": "got"
+    },
+    {
+      "start": 95.83999999999999,
+      "end": 96.6,
+      "text": "Not"
+    },
+    {
+      "start": 96.6,
+      "end": 97.12,
+      "text": "much"
+    },
+    {
+      "start": 97.12,
+      "end": 97.3,
+      "text": "of"
+    },
+    {
+      "start": 97.3,
+      "end": 97.56,
+      "text": "a"
+    },
+    {
+      "start": 97.56,
+      "end": 98.1,
+      "text": "girlfriend,"
+    },
+    {
+      "start": 98.62,
+      "end": 98.78,
+      "text": "but"
+    },
+    {
+      "start": 98.78,
+      "end": 99.54,
+      "text": "never"
+    },
+    {
+      "start": 99.54,
+      "end": 99.84,
+      "text": "seem"
+    },
+    {
+      "start": 99.84,
+      "end": 100.02,
+      "text": "to"
+    },
+    {
+      "start": 100.02,
+      "end": 100.28,
+      "text": "get"
+    },
+    {
+      "start": 100.28,
+      "end": 100.66,
+      "text": "along"
+    },
+    {
+      "start": 102.24,
+      "end": 103.0,
+      "text": "Take"
+    },
+    {
+      "start": 103.0,
+      "end": 103.26,
+      "text": "a"
+    },
+    {
+      "start": 103.26,
+      "end": 103.9,
+      "text": "jumbo"
+    },
+    {
+      "start": 103.9,
+      "end": 104.6,
+      "text": "across"
+    },
+    {
+      "start": 104.6,
+      "end": 104.84,
+      "text": "the"
+    },
+    {
+      "start": 104.84,
+      "end": 105.28,
+      "text": "water,"
+    },
+    {
+      "start": 105.28,
+      "end": 105.86,
+      "text": "like"
+    },
+    {
+      "start": 105.86,
+      "end": 106.02,
+      "text": "to"
+    },
+    {
+      "start": 106.02,
+      "end": 106.26,
+      "text": "see"
+    },
+    {
+      "start": 106.26,
+      "end": 106.88,
+      "text": "America"
+    },
+    {
+      "start": 106.88,
+      "end": 107.48,
+      "text": "I"
+    },
+    {
+      "start": 107.48,
+      "end": 109.36,
+      "text": "see"
+    },
+    {
+      "start": 109.36,
+      "end": 109.56,
+      "text": "the"
+    },
+    {
+      "start": 109.56,
+      "end": 109.96,
+      "text": "girls"
+    },
+    {
+      "start": 109.96,
+      "end": 110.38,
+      "text": "in"
+    },
+    {
+      "start": 110.38,
+      "end": 111.22,
+      "text": "California,"
+    },
+    {
+      "start": 111.98,
+      "end": 112.06,
+      "text": "I'm"
+    },
+    {
+      "start": 112.06,
+      "end": 112.26,
+      "text": "hoping"
+    },
+    {
+      "start": 112.26,
+      "end": 112.6,
+      "text": "it's"
+    },
+    {
+      "start": 112.6,
+      "end": 112.9,
+      "text": "going"
+    },
+    {
+      "start": 112.9,
+      "end": 113.2,
+      "text": "to"
+    },
+    {
+      "start": 113.2,
+      "end": 113.5,
+      "text": "come"
+    },
+    {
+      "start": 113.5,
+      "end": 114.12,
+      "text": "true"
+    },
+    {
+      "start": 114.12,
+      "end": 115.14,
+      "text": "But"
+    },
+    {
+      "start": 115.14,
+      "end": 115.34,
+      "text": "there's"
+    },
+    {
+      "start": 115.34,
+      "end": 115.64,
+      "text": "not"
+    },
+    {
+      "start": 115.64,
+      "end": 116.02,
+      "text": "a"
+    },
+    {
+      "start": 116.02,
+      "end": 116.28,
+      "text": "lot"
+    },
+    {
+      "start": 116.28,
+      "end": 116.7,
+      "text": "I"
+    },
+    {
+      "start": 116.7,
+      "end": 116.98,
+      "text": "can"
+    },
+    {
+      "start": 116.98,
+      "end": 119.36,
+      "text": "do"
+    },
+    {
+      "start": 119.36,
+      "end": 120.46,
+      "text": "Ba"
+    },
+    {
+      "start": 120.46,
+      "end": 120.66,
+      "text": "ba"
+    },
+    {
+      "start": 120.66,
+      "end": 120.9,
+      "text": "da"
+    },
+    {
+      "start": 120.9,
+      "end": 121.02,
+      "text": "da"
+    },
+    {
+      "start": 121.02,
+      "end": 121.3,
+      "text": "da"
+    },
+    {
+      "start": 121.3,
+      "end": 122.42,
+      "text": "Ba"
+    },
+    {
+      "start": 122.42,
+      "end": 122.68,
+      "text": "ba"
+    },
+    {
+      "start": 122.68,
+      "end": 123.24,
+      "text": "da"
+    },
+    {
+      "start": 123.24,
+      "end": 123.52,
+      "text": "da"
+    },
+    {
+      "start": 123.52,
+      "end": 123.96,
+      "text": "da"
+    },
+    {
+      "start": 131.3,
+      "end": 132.3,
+      "text": "Hey"
+    },
+    {
+      "start": 132.3,
+      "end": 133.3,
+      "text": "oh,"
+    },
+    {
+      "start": 133.84,
+      "end": 134.52,
+      "text": "hey"
+    },
+    {
+      "start": 134.52,
+      "end": 135.02,
+      "text": "oh,"
+    },
+    {
+      "start": 135.44,
+      "end": 136.08,
+      "text": "hey"
+    },
+    {
+      "start": 136.08,
+      "end": 136.58,
+      "text": "oh"
+    }
+  ]
+}

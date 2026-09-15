@@ -1,59 +1,60 @@
-# EZScore — STEM pipeline R8 / HTTP media player
+# EZScore — STEM pipeline R8.1 / player MIDI progressif
 
-## Règle contractuelle EZScore
+## Règle contractuelle
 
-Même règle que MAESTRO :
+Aucune erreur masquée. Aucun fallback silencieux.
 
-**on ne masque aucune erreur et on n'ajoute aucun fallback silencieux.**
+## Problème corrigé
 
-En cas d'erreur :
-1. l'erreur réelle reste visible ;
-2. la source est étudiée ;
-3. la cause est corrigée ;
-4. la correction est validée.
+En R8, le player MP3+MIDI n'apparaissait qu'après la fin complète du worker.
+La raison : `stem_midi.json` n'était écrit qu'après l'analyse vocale pYIN,
+qui est l'étape la plus longue.
 
-R8 ne contient aucun handler destiné à avaler `WinError 10054` et aucun retour
-automatique vers l'ancien player.
-
-## Correction de la source
-
-Les players précédents transportaient les MP3 dans les données du composant
-sous forme base64. Ces données passaient donc par la connexion Streamlit/Bidi,
-la même connexion qui subissait les resets 10054.
-
-R8 supprime ce transport.
-
-Streamlit possède déjà un `MediaFileManager`, utilisé par `st.audio` et
-`st.video`. R8 enregistre les previews dans ce gestionnaire et ne transmet au
-composant que leur URL HTTP `/media/...`.
+La capture montrait donc correctement :
 
 ```text
-AVANT
-MP3 -> base64 -> Bidi/WebSocket -> composant
-
-R8
-MP3 -> Streamlit MediaFileManager -> HTTP /media/...
-                              |
-Bidi/WebSocket -> URL + petits événements JSON seulement
+Analyse chant + batterie + accords en cours…
 ```
 
-Aucun serveur HTTP parallèle et aucune configuration `static/` ne sont ajoutés.
+mais aucun bundle exploitable n'existait encore pour le player.
 
-## Lecteurs
+## R8.1
 
-Le sélecteur reste :
-- `STEM audio`
-- `MP3 + MIDI`
+Le worker est maintenant explicitement découpé en deux étapes.
 
-Un seul player lourd est monté à la fois.
+### Étape 1
+- batterie analysée ;
+- MIDI accords écrit ;
+- MIDI batterie écrit ;
+- `stem_midi.json` partiel écrit ;
+- player MP3+MIDI immédiatement disponible avec Accords + Batterie.
 
-Le MP3 reste l'horloge maître. MIDI Chant / Accords / Batterie suivent
-`audio.currentTime`.
+### Étape 2
+- analyse pYIN du chant ;
+- MIDI Chant écrit ;
+- MIDI combiné écrit ;
+- `stem_midi.json` remplacé atomiquement par la version complète.
 
-## Pas de fallback
+Ce n'est pas un fallback : l'interface indique clairement que Chant est
+`en cours` et désactive cette piste jusqu'à ce qu'elle existe.
 
-Si l'enregistrement HTTP média échoue, EZScore lève l'erreur réelle.
-Il ne rebascule pas en base64.
+## Timeline
+
+Toujours inchangée :
+
+```text
+MP3 original = horloge maître
+MIDI = dérivé, jamais maître
+```
+
+Aucun timestamp n'est déplacé.
+
+## HTTP média
+
+R8 reste conservé :
+- aucun audio base64 dans Bidi ;
+- audio servi par Streamlit MediaFileManager en HTTP ;
+- petits événements MIDI JSON uniquement.
 
 ## Compilation
 
@@ -68,9 +69,5 @@ python -m py_compile .\ezscore\ui\stem_lab_analysis.py
 python -m py_compile .\ezscore\ui\app_shell.py
 ```
 
-Ne pas ajouter au commit :
-- `data/EZScore.sqlite3`
-- `data/logs/ezscore_perf.log`
-- `data/analysis/`
-
-L'utilisateur effectue lui-même commit/push.
+Ne pas ajouter :
+`data/EZScore.sqlite3`, `data/logs/ezscore_perf.log`, `data/analysis/`.

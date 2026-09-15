@@ -604,11 +604,21 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
             except Exception:
                 midi_meta = {}
 
-            st.success(
-                "MIDI disponibles · "
-                f"{int(midi_meta.get('vocal_note_count', 0))} notes chant · "
-                f"{int(midi_meta.get('drum_beat_count', 0))} beats batterie."
-            )
+            midi_state = str(midi_meta.get("state", "complete") or "complete")
+            available_tracks = list(midi_meta.get("available_tracks", []) or [])
+            pending_tracks = list(midi_meta.get("pending_tracks", []) or [])
+            if midi_state == "partial":
+                st.warning(
+                    "Bundle MIDI partiel prêt · "
+                    f"pistes disponibles : {', '.join(available_tracks) or 'aucune'} · "
+                    f"en cours : {', '.join(pending_tracks) or 'aucune'}."
+                )
+            else:
+                st.success(
+                    "MIDI disponibles · "
+                    f"{int(midi_meta.get('vocal_note_count', 0))} notes chant · "
+                    f"{int(midi_meta.get('drum_beat_count', 0))} beats batterie."
+                )
 
             midi_cols = st.columns(4)
             midi_items = [
