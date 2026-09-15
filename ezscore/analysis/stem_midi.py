@@ -522,6 +522,13 @@ def generate_stem_midi_bundle(
         )
     )
 
+    browser_events = browser_events_from_bundle(
+        vocal_notes=vocal["notes"],
+        structure=structure,
+        drum_analysis=drums,
+        beats_per_bar=bpb,
+    )
+
     metadata = {
         "timebase": "original_audio_seconds",
         "tempo": tempo,
@@ -534,6 +541,7 @@ def generate_stem_midi_bundle(
             "drums": drums_path_out.name,
             "combined": combined_path.name,
         },
+        "browser_events": browser_events,
         "vocal_analysis": vocal,
         "drum_analysis": drums,
     }
@@ -628,3 +636,107 @@ def launch_stem_midi_job(
         encoding="utf-8",
     )
     return payload
+
+
+def browser_events_from_bundle(
+    *,
+    vocal_notes: list[dict[str, Any]],
+    structure: dict[str, Any],
+    drum_analysis: dict[str, Any],
+    beats_per_bar: int = 4,
+) -> dict[str, list[dict[str, Any]]]:
+    """Return real-time browser MIDI events on canonical audio seconds.
+
+    This representation is intentionally independent from SMF tick conversion.
+    The original audio remains the master clock in the browser player.
+    """
+    vocal_events: list[dict[str, Any]] = [{
+        "time": 0.0,
+        "kind": "program",
+        "channel": 0,
+        "program": VOCAL_PROGRAM,
+    }]
+    for note in vocal_notes or []:
+        start = max(0.0, float(note.get("start", 0.0) or 0.0))
+        end = max(start + 0.04, float(note.get("end", start + 0.04) or start + 0.04))
+        pitch = int(np.clip(int(note.get("midi", 60) or 60), 0, 127))
+        conf = float(note.get("confidence", 0.75) or 0.75)
+        vel = int(np.clip(round(55 + 55 * conf), 40, 112))
+        vocal_events.append({
+            "time": start, "kind": "note_on", "channel": 0,
+            "note": pitch, "velocity": vel,
+        })
+        vocal_events.append({
+            "time": end, "kind": "note_off", "channel": 0,
+            "note": pitch, "velocity": 0,
+        })
+
+    chord_events_browser: list[dict[str, Any]] = [{
+        "time": 0.0,
+        "kind": "program",
+        "channel": 1,
+        "program": CHORD_PROGRAM,
+    }]
+    measures = list(structure.get("measures", []) or [])
+    for measure in measures:
+        t0 = float(measure.get("time_start", 0.0) or 0.0)
+        t1 = max(t0 + 0.05, float(measure.get("time_end", t0 + 0.05) or t0 + 0.05))
+        chords = list(measure.get("beat_chords", []) or [])
+        if not chords:
+            continue
+        beat_duration = (t1 - t0) / len(chords)
+        for index, chord in enumerate(chords):
+            pitches = _parse_chord(str(chord))
+            if not pitches:
+                continue
+            start = t0 + index * beat_duration
+            end = min(t1, start + beat_duration * 0.86)
+            for pitch in pitches:
+                chord_events_browser.append({
+                    "time": start, "kind": "note_on", "channel": 1,
+                    "note": int(pitch), "velocity": 82,
+                })
+                chord_events_browser.append({
+                    "time": end, "kind": "note_off", "channel": 1,
+                    "note": int(pitch), "velocity": 0,
+                })
+
+    drum_events_browser: list[dict[str, Any]] = []
+    beats = list(drum_analysis.get("beats", []) or [])
+    bpb = max(2, int(beats_per_bar or 4))
+    for item in beats:
+        i = int(item.get("index", 0) or 0)
+        t = max(0.0, float(item.get("time", 0.0) or 0.0))
+        strong = bool(item.get("strong", False))
+        medium = bool(item.get("medium", False))
+        notes = [(GM_CLOSED_HH, 58)]
+        position = i % bpb
+        if position == 0 or strong:
+            notes.append((GM_KICK, 92 if strong else 82))
+        elif (bpb == 4 and position == 2) or medium:
+            notes.append((GM_SNARE, 78))
+        for pitch, velocity in notes:
+            drum_events_browser.append({
+                "time": t, "kind": "note_on", "channel": DRUM_CHANNEL,
+                "note": pitch, "velocity": velocity,
+            })
+            drum_events_browser.append({
+                "time": t + 0.06, "kind": "note_off", "channel": DRUM_CHANNEL,
+                "note": pitch, "velocity": 0,
+            })
+
+    priority = {"program": 0, "note_off": 1, "note_on": 2}
+    for events in (vocal_events, chord_events_browser, drum_events_browser):
+        events.sort(
+            key=lambda e: (
+                float(e.get("time", 0.0)),
+                priority.get(str(e.get("kind", "")), 9),
+                int(e.get("note", 0) or 0),
+            )
+        )
+
+    return {
+        "vocal": vocal_events,
+        "chords": chord_events_browser,
+        "drums": drum_events_browser,
+    }

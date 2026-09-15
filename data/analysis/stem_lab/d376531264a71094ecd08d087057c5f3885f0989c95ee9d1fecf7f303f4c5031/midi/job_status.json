@@ -1,6 +1,8 @@
 {
-  "state": "running",
+  "state": "done",
   "pid": 27068,
-  "stage": "analysis",
-  "message": "Analyse chant + batterie + accords en cours…"
+  "stage": "done",
+  "message": "MIDI chant + accords + batterie prêts.",
+  "vocal_note_count": 278,
+  "drum_beat_count": 308
 }

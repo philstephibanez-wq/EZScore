@@ -40,6 +40,8 @@ from ezscore.analysis.stem_midi import (
     launch_stem_midi_job,
     load_stem_midi_job,
 )
+
+from ezscore.midi.stem_sync_player import render_stem_midi_sync_player
 from ezscore.player.stem_webaudio import (
     ffmpeg_available as _stem_ffmpeg_available,
     render_player as _render_stem_player,
@@ -624,6 +626,25 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                 width="stretch",
                 key=f"ezstem_midi_json_{str(audio_hash)[:12]}",
             )
+
+            browser_events = dict(midi_meta.get("browser_events", {}) or {})
+            if browser_events:
+                st.markdown("#### Lecteur MP3 + MIDI synchronisés")
+                st.caption(
+                    "L'audio original est l'horloge maître. "
+                    "Chant, accords et batterie MIDI peuvent être activés séparément."
+                )
+                render_stem_midi_sync_player(
+                    audio_bytes=source.read_bytes(),
+                    extension=source.suffix.lower() or ".mp3",
+                    midi_metadata=midi_meta,
+                    key=f"ezstem_midi_sync_{str(audio_hash)[:12]}",
+                )
+            else:
+                st.info(
+                    "Le bundle MIDI présent a été généré avant R7.2. "
+                    "Relance la génération MIDI pour créer les événements du lecteur synchronisé."
+                )
 
     st.subheader("Analyse des paroles")
     st.caption(

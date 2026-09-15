@@ -1,41 +1,43 @@
-# EZScore — STEM pipeline R7.1 / MIDI non bloquant
+# EZScore — STEM pipeline R7.2 / lecteur MP3 + MIDI synchronisés
 
-Constat validé : en R7 les fichiers MIDI finissaient bien par apparaître,
-mais la génération pYIN tournait dans le thread Streamlit et pouvait figer
-l'interface jusqu'à la fin du calcul. Le `WinError 10054` était alors une
-conséquence possible de la rupture du WebSocket.
-
-R7.1 exécute la génération MIDI dans un processus Python séparé.
-
-Le bouton revient immédiatement et EZScore reste utilisable.
-
-Fichiers de suivi :
+R7.2 ajoute un lecteur de contrôle synchronisé :
 
 ```text
-data/analysis/stem_lab/<hash>/midi/
-  job_status.json
-  job.log
-  vocal.mid
-  chords.mid
-  drums.mid
-  stem_mix.mid
-  stem_midi.json
+MP3 original = horloge maître
+
+MP3 original [ON] [volume]
+MIDI Chant   [ON] [volume]
+MIDI Accords [ON] [volume]
+MIDI Batterie[ON] [volume]
 ```
 
-Bouton d'actualisation manuel :
-`↻ Actualiser l'état MIDI`
+Le synthé MIDI est FluidSynth/WebAssembly dans le navigateur avec SoundFont.
+Il n'utilise aucune sortie MIDI système.
 
-Installation :
+Les événements MIDI sont lus directement selon `audio.currentTime`.
+Le MIDI ne devient jamais horloge maître et ne déplace aucun timestamp.
+
+Important : les bundles R7/R7.1 déjà présents doivent être régénérés une fois
+afin d'ajouter `browser_events` dans `stem_midi.json`.
+
+## Sur le WinError 10054
+
+Ce livrable ne prétend pas masquer cette exception Windows/Streamlit.
+Elle provient de la fermeture d'une connexion socket côté navigateur/serveur.
+La génération MIDI reste dans un processus séparé, et le nouveau lecteur MIDI
+s'exécute entièrement dans le navigateur.
+
+## Installation
 
 ```powershell
 cd H:\EZScore
-python -m py_compile .\ezscore\analysis\stems.py
 python -m py_compile .\ezscore\analysis\stem_midi.py
 python -m py_compile .\ezscore\analysis\stem_midi_worker.py
+python -m py_compile .\ezscore\midi\stem_sync_player.py
+python -m py_compile .\ezscore\ui\stem_lab_analysis.py
 python -m py_compile .\ezscore\player\stem_webaudio.py
 python -m py_compile .\ezscore\ui\app_shell.py
-python -m py_compile .\ezscore\ui\stem_lab_analysis.py
 ```
 
-Ne pas ajouter au commit :
+Ne pas ajouter :
 `data/EZScore.sqlite3`, `data/logs/ezscore_perf.log`, `data/analysis/`.
