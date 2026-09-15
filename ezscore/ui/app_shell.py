@@ -751,6 +751,7 @@ perf_event("midi.symbol.exported", exported=True)
 _ORIGINAL_ST_CHECKBOX = st.checkbox
 _ORIGINAL_ST_SELECTBOX = st.selectbox
 _ORIGINAL_ST_CAPTION = st.caption
+_ORIGINAL_ST_INFO = st.info
 
 
 def _ezscore_checkbox(*args, **kwargs):
@@ -771,6 +772,24 @@ def _ezscore_selectbox(*args, **kwargs):
 
 
 
+
+def _ezscore_info(*args, **kwargs):
+    """Swap the legacy fresh-song message for the validated STEM_LAB surface."""
+    if args:
+        value = str(args[0] or "").strip()
+        if value.startswith("Aucune analyse n'a encore été lancée."):
+            active_hash = str(
+                st.session_state.get("active_song_hash", "") or ""
+            ).strip()
+            if active_hash:
+                from ezscore.ui.stem_lab_analysis import (
+                    render_stem_lab_fresh_analysis,
+                )
+                render_stem_lab_fresh_analysis(active_hash)
+                return None
+    return _ORIGINAL_ST_INFO(*args, **kwargs)
+
+
 def _ezscore_caption(*args, **kwargs):
     if args:
         value = str(args[0] or "").strip()
@@ -785,6 +804,7 @@ def _ezscore_caption(*args, **kwargs):
 st.checkbox = _ezscore_checkbox
 st.selectbox = _ezscore_selectbox
 st.caption = _ezscore_caption
+st.info = _ezscore_info
 
 
 # ---------------------------------------------------------------------------
@@ -1078,9 +1098,13 @@ def analysis_sidebar_active() -> bool:
             "ui.analysis_sidebar.state",
             audio_hash=active_hash[:12],
             fresh_song=True,
-            show_settings=True,
+            show_settings=False,
+            stem_lab_ui=True,
         )
-        return True
+        # feature/stem-analysis-pipeline:
+        # the fresh-song entry point is the STEM_LAB surface, not the legacy
+        # technical settings form.
+        return False
 
     mode_key = "song_mode_" + active_hash[:12]
     editing = st.session_state.get(mode_key) == "Édition"
@@ -1090,8 +1114,11 @@ def analysis_sidebar_active() -> bool:
         audio_hash=active_hash[:12],
         fresh_song=False,
         edit_mode=bool(editing),
+        stem_lab_ui=True,
     )
-    return editing
+    # The STEM pipeline branch no longer exposes the historical technical
+    # analyzer as its primary visual surface.
+    return False
 
 
 def render_app_header() -> None:
