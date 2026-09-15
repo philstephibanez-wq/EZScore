@@ -1,0 +1,11 @@
+{
+  "state": "done",
+  "stage": "done",
+  "message": "MIDI Chant + Accords + Batterie terminés.",
+  "percent": 1.0,
+  "vocal_note_count": 183,
+  "drum_beat_count": 251,
+  "pid": 22224,
+  "updated_at_epoch": 1789503134.1910708,
+  "elapsed_seconds": 155.219
+}

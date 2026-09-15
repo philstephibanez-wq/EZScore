@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "engine": "demucs-4stems-v1",
+  "audio_hash": "9b299ca892f32c0d4f4740c0d319a6b3fcc274ce3ffe44e8bd69b0a10b6123c6",
+  "timebase": "original_audio_seconds",
+  "model": "htdemucs",
+  "source_extension": ".mp3",
+  "stems": {
+    "vocals": "vocals.wav",
+    "drums": "drums.wav",
+    "bass": "bass.wav",
+    "other": "other.wav"
+  },
+  "roles": {
+    "vocals": "vocal_melody_f0",
+    "drums": "rhythm_beats_measures",
+    "bass": "auxiliary_root_evidence",
+    "other": "primary_harmonic_evidence"
+  },
+  "lyrics_source": "original_audio",
+  "command": [
+    "C:\\Users\\steph\\AppData\\Local\\Python\\pythoncore-3.14-64\\python.exe",
+    "-m",
+    "demucs",
+    "-n",
+    "htdemucs",
+    "-o",
+    "H:\\EZScore\\data\\analysis\\stems\\9b299ca892f32c0d4f4740c0d319a6b3fcc274ce3ffe44e8bd69b0a10b6123c6\\.htdemucs.staging-3gnm4glt\\demucs",
+    "H:\\EZScore\\data\\analysis\\stems\\9b299ca892f32c0d4f4740c0d319a6b3fcc274ce3ffe44e8bd69b0a10b6123c6\\.htdemucs.staging-3gnm4glt\\source.mp3"
+  ]
+}

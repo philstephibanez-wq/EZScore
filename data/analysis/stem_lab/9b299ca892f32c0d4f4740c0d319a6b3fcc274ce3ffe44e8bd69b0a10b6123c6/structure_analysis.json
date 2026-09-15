@@ -1,0 +1,976 @@
+{
+  "tempo": 92.28515625,
+  "beats_per_bar": 4,
+  "measure_count": 62,
+  "measures": [
+    {
+      "measure": 1,
+      "time_start": 0.11609977324263039,
+      "time_end": 2.48453514739229,
+      "beat_chords": [
+        "G",
+        "C",
+        "C",
+        "C"
+      ],
+      "pattern": "G · C · C · C"
+    },
+    {
+      "measure": 2,
+      "time_start": 2.48453514739229,
+      "time_end": 5.201269841269841,
+      "beat_chords": [
+        "C",
+        "C",
+        "C",
+        "C"
+      ],
+      "pattern": "C · C · C · C"
+    },
+    {
+      "measure": 3,
+      "time_start": 5.201269841269841,
+      "time_end": 7.87156462585034,
+      "beat_chords": [
+        "E",
+        "E",
+        "E",
+        "E"
+      ],
+      "pattern": "E · E · E · E"
+    },
+    {
+      "measure": 4,
+      "time_start": 7.87156462585034,
+      "time_end": 10.565079365079365,
+      "beat_chords": [
+        "E",
+        "F",
+        "F",
+        "F"
+      ],
+      "pattern": "E · F · F · F"
+    },
+    {
+      "measure": 5,
+      "time_start": 10.565079365079365,
+      "time_end": 13.281814058956916,
+      "beat_chords": [
+        "F",
+        "F",
+        "F",
+        "G"
+      ],
+      "pattern": "F · F · F · G"
+    },
+    {
+      "measure": 6,
+      "time_start": 13.281814058956916,
+      "time_end": 15.952108843537415,
+      "beat_chords": [
+        "G",
+        "G",
+        "G",
+        "G"
+      ],
+      "pattern": "G · G · G · G"
+    },
+    {
+      "measure": 7,
+      "time_start": 15.952108843537415,
+      "time_end": 18.784943310657596,
+      "beat_chords": [
+        "G",
+        "C",
+        "C",
+        "C"
+      ],
+      "pattern": "G · C · C · C"
+    },
+    {
+      "measure": 8,
+      "time_start": 18.784943310657596,
+      "time_end": 21.501678004535147,
+      "beat_chords": [
+        "C",
+        "C",
+        "C",
+        "C"
+      ],
+      "pattern": "C · C · C · C"
+    },
+    {
+      "measure": 9,
+      "time_start": 21.501678004535147,
+      "time_end": 24.19519274376417,
+      "beat_chords": [
+        "E",
+        "E",
+        "E",
+        "E"
+      ],
+      "pattern": "E · E · E · E"
+    },
+    {
+      "measure": 10,
+      "time_start": 24.19519274376417,
+      "time_end": 26.911927437641722,
+      "beat_chords": [
+        "E",
+        "F",
+        "F",
+        "F"
+      ],
+      "pattern": "E · F · F · F"
+    },
+    {
+      "measure": 11,
+      "time_start": 26.911927437641722,
+      "time_end": 29.559002267573696,
+      "beat_chords": [
+        "F",
+        "F",
+        "F",
+        "F"
+      ],
+      "pattern": "F · F · F · F"
+    },
+    {
+      "measure": 12,
+      "time_start": 29.559002267573696,
+      "time_end": 32.02031746031746,
+      "beat_chords": [
+        "G",
+        "G",
+        "G",
+        "Bm"
+      ],
+      "pattern": "G · G · G · Bm"
+    },
+    {
+      "measure": 13,
+      "time_start": 32.02031746031746,
+      "time_end": 34.43519274376417,
+      "beat_chords": [
+        "G",
+        "F#m",
+        "C",
+        "C"
+      ],
+      "pattern": "G · F#m · C · C"
+    },
+    {
+      "measure": 14,
+      "time_start": 34.43519274376417,
+      "time_end": 37.151927437641724,
+      "beat_chords": [
+        "C",
+        "C",
+        "C",
+        "C"
+      ],
+      "pattern": "C · C · C · C"
+    },
+    {
+      "measure": 15,
+      "time_start": 37.151927437641724,
+      "time_end": 39.86866213151927,
+      "beat_chords": [
+        "E",
+        "E",
+        "E",
+        "E"
+      ],
+      "pattern": "E · E · E · E"
+    },
+    {
+      "measure": 16,
+      "time_start": 39.86866213151927,
+      "time_end": 42.53895691609977,
+      "beat_chords": [
+        "E",
+        "B",
+        "F",
+        "F"
+      ],
+      "pattern": "E · B · F · F"
+    },
+    {
+      "measure": 17,
+      "time_start": 42.53895691609977,
+      "time_end": 45.255691609977326,
+      "beat_chords": [
+        "F",
+        "F",
+        "F",
+        "F"
+      ],
+      "pattern": "F · F · F · F"
+    },
+    {
+      "measure": 18,
+      "time_start": 45.255691609977326,
+      "time_end": 47.78666666666667,
+      "beat_chords": [
+        "G",
+        "G",
+        "G",
+        "G"
+      ],
+      "pattern": "G · G · G · G"
+    },
+    {
+      "measure": 19,
+      "time_start": 47.78666666666667,
+      "time_end": 50.52662131519274,
+      "beat_chords": [
+        "G",
+        "G",
+        "C",
+        "C"
+      ],
+      "pattern": "G · G · C · C"
+    },
+    {
+      "measure": 20,
+      "time_start": 50.52662131519274,
+      "time_end": 53.15047619047619,
+      "beat_chords": [
+        "C",
+        "E",
+        "E",
+        "E"
+      ],
+      "pattern": "C · E · E · E"
+    },
+    {
+      "measure": 21,
+      "time_start": 53.15047619047619,
+      "time_end": 55.797551020408164,
+      "beat_chords": [
+        "Fm",
+        "F",
+        "F",
+        "G"
+      ],
+      "pattern": "Fm · F · F · G"
+    },
+    {
+      "measure": 22,
+      "time_start": 55.797551020408164,
+      "time_end": 58.42140589569161,
+      "beat_chords": [
+        "G",
+        "G",
+        "C",
+        "C"
+      ],
+      "pattern": "G · G · C · C"
+    },
+    {
+      "measure": 23,
+      "time_start": 58.42140589569161,
+      "time_end": 61.045260770975055,
+      "beat_chords": [
+        "Cm",
+        "E",
+        "E",
+        "E"
+      ],
+      "pattern": "Cm · E · E · E"
+    },
+    {
+      "measure": 24,
+      "time_start": 61.045260770975055,
+      "time_end": 63.715555555555554,
+      "beat_chords": [
+        "F",
+        "F",
+        "F#m",
+        "G"
+      ],
+      "pattern": "F · F · F#m · G"
+    },
+    {
+      "measure": 25,
+      "time_start": 63.715555555555554,
+      "time_end": 66.45551020408163,
+      "beat_chords": [
+        "G",
+        "Bm",
+        "C#m",
+        "C"
+      ],
+      "pattern": "G · Bm · C#m · C"
+    },
+    {
+      "measure": 26,
+      "time_start": 66.45551020408163,
+      "time_end": 69.14902494331066,
+      "beat_chords": [
+        "C",
+        "C",
+        "C",
+        "C"
+      ],
+      "pattern": "C · C · C · C"
+    },
+    {
+      "measure": 27,
+      "time_start": 69.14902494331066,
+      "time_end": 71.84253968253968,
+      "beat_chords": [
+        "E",
+        "E",
+        "E",
+        "E"
+      ],
+      "pattern": "E · E · E · E"
+    },
+    {
+      "measure": 28,
+      "time_start": 71.84253968253968,
+      "time_end": 74.51283446712019,
+      "beat_chords": [
+        "E",
+        "E",
+        "F",
+        "F"
+      ],
+      "pattern": "E · E · F · F"
+    },
+    {
+      "measure": 29,
+      "time_start": 74.51283446712019,
+      "time_end": 77.2063492063492,
+      "beat_chords": [
+        "F",
+        "F",
+        "F",
+        "F"
+      ],
+      "pattern": "F · F · F · F"
+    },
+    {
+      "measure": 30,
+      "time_start": 77.2063492063492,
+      "time_end": 79.7837641723356,
+      "beat_chords": [
+        "F",
+        "G",
+        "G",
+        "F#m"
+      ],
+      "pattern": "F · G · G · F#m"
+    },
+    {
+      "measure": 31,
+      "time_start": 79.7837641723356,
+      "time_end": 82.63981859410431,
+      "beat_chords": [
+        "F#m",
+        "Gm",
+        "C",
+        "C"
+      ],
+      "pattern": "F#m · Gm · C · C"
+    },
+    {
+      "measure": 32,
+      "time_start": 82.63981859410431,
+      "time_end": 85.35655328798185,
+      "beat_chords": [
+        "C",
+        "C",
+        "C",
+        "C"
+      ],
+      "pattern": "C · C · C · C"
+    },
+    {
+      "measure": 33,
+      "time_start": 85.35655328798185,
+      "time_end": 88.05006802721088,
+      "beat_chords": [
+        "E",
+        "E",
+        "E",
+        "E"
+      ],
+      "pattern": "E · E · E · E"
+    },
+    {
+      "measure": 34,
+      "time_start": 88.05006802721088,
+      "time_end": 90.72036281179139,
+      "beat_chords": [
+        "E",
+        "E",
+        "F",
+        "F"
+      ],
+      "pattern": "E · E · F · F"
+    },
+    {
+      "measure": 35,
+      "time_start": 90.72036281179139,
+      "time_end": 93.4138775510204,
+      "beat_chords": [
+        "F",
+        "F",
+        "F",
+        "F"
+      ],
+      "pattern": "F · F · F · F"
+    },
+    {
+      "measure": 36,
+      "time_start": 93.4138775510204,
+      "time_end": 95.94485260770975,
+      "beat_chords": [
+        "Gm",
+        "G",
+        "G",
+        "G"
+      ],
+      "pattern": "Gm · G · G · G"
+    },
+    {
+      "measure": 37,
+      "time_start": 95.94485260770975,
+      "time_end": 98.6615873015873,
+      "beat_chords": [
+        "G",
+        "G",
+        "C",
+        "C"
+      ],
+      "pattern": "G · G · C · C"
+    },
+    {
+      "measure": 38,
+      "time_start": 98.6615873015873,
+      "time_end": 101.28544217687075,
+      "beat_chords": [
+        "C",
+        "E",
+        "E",
+        "E"
+      ],
+      "pattern": "C · E · E · E"
+    },
+    {
+      "measure": 39,
+      "time_start": 101.28544217687075,
+      "time_end": 103.93251700680273,
+      "beat_chords": [
+        "F",
+        "F",
+        "F",
+        "G"
+      ],
+      "pattern": "F · F · F · G"
+    },
+    {
+      "measure": 40,
+      "time_start": 103.93251700680273,
+      "time_end": 106.53315192743764,
+      "beat_chords": [
+        "G",
+        "G",
+        "C",
+        "C"
+      ],
+      "pattern": "G · G · C · C"
+    },
+    {
+      "measure": 41,
+      "time_start": 106.53315192743764,
+      "time_end": 109.13378684807256,
+      "beat_chords": [
+        "C",
+        "Em",
+        "E",
+        "E"
+      ],
+      "pattern": "C · Em · E · E"
+    },
+    {
+      "measure": 42,
+      "time_start": 109.13378684807256,
+      "time_end": 111.78086167800454,
+      "beat_chords": [
+        "F",
+        "F",
+        "F",
+        "G"
+      ],
+      "pattern": "F · F · F · G"
+    },
+    {
+      "measure": 43,
+      "time_start": 111.78086167800454,
+      "time_end": 114.56725623582767,
+      "beat_chords": [
+        "G",
+        "C",
+        "C",
+        "C"
+      ],
+      "pattern": "G · C · C · C"
+    },
+    {
+      "measure": 44,
+      "time_start": 114.56725623582767,
+      "time_end": 117.26077097505669,
+      "beat_chords": [
+        "C",
+        "C",
+        "C",
+        "C"
+      ],
+      "pattern": "C · C · C · C"
+    },
+    {
+      "measure": 45,
+      "time_start": 117.26077097505669,
+      "time_end": 119.95428571428572,
+      "beat_chords": [
+        "E",
+        "E",
+        "E",
+        "E"
+      ],
+      "pattern": "E · E · E · E"
+    },
+    {
+      "measure": 46,
+      "time_start": 119.95428571428572,
+      "time_end": 122.64780045351473,
+      "beat_chords": [
+        "E",
+        "E",
+        "F",
+        "F"
+      ],
+      "pattern": "E · E · F · F"
+    },
+    {
+      "measure": 47,
+      "time_start": 122.64780045351473,
+      "time_end": 125.31809523809524,
+      "beat_chords": [
+        "F",
+        "F",
+        "F",
+        "F"
+      ],
+      "pattern": "F · F · F · F"
+    },
+    {
+      "measure": 48,
+      "time_start": 125.31809523809524,
+      "time_end": 127.84907029478458,
+      "beat_chords": [
+        "G",
+        "G",
+        "G",
+        "G"
+      ],
+      "pattern": "G · G · G · G"
+    },
+    {
+      "measure": 49,
+      "time_start": 127.84907029478458,
+      "time_end": 130.5425850340136,
+      "beat_chords": [
+        "G",
+        "G",
+        "C",
+        "C"
+      ],
+      "pattern": "G · G · C · C"
+    },
+    {
+      "measure": 50,
+      "time_start": 130.5425850340136,
+      "time_end": 133.16643990929705,
+      "beat_chords": [
+        "C",
+        "E",
+        "E",
+        "E"
+      ],
+      "pattern": "C · E · E · E"
+    },
+    {
+      "measure": 51,
+      "time_start": 133.16643990929705,
+      "time_end": 135.81351473922902,
+      "beat_chords": [
+        "Fm",
+        "F",
+        "F",
+        "F"
+      ],
+      "pattern": "Fm · F · F · F"
+    },
+    {
+      "measure": 52,
+      "time_start": 135.81351473922902,
+      "time_end": 138.39092970521543,
+      "beat_chords": [
+        "G",
+        "G",
+        "G",
+        "C"
+      ],
+      "pattern": "G · G · G · C"
+    },
+    {
+      "measure": 53,
+      "time_start": 138.39092970521543,
+      "time_end": 141.01478458049885,
+      "beat_chords": [
+        "C",
+        "E",
+        "E",
+        "E"
+      ],
+      "pattern": "C · E · E · E"
+    },
+    {
+      "measure": 54,
+      "time_start": 141.01478458049885,
+      "time_end": 143.5457596371882,
+      "beat_chords": [
+        "Fm",
+        "F",
+        "F",
+        "F"
+      ],
+      "pattern": "Fm · F · F · F"
+    },
+    {
+      "measure": 55,
+      "time_start": 143.5457596371882,
+      "time_end": 146.19283446712018,
+      "beat_chords": [
+        "G",
+        "G",
+        "G",
+        "C"
+      ],
+      "pattern": "G · G · G · C"
+    },
+    {
+      "measure": 56,
+      "time_start": 146.19283446712018,
+      "time_end": 148.7934693877551,
+      "beat_chords": [
+        "C",
+        "Em",
+        "E",
+        "E"
+      ],
+      "pattern": "C · Em · E · E"
+    },
+    {
+      "measure": 57,
+      "time_start": 148.7934693877551,
+      "time_end": 151.39410430839,
+      "beat_chords": [
+        "Fm",
+        "F",
+        "F",
+        "F"
+      ],
+      "pattern": "Fm · F · F · F"
+    },
+    {
+      "measure": 58,
+      "time_start": 151.39410430839,
+      "time_end": 153.97151927437642,
+      "beat_chords": [
+        "G",
+        "G",
+        "C",
+        "C"
+      ],
+      "pattern": "G · G · C · C"
+    },
+    {
+      "measure": 59,
+      "time_start": 153.97151927437642,
+      "time_end": 156.57215419501134,
+      "beat_chords": [
+        "C",
+        "Em",
+        "E",
+        "E"
+      ],
+      "pattern": "C · Em · E · E"
+    },
+    {
+      "measure": 60,
+      "time_start": 156.57215419501134,
+      "time_end": 159.07990929705215,
+      "beat_chords": [
+        "Fm",
+        "F",
+        "F",
+        "Gm"
+      ],
+      "pattern": "Fm · F · F · Gm"
+    },
+    {
+      "measure": 61,
+      "time_start": 159.07990929705215,
+      "time_end": 161.72698412698412,
+      "beat_chords": [
+        "G",
+        "G",
+        "G",
+        "C"
+      ],
+      "pattern": "G · G · G · C"
+    },
+    {
+      "measure": 62,
+      "time_start": 161.72698412698412,
+      "time_end": 164.30439909297053,
+      "beat_chords": [
+        "Cm",
+        "E",
+        "E",
+        "E"
+      ],
+      "pattern": "Cm · E · E · E"
+    }
+  ],
+  "harmonic_motifs": [
+    {
+      "a_measure_start": 14,
+      "a_measure_end": 20,
+      "b_measure_start": 44,
+      "b_measure_end": 50,
+      "length": 7,
+      "harmonic_score": 0.9643
+    },
+    {
+      "a_measure_start": 32,
+      "a_measure_end": 38,
+      "b_measure_start": 44,
+      "b_measure_end": 50,
+      "length": 7,
+      "harmonic_score": 0.9643
+    },
+    {
+      "a_measure_start": 15,
+      "a_measure_end": 20,
+      "b_measure_start": 45,
+      "b_measure_end": 50,
+      "length": 6,
+      "harmonic_score": 0.9583
+    },
+    {
+      "a_measure_start": 33,
+      "a_measure_end": 38,
+      "b_measure_start": 45,
+      "b_measure_end": 50,
+      "length": 6,
+      "harmonic_score": 0.9583
+    },
+    {
+      "a_measure_start": 13,
+      "a_measure_end": 20,
+      "b_measure_start": 43,
+      "b_measure_end": 50,
+      "length": 8,
+      "harmonic_score": 0.9375
+    },
+    {
+      "a_measure_start": 14,
+      "a_measure_end": 20,
+      "b_measure_start": 32,
+      "b_measure_end": 38,
+      "length": 7,
+      "harmonic_score": 0.9286
+    },
+    {
+      "a_measure_start": 1,
+      "a_measure_end": 6,
+      "b_measure_start": 7,
+      "b_measure_end": 12,
+      "length": 6,
+      "harmonic_score": 0.9167
+    },
+    {
+      "a_measure_start": 1,
+      "a_measure_end": 6,
+      "b_measure_start": 43,
+      "b_measure_end": 48,
+      "length": 6,
+      "harmonic_score": 0.9167
+    },
+    {
+      "a_measure_start": 7,
+      "a_measure_end": 12,
+      "b_measure_start": 43,
+      "b_measure_end": 48,
+      "length": 6,
+      "harmonic_score": 0.9167
+    },
+    {
+      "a_measure_start": 15,
+      "a_measure_end": 20,
+      "b_measure_start": 33,
+      "b_measure_end": 38,
+      "length": 6,
+      "harmonic_score": 0.9167
+    },
+    {
+      "a_measure_start": 16,
+      "a_measure_end": 21,
+      "b_measure_start": 46,
+      "b_measure_end": 51,
+      "length": 6,
+      "harmonic_score": 0.9167
+    },
+    {
+      "a_measure_start": 17,
+      "a_measure_end": 22,
+      "b_measure_start": 35,
+      "b_measure_end": 40,
+      "length": 6,
+      "harmonic_score": 0.9167
+    }
+  ],
+  "visual_blocks": [
+    {
+      "cluster": "A",
+      "measure_start": 1,
+      "measure_end": 6,
+      "measure_count": 6,
+      "time_start": 0.11609977324263039,
+      "time_end": 15.952108843537415,
+      "lyrics": "... J 'avais",
+      "chord_patterns": [
+        "G · C · C · C",
+        "C · C · C · C",
+        "E · E · E · E",
+        "E · F · F · F",
+        "F · F · F · G",
+        "G · G · G · G"
+      ],
+      "visual_only": true
+    },
+    {
+      "cluster": "B",
+      "measure_start": 7,
+      "measure_end": 12,
+      "measure_count": 6,
+      "time_start": 15.952108843537415,
+      "time_end": 32.02031746031746,
+      "lyrics": "'avais dessiné Sur le sable Son doux visage Qui me souriait Puis",
+      "chord_patterns": [
+        "G · C · C · C",
+        "C · C · C · C",
+        "E · E · E · E",
+        "E · F · F · F",
+        "F · F · F · F",
+        "G · G · G · Bm"
+      ],
+      "visual_only": true
+    },
+    {
+      "cluster": "C",
+      "measure_start": 13,
+      "measure_end": 31,
+      "measure_count": 19,
+      "time_start": 32.02031746031746,
+      "time_end": 82.63981859410431,
+      "lyrics": "Puis il a plu Sur cette plage Dans cet orage Elle a disparu Et j 'ai crié Créé À l 'île Pour qu 'elle revienne Et j 'ai pleuré Pleuré Oh j 'avais trop de paix Je me suis assis Auprès de son âme Mais la belle dame C 'était un fluid Je l 'ai cherché",
+      "chord_patterns": [
+        "G · F#m · C · C",
+        "C · C · C · C",
+        "E · E · E · E",
+        "E · B · F · F",
+        "F · F · F · F",
+        "G · G · G · G",
+        "G · G · C · C",
+        "C · E · E · E",
+        "Fm · F · F · G",
+        "G · G · C · C",
+        "Cm · E · E · E",
+        "F · F · F#m · G",
+        "G · Bm · C#m · C",
+        "C · C · C · C",
+        "E · E · E · E",
+        "E · E · F · F",
+        "F · F · F · F",
+        "F · G · G · F#m",
+        "F#m · Gm · C · C"
+      ],
+      "visual_only": true
+    },
+    {
+      "cluster": "D",
+      "measure_start": 32,
+      "measure_end": 42,
+      "measure_count": 11,
+      "time_start": 82.63981859410431,
+      "time_end": 111.78086167800454,
+      "lyrics": "Sans plus y croire Et sans un espoir Pour me guider Et j 'ai crié Créé À l 'île Pour qu 'elle revienne Et j 'ai pleuré Pleuré Oh j 'avais trop de paix",
+      "chord_patterns": [
+        "C · C · C · C",
+        "E · E · E · E",
+        "E · E · F · F",
+        "F · F · F · F",
+        "Gm · G · G · G",
+        "G · G · C · C",
+        "C · E · E · E",
+        "F · F · F · G",
+        "G · G · C · C",
+        "C · Em · E · E",
+        "F · F · F · G"
+      ],
+      "visual_only": true
+    },
+    {
+      "cluster": "E",
+      "measure_start": 43,
+      "measure_end": 62,
+      "measure_count": 20,
+      "time_start": 111.78086167800454,
+      "time_end": 164.58,
+      "lyrics": "Je n 'ai gardé Que ce doux visage Comme une épave Sur le sable mouillé Et j 'ai crié Créé À l 'île Pour qu 'elle revienne Et j 'ai pleuré Pleuré Oh j 'avais trop de paix Et j 'ai crié Créé À l 'île Pour qu 'elle revienne Et j 'ai pleuré Pleuré Oh j 'avais trop de paix Et j 'ai crié Créé À l 'île",
+      "chord_patterns": [
+        "G · C · C · C",
+        "C · C · C · C",
+        "E · E · E · E",
+        "E · E · F · F",
+        "F · F · F · F",
+        "G · G · G · G",
+        "G · G · C · C",
+        "C · E · E · E",
+        "Fm · F · F · F",
+        "G · G · G · C",
+        "C · E · E · E",
+        "Fm · F · F · F",
+        "G · G · G · C",
+        "C · Em · E · E",
+        "Fm · F · F · F",
+        "G · G · C · C",
+        "C · Em · E · E",
+        "Fm · F · F · Gm",
+        "G · G · G · C",
+        "Cm · E · E · E"
+      ],
+      "visual_only": true
+    }
+  ],
+  "visual_block_min_measures": 4,
+  "lyrics_source": "original",
+  "timebase": "original_audio_seconds"
+}
