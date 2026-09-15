@@ -1,118 +1,129 @@
-# EZScore — sensibilité vocale + compensation d'écoute
+# EZScore — Stem pipeline R1
 
 Branche cible :
 
 ```text
-feature/vocal-midi-analysis
+feature/stem-analysis-pipeline
 ```
 
-Cette livraison reste strictement expérimentale et modifie uniquement :
+Ce livrable ajoute uniquement le module de séparation/cache des stems :
 
 ```text
-ezscore/analysis/vocal.py
+ezscore/analysis/stems.py
 ```
 
-## 1. Notes faibles mieux récupérées
+Aucun remplacement de l'analyse musicale EZScore n'est effectué dans ce
+checkpoint.
 
-Le seuil pYIN principal devient légèrement plus permissif :
+## Invariants
 
 ```text
-Demucs vocals : 0.55 → 0.48
-fallback mix   : 0.72 → 0.66
+audio original = horloge maître
 ```
 
-Mais les frames faibles ne sont pas acceptées aveuglément.
-
-Une frame située sous le seuil principal peut être récupérée uniquement si :
+Rôles prévus :
 
 ```text
-- pYIN la considère encore comme vocale
-- sa confiance reste proche du seuil principal
-- son énergie RMS est suffisante par rapport à la piste du morceau
-- sa hauteur est cohérente avec une frame forte voisine
+Original → Whisper small → paroles
+Vocals   → mélodie / F0
+Drums    → tempo / beats / mesures
+Bass     → fondamentale auxiliaire
+Other    → harmonie / accords
 ```
 
-Le seuil RMS est **relatif au morceau**, jamais absolu.
+Le module ne modifie ni la base SQLite, ni les logs, ni les timelines
+existantes.
 
-Objectif : récupérer surtout les attaques et fins de notes peu puissantes sans
-réintroduire beaucoup de résidus instrumentaux.
+## Cache
 
-## 2. Filtre anti-vibrato conservé
-
-Les réglages validés précédemment restent inchangés :
+Les stems sont persistés par hash audio et modèle :
 
 ```text
-filtre médian        : 7 frames
-hystérésis           : 70 cents
-nouvelle note stable : 100 ms
+data/
+└── analysis/
+    └── stems/
+        └── <audio_hash>/
+            └── htdemucs/
+                ├── vocals.wav
+                ├── drums.wav
+                ├── bass.wav
+                ├── other.wav
+                └── manifest.json
 ```
 
-## 3. Compensation de latence dans le lecteur uniquement
+Une séparation réussie n'est donc calculée qu'une fois pour le même hash.
 
-La piste MIDI chant du lecteur est avancée de :
+Le cache n'est considéré valide que lorsque les quatre WAV sont présents et
+non vides. Une séparation incomplète n'est jamais publiée comme cache valide.
 
-```text
-40 ms
+## API
+
+```python
+from ezscore.analysis.stems import (
+    cached_stem_paths,
+    ensure_stems,
+    stem_path,
+    stems_cache_complete,
+)
 ```
 
-Important :
+Exemple :
 
-```text
-timeline analytique vocale : NON décalée
-MIDI chant exporté         : NON décalé
-analyse des blocs          : NON décalée
-lecteur comparatif         : -40 ms seulement
+```python
+result = ensure_stems(
+    audio_bytes=audio_bytes,
+    extension=extension,
+    audio_hash=audio_hash,
+)
+
+drums = result["paths"]["drums"]
+other = result["paths"]["other"]
 ```
 
-La correction ne modifie donc aucune donnée canonique.
+## Installation locale
 
-## 4. Cache
-
-Le schéma vocal passe à :
-
-```text
-3
-```
-
-Il faut recalculer la voix une fois pour chaque morceau afin d'utiliser les
-nouveaux seuils.
-
-## Installation
-
-```powershell
-cd H:\EZScore
-git branch --show-current
-```
-
-Résultat obligatoire :
-
-```text
-feature/vocal-midi-analysis
-```
+Dézipper le livrable à la racine de `H:\EZScore` en conservant les chemins.
 
 Puis :
 
 ```powershell
-tar -xf "$env:USERPROFILE\Downloads\EZScore_FEATURE_VOCAL_SENSITIVITY_LATENCY.zip" -C H:\EZScore
-
-python -m py_compile .\ezscore\analysis\vocal.py
-python -m py_compile .\EZScore.py
-python -m compileall -q .\ezscore
-
-python -m streamlit run .\EZScore.py
+cd H:\EZScore
+python -m py_compile .\ezscore\analysis\stems.py
+git status --short
 ```
 
-## Recette conseillée avec Le Sud
+Le résultat Git attendu pour ce checkpoint est uniquement :
 
-1. `Analyser / recalculer la voix`.
-2. Laisser `Alto Sax`.
-3. Mettre `Volume accords MIDI = 0`.
-4. Comparer MP3 + chant MIDI.
-5. Vérifier :
-   - davantage de notes faibles présentes ;
-   - pas de retour massif des notes parasites de vibrato ;
-   - saxo légèrement mieux calé sur les attaques vocales.
-6. Télécharger aussi le MIDI chant : il doit rester sur les timestamps
-   analytiques non compensés.
+```text
+?? ezscore/analysis/stems.py
+```
 
-Ne pas fusionner dans `master` avant validation.
+Les modifications locales déjà présentes dans :
+
+```text
+data/EZScore.sqlite3
+data/logs/ezscore_perf.log
+```
+
+ne doivent pas être ajoutées au commit.
+
+## Commit utilisateur
+
+Après test :
+
+```powershell
+git add .\ezscore\analysis\stems.py
+git commit -m "Add cached four-stem analysis module"
+git push
+```
+
+## Étape suivante
+
+Après validation de ce cache, connecter progressivement les consommateurs :
+
+1. `drums.wav` au moteur rythme ;
+2. `other.wav` à l'harmonie principale ;
+3. `bass.wav` comme évidence auxiliaire de fondamentale ;
+4. `vocals.wav` au moteur F0/mélodie.
+
+La transcription des paroles restera sur l'audio original.
