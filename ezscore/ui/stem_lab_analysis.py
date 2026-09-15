@@ -36,6 +36,7 @@ from ezscore.analysis.stems import (
     stems_cache_complete,
 )
 import ezscore.persistence as _persistence
+from ezscore.analysis.stem_midi import generate_stem_midi_bundle
 from ezscore.player.stem_webaudio import (
     ffmpeg_available as _stem_ffmpeg_available,
     render_player as _render_stem_player,
@@ -512,6 +513,90 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
 
     st.subheader("Stems")
     _download_stems(stems)
+
+    st.subheader("MIDI dérivé des stems")
+    st.caption(
+        "Trois pistes MIDI de contrôle, toutes calées en secondes sur l'audio original : "
+        "chant, accords et batterie. Aucun timestamp canonique n'est déplacé."
+    )
+
+    structure_for_midi = _load_structure(audio_hash)
+    midi_dir = _work_dir(audio_hash) / "midi"
+
+    if structure_for_midi is None:
+        st.info(
+            "Lance d'abord l'analyse structurelle pour disposer de la timeline "
+            "d'accords et des mesures. Le MIDI chant/batterie n'est pas généré "
+            "isolément afin de conserver un bundle cohérent."
+        )
+    else:
+        if st.button(
+            "Générer / régénérer les MIDI",
+            type="primary",
+            width="stretch",
+            key=f"ezstem_midi_generate_{str(audio_hash)[:12]}",
+        ):
+            with st.spinner("Génération MIDI chant + accords + batterie…"):
+                try:
+                    generate_stem_midi_bundle(
+                        vocals_path=stems["vocals"],
+                        drums_path=stems["drums"],
+                        structure=structure_for_midi,
+                        output_dir=midi_dir,
+                    )
+                except Exception as exc:
+                    st.error("Génération MIDI impossible : " + str(exc))
+                    return
+            st.rerun()
+
+        meta_path = midi_dir / "stem_midi.json"
+        if meta_path.is_file():
+            try:
+                midi_meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            except Exception:
+                midi_meta = {}
+
+            st.success(
+                "MIDI disponibles · "
+                f"{int(midi_meta.get('vocal_note_count', 0))} notes chant · "
+                f"{int(midi_meta.get('drum_beat_count', 0))} beats batterie."
+            )
+
+            midi_cols = st.columns(4)
+            midi_items = [
+                ("Chant", "vocal.mid", "vocal"),
+                ("Accords", "chords.mid", "chords"),
+                ("Batterie", "drums.mid", "drums"),
+                ("Combiné", "stem_mix.mid", "combined"),
+            ]
+            for col, (label, filename, key_name) in zip(midi_cols, midi_items):
+                path = midi_dir / filename
+                with col:
+                    if path.is_file():
+                        st.download_button(
+                            f"⬇ MIDI {label}",
+                            data=path.read_bytes(),
+                            file_name=filename,
+                            mime="audio/midi",
+                            width="stretch",
+                            key=f"ezstem_midi_dl_{key_name}_{str(audio_hash)[:12]}",
+                        )
+                    else:
+                        st.button(
+                            f"{label} absent",
+                            disabled=True,
+                            width="stretch",
+                            key=f"ezstem_midi_missing_{key_name}_{str(audio_hash)[:12]}",
+                        )
+
+            st.download_button(
+                "⬇ Exporter le diagnostic MIDI JSON",
+                data=meta_path.read_bytes(),
+                file_name="stem_midi.json",
+                mime="application/json",
+                width="stretch",
+                key=f"ezstem_midi_json_{str(audio_hash)[:12]}",
+            )
 
     st.subheader("Analyse des paroles")
     st.caption(
