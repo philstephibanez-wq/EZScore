@@ -530,3 +530,75 @@ Ainsi :
 - aucun trou ni chevauchement n'est introduit ;
 - le recalage automatique des paroles reste inchangé ;
 - le bouton stylo + scroll restent inchangés.
+
+
+## R12.10 — saisie libre des Nb mesures + validation du total
+
+Suppression du blocage artificiel `max_value` qui réservait une mesure à tous
+les blocs suivants.
+
+Le modèle d'édition est maintenant strictement séquentiel :
+
+- premier Début = 1 ;
+- Début du bloc N = Fin du bloc N-1 + 1 ;
+- Fin interne = Début + Nb mesures - 1.
+
+Quand un `Nb mesures` change, tous les Début suivants sont immédiatement
+recalculés.
+
+Pendant l'édition, la somme peut être temporairement inférieure ou supérieure
+au nombre total de mesures. La saisie n'est pas bloquée.
+
+La seule règle de validation finale est :
+
+`sum(Nb mesures) == total_measures`
+
+Si la somme est trop petite ou trop grande, `Valider blocs + paroles` refuse la
+persistance avec le nombre exact de mesures à ajouter/retirer.
+
+Le recalage automatique des paroles suit les nouvelles bornes séquentielles.
+Les timestamps Whisper restent inchangés.
+
+
+## R13 — signatures métriques génériques sans déplacement de timeline
+
+### Modèle
+
+EZScore sépare désormais :
+- la signature `N/D` ;
+- le groupement métrique ;
+- le nombre de pulsations détectées par mesure ;
+- les accents MIDI.
+
+Exemples pris en charge :
+- `6/8` + `3+3` -> 2 temps métriques ;
+- `9/8` + `3+3+3` -> 3 temps métriques ;
+- `12/8` + `3+3+3+3` -> 4 temps métriques ;
+- `5/8` + `2+3` -> 2 temps métriques ;
+- `7/8` + `2+2+3` -> 3 temps métriques ;
+- `5/4` + `3+2` -> 5 pulsations détectées par mesure, accents 1 et 4 ;
+- `7/4` + `4+3` -> 7 pulsations détectées par mesure, accents 1 et 5.
+
+La signature est saisie librement au format `N/D`; elle n'est plus limitée à
+une liste fermée.
+
+### Invariant temporel
+
+`beat_timeline` reste la timeline canonique en secondes de l'audio original.
+Un changement de signature ne déplace aucun timestamp.
+
+Il recalcule seulement :
+1. le regroupement des beats en mesures ;
+2. le nombre total de mesures ;
+3. les numéros de mesures ;
+4. les blocs, remappés par leurs bornes temporelles absolues ;
+5. les accents métriques MIDI ;
+6. les MIDI accords/batterie dépendants de la métrique.
+
+Le MIDI vocal n'est pas invalidé par une simple modification de signature.
+
+### Aline
+
+Avec `6/8` et groupement `3+3`, EZScore regroupe 2 pulsations détectées par
+mesure au lieu de 6. Le nombre de mesures est donc recalculé à partir de la
+même timeline audio, sans aucun glissement par rapport au MP3.

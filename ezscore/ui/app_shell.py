@@ -1408,21 +1408,18 @@ def _ezscore_data_editor(*args, **kwargs):
                 unsafe_allow_html=True,
             )
 
-        # Keep at least one measure for every following block.
-        remaining_blocks = max(0, len(draft) - index - 1)
-        max_count = max(
-            1,
-            total_measures - m0 + 1 - remaining_blocks,
-        )
-
         with row[2]:
             count_value = st.number_input(
                 f"Nb mesures bloc {index + 1}",
                 min_value=1,
-                max_value=max_count,
                 step=1,
                 key=count_key,
                 label_visibility="collapsed",
+                help=(
+                    "Saisie libre. Les blocs suivants sont recalculés "
+                    "séquentiellement. La validation finale exige que la somme "
+                    "des blocs soit exactement égale au nombre total de mesures."
+                ),
             )
 
         with row[3]:
@@ -2276,6 +2273,159 @@ _persistence.materialiser_structure_blocks = (
 _persistence._source_words_for_interval = (
     _ezscore_source_words_for_interval
 )
+
+
+# ---------------------------------------------------------------------------
+# R12.10 — structure editing by sequential measure counts.
+#
+# User model:
+#   start[0] = 1
+#   start[n] = end[n-1] + 1
+#   end[n]   = start[n] + count[n] - 1
+#
+# During editing, the total may temporarily be < or > the song length.
+# Only final validation requires sum(counts) == total_measures.
+# ---------------------------------------------------------------------------
+
+_ORIGINAL_STRUCTURE_NORMALIZE = _persistence._normalize_structure_draft
+_ORIGINAL_STRUCTURE_APPLY_LIVE = _persistence._apply_structure_table_live_edit
+_ORIGINAL_STRUCTURE_PERSIST = _persistence._persist_structure_draft
+
+
+def _ezscore_structure_counts(blocks):
+    return [
+        max(
+            1,
+            int(block.get("measure_end", 0) or 0)
+            - int(block.get("measure_start", 1) or 1)
+            + 1,
+        )
+        for block in (blocks or [])
+    ]
+
+
+def _ezscore_normalize_structure_draft(blocks, total_measures):
+    """Recalculate starts sequentially WITHOUT forcing the total.
+
+    This is an edit-draft normalization, not persistence validation.
+    """
+    if not blocks:
+        return []
+
+    normalized = [dict(block) for block in blocks]
+    previous_end = 0
+
+    for index, block in enumerate(normalized):
+        old_start = int(block.get("measure_start", previous_end + 1) or (previous_end + 1))
+        old_end = int(block.get("measure_end", old_start) or old_start)
+        count = max(1, old_end - old_start + 1)
+
+        start = previous_end + 1
+        end = start + count - 1
+
+        block["order_index"] = index
+        block["measure_start"] = int(start)
+        block["measure_end"] = int(end)
+        previous_end = end
+
+    return normalized
+
+
+def _ezscore_apply_structure_table_live_edit(
+    blocks,
+    edited_rows,
+    total_measures,
+):
+    """Apply Nom + Nb mesures, then recalc every following start sequentially."""
+    blocks = [dict(block) for block in (blocks or [])]
+    if len(edited_rows) != len(blocks):
+        return _ezscore_normalize_structure_draft(blocks, total_measures)
+
+    previous_end = 0
+    result = []
+
+    for index, (block, row) in enumerate(zip(blocks, edited_rows)):
+        label = str(row.get("Nom", "") or "").strip() or "Nouveau bloc"
+
+        try:
+            count = int(row.get("Nb mesures", 1))
+        except Exception:
+            count = 1
+        count = max(1, count)
+
+        start = previous_end + 1
+        end = start + count - 1
+
+        updated = dict(block)
+        updated["custom_label"] = label
+        updated["order_index"] = index
+        updated["measure_start"] = int(start)
+        updated["measure_end"] = int(end)
+
+        result.append(updated)
+        previous_end = end
+
+    return result
+
+
+def _ezscore_persist_structure_draft(audio_hash, draft, total_measures):
+    """Persist only a complete sequential partition.
+
+    Editing stays free. Validation is the gate.
+    """
+    blocks = _ezscore_normalize_structure_draft(
+        draft,
+        total_measures,
+    )
+
+    if not blocks:
+        return False, "Le morceau doit conserver au moins un bloc."
+
+    counts = _ezscore_structure_counts(blocks)
+    assigned = sum(counts)
+    expected = int(total_measures)
+
+    if assigned != expected:
+        delta = assigned - expected
+        if delta < 0:
+            return (
+                False,
+                f"Découpage incomplet : {assigned} / {expected} mesures. "
+                f"Il reste {-delta} mesure(s) à affecter.",
+            )
+        return (
+            False,
+            f"Découpage trop long : {assigned} / {expected} mesures. "
+            f"Retirez {delta} mesure(s) avant validation.",
+        )
+
+    if int(blocks[0]["measure_start"]) != 1:
+        return False, "Le premier bloc doit commencer à la mesure 1."
+
+    if int(blocks[-1]["measure_end"]) != expected:
+        return (
+            False,
+            "Le recalcul séquentiel n'aboutit pas à la dernière mesure du morceau.",
+        )
+
+    _persistence._save_structure_blocks(audio_hash, blocks)
+    st.session_state[
+        _persistence._structure_draft_key(audio_hash)
+    ] = [dict(block) for block in blocks]
+
+    return True, "Découpage validé."
+
+
+_persistence._normalize_structure_draft = (
+    _ezscore_normalize_structure_draft
+)
+_persistence._apply_structure_table_live_edit = (
+    _ezscore_apply_structure_table_live_edit
+)
+_persistence._persist_structure_draft = (
+    _ezscore_persist_structure_draft
+)
+
 
 
 _SHELL_CSS = r"""

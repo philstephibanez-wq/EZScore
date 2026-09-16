@@ -308,9 +308,129 @@ def _build_visual_blocks(
     return blocks
 
 
-def _metric_signature_label(beats_per_bar: int) -> str:
-    value = int(beats_per_bar)
-    return "6/8" if value == 6 else f"{value}/4"
+def _parse_signature(value: str) -> tuple[int, int]:
+    text = str(value or "").strip()
+    match = __import__("re").fullmatch(r"(\d+)\s*/\s*(\d+)", text)
+    if not match:
+        raise ValueError(
+            "Signature invalide. Format attendu : N/D, par exemple 6/8, 9/8, 5/4."
+        )
+    numerator = int(match.group(1))
+    denominator = int(match.group(2))
+    if numerator < 1 or denominator < 1:
+        raise ValueError("Le numérateur et le dénominateur doivent être positifs.")
+    return numerator, denominator
+
+
+def _default_grouping(numerator: int, denominator: int) -> list[int]:
+    n = int(numerator)
+    d = int(denominator)
+
+    # Compound meters: 6/8, 9/8, 12/8, 15/8, ...
+    if d >= 8 and n > 3 and n % 3 == 0:
+        return [3] * (n // 3)
+
+    # Common asymmetric eighth-note meters.
+    if d >= 8 and n == 5:
+        return [2, 3]
+    if d >= 8 and n == 7:
+        return [2, 2, 3]
+
+    # Simple/odd quarter-note meters. Grouping controls accents, not bar length.
+    if d == 4 and n == 5:
+        return [3, 2]
+    if d == 4 and n == 7:
+        return [4, 3]
+
+    return [1] * n
+
+
+def _parse_grouping(
+    value: str,
+    *,
+    numerator: int,
+    denominator: int,
+) -> list[int]:
+    text = str(value or "").strip()
+    if not text:
+        return _default_grouping(numerator, denominator)
+
+    parts = [part.strip() for part in text.split("+") if part.strip()]
+    try:
+        groups = [int(part) for part in parts]
+    except ValueError as exc:
+        raise ValueError(
+            "Groupement invalide. Exemple : 3+3, 3+3+3, 3+2, 4+3."
+        ) from exc
+
+    if not groups or any(group < 1 for group in groups):
+        raise ValueError("Chaque groupe métrique doit être supérieur ou égal à 1.")
+
+    if sum(groups) != int(numerator):
+        raise ValueError(
+            f"Le groupement {text!r} totalise {sum(groups)}, "
+            f"mais la signature a un numérateur de {int(numerator)}."
+        )
+    return groups
+
+
+def _meter_spec(signature: str, grouping: str = "") -> dict[str, Any]:
+    numerator, denominator = _parse_signature(signature)
+    groups = _parse_grouping(
+        grouping,
+        numerator=numerator,
+        denominator=denominator,
+    )
+
+    # The canonical beat timeline is the detected musical tactus.
+    # For compound/asymmetric x/8-style meters with grouped subdivisions,
+    # one detected beat represents one metric group.
+    grouped_subdivisions = denominator >= 8 and any(group > 1 for group in groups)
+    if grouped_subdivisions:
+        timeline_beats_per_measure = len(groups)
+        accent_positions = list(range(len(groups)))
+    else:
+        timeline_beats_per_measure = numerator
+        cumulative = 0
+        accent_positions = []
+        for group in groups:
+            accent_positions.append(cumulative)
+            cumulative += int(group)
+
+        # If no explicit grouping is musically meaningful, retain familiar
+        # secondary accents without changing the number of beats in the bar.
+        if groups == [1] * numerator:
+            if numerator == 2:
+                accent_positions = [0, 1]
+            elif numerator == 4:
+                accent_positions = [0, 2]
+            elif numerator > 1:
+                accent_positions = [0]
+
+    accent_positions = sorted({
+        int(position)
+        for position in accent_positions
+        if 0 <= int(position) < int(timeline_beats_per_measure)
+    })
+    if 0 not in accent_positions:
+        accent_positions.insert(0, 0)
+
+    return {
+        "signature": f"{numerator}/{denominator}",
+        "numerator": int(numerator),
+        "denominator": int(denominator),
+        "grouping": "+".join(str(group) for group in groups),
+        "group_lengths": [int(group) for group in groups],
+        "timeline_beats_per_measure": int(timeline_beats_per_measure),
+        "accent_positions": accent_positions,
+        "compound_or_grouped": bool(grouped_subdivisions),
+    }
+
+
+def _metric_signature_label(value) -> str:
+    if isinstance(value, dict):
+        return str(value.get("signature", "4/4") or "4/4")
+    return str(value or "4/4")
 
 
 def _invalidate_metric_midi(audio_hash: str) -> None:
@@ -352,6 +472,106 @@ def _invalidate_all_midi(audio_hash: str) -> None:
             path.unlink()
 
 
+
+def _measure_for_time(
+    measures: list[dict[str, Any]],
+    value: float,
+    *,
+    prefer_end: bool,
+) -> int:
+    if not measures:
+        return 1
+
+    t = float(value)
+    for measure in measures:
+        t0 = float(measure.get("time_start", 0.0) or 0.0)
+        t1 = float(measure.get("time_end", t0) or t0)
+        if t0 <= t < t1:
+            return int(measure.get("measure", 1) or 1)
+
+    if prefer_end and t >= float(measures[-1].get("time_end", 0.0) or 0.0):
+        return int(measures[-1].get("measure", len(measures)) or len(measures))
+    return int(measures[0].get("measure", 1) or 1)
+
+
+def _remap_persisted_blocks_by_time(
+    *,
+    audio_hash: str,
+    old_measures: list[dict[str, Any]],
+    new_measures: list[dict[str, Any]],
+) -> None:
+    """Preserve edited block positions in absolute time after meter change."""
+    if not old_measures or not new_measures:
+        return
+
+    blocks = _persistence.load_structure_blocks(audio_hash)
+    if not blocks:
+        return
+
+    remapped = []
+    previous_end = 0
+
+    for index, block in enumerate(blocks):
+        old_start = int(block.get("measure_start", 1) or 1)
+        old_end = int(block.get("measure_end", old_start) or old_start)
+
+        old_start = max(1, min(len(old_measures), old_start))
+        old_end = max(old_start, min(len(old_measures), old_end))
+
+        t0 = float(old_measures[old_start - 1].get("time_start", 0.0) or 0.0)
+        t1 = float(old_measures[old_end - 1].get("time_end", t0) or t0)
+
+        mapped_start = _measure_for_time(
+            new_measures,
+            t0,
+            prefer_end=False,
+        )
+        mapped_end = _measure_for_time(
+            new_measures,
+            max(t0, t1 - 1e-6),
+            prefer_end=True,
+        )
+
+        mapped_start = max(previous_end + 1, mapped_start)
+        mapped_end = max(mapped_start, mapped_end)
+        mapped_end = min(len(new_measures), mapped_end)
+
+        updated = dict(block)
+        updated["order_index"] = index
+        updated["measure_start"] = int(mapped_start)
+        updated["measure_end"] = int(mapped_end)
+        remapped.append(updated)
+        previous_end = mapped_end
+
+        if previous_end >= len(new_measures):
+            break
+
+    if not remapped:
+        return
+
+    # Ensure the visual partition spans the whole new measure range.
+    remapped[0]["measure_start"] = 1
+    for index in range(1, len(remapped)):
+        remapped[index]["measure_start"] = int(remapped[index - 1]["measure_end"]) + 1
+        if remapped[index]["measure_start"] > len(new_measures):
+            remapped = remapped[:index]
+            break
+
+    if remapped:
+        remapped[-1]["measure_end"] = len(new_measures)
+        _persistence._save_structure_blocks(audio_hash, remapped)
+
+        # Any in-memory edit draft was indexed in the old meter and is invalid.
+        st.session_state.pop(
+            _persistence._structure_draft_key(audio_hash),
+            None,
+        )
+        revision_key = _persistence._structure_editor_revision_key(audio_hash)
+        st.session_state[revision_key] = int(
+            st.session_state.get(revision_key, 0)
+        ) + 1
+
+
 def _motifs_from_measures(measures: list[dict[str, Any]]) -> list[dict[str, Any]]:
     motifs = []
     patterns = [m["beat_chords"] for m in measures]
@@ -384,38 +604,94 @@ def _motifs_from_measures(measures: list[dict[str, Any]]) -> list[dict[str, Any]
     return selected
 
 
-def _structure_from_beat_timeline(*, audio_hash: str, beat_timeline: list[dict[str, Any]],
-                                  tempo: float, beats_per_bar: int) -> dict[str, Any]:
+def _structure_from_beat_timeline(
+    *,
+    audio_hash: str,
+    beat_timeline: list[dict[str, Any]],
+    tempo: float,
+    meter: dict[str, Any],
+) -> dict[str, Any]:
     if len(beat_timeline) < 2:
         raise RuntimeError("Beat timeline insuffisante pour reconstruire la structure.")
-    bpb=max(1,int(beats_per_bar))
-    measures=[]
-    for start in range(0,len(beat_timeline),bpb):
-        stop=min(start+bpb,len(beat_timeline))
-        if stop-start < max(1,bpb//2): continue
-        group=beat_timeline[start:stop]
-        t0=float(group[0]["time"])
-        t1=float(beat_timeline[stop]["time"]) if stop < len(beat_timeline) else float(group[-1]["time"])+60.0/max(1.0,float(tempo))
-        chords=[str(item.get("chord","N") or "N") for item in group]
-        measures.append({"measure":len(measures)+1,"time_start":t0,"time_end":t1,
-                         "beat_chords":chords,"pattern":" · ".join(chords)})
-    selected=_motifs_from_measures(measures)
-    speech=_load_speech(audio_hash) or {}
-    words=list(speech.get("words",[]) or [])
-    boundaries=[1]
+
+    old_payload = _load_structure(audio_hash) or {}
+    old_measures = list(old_payload.get("measures", []) or [])
+
+    bpb = max(1, int(meter["timeline_beats_per_measure"]))
+    measures = []
+
+    for start in range(0, len(beat_timeline), bpb):
+        stop = min(start + bpb, len(beat_timeline))
+        if stop - start < max(1, bpb // 2):
+            continue
+
+        group = beat_timeline[start:stop]
+        t0 = float(group[0]["time"])
+        t1 = (
+            float(beat_timeline[stop]["time"])
+            if stop < len(beat_timeline)
+            else float(group[-1]["time"]) + 60.0 / max(1.0, float(tempo))
+        )
+        chords = [str(item.get("chord", "N") or "N") for item in group]
+
+        measures.append({
+            "measure": len(measures) + 1,
+            "time_start": t0,
+            "time_end": t1,
+            "beat_chords": chords,
+            "pattern": " · ".join(chords),
+        })
+
+    selected = _motifs_from_measures(measures)
+    speech = _load_speech(audio_hash) or {}
+    words = list(speech.get("words", []) or [])
+    boundaries = [1]
     for item in selected[:8]:
-        boundaries.extend([int(item["a_measure_start"]),int(item["b_measure_start"])])
-    blocks=_build_visual_blocks(boundaries=boundaries,measures=measures,words=words)
-    payload={"tempo":float(tempo),"beats_per_bar":int(bpb),"signature":_metric_signature_label(bpb),
-             "measure_count":len(measures),"beat_timeline":beat_timeline,"measures":measures,
-             "harmonic_motifs":selected,"visual_blocks":blocks,
-             "visual_block_min_measures":MIN_VISUAL_BLOCK_MEASURES,
-             "lyrics_source":"original","timebase":"original_audio_seconds"}
-    _structure_cache_path(audio_hash).write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
+        boundaries.extend([
+            int(item["a_measure_start"]),
+            int(item["b_measure_start"]),
+        ])
+
+    blocks = _build_visual_blocks(
+        boundaries=boundaries,
+        measures=measures,
+        words=words,
+    )
+
+    payload = {
+        "tempo": float(tempo),
+        "signature": str(meter["signature"]),
+        "meter": dict(meter),
+        # Compatibility field: this now means detected metric/tactus beats per bar.
+        "beats_per_bar": int(bpb),
+        "metric_beats_per_measure": int(bpb),
+        "measure_count": len(measures),
+        # Canonical timestamps: copied exactly, never requantized.
+        "beat_timeline": beat_timeline,
+        "measures": measures,
+        "harmonic_motifs": selected,
+        "visual_blocks": blocks,
+        "visual_block_min_measures": MIN_VISUAL_BLOCK_MEASURES,
+        "lyrics_source": "original",
+        "timebase": "original_audio_seconds",
+    }
+
+    _structure_cache_path(audio_hash).write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    if old_measures:
+        _remap_persisted_blocks_by_time(
+            audio_hash=audio_hash,
+            old_measures=old_measures,
+            new_measures=measures,
+        )
+
     return payload
 
 
-def _analyze_structure(*, audio_hash: str, stems: dict[str, Path], beats_per_bar: int) -> dict[str, Any]:
+def _analyze_structure(*, audio_hash: str, stems: dict[str, Path], meter: dict[str, Any]) -> dict[str, Any]:
     y_drums, sr = librosa.load(str(stems["drums"]), sr=22050, mono=True)
     y_other, _ = librosa.load(str(stems["other"]), sr=sr, mono=True)
     y_bass, _ = librosa.load(str(stems["bass"]), sr=sr, mono=True)
@@ -438,8 +714,12 @@ def _analyze_structure(*, audio_hash: str, stems: dict[str, Path], beats_per_bar
         beat_timeline.append({"index":int(i),"time":round(float(t0),6),
                               "strength":round(float(strengths[i]) if i < len(strengths) else 0.0,6),
                               "chord":_estimate_chord(co,cb)})
-    return _structure_from_beat_timeline(audio_hash=audio_hash,beat_timeline=beat_timeline,
-                                         tempo=tempo_value,beats_per_bar=int(beats_per_bar))
+    return _structure_from_beat_timeline(
+        audio_hash=audio_hash,
+        beat_timeline=beat_timeline,
+        tempo=tempo_value,
+        meter=meter,
+    )
 
 
 def _load_structure(audio_hash: str) -> dict[str, Any] | None:
@@ -662,18 +942,61 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
         elif speech is None:
             st.info("Terminer d'abord l'étape 2 — Paroles.")
         else:
-            signature_options = [2, 3, 4, 6]
-            current_bpb = int((structure or {}).get("beats_per_bar", 4) or 4)
-            if current_bpb not in signature_options:
-                current_bpb = 4
-
-            selected_bpb = st.selectbox(
-                "Signature",
-                signature_options,
-                index=signature_options.index(current_bpb),
-                format_func=_metric_signature_label,
-                key=f"ezstem_bpb_{str(audio_hash)[:12]}",
+            current_signature = str(
+                (structure or {}).get("signature", "4/4") or "4/4"
             )
+            current_meter = dict((structure or {}).get("meter", {}) or {})
+            current_grouping = str(
+                current_meter.get("grouping", "") or ""
+            )
+
+            signature_key = f"ezstem_signature_{str(audio_hash)[:12]}"
+            grouping_key = f"ezstem_grouping_{str(audio_hash)[:12]}"
+
+            if signature_key not in st.session_state:
+                st.session_state[signature_key] = current_signature
+            if grouping_key not in st.session_state:
+                st.session_state[grouping_key] = current_grouping
+
+            meter_col1, meter_col2 = st.columns([1, 1.35])
+            with meter_col1:
+                selected_signature = st.text_input(
+                    "Signature",
+                    key=signature_key,
+                    help=(
+                        "Format libre N/D : 2/4, 3/4, 4/4, 5/4, 7/4, "
+                        "5/8, 6/8, 7/8, 9/8, 12/8, etc."
+                    ),
+                )
+            with meter_col2:
+                selected_grouping = st.text_input(
+                    "Groupement métrique",
+                    key=grouping_key,
+                    placeholder="Auto",
+                    help=(
+                        "Optionnel. Exemples : 3+3 pour 6/8, 3+3+3 pour 9/8, "
+                        "3+2 pour 5/4, 4+3 pour 7/4, 2+2+3 pour 7/8."
+                    ),
+                )
+
+            meter_error = None
+            selected_meter = None
+            try:
+                selected_meter = _meter_spec(
+                    selected_signature,
+                    selected_grouping,
+                )
+            except ValueError as exc:
+                meter_error = str(exc)
+                st.error(meter_error)
+
+            if selected_meter is not None:
+                st.caption(
+                    f"{selected_meter['signature']} · "
+                    f"{selected_meter['timeline_beats_per_measure']} temps métriques/mesure · "
+                    f"groupement {selected_meter['grouping']} · "
+                    "timeline audio inchangée."
+                )
 
             if structure is None:
                 if st.button(
@@ -681,12 +1004,13 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                     type="primary",
                     width="stretch",
                     key=f"ezstem_structure_{str(audio_hash)[:12]}",
+                    disabled=selected_meter is None,
                 ):
                     with st.spinner("Analyse beats + accords + répétitions + blocs…"):
                         _analyze_structure(
                             audio_hash=audio_hash,
                             stems=cached_stem_paths(audio_hash),
-                            beats_per_bar=int(selected_bpb),
+                            meter=dict(selected_meter),
                         )
                         _invalidate_metric_midi(audio_hash)
                     st.rerun()
@@ -699,9 +1023,9 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                         "une seule fois pour persister la timeline des beats."
                     )
 
-                signature_changed = int(selected_bpb) != int(current_bpb)
+                signature_changed = bool(selected_meter) and (str(selected_meter.get('signature')) != current_signature or str(selected_meter.get('grouping')) != current_grouping)
                 recalc_label = (
-                    f"Recalculer en {_metric_signature_label(selected_bpb)}"
+                    f"Recalculer en {selected_meter['signature']}"
                     if signature_changed
                     else "Recalculer les blocs / structure"
                 )
@@ -711,6 +1035,7 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                     type="primary" if signature_changed else "secondary",
                     width="stretch",
                     key=f"ezstem_structure_recalc_{str(audio_hash)[:12]}",
+                    disabled=selected_meter is None,
                 ):
                     if has_beat_timeline:
                         with st.spinner("Reconstruction métrique + blocs…"):
@@ -718,7 +1043,7 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                                 audio_hash=audio_hash,
                                 beat_timeline=list(structure["beat_timeline"]),
                                 tempo=float(structure.get("tempo", 120.0) or 120.0),
-                                beats_per_bar=int(selected_bpb),
+                                meter=dict(selected_meter),
                             )
                             _invalidate_metric_midi(audio_hash)
                     else:
@@ -728,14 +1053,14 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                             _analyze_structure(
                                 audio_hash=audio_hash,
                                 stems=cached_stem_paths(audio_hash),
-                                beats_per_bar=int(selected_bpb),
+                                meter=dict(selected_meter),
                             )
                             _invalidate_metric_midi(audio_hash)
                     st.rerun()
 
                 blocks = list(structure.get("visual_blocks", []) or [])
                 st.success(
-                    f"✓ {_metric_signature_label(current_bpb)} · "
+                    f"✓ {current_signature} · "
                     f"{len(blocks)} blocs · "
                     f"{int(structure.get('measure_count', 0))} mesures · "
                     f"tempo ≈ {float(structure.get('tempo', 0.0)):.1f} BPM."

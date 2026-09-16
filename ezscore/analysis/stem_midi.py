@@ -550,7 +550,7 @@ def analyze_drum_beats(
 
 
 def drum_analysis_from_structure(structure: dict[str, Any]) -> dict[str, Any]:
-    """Build metric drum events from persisted beat timestamps; no audio re-analysis."""
+    """Build metric drum events from canonical timestamps; never move them."""
     timeline = list(structure.get("beat_timeline", []) or [])
     if not timeline:
         raise RuntimeError(
@@ -558,19 +558,30 @@ def drum_analysis_from_structure(structure: dict[str, Any]) -> dict[str, Any]:
             "Recalculer Blocs / structure avant le MIDI."
         )
 
-    bpb = max(2, int(structure.get("beats_per_bar", 4) or 4))
+    meter = dict(structure.get("meter", {}) or {})
+    bpb = max(
+        1,
+        int(
+            meter.get(
+                "timeline_beats_per_measure",
+                structure.get("beats_per_bar", 4),
+            )
+            or 4
+        ),
+    )
+    accent_positions = {
+        int(position)
+        for position in list(meter.get("accent_positions", [0]) or [0])
+        if 0 <= int(position) < bpb
+    }
+    accent_positions.add(0)
+
     beats = []
     for index, item in enumerate(timeline):
         pos = index % bpb
         strong = pos == 0
-        if bpb == 2:
-            medium = pos == 1
-        elif bpb == 4:
-            medium = pos == 2
-        elif bpb == 6:
-            medium = pos == 3
-        else:
-            medium = False
+        medium = pos in accent_positions and not strong
+
         beats.append({
             "index": int(index),
             "time": round(float(item.get("time", 0.0) or 0.0), 6),
@@ -585,6 +596,8 @@ def drum_analysis_from_structure(structure: dict[str, Any]) -> dict[str, Any]:
         "source": "structure.beat_timeline",
         "timebase": "original_audio_seconds",
         "tempo": float(structure.get("tempo", 0.0) or 0.0),
+        "signature": str(structure.get("signature", "4/4") or "4/4"),
+        "meter": meter,
         "beat_count": len(beats),
         "beats_per_bar": bpb,
         "beats": beats,
@@ -706,7 +719,10 @@ def generate_stem_midi_bundle(
     bpb = int(structure.get("beats_per_bar", 4) or 4)
 
     vocal = analyze_vocal_notes(vocals_path)
-    drums = drum_probe
+    # Metric accents are rebuilt exclusively from the canonical structure
+    # timestamps. The drum audio probe may estimate tempo, but must not decide
+    # measure grouping or strong beats after a signature change.
+    drums = drum_analysis_from_structure(structure)
 
     vocal_path = output_dir / "vocal.mid"
     chords_path = output_dir / "chords.mid"
@@ -737,6 +753,8 @@ def generate_stem_midi_bundle(
         "timebase": "original_audio_seconds",
         "tempo": tempo,
         "beats_per_bar": bpb,
+        "signature": str(structure.get("signature", "4/4") or "4/4"),
+        "meter": dict(structure.get("meter", {}) or {}),
         "vocal_note_count": int(vocal.get("note_count", 0)),
         "drum_beat_count": int(drums.get("beat_count", 0)),
         "files": {
