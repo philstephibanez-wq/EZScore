@@ -1,0 +1,9 @@
+{
+  "stage": "done",
+  "message": "Analyse chant terminée : 167 notes.",
+  "percent": 1.0,
+  "note_count": 167,
+  "pid": 30456,
+  "updated_at_epoch": 1789545518.2150965,
+  "elapsed_seconds": 110.133
+}

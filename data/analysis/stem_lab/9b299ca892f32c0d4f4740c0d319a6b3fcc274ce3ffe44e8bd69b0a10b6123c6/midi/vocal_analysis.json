@@ -1,0 +1,1684 @@
+{
+  "source": "vocals.wav",
+  "engine": "pyin-v3-adaptive-voicing-chunked-overlap",
+  "timebase": "original_audio_seconds",
+  "sample_rate": 16000,
+  "hop_length": 256,
+  "chunk_seconds": 20.0,
+  "overlap_seconds": 1.0,
+  "chunk_count": 9,
+  "confidence_floor": 0.48,
+  "note_count": 167,
+  "notes": [
+    {
+      "start": 1.936,
+      "end": 2.144,
+      "duration": 0.208,
+      "midi": 76,
+      "pitch_median": 76.1,
+      "cents": 10.0,
+      "note": "E5",
+      "confidence": 0.4258
+    },
+    {
+      "start": 4.176,
+      "end": 4.416,
+      "duration": 0.24,
+      "midi": 64,
+      "pitch_median": 64.0,
+      "cents": -0.0,
+      "note": "E4",
+      "confidence": 0.4211
+    },
+    {
+      "start": 5.216,
+      "end": 5.648,
+      "duration": 0.432,
+      "midi": 70,
+      "pitch_median": 69.9,
+      "cents": -10.0,
+      "note": "A#4",
+      "confidence": 0.6226
+    },
+    {
+      "start": 5.68,
+      "end": 7.728,
+      "duration": 2.048,
+      "midi": 68,
+      "pitch_median": 68.1,
+      "cents": 10.0,
+      "note": "G#4",
+      "confidence": 0.8826
+    },
+    {
+      "start": 7.728,
+      "end": 7.872,
+      "duration": 0.144,
+      "midi": 63,
+      "pitch_median": 63.2,
+      "cents": 20.0,
+      "note": "D#4",
+      "confidence": 0.535
+    },
+    {
+      "start": 7.872,
+      "end": 8.192,
+      "duration": 0.32,
+      "midi": 64,
+      "pitch_median": 63.9,
+      "cents": -10.0,
+      "note": "E4",
+      "confidence": 0.8215
+    },
+    {
+      "start": 8.592,
+      "end": 8.768,
+      "duration": 0.176,
+      "midi": 75,
+      "pitch_median": 74.6,
+      "cents": -40.0,
+      "note": "D#5",
+      "confidence": 0.5906
+    },
+    {
+      "start": 8.768,
+      "end": 8.944,
+      "duration": 0.176,
+      "midi": 74,
+      "pitch_median": 74.2,
+      "cents": 20.0,
+      "note": "D5",
+      "confidence": 0.771
+    },
+    {
+      "start": 8.944,
+      "end": 11.44,
+      "duration": 2.4959999999999987,
+      "midi": 72,
+      "pitch_median": 72.3,
+      "cents": 30.0,
+      "note": "C5",
+      "confidence": 0.7048256410256409
+    },
+    {
+      "start": 11.488,
+      "end": 11.856,
+      "duration": 0.3680000000000003,
+      "midi": 70,
+      "pitch_median": 69.8,
+      "cents": -20.0,
+      "note": "A#4",
+      "confidence": 0.3385142857142857
+    },
+    {
+      "start": 11.872,
+      "end": 12.016,
+      "duration": 0.144,
+      "midi": 71,
+      "pitch_median": 71.5,
+      "cents": 50.0,
+      "note": "B4",
+      "confidence": 0.5051
+    },
+    {
+      "start": 12.016,
+      "end": 13.024,
+      "duration": 1.008,
+      "midi": 72,
+      "pitch_median": 72.1,
+      "cents": 10.0,
+      "note": "C5",
+      "confidence": 0.7916
+    },
+    {
+      "start": 13.312,
+      "end": 13.904,
+      "duration": 0.592,
+      "midi": 74,
+      "pitch_median": 74.2,
+      "cents": 20.0,
+      "note": "D5",
+      "confidence": 0.4505
+    },
+    {
+      "start": 14.064,
+      "end": 15.312,
+      "duration": 1.248,
+      "midi": 74,
+      "pitch_median": 74.2,
+      "cents": 20.0,
+      "note": "D5",
+      "confidence": 0.5948
+    },
+    {
+      "start": 15.344,
+      "end": 15.616,
+      "duration": 0.272,
+      "midi": 55,
+      "pitch_median": 55.0,
+      "cents": 0.0,
+      "note": "G3",
+      "confidence": 0.4502
+    },
+    {
+      "start": 15.728,
+      "end": 16.24,
+      "duration": 0.5119999999999987,
+      "midi": 52,
+      "pitch_median": 52.5,
+      "cents": 50.0,
+      "note": "E3",
+      "confidence": 0.44546999999999976
+    },
+    {
+      "start": 16.288,
+      "end": 16.48,
+      "duration": 0.192,
+      "midi": 53,
+      "pitch_median": 53.45,
+      "cents": 45.0,
+      "note": "F3",
+      "confidence": 0.46
+    },
+    {
+      "start": 16.672,
+      "end": 16.816,
+      "duration": 0.144,
+      "midi": 54,
+      "pitch_median": 54.5,
+      "cents": 50.0,
+      "note": "F#3",
+      "confidence": 0.5554
+    },
+    {
+      "start": 16.816,
+      "end": 18.112,
+      "duration": 1.296,
+      "midi": 55,
+      "pitch_median": 55.2,
+      "cents": 20.0,
+      "note": "G3",
+      "confidence": 0.7125
+    },
+    {
+      "start": 18.384,
+      "end": 18.816,
+      "duration": 0.432,
+      "midi": 54,
+      "pitch_median": 54.1,
+      "cents": 10.0,
+      "note": "F#3",
+      "confidence": 0.4726
+    },
+    {
+      "start": 19.104,
+      "end": 19.28,
+      "duration": 0.176,
+      "midi": 63,
+      "pitch_median": 63.1,
+      "cents": 10.0,
+      "note": "D#4",
+      "confidence": 0.383
+    },
+    {
+      "start": 20.664,
+      "end": 20.968,
+      "duration": 0.304,
+      "midi": 60,
+      "pitch_median": 60.2,
+      "cents": 20.0,
+      "note": "C4",
+      "confidence": 0.5053
+    },
+    {
+      "start": 21.112,
+      "end": 21.256,
+      "duration": 0.144,
+      "midi": 63,
+      "pitch_median": 63.5,
+      "cents": 50.0,
+      "note": "D#4",
+      "confidence": 0.6232
+    },
+    {
+      "start": 21.256,
+      "end": 21.64,
+      "duration": 0.384,
+      "midi": 64,
+      "pitch_median": 63.9,
+      "cents": -10.0,
+      "note": "E4",
+      "confidence": 0.7754
+    },
+    {
+      "start": 21.704,
+      "end": 21.928,
+      "duration": 0.224,
+      "midi": 47,
+      "pitch_median": 47.1,
+      "cents": 10.0,
+      "note": "B2",
+      "confidence": 0.3629
+    },
+    {
+      "start": 22.264,
+      "end": 22.584,
+      "duration": 0.32,
+      "midi": 52,
+      "pitch_median": 51.9,
+      "cents": -10.0,
+      "note": "E3",
+      "confidence": 0.4218
+    },
+    {
+      "start": 24.12,
+      "end": 24.52,
+      "duration": 0.4,
+      "midi": 52,
+      "pitch_median": 52.1,
+      "cents": 10.0,
+      "note": "E3",
+      "confidence": 0.6392
+    },
+    {
+      "start": 24.632,
+      "end": 24.872,
+      "duration": 0.24,
+      "midi": 64,
+      "pitch_median": 63.85,
+      "cents": -15.0,
+      "note": "E4",
+      "confidence": 0.8756
+    },
+    {
+      "start": 24.872,
+      "end": 25.528,
+      "duration": 0.6559999999999988,
+      "midi": 62,
+      "pitch_median": 61.95,
+      "cents": -5.0,
+      "note": "D4",
+      "confidence": 0.6692769230769229
+    },
+    {
+      "start": 25.592,
+      "end": 26.088,
+      "duration": 0.496,
+      "midi": 60,
+      "pitch_median": 60.3,
+      "cents": 30.0,
+      "note": "C4",
+      "confidence": 0.6794
+    },
+    {
+      "start": 26.168,
+      "end": 26.392,
+      "duration": 0.224,
+      "midi": 62,
+      "pitch_median": 62.0,
+      "cents": -0.0,
+      "note": "D4",
+      "confidence": 0.5274
+    },
+    {
+      "start": 28.056,
+      "end": 28.392,
+      "duration": 0.3359999999999985,
+      "midi": 57,
+      "pitch_median": 56.6,
+      "cents": -40.0,
+      "note": "A3",
+      "confidence": 0.629185714285714
+    },
+    {
+      "start": 28.728,
+      "end": 28.968,
+      "duration": 0.24,
+      "midi": 59,
+      "pitch_median": 59.2,
+      "cents": 20.0,
+      "note": "B3",
+      "confidence": 0.6447
+    },
+    {
+      "start": 28.968,
+      "end": 29.4,
+      "duration": 0.432,
+      "midi": 60,
+      "pitch_median": 60.0,
+      "cents": 0.0,
+      "note": "C4",
+      "confidence": 0.8487
+    },
+    {
+      "start": 29.4,
+      "end": 29.96,
+      "duration": 0.56,
+      "midi": 59,
+      "pitch_median": 59.2,
+      "cents": 20.0,
+      "note": "B3",
+      "confidence": 0.8478
+    },
+    {
+      "start": 29.96,
+      "end": 30.296,
+      "duration": 0.336,
+      "midi": 60,
+      "pitch_median": 59.9,
+      "cents": -10.0,
+      "note": "C4",
+      "confidence": 0.7821
+    },
+    {
+      "start": 31.8,
+      "end": 31.976,
+      "duration": 0.176,
+      "midi": 54,
+      "pitch_median": 54.3,
+      "cents": 30.0,
+      "note": "F#3",
+      "confidence": 0.3782
+    },
+    {
+      "start": 32.408,
+      "end": 32.648,
+      "duration": 0.24,
+      "midi": 52,
+      "pitch_median": 51.8,
+      "cents": -20.0,
+      "note": "E3",
+      "confidence": 0.5074
+    },
+    {
+      "start": 32.744,
+      "end": 32.904,
+      "duration": 0.16,
+      "midi": 53,
+      "pitch_median": 53.05,
+      "cents": 5.0,
+      "note": "F3",
+      "confidence": 0.3507
+    },
+    {
+      "start": 33.256,
+      "end": 33.896,
+      "duration": 0.64,
+      "midi": 55,
+      "pitch_median": 55.1,
+      "cents": 10.0,
+      "note": "G3",
+      "confidence": 0.7009
+    },
+    {
+      "start": 34.152,
+      "end": 34.344,
+      "duration": 0.192,
+      "midi": 54,
+      "pitch_median": 54.25,
+      "cents": 25.0,
+      "note": "F#3",
+      "confidence": 0.3979
+    },
+    {
+      "start": 36.424,
+      "end": 36.68,
+      "duration": 0.256,
+      "midi": 64,
+      "pitch_median": 63.8,
+      "cents": -20.0,
+      "note": "E4",
+      "confidence": 0.4318
+    },
+    {
+      "start": 36.92,
+      "end": 37.256,
+      "duration": 0.336,
+      "midi": 64,
+      "pitch_median": 64.4,
+      "cents": 40.0,
+      "note": "E4",
+      "confidence": 0.3776
+    },
+    {
+      "start": 37.544,
+      "end": 37.864,
+      "duration": 0.32,
+      "midi": 64,
+      "pitch_median": 64.1,
+      "cents": 10.0,
+      "note": "E4",
+      "confidence": 0.5403
+    },
+    {
+      "start": 38.104,
+      "end": 38.312,
+      "duration": 0.208,
+      "midi": 63,
+      "pitch_median": 62.5,
+      "cents": -50.0,
+      "note": "D#4",
+      "confidence": 0.4243
+    },
+    {
+      "start": 38.408,
+      "end": 38.632,
+      "duration": 0.224,
+      "midi": 63,
+      "pitch_median": 62.5,
+      "cents": -50.0,
+      "note": "D#4",
+      "confidence": 0.4641
+    },
+    {
+      "start": 38.712,
+      "end": 38.92,
+      "duration": 0.208,
+      "midi": 63,
+      "pitch_median": 62.5,
+      "cents": -50.0,
+      "note": "D#4",
+      "confidence": 0.4234
+    },
+    {
+      "start": 40.616,
+      "end": 40.728,
+      "duration": 0.112,
+      "midi": 53,
+      "pitch_median": 52.7,
+      "cents": -30.0,
+      "note": "F3",
+      "confidence": 0.3867
+    },
+    {
+      "start": 41.16,
+      "end": 41.4,
+      "duration": 0.24,
+      "midi": 62,
+      "pitch_median": 62.2,
+      "cents": 20.0,
+      "note": "D4",
+      "confidence": 0.5584
+    },
+    {
+      "start": 41.512,
+      "end": 41.704,
+      "duration": 0.192,
+      "midi": 62,
+      "pitch_median": 62.4,
+      "cents": 40.0,
+      "note": "D4",
+      "confidence": 0.2947
+    },
+    {
+      "start": 41.928,
+      "end": 42.248,
+      "duration": 0.32,
+      "midi": 60,
+      "pitch_median": 60.3,
+      "cents": 30.0,
+      "note": "C4",
+      "confidence": 0.6182
+    },
+    {
+      "start": 43.688,
+      "end": 44.12,
+      "duration": 0.43199999999999505,
+      "midi": 58,
+      "pitch_median": 57.7,
+      "cents": -30.0,
+      "note": "A#3",
+      "confidence": 0.4089040000000002
+    },
+    {
+      "start": 45.224,
+      "end": 45.432,
+      "duration": 0.208,
+      "midi": 61,
+      "pitch_median": 60.6,
+      "cents": -40.0,
+      "note": "C#4",
+      "confidence": 0.4877
+    },
+    {
+      "start": 45.64,
+      "end": 45.768,
+      "duration": 0.128,
+      "midi": 59,
+      "pitch_median": 59.3,
+      "cents": 30.0,
+      "note": "B3",
+      "confidence": 0.3552
+    },
+    {
+      "start": 48.664,
+      "end": 48.808,
+      "duration": 0.144,
+      "midi": 61,
+      "pitch_median": 60.6,
+      "cents": -40.0,
+      "note": "C#4",
+      "confidence": 0.2781
+    },
+    {
+      "start": 49.192,
+      "end": 49.576,
+      "duration": 0.384,
+      "midi": 64,
+      "pitch_median": 64.1,
+      "cents": 10.0,
+      "note": "E4",
+      "confidence": 0.5482
+    },
+    {
+      "start": 49.672,
+      "end": 50.808,
+      "duration": 1.136,
+      "midi": 64,
+      "pitch_median": 64.4,
+      "cents": 40.0,
+      "note": "E4",
+      "confidence": 0.6398
+    },
+    {
+      "start": 51.448,
+      "end": 52.024,
+      "duration": 0.576,
+      "midi": 67,
+      "pitch_median": 67.3,
+      "cents": 30.0,
+      "note": "G4",
+      "confidence": 0.6508
+    },
+    {
+      "start": 52.552,
+      "end": 52.712,
+      "duration": 0.16,
+      "midi": 76,
+      "pitch_median": 76.4,
+      "cents": 40.0,
+      "note": "E5",
+      "confidence": 0.3924
+    },
+    {
+      "start": 55.88,
+      "end": 56.04,
+      "duration": 0.16,
+      "midi": 62,
+      "pitch_median": 62.2,
+      "cents": 20.0,
+      "note": "D4",
+      "confidence": 0.3391
+    },
+    {
+      "start": 57.032,
+      "end": 57.624,
+      "duration": 0.5920000000000059,
+      "midi": 64,
+      "pitch_median": 64.2,
+      "cents": 20.0,
+      "note": "E4",
+      "confidence": 0.4883470588235288
+    },
+    {
+      "start": 57.72,
+      "end": 58.264,
+      "duration": 0.544,
+      "midi": 76,
+      "pitch_median": 76.3,
+      "cents": 30.0,
+      "note": "E5",
+      "confidence": 0.5356
+    },
+    {
+      "start": 64.024,
+      "end": 64.296,
+      "duration": 0.272,
+      "midi": 50,
+      "pitch_median": 50.2,
+      "cents": 20.0,
+      "note": "D3",
+      "confidence": 0.4218
+    },
+    {
+      "start": 64.296,
+      "end": 64.552,
+      "duration": 0.256,
+      "midi": 52,
+      "pitch_median": 51.85,
+      "cents": -15.0,
+      "note": "E3",
+      "confidence": 0.6026
+    },
+    {
+      "start": 64.744,
+      "end": 64.92,
+      "duration": 0.176,
+      "midi": 53,
+      "pitch_median": 53.3,
+      "cents": 30.0,
+      "note": "F3",
+      "confidence": 0.4611
+    },
+    {
+      "start": 64.968,
+      "end": 65.16,
+      "duration": 0.192,
+      "midi": 54,
+      "pitch_median": 54.1,
+      "cents": 10.0,
+      "note": "F#3",
+      "confidence": 0.4751
+    },
+    {
+      "start": 65.304,
+      "end": 66.008,
+      "duration": 0.7039999999999935,
+      "midi": 55,
+      "pitch_median": 54.8,
+      "cents": -20.0,
+      "note": "G3",
+      "confidence": 0.6021
+    },
+    {
+      "start": 66.504,
+      "end": 66.664,
+      "duration": 0.16,
+      "midi": 55,
+      "pitch_median": 54.6,
+      "cents": -40.0,
+      "note": "G3",
+      "confidence": 0.3489
+    },
+    {
+      "start": 68.168,
+      "end": 68.296,
+      "duration": 0.128,
+      "midi": 59,
+      "pitch_median": 59.2,
+      "cents": 20.0,
+      "note": "B3",
+      "confidence": 0.1868
+    },
+    {
+      "start": 68.424,
+      "end": 68.776,
+      "duration": 0.352,
+      "midi": 60,
+      "pitch_median": 60.2,
+      "cents": 20.0,
+      "note": "C4",
+      "confidence": 0.5766
+    },
+    {
+      "start": 68.808,
+      "end": 68.952,
+      "duration": 0.144,
+      "midi": 62,
+      "pitch_median": 62.4,
+      "cents": 40.0,
+      "note": "D4",
+      "confidence": 0.298
+    },
+    {
+      "start": 69.064,
+      "end": 69.304,
+      "duration": 0.24,
+      "midi": 60,
+      "pitch_median": 60.0,
+      "cents": 0.0,
+      "note": "C4",
+      "confidence": 0.4996
+    },
+    {
+      "start": 69.448,
+      "end": 69.816,
+      "duration": 0.368,
+      "midi": 64,
+      "pitch_median": 64.0,
+      "cents": -0.0,
+      "note": "E4",
+      "confidence": 0.7121
+    },
+    {
+      "start": 69.832,
+      "end": 70.648,
+      "duration": 0.816,
+      "midi": 59,
+      "pitch_median": 59.1,
+      "cents": 10.0,
+      "note": "B3",
+      "confidence": 0.5428
+    },
+    {
+      "start": 71.368,
+      "end": 71.688,
+      "duration": 0.32,
+      "midi": 66,
+      "pitch_median": 66.3,
+      "cents": 30.0,
+      "note": "F#4",
+      "confidence": 0.641
+    },
+    {
+      "start": 71.688,
+      "end": 71.864,
+      "duration": 0.176,
+      "midi": 57,
+      "pitch_median": 56.8,
+      "cents": -20.0,
+      "note": "A3",
+      "confidence": 0.4783
+    },
+    {
+      "start": 72.216,
+      "end": 72.376,
+      "duration": 0.16,
+      "midi": 58,
+      "pitch_median": 58.15,
+      "cents": 15.0,
+      "note": "A#3",
+      "confidence": 0.3151
+    },
+    {
+      "start": 72.376,
+      "end": 72.728,
+      "duration": 0.352,
+      "midi": 59,
+      "pitch_median": 59.0,
+      "cents": -0.0,
+      "note": "B3",
+      "confidence": 0.7066
+    },
+    {
+      "start": 72.824,
+      "end": 72.968,
+      "duration": 0.144,
+      "midi": 60,
+      "pitch_median": 60.1,
+      "cents": 10.0,
+      "note": "C4",
+      "confidence": 0.3363
+    },
+    {
+      "start": 73.032,
+      "end": 73.32,
+      "duration": 0.288,
+      "midi": 59,
+      "pitch_median": 58.9,
+      "cents": -10.0,
+      "note": "B3",
+      "confidence": 0.5827
+    },
+    {
+      "start": 73.464,
+      "end": 73.784,
+      "duration": 0.32,
+      "midi": 62,
+      "pitch_median": 62.0,
+      "cents": -0.0,
+      "note": "D4",
+      "confidence": 0.5592
+    },
+    {
+      "start": 73.832,
+      "end": 74.376,
+      "duration": 0.544,
+      "midi": 57,
+      "pitch_median": 56.85,
+      "cents": -15.0,
+      "note": "A3",
+      "confidence": 0.6946
+    },
+    {
+      "start": 74.648,
+      "end": 75.176,
+      "duration": 0.528,
+      "midi": 57,
+      "pitch_median": 57.0,
+      "cents": -0.0,
+      "note": "A3",
+      "confidence": 0.6226
+    },
+    {
+      "start": 75.176,
+      "end": 75.368,
+      "duration": 0.192,
+      "midi": 69,
+      "pitch_median": 68.8,
+      "cents": -20.0,
+      "note": "A4",
+      "confidence": 0.5443
+    },
+    {
+      "start": 76.072,
+      "end": 76.36,
+      "duration": 0.288,
+      "midi": 69,
+      "pitch_median": 69.0,
+      "cents": 0.0,
+      "note": "A4",
+      "confidence": 0.5314
+    },
+    {
+      "start": 76.872,
+      "end": 77.0,
+      "duration": 0.128,
+      "midi": 59,
+      "pitch_median": 59.0,
+      "cents": -0.0,
+      "note": "B3",
+      "confidence": 0.2089
+    },
+    {
+      "start": 78.008,
+      "end": 78.168,
+      "duration": 0.16,
+      "midi": 59,
+      "pitch_median": 59.2,
+      "cents": 20.0,
+      "note": "B3",
+      "confidence": 0.4861
+    },
+    {
+      "start": 78.216,
+      "end": 78.408,
+      "duration": 0.192,
+      "midi": 43,
+      "pitch_median": 43.3,
+      "cents": 30.0,
+      "note": "G2",
+      "confidence": 0.419
+    },
+    {
+      "start": 78.696,
+      "end": 78.904,
+      "duration": 0.208,
+      "midi": 43,
+      "pitch_median": 43.1,
+      "cents": 10.0,
+      "note": "G2",
+      "confidence": 0.4073
+    },
+    {
+      "start": 79.016,
+      "end": 79.304,
+      "duration": 0.288,
+      "midi": 67,
+      "pitch_median": 67.1,
+      "cents": 10.0,
+      "note": "G4",
+      "confidence": 0.4987
+    },
+    {
+      "start": 80.552,
+      "end": 80.984,
+      "duration": 0.43199999999998795,
+      "midi": 52,
+      "pitch_median": 51.6,
+      "cents": -40.0,
+      "note": "E3",
+      "confidence": 0.5495629629629616
+    },
+    {
+      "start": 81.144,
+      "end": 81.368,
+      "duration": 0.224,
+      "midi": 54,
+      "pitch_median": 53.95,
+      "cents": -5.0,
+      "note": "F#3",
+      "confidence": 0.4641
+    },
+    {
+      "start": 81.512,
+      "end": 81.88,
+      "duration": 0.368,
+      "midi": 55,
+      "pitch_median": 54.6,
+      "cents": -40.0,
+      "note": "G3",
+      "confidence": 0.5934
+    },
+    {
+      "start": 82.312,
+      "end": 82.456,
+      "duration": 0.144,
+      "midi": 65,
+      "pitch_median": 65.1,
+      "cents": 10.0,
+      "note": "F4",
+      "confidence": 0.2926
+    },
+    {
+      "start": 82.952,
+      "end": 83.096,
+      "duration": 0.144,
+      "midi": 66,
+      "pitch_median": 65.8,
+      "cents": -20.0,
+      "note": "F#4",
+      "confidence": 0.3861
+    },
+    {
+      "start": 83.096,
+      "end": 83.272,
+      "duration": 0.176,
+      "midi": 64,
+      "pitch_median": 64.2,
+      "cents": 20.0,
+      "note": "E4",
+      "confidence": 0.4603
+    },
+    {
+      "start": 83.88,
+      "end": 84.088,
+      "duration": 0.208,
+      "midi": 64,
+      "pitch_median": 64.2,
+      "cents": 20.0,
+      "note": "E4",
+      "confidence": 0.4688
+    },
+    {
+      "start": 84.392,
+      "end": 84.888,
+      "duration": 0.496,
+      "midi": 64,
+      "pitch_median": 63.8,
+      "cents": -20.0,
+      "note": "E4",
+      "confidence": 0.7022
+    },
+    {
+      "start": 85.064,
+      "end": 85.352,
+      "duration": 0.2880000000000109,
+      "midi": 65,
+      "pitch_median": 64.65,
+      "cents": -35.0,
+      "note": "F4",
+      "confidence": 0.5347166666666644
+    },
+    {
+      "start": 85.64,
+      "end": 86.12,
+      "duration": 0.48,
+      "midi": 64,
+      "pitch_median": 64.2,
+      "cents": 20.0,
+      "note": "E4",
+      "confidence": 0.7764
+    },
+    {
+      "start": 86.296,
+      "end": 86.552,
+      "duration": 0.256,
+      "midi": 62,
+      "pitch_median": 62.0,
+      "cents": -0.0,
+      "note": "D4",
+      "confidence": 0.5086
+    },
+    {
+      "start": 88.392,
+      "end": 88.52,
+      "duration": 0.128,
+      "midi": 51,
+      "pitch_median": 51.05,
+      "cents": 5.0,
+      "note": "D#3",
+      "confidence": 0.2276
+    },
+    {
+      "start": 88.712,
+      "end": 88.92,
+      "duration": 0.208,
+      "midi": 52,
+      "pitch_median": 51.7,
+      "cents": -30.0,
+      "note": "E3",
+      "confidence": 0.4141
+    },
+    {
+      "start": 89.656,
+      "end": 89.88,
+      "duration": 0.224,
+      "midi": 62,
+      "pitch_median": 61.9,
+      "cents": -10.0,
+      "note": "D4",
+      "confidence": 0.512
+    },
+    {
+      "start": 89.88,
+      "end": 90.008,
+      "duration": 0.128,
+      "midi": 61,
+      "pitch_median": 61.2,
+      "cents": 20.0,
+      "note": "C#4",
+      "confidence": 0.3455
+    },
+    {
+      "start": 92.776,
+      "end": 93.048,
+      "duration": 0.272,
+      "midi": 57,
+      "pitch_median": 57.0,
+      "cents": -0.0,
+      "note": "A3",
+      "confidence": 0.5888
+    },
+    {
+      "start": 93.048,
+      "end": 93.24,
+      "duration": 0.192,
+      "midi": 60,
+      "pitch_median": 59.6,
+      "cents": -40.0,
+      "note": "C4",
+      "confidence": 0.3375
+    },
+    {
+      "start": 93.432,
+      "end": 93.688,
+      "duration": 0.256,
+      "midi": 60,
+      "pitch_median": 60.15,
+      "cents": 15.0,
+      "note": "C4",
+      "confidence": 0.4931
+    },
+    {
+      "start": 94.136,
+      "end": 94.68,
+      "duration": 0.544,
+      "midi": 59,
+      "pitch_median": 59.0,
+      "cents": -0.0,
+      "note": "B3",
+      "confidence": 0.6657
+    },
+    {
+      "start": 96.824,
+      "end": 96.952,
+      "duration": 0.128,
+      "midi": 60,
+      "pitch_median": 59.7,
+      "cents": -30.0,
+      "note": "C4",
+      "confidence": 0.233
+    },
+    {
+      "start": 97.432,
+      "end": 97.72,
+      "duration": 0.288,
+      "midi": 64,
+      "pitch_median": 64.2,
+      "cents": 20.0,
+      "note": "E4",
+      "confidence": 0.4666
+    },
+    {
+      "start": 99.512,
+      "end": 100.184,
+      "duration": 0.672,
+      "midi": 67,
+      "pitch_median": 67.3,
+      "cents": 30.0,
+      "note": "G4",
+      "confidence": 0.6285
+    },
+    {
+      "start": 102.584,
+      "end": 102.712,
+      "duration": 0.128,
+      "midi": 61,
+      "pitch_median": 60.55,
+      "cents": -45.0,
+      "note": "C#4",
+      "confidence": 0.2949
+    },
+    {
+      "start": 104.6,
+      "end": 104.792,
+      "duration": 0.192,
+      "midi": 60,
+      "pitch_median": 60.4,
+      "cents": 40.0,
+      "note": "C4",
+      "confidence": 0.4505
+    },
+    {
+      "start": 105.144,
+      "end": 105.4,
+      "duration": 0.256,
+      "midi": 64,
+      "pitch_median": 64.3,
+      "cents": 30.0,
+      "note": "E4",
+      "confidence": 0.5539
+    },
+    {
+      "start": 105.512,
+      "end": 105.832,
+      "duration": 0.32,
+      "midi": 64,
+      "pitch_median": 64.3,
+      "cents": 30.0,
+      "note": "E4",
+      "confidence": 0.4473
+    },
+    {
+      "start": 107.16,
+      "end": 107.288,
+      "duration": 0.128,
+      "midi": 68,
+      "pitch_median": 67.6,
+      "cents": -40.0,
+      "note": "G#4",
+      "confidence": 0.4279
+    },
+    {
+      "start": 107.288,
+      "end": 107.416,
+      "duration": 0.128,
+      "midi": 67,
+      "pitch_median": 67.2,
+      "cents": 20.0,
+      "note": "G4",
+      "confidence": 0.4679
+    },
+    {
+      "start": 107.48,
+      "end": 107.768,
+      "duration": 0.288,
+      "midi": 68,
+      "pitch_median": 67.5,
+      "cents": -50.0,
+      "note": "G#4",
+      "confidence": 0.4154
+    },
+    {
+      "start": 112.328,
+      "end": 112.776,
+      "duration": 0.448,
+      "midi": 52,
+      "pitch_median": 51.95,
+      "cents": -5.0,
+      "note": "E3",
+      "confidence": 0.591
+    },
+    {
+      "start": 112.776,
+      "end": 112.968,
+      "duration": 0.192,
+      "midi": 53,
+      "pitch_median": 52.9,
+      "cents": -10.0,
+      "note": "F3",
+      "confidence": 0.5769
+    },
+    {
+      "start": 113.016,
+      "end": 113.304,
+      "duration": 0.2879999999999967,
+      "midi": 54,
+      "pitch_median": 53.55,
+      "cents": -45.0,
+      "note": "F#3",
+      "confidence": 0.5053166666666682
+    },
+    {
+      "start": 113.352,
+      "end": 113.976,
+      "duration": 0.624,
+      "midi": 55,
+      "pitch_median": 55.0,
+      "cents": 0.0,
+      "note": "G3",
+      "confidence": 0.7133
+    },
+    {
+      "start": 114.104,
+      "end": 114.216,
+      "duration": 0.112,
+      "midi": 55,
+      "pitch_median": 55.1,
+      "cents": 10.0,
+      "note": "G3",
+      "confidence": 0.371
+    },
+    {
+      "start": 116.6,
+      "end": 116.856,
+      "duration": 0.256,
+      "midi": 60,
+      "pitch_median": 60.1,
+      "cents": 10.0,
+      "note": "C4",
+      "confidence": 0.5938
+    },
+    {
+      "start": 116.984,
+      "end": 117.288,
+      "duration": 0.304,
+      "midi": 62,
+      "pitch_median": 62.35,
+      "cents": 35.0,
+      "note": "D4",
+      "confidence": 0.6862
+    },
+    {
+      "start": 117.288,
+      "end": 117.512,
+      "duration": 0.224,
+      "midi": 63,
+      "pitch_median": 63.05,
+      "cents": 5.0,
+      "note": "D#4",
+      "confidence": 0.5556
+    },
+    {
+      "start": 117.544,
+      "end": 118.104,
+      "duration": 0.56,
+      "midi": 64,
+      "pitch_median": 64.1,
+      "cents": 10.0,
+      "note": "E4",
+      "confidence": 0.7576
+    },
+    {
+      "start": 118.2,
+      "end": 118.44,
+      "duration": 0.24,
+      "midi": 59,
+      "pitch_median": 58.8,
+      "cents": -20.0,
+      "note": "B3",
+      "confidence": 0.6871
+    },
+    {
+      "start": 118.44,
+      "end": 118.6,
+      "duration": 0.16,
+      "midi": 58,
+      "pitch_median": 57.9,
+      "cents": -10.0,
+      "note": "A#3",
+      "confidence": 0.5328
+    },
+    {
+      "start": 120.616,
+      "end": 120.984,
+      "duration": 0.368,
+      "midi": 59,
+      "pitch_median": 59.0,
+      "cents": -0.0,
+      "note": "B3",
+      "confidence": 0.6349
+    },
+    {
+      "start": 120.984,
+      "end": 121.176,
+      "duration": 0.192,
+      "midi": 60,
+      "pitch_median": 59.9,
+      "cents": -10.0,
+      "note": "C4",
+      "confidence": 0.7171
+    },
+    {
+      "start": 121.176,
+      "end": 121.432,
+      "duration": 0.256,
+      "midi": 59,
+      "pitch_median": 59.2,
+      "cents": 20.0,
+      "note": "B3",
+      "confidence": 0.6266
+    },
+    {
+      "start": 121.528,
+      "end": 121.928,
+      "duration": 0.4,
+      "midi": 62,
+      "pitch_median": 62.1,
+      "cents": 10.0,
+      "note": "D4",
+      "confidence": 0.6745
+    },
+    {
+      "start": 121.992,
+      "end": 122.248,
+      "duration": 0.256,
+      "midi": 57,
+      "pitch_median": 57.4,
+      "cents": 40.0,
+      "note": "A3",
+      "confidence": 0.444
+    },
+    {
+      "start": 124.408,
+      "end": 124.6,
+      "duration": 0.192,
+      "midi": 58,
+      "pitch_median": 57.6,
+      "cents": -40.0,
+      "note": "A#3",
+      "confidence": 0.3269
+    },
+    {
+      "start": 125.064,
+      "end": 125.672,
+      "duration": 0.608,
+      "midi": 60,
+      "pitch_median": 60.4,
+      "cents": 40.0,
+      "note": "C4",
+      "confidence": 0.5348
+    },
+    {
+      "start": 125.72,
+      "end": 125.88,
+      "duration": 0.16,
+      "midi": 59,
+      "pitch_median": 59.0,
+      "cents": -0.0,
+      "note": "B3",
+      "confidence": 0.303
+    },
+    {
+      "start": 128.552,
+      "end": 128.728,
+      "duration": 0.176,
+      "midi": 63,
+      "pitch_median": 62.8,
+      "cents": -20.0,
+      "note": "D#4",
+      "confidence": 0.4188
+    },
+    {
+      "start": 129.24,
+      "end": 129.608,
+      "duration": 0.368,
+      "midi": 64,
+      "pitch_median": 64.3,
+      "cents": 30.0,
+      "note": "E4",
+      "confidence": 0.3787
+    },
+    {
+      "start": 131.512,
+      "end": 132.024,
+      "duration": 0.512,
+      "midi": 67,
+      "pitch_median": 67.2,
+      "cents": 20.0,
+      "note": "G4",
+      "confidence": 0.6749
+    },
+    {
+      "start": 133.432,
+      "end": 133.608,
+      "duration": 0.176,
+      "midi": 67,
+      "pitch_median": 66.75,
+      "cents": -25.0,
+      "note": "G4",
+      "confidence": 0.3337
+    },
+    {
+      "start": 134.488,
+      "end": 134.648,
+      "duration": 0.16,
+      "midi": 60,
+      "pitch_median": 60.05,
+      "cents": 5.0,
+      "note": "C4",
+      "confidence": 0.4006
+    },
+    {
+      "start": 134.856,
+      "end": 134.984,
+      "duration": 0.128,
+      "midi": 63,
+      "pitch_median": 62.75,
+      "cents": -25.0,
+      "note": "D#4",
+      "confidence": 0.2699
+    },
+    {
+      "start": 137.016,
+      "end": 137.272,
+      "duration": 0.256,
+      "midi": 64,
+      "pitch_median": 64.25,
+      "cents": 25.0,
+      "note": "E4",
+      "confidence": 0.5697
+    },
+    {
+      "start": 137.4,
+      "end": 138.28,
+      "duration": 0.8799999999999955,
+      "midi": 64,
+      "pitch_median": 64.3,
+      "cents": 30.0,
+      "note": "E4",
+      "confidence": 0.49471176470588213
+    },
+    {
+      "start": 139.064,
+      "end": 139.224,
+      "duration": 0.16,
+      "midi": 79,
+      "pitch_median": 79.1,
+      "cents": 10.0,
+      "note": "G5",
+      "confidence": 0.3343
+    },
+    {
+      "start": 139.336,
+      "end": 139.72,
+      "duration": 0.384,
+      "midi": 67,
+      "pitch_median": 67.35,
+      "cents": 35.0,
+      "note": "G4",
+      "confidence": 0.6652
+    },
+    {
+      "start": 139.928,
+      "end": 140.104,
+      "duration": 0.176,
+      "midi": 76,
+      "pitch_median": 76.1,
+      "cents": 10.0,
+      "note": "E5",
+      "confidence": 0.3856
+    },
+    {
+      "start": 140.92,
+      "end": 141.192,
+      "duration": 0.272,
+      "midi": 64,
+      "pitch_median": 63.7,
+      "cents": -30.0,
+      "note": "E4",
+      "confidence": 0.4784
+    },
+    {
+      "start": 141.448,
+      "end": 141.72,
+      "duration": 0.272,
+      "midi": 63,
+      "pitch_median": 62.9,
+      "cents": -10.0,
+      "note": "D#4",
+      "confidence": 0.4218
+    },
+    {
+      "start": 144.296,
+      "end": 144.456,
+      "duration": 0.16,
+      "midi": 60,
+      "pitch_median": 60.35,
+      "cents": 35.0,
+      "note": "C4",
+      "confidence": 0.3755
+    },
+    {
+      "start": 144.92,
+      "end": 145.416,
+      "duration": 0.496,
+      "midi": 64,
+      "pitch_median": 64.1,
+      "cents": 10.0,
+      "note": "E4",
+      "confidence": 0.6276
+    },
+    {
+      "start": 145.576,
+      "end": 145.896,
+      "duration": 0.32,
+      "midi": 64,
+      "pitch_median": 64.1,
+      "cents": 10.0,
+      "note": "E4",
+      "confidence": 0.5304
+    },
+    {
+      "start": 146.136,
+      "end": 146.728,
+      "duration": 0.592,
+      "midi": 64,
+      "pitch_median": 64.1,
+      "cents": 10.0,
+      "note": "E4",
+      "confidence": 0.4583
+    },
+    {
+      "start": 147.112,
+      "end": 147.496,
+      "duration": 0.384,
+      "midi": 67,
+      "pitch_median": 67.0,
+      "cents": 0.0,
+      "note": "G4",
+      "confidence": 0.5793
+    },
+    {
+      "start": 148.904,
+      "end": 149.032,
+      "duration": 0.128,
+      "midi": 64,
+      "pitch_median": 64.5,
+      "cents": 50.0,
+      "note": "E4",
+      "confidence": 0.2217
+    },
+    {
+      "start": 150.056,
+      "end": 150.264,
+      "duration": 0.208,
+      "midi": 61,
+      "pitch_median": 60.6,
+      "cents": -40.0,
+      "note": "C#4",
+      "confidence": 0.4604
+    },
+    {
+      "start": 150.664,
+      "end": 150.776,
+      "duration": 0.112,
+      "midi": 61,
+      "pitch_median": 60.7,
+      "cents": -30.0,
+      "note": "C#4",
+      "confidence": 0.2883
+    },
+    {
+      "start": 152.328,
+      "end": 152.44,
+      "duration": 0.112,
+      "midi": 62,
+      "pitch_median": 62.2,
+      "cents": 20.0,
+      "note": "D4",
+      "confidence": 0.1992
+    },
+    {
+      "start": 152.568,
+      "end": 153.256,
+      "duration": 0.688,
+      "midi": 64,
+      "pitch_median": 63.9,
+      "cents": -10.0,
+      "note": "E4",
+      "confidence": 0.6469
+    },
+    {
+      "start": 153.768,
+      "end": 154.536,
+      "duration": 0.7680000000000007,
+      "midi": 64,
+      "pitch_median": 64.1,
+      "cents": 10.0,
+      "note": "E4",
+      "confidence": 0.4463434782608698
+    },
+    {
+      "start": 154.6,
+      "end": 154.824,
+      "duration": 0.224,
+      "midi": 67,
+      "pitch_median": 67.0,
+      "cents": 0.0,
+      "note": "G4",
+      "confidence": 0.469
+    },
+    {
+      "start": 154.92,
+      "end": 155.224,
+      "duration": 0.304,
+      "midi": 67,
+      "pitch_median": 67.2,
+      "cents": 20.0,
+      "note": "G4",
+      "confidence": 0.5524
+    },
+    {
+      "start": 156.344,
+      "end": 156.472,
+      "duration": 0.128,
+      "midi": 64,
+      "pitch_median": 63.7,
+      "cents": -30.0,
+      "note": "E4",
+      "confidence": 0.2608
+    },
+    {
+      "start": 156.6,
+      "end": 156.712,
+      "duration": 0.112,
+      "midi": 63,
+      "pitch_median": 62.5,
+      "cents": -50.0,
+      "note": "D#4",
+      "confidence": 0.2268
+    },
+    {
+      "start": 160.696,
+      "end": 160.968,
+      "duration": 0.272,
+      "midi": 64,
+      "pitch_median": 63.9,
+      "cents": -10.0,
+      "note": "E4",
+      "confidence": 0.4537
+    }
+  ]
+}

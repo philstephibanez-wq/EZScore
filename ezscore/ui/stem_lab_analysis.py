@@ -307,92 +307,34 @@ def _build_visual_blocks(
     return blocks
 
 
-def _analyze_structure(
-    *,
-    audio_hash: str,
-    stems: dict[str, Path],
-    beats_per_bar: int,
-) -> dict[str, Any]:
-    y_drums, sr = librosa.load(str(stems["drums"]), sr=22050, mono=True)
-    y_other, _ = librosa.load(str(stems["other"]), sr=sr, mono=True)
-    y_bass, _ = librosa.load(str(stems["bass"]), sr=sr, mono=True)
+def _metric_signature_label(beats_per_bar: int) -> str:
+    value = int(beats_per_bar)
+    return "6/8" if value == 6 else f"{value}/4"
 
-    tempo, beat_frames = librosa.beat.beat_track(
-        y=y_drums,
-        sr=sr,
-        hop_length=512,
-    )
-    beat_frames = np.asarray(beat_frames, dtype=int)
-    beat_times = librosa.frames_to_time(
-        beat_frames,
-        sr=sr,
-        hop_length=512,
-    )
-    if len(beat_times) < 2:
-        raise RuntimeError("Pas assez de beats détectés sur drums.wav.")
 
-    chroma_other = librosa.feature.chroma_cqt(
-        y=y_other,
-        sr=sr,
-        hop_length=512,
-    )
-    chroma_bass = librosa.feature.chroma_cqt(
-        y=y_bass,
-        sr=sr,
-        hop_length=512,
-    )
+def _invalidate_metric_midi(audio_hash: str) -> None:
+    midi_dir = _work_dir(audio_hash) / "midi"
+    for name in (
+        "chords.mid", "drums.mid", "stem_mix.mid", "stem_midi.json",
+        "job_status.json", "job.log", "rhythm_progress.json", "drum_analysis.json",
+    ):
+        path = midi_dir / name
+        if path.is_file():
+            path.unlink()
 
-    beat_chords = []
-    for i, t0 in enumerate(beat_times):
-        t1 = (
-            float(beat_times[i + 1])
-            if i + 1 < len(beat_times)
-            else float(t0) + 60.0 / max(1.0, float(np.asarray(tempo).reshape(-1)[0]))
-        )
-        f0 = max(0, int(librosa.time_to_frames(t0, sr=sr, hop_length=512)))
-        f1 = max(f0 + 1, int(librosa.time_to_frames(t1, sr=sr, hop_length=512)))
-        f1 = min(f1, chroma_other.shape[1])
-        f0 = min(f0, max(0, f1 - 1))
-        co = np.mean(chroma_other[:, f0:f1], axis=1)
-        cb = np.mean(chroma_bass[:, f0:f1], axis=1)
-        beat_chords.append(_estimate_chord(co, cb))
 
-    measures = []
-    bpb = max(1, int(beats_per_bar))
-    for start in range(0, len(beat_times), bpb):
-        stop = min(start + bpb, len(beat_times))
-        if stop - start < max(1, bpb // 2):
-            continue
-        chords = beat_chords[start:stop]
-        t0 = float(beat_times[start])
-        if stop < len(beat_times):
-            t1 = float(beat_times[stop])
-        else:
-            t1 = float(beat_times[stop - 1]) + 60.0 / max(
-                1.0,
-                float(np.asarray(tempo).reshape(-1)[0]),
-            )
-        measures.append({
-            "measure": len(measures) + 1,
-            "time_start": t0,
-            "time_end": t1,
-            "beat_chords": chords,
-            "pattern": " · ".join(chords),
-        })
-
-    # Lightweight recurrence view, intentionally long enough to avoid tiny riffs.
+def _motifs_from_measures(measures: list[dict[str, Any]]) -> list[dict[str, Any]]:
     motifs = []
     patterns = [m["beat_chords"] for m in measures]
-    for length in range(6, min(20, len(measures) // 2) + 1):
-        for i in range(0, len(measures) - (2 * length) + 1):
-            a = patterns[i:i + length]
-            for j in range(i + length, len(measures) - length + 1):
-                b = patterns[j:j + length]
-                total = sum(max(len(x), len(y)) for x, y in zip(a, b))
-                if total <= 0:
-                    continue
+    for length in range(6, min(20, len(measures)//2) + 1):
+        for i in range(0, len(measures) - (2*length) + 1):
+            a = patterns[i:i+length]
+            for j in range(i+length, len(measures)-length+1):
+                b = patterns[j:j+length]
+                total = sum(max(len(x), len(y)) for x,y in zip(a,b))
+                if total <= 0: continue
                 same = 0
-                for x, y in zip(a, b):
+                for x,y in zip(a,b):
                     width = max(len(x), len(y))
                     for k in range(width):
                         vx = x[k] if k < len(x) else ""
@@ -400,66 +342,75 @@ def _analyze_structure(
                         same += int(vx == vy and vx != "")
                 sim = same / total
                 if sim >= 0.72:
-                    motifs.append({
-                        "a_measure_start": i + 1,
-                        "a_measure_end": i + length,
-                        "b_measure_start": j + 1,
-                        "b_measure_end": j + length,
-                        "length": length,
-                        "harmonic_score": round(float(sim), 4),
-                    })
-    motifs.sort(
-        key=lambda item: (
-            float(item["harmonic_score"]),
-            int(item["length"]),
-        ),
-        reverse=True,
-    )
-    # De-duplicate near-identical motif pairs.
-    selected = []
-    seen = set()
+                    motifs.append({"a_measure_start":i+1,"a_measure_end":i+length,
+                                   "b_measure_start":j+1,"b_measure_end":j+length,
+                                   "length":length,"harmonic_score":round(float(sim),4)})
+    motifs.sort(key=lambda item:(float(item["harmonic_score"]),int(item["length"])), reverse=True)
+    selected=[]; seen=set()
     for item in motifs:
-        key = (
-            item["a_measure_start"],
-            item["b_measure_start"],
-        )
-        if key in seen:
-            continue
-        selected.append(item)
-        seen.add(key)
-        if len(selected) >= 12:
-            break
+        key=(item["a_measure_start"],item["b_measure_start"])
+        if key in seen: continue
+        selected.append(item); seen.add(key)
+        if len(selected) >= 12: break
+    return selected
 
-    speech = _load_speech(audio_hash) or {}
-    words = list(speech.get("words", []) or [])
 
-    candidate_boundaries = [1]
+def _structure_from_beat_timeline(*, audio_hash: str, beat_timeline: list[dict[str, Any]],
+                                  tempo: float, beats_per_bar: int) -> dict[str, Any]:
+    if len(beat_timeline) < 2:
+        raise RuntimeError("Beat timeline insuffisante pour reconstruire la structure.")
+    bpb=max(1,int(beats_per_bar))
+    measures=[]
+    for start in range(0,len(beat_timeline),bpb):
+        stop=min(start+bpb,len(beat_timeline))
+        if stop-start < max(1,bpb//2): continue
+        group=beat_timeline[start:stop]
+        t0=float(group[0]["time"])
+        t1=float(beat_timeline[stop]["time"]) if stop < len(beat_timeline) else float(group[-1]["time"])+60.0/max(1.0,float(tempo))
+        chords=[str(item.get("chord","N") or "N") for item in group]
+        measures.append({"measure":len(measures)+1,"time_start":t0,"time_end":t1,
+                         "beat_chords":chords,"pattern":" · ".join(chords)})
+    selected=_motifs_from_measures(measures)
+    speech=_load_speech(audio_hash) or {}
+    words=list(speech.get("words",[]) or [])
+    boundaries=[1]
     for item in selected[:8]:
-        candidate_boundaries.append(int(item["a_measure_start"]))
-        candidate_boundaries.append(int(item["b_measure_start"]))
-
-    blocks = _build_visual_blocks(
-        boundaries=candidate_boundaries,
-        measures=measures,
-        words=words,
-    )
-
-    payload = {
-        "tempo": float(np.asarray(tempo).reshape(-1)[0]),
-        "beats_per_bar": bpb,
-        "measure_count": len(measures),
-        "measures": measures,
-        "harmonic_motifs": selected,
-        "visual_blocks": blocks,
-        "visual_block_min_measures": MIN_VISUAL_BLOCK_MEASURES,
-        "lyrics_source": "original",
-        "timebase": "original_audio_seconds",
-    }
-    _structure_cache_path(audio_hash).write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+        boundaries.extend([int(item["a_measure_start"]),int(item["b_measure_start"])])
+    blocks=_build_visual_blocks(boundaries=boundaries,measures=measures,words=words)
+    payload={"tempo":float(tempo),"beats_per_bar":int(bpb),"signature":_metric_signature_label(bpb),
+             "measure_count":len(measures),"beat_timeline":beat_timeline,"measures":measures,
+             "harmonic_motifs":selected,"visual_blocks":blocks,
+             "visual_block_min_measures":MIN_VISUAL_BLOCK_MEASURES,
+             "lyrics_source":"original","timebase":"original_audio_seconds"}
+    _structure_cache_path(audio_hash).write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
     return payload
+
+
+def _analyze_structure(*, audio_hash: str, stems: dict[str, Path], beats_per_bar: int) -> dict[str, Any]:
+    y_drums, sr = librosa.load(str(stems["drums"]), sr=22050, mono=True)
+    y_other, _ = librosa.load(str(stems["other"]), sr=sr, mono=True)
+    y_bass, _ = librosa.load(str(stems["bass"]), sr=sr, mono=True)
+    onset_env = librosa.onset.onset_strength(y=y_drums, sr=sr, hop_length=512)
+    tempo, beat_frames = librosa.beat.beat_track(onset_envelope=onset_env, sr=sr, hop_length=512, trim=False)
+    beat_frames=np.asarray(beat_frames,dtype=int)
+    beat_times=librosa.frames_to_time(beat_frames,sr=sr,hop_length=512)
+    if len(beat_times) < 2: raise RuntimeError("Pas assez de beats détectés sur drums.wav.")
+    strengths=onset_env[np.clip(beat_frames,0,max(0,len(onset_env)-1))] if len(beat_frames) else np.array([])
+    chroma_other=librosa.feature.chroma_cqt(y=y_other,sr=sr,hop_length=512)
+    chroma_bass=librosa.feature.chroma_cqt(y=y_bass,sr=sr,hop_length=512)
+    tempo_value=float(np.asarray(tempo).reshape(-1)[0])
+    beat_timeline=[]
+    for i,t0 in enumerate(beat_times):
+        t1=float(beat_times[i+1]) if i+1 < len(beat_times) else float(t0)+60.0/max(1.0,tempo_value)
+        f0=max(0,int(librosa.time_to_frames(t0,sr=sr,hop_length=512)))
+        f1=max(f0+1,int(librosa.time_to_frames(t1,sr=sr,hop_length=512)))
+        f1=min(f1,chroma_other.shape[1]); f0=min(f0,max(0,f1-1))
+        co=np.mean(chroma_other[:,f0:f1],axis=1); cb=np.mean(chroma_bass[:,f0:f1],axis=1)
+        beat_timeline.append({"index":int(i),"time":round(float(t0),6),
+                              "strength":round(float(strengths[i]) if i < len(strengths) else 0.0,6),
+                              "chord":_estimate_chord(co,cb)})
+    return _structure_from_beat_timeline(audio_hash=audio_hash,beat_timeline=beat_timeline,
+                                         tempo=tempo_value,beats_per_bar=int(beats_per_bar))
 
 
 def _load_structure(audio_hash: str) -> dict[str, Any] | None:
@@ -497,6 +448,29 @@ def _load_structure(audio_hash: str) -> dict[str, Any] | None:
         )
 
     return payload
+
+
+@st.fragment(run_every=1.0)
+def _render_midi_progress_fragment(midi_dir: Path) -> None:
+    job=load_stem_midi_job(midi_dir)
+    state=str(job.get("state","idle") or "idle")
+    if state not in {"starting","running"}:
+        st.rerun(); return
+    percent=float(job.get("percent",0.0) or 0.0)
+    st.progress(max(0.0,min(1.0,percent)))
+    st.info(str(job.get("message") or "Génération MIDI en cours…"))
+    details=[]
+    if job.get("chunk_index") and job.get("chunk_total"):
+        details.append(f"segment chant {job.get('chunk_index')}/{job.get('chunk_total')}")
+    if job.get("elapsed_seconds") is not None:
+        details.append(f"{float(job.get('elapsed_seconds')):.0f}s écoulées")
+    if details: st.caption(" · ".join(details))
+    with st.expander("Diagnostic MIDI en cours",expanded=False):
+        st.json(job)
+        vp=midi_dir/"vocal_progress.json"
+        if vp.is_file():
+            st.markdown("**Chant / pYIN**")
+            st.json(json.loads(vp.read_text(encoding="utf-8")))
 
 
 def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
@@ -647,83 +621,63 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
     st.divider()
     st.markdown("## 3 — Blocs / structure")
     st.caption(
-        "Segmentation du morceau à partir des mesures, accords, répétitions "
-        "et paroles. Les blocs sont visuels : aucun timestamp n'est déplacé."
+        "La signature regroupe les beats détectés en mesures et change les temps forts/faibles. "
+        "Les timestamps audio des beats restent inchangés."
     )
-
-    structure = _load_structure(audio_hash)
+    structure=_load_structure(audio_hash)
+    signature_options=[2,3,4,6]
+    current_bpb=int((structure or {}).get("beats_per_bar",4) or 4)
+    if current_bpb not in signature_options: current_bpb=4
+    selected_bpb=st.selectbox("Signature",signature_options,index=signature_options.index(current_bpb),
+                              format_func=_metric_signature_label,key=f"ezstem_bpb_{str(audio_hash)[:12]}")
     if structure is None:
-        beats_per_bar = st.selectbox(
-            "Temps par mesure",
-            [2, 3, 4, 6],
-            index=2,
-            key=f"ezstem_bpb_{str(audio_hash)[:12]}",
-        )
-        if st.button(
-            "Détecter les blocs / structure",
-            type="primary",
-            width="stretch",
-            key=f"ezstem_structure_{str(audio_hash)[:12]}",
-        ):
-            with st.spinner("Analyse accords + répétitions + segmentation…"):
-                _analyze_structure(
-                    audio_hash=audio_hash,
-                    stems=stems,
-                    beats_per_bar=int(beats_per_bar),
-                )
+        if st.button("Détecter les blocs / structure",type="primary",width="stretch",
+                     key=f"ezstem_structure_{str(audio_hash)[:12]}"):
+            with st.spinner("Analyse beats + accords + répétitions + blocs…"):
+                _analyze_structure(audio_hash=audio_hash,stems=stems,beats_per_bar=int(selected_bpb))
+                _invalidate_metric_midi(audio_hash)
             st.rerun()
-        st.info("Étape 3 à lancer.")
-        return
+        st.info("Étape 3 à lancer."); return
 
-    blocks = list(structure.get("visual_blocks", []) or [])
-    st.success(
-        f"✓ Structure prête · {len(blocks)} blocs · "
-        f"{int(structure.get('measure_count', 0))} mesures · "
-        f"tempo ≈ {float(structure.get('tempo', 0.0)):.1f} BPM."
-    )
+    has_beat_timeline=bool(structure.get("beat_timeline"))
+    if not has_beat_timeline:
+        st.warning("Cache structure ancien : timeline exacte des beats absente. Un recalcul complet est nécessaire une seule fois.")
+    signature_changed=int(selected_bpb) != int(current_bpb)
+    recalc_label=(f"Recalculer en {_metric_signature_label(selected_bpb)}" if signature_changed else "Recalculer les blocs / structure")
+    if st.button(recalc_label,type="primary" if signature_changed else "secondary",width="stretch",
+                 key=f"ezstem_structure_recalc_{str(audio_hash)[:12]}"):
+        if has_beat_timeline:
+            with st.spinner("Regroupement métrique + mesures + blocs…"):
+                _structure_from_beat_timeline(audio_hash=audio_hash,beat_timeline=list(structure["beat_timeline"]),
+                                              tempo=float(structure.get("tempo",120.0) or 120.0),
+                                              beats_per_bar=int(selected_bpb))
+                _invalidate_metric_midi(audio_hash)
+        else:
+            with st.spinner("Cache ancien : extraction timeline beats puis reconstruction…"):
+                _analyze_structure(audio_hash=audio_hash,stems=stems,beats_per_bar=int(selected_bpb))
+                _invalidate_metric_midi(audio_hash)
+        st.rerun()
 
+    blocks=list(structure.get("visual_blocks",[]) or [])
+    st.success(f"✓ {_metric_signature_label(current_bpb)} · {len(blocks)} blocs · "
+               f"{int(structure.get('measure_count',0))} mesures · tempo ≈ {float(structure.get('tempo',0.0)):.1f} BPM.")
     for block in blocks:
         with st.container(border=True):
-            c1, c2 = st.columns([3, 1])
+            c1,c2=st.columns([3,1])
             with c1:
-                st.markdown(
-                    f"### Bloc {block.get('cluster', '?')} · "
-                    f"mesures {block.get('measure_start', 0)}–"
-                    f"{block.get('measure_end', 0)} · "
-                    f"{int(block.get('measure_end', 0)) - int(block.get('measure_start', 0)) + 1} mesures"
-                )
+                st.markdown(f"### Bloc {block.get('cluster','?')} · mesures {block.get('measure_start',0)}–{block.get('measure_end',0)} · "
+                            f"{int(block.get('measure_end',0))-int(block.get('measure_start',0))+1} mesures")
             with c2:
-                st.caption(
-                    f"{float(block.get('time_start', 0.0)):.1f}s → "
-                    f"{float(block.get('time_end', 0.0)):.1f}s"
-                )
-            lyrics = str(block.get("lyrics", "") or "").strip()
+                st.caption(f"{float(block.get('time_start',0.0)):.1f}s → {float(block.get('time_end',0.0)):.1f}s")
+            lyrics=str(block.get("lyrics","") or "").strip()
             if lyrics:
-                st.markdown(
-                    "<div style='margin-top:.65rem;padding:.75rem 1rem;"
-                    "border-left:4px solid #2f80ed;"
-                    "font-size:1.08rem;line-height:1.55;'>"
-                    + lyrics
-                    + "</div>",
-                    unsafe_allow_html=True,
-                )
+                st.markdown("<div style='margin-top:.65rem;padding:.75rem 1rem;border-left:4px solid #2f80ed;font-size:1.08rem;line-height:1.55;'>"+lyrics+"</div>",unsafe_allow_html=True)
             else:
                 st.caption("Section instrumentale / aucune parole détectée.")
-
-    with st.expander("Progressions harmoniques / mesures", expanded=False):
-        st.dataframe(
-            [
-                {
-                    "Mesure": m.get("measure"),
-                    "Début": round(float(m.get("time_start", 0.0)), 2),
-                    "Fin": round(float(m.get("time_end", 0.0)), 2),
-                    "Accords / temps": " · ".join(m.get("beat_chords", [])),
-                }
-                for m in list(structure.get("measures", []) or [])
-            ],
-            hide_index=True,
-            width="stretch",
-        )
+    with st.expander("Progressions harmoniques / mesures",expanded=False):
+        st.dataframe([{"Mesure":m.get("measure"),"Début":round(float(m.get("time_start",0.0)),2),
+                       "Fin":round(float(m.get("time_end",0.0)),2),"Accords / temps":" · ".join(m.get("beat_chords",[]))}
+                      for m in list(structure.get("measures",[]) or [])],hide_index=True,width="stretch")
 
     # --------------------------------------------------------
     # 4 — MIDI + player
@@ -731,8 +685,8 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
     st.divider()
     st.markdown("## 4 — MIDI")
     st.caption(
-        "Génération Chant + Accords + Batterie. "
-        "Le lecteur Audio original + MIDI apparaît uniquement lorsque les trois pistes sont terminées."
+        "Accords + Batterie viennent de la timeline de l'étape 3, sans refaire l'analyse rythmique. "
+        "Le chant F0 est réutilisé s'il existe."
     )
 
     midi_dir = _work_dir(audio_hash) / "midi"
@@ -742,51 +696,7 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
     job_state = str(job.get("state", "idle") or "idle")
 
     if job_state in {"starting", "running"}:
-        percent = float(job.get("percent", 0.0) or 0.0)
-        st.progress(max(0.0, min(1.0, percent)))
-        st.info(str(job.get("message") or "Génération MIDI en cours…"))
-        detail = []
-        if job.get("chunk_index") and job.get("chunk_total"):
-            detail.append(
-                f"segment chant {job.get('chunk_index')}/{job.get('chunk_total')}"
-            )
-        if job.get("elapsed_seconds") is not None:
-            detail.append(f"{float(job.get('elapsed_seconds')):.0f}s écoulées")
-        if detail:
-            st.caption(" · ".join(detail))
-
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            if st.button(
-                "↻ Actualiser l'état MIDI",
-                width="stretch",
-                key=f"ezstem_midi_refresh_{str(audio_hash)[:12]}",
-            ):
-                st.rerun()
-        with c2:
-            log_path = midi_dir / "job.log"
-            if log_path.is_file():
-                st.download_button(
-                    "⬇ Journal MIDI",
-                    data=log_path.read_bytes(),
-                    file_name="job.log",
-                    mime="text/plain",
-                    width="stretch",
-                    key=f"ezstem_midi_log_{str(audio_hash)[:12]}",
-                )
-
-        with st.expander("Diagnostic MIDI en cours", expanded=False):
-            st.json(job)
-
-            rhythm_progress = midi_dir / "rhythm_progress.json"
-            if rhythm_progress.is_file():
-                st.markdown("**Batterie / tempo**")
-                st.json(json.loads(rhythm_progress.read_text(encoding="utf-8")))
-
-            vocal_progress = midi_dir / "vocal_progress.json"
-            if vocal_progress.is_file():
-                st.markdown("**Chant / pYIN**")
-                st.json(json.loads(vocal_progress.read_text(encoding="utf-8")))
+        _render_midi_progress_fragment(midi_dir)
         return
 
     if job_state == "error":

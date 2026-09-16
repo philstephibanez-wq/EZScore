@@ -155,3 +155,15 @@ Watchdogs :
 - superviseur : statut figé 150 s -> arrêt explicite `worker_stalled`.
 
 Aucun fallback et aucun traitement lourd MIDI n'est désormais hors watchdog.
+
+
+## R10 — métrique, MIDI rapide, progression automatique, chant amélioré
+
+- Signature toujours visible : 2/4, 3/4, 4/4, 6/8.
+- Changer la signature regroupe la beat_timeline et change les accents forts/faibles MIDI sans déplacer les beats audio.
+- beat_timeline persistée dans structure_analysis.json.
+- Recalcul signature/blocs sans refaire le beat tracking quand la timeline existe.
+- MIDI Accords+Batterie généré directement depuis la structure : plus de second beat tracking.
+- vocal_analysis.json et vocal.mid préservés lors d'un changement de signature.
+- Progression MIDI auto-refresh chaque seconde via st.fragment(run_every=1.0).
+- Chant : moteur mature vocal.py réutilisé, pYIN chunké avec 1 s de recouvrement, segmentation globale anti-vibrato.

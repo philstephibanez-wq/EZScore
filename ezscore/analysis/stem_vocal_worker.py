@@ -48,6 +48,7 @@ def main() -> int:
         result = analyze_vocal_notes(
             vocals,
             chunk_seconds=float(args.chunk_seconds),
+            overlap_seconds=1.0,
             progress_callback=progress,
         )
         _atomic_json(output_json, result)

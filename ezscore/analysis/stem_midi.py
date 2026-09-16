@@ -30,6 +30,12 @@ from typing import Any
 import librosa
 import numpy as np
 
+from ezscore.analysis.vocal import (
+    VOCAL_CONFIDENCE_DEMUCS,
+    _recover_continuous_weak_voicing,
+    _segment_notes,
+)
+
 
 PPQ = 480
 DEFAULT_TEMPO = 120.0
@@ -117,26 +123,19 @@ def analyze_vocal_notes(
     *,
     sample_rate: int = 16000,
     chunk_seconds: float = 20.0,
+    overlap_seconds: float = 1.0,
     progress_callback=None,
 ) -> dict[str, Any]:
-    """Extract monophonic vocal notes from vocals.wav with bounded pYIN chunks.
-
-    Why chunks:
-    - one whole-song ``librosa.pyin`` call gave no observable progress and could
-      remain indefinitely in the same state;
-    - bounded chunks expose the exact chunk that is running;
-    - timestamps remain absolute seconds on the original audio timebase.
-
-    ``progress_callback`` receives serializable dictionaries.
-    """
+    """Chunked pYIN with overlap + mature EZScore voicing/segmentation."""
     y, sr = librosa.load(str(vocals_path), sr=int(sample_rate), mono=True)
     if y.size == 0:
         raise RuntimeError("vocals.wav vide.")
 
     frame_length = 2048
     hop_length = 256
-    chunk_samples = max(frame_length * 4, int(round(float(chunk_seconds) * sr)))
-    total_chunks = max(1, int(math.ceil(len(y) / chunk_samples)))
+    core_samples = max(frame_length * 4, int(round(float(chunk_seconds) * sr)))
+    overlap_samples = max(0, int(round(float(overlap_seconds) * sr)))
+    total_chunks = max(1, int(math.ceil(len(y) / core_samples)))
     duration = float(len(y) / sr)
 
     if progress_callback:
@@ -147,32 +146,33 @@ def analyze_vocal_notes(
             "samples": int(len(y)),
             "sample_rate": int(sr),
             "chunk_seconds": float(chunk_seconds),
+            "overlap_seconds": float(overlap_seconds),
             "chunk_total": int(total_chunks),
             "percent": 0.0,
         })
 
-    f0_parts = []
-    voiced_parts = []
-    prob_parts = []
     time_parts = []
+    midi_parts = []
+    prob_parts = []
 
     for chunk_index in range(total_chunks):
-        sample_start = chunk_index * chunk_samples
-        sample_end = min(len(y), (chunk_index + 1) * chunk_samples)
-        chunk = y[sample_start:sample_end]
-        absolute_start = sample_start / sr
+        core_start = chunk_index * core_samples
+        core_end = min(len(y), (chunk_index + 1) * core_samples)
+        analysis_start = max(0, core_start - overlap_samples)
+        analysis_end = min(len(y), core_end + overlap_samples)
+        chunk = y[analysis_start:analysis_end]
 
         if progress_callback:
             progress_callback({
                 "stage": "vocal_pyin",
                 "message": (
                     f"pYIN chant : segment {chunk_index + 1}/{total_chunks} "
-                    f"({absolute_start:.1f}s → {sample_end / sr:.1f}s)"
+                    f"({core_start / sr:.1f}s → {core_end / sr:.1f}s)"
                 ),
                 "chunk_index": int(chunk_index + 1),
                 "chunk_total": int(total_chunks),
-                "time_start": round(float(absolute_start), 3),
-                "time_end": round(float(sample_end / sr), 3),
+                "time_start": round(float(core_start / sr), 3),
+                "time_end": round(float(core_end / sr), 3),
                 "percent": round(chunk_index / total_chunks, 4),
             })
 
@@ -185,16 +185,44 @@ def analyze_vocal_notes(
             hop_length=hop_length,
             fill_na=np.nan,
         )
-
         f0 = np.asarray(f0, dtype=float)
         voiced_flag = np.asarray(voiced_flag, dtype=bool)
         voiced_prob = np.asarray(voiced_prob, dtype=float)
-        times = librosa.times_like(f0, sr=sr, hop_length=hop_length) + absolute_start
 
-        f0_parts.append(f0)
-        voiced_parts.append(voiced_flag)
-        prob_parts.append(voiced_prob)
-        time_parts.append(times)
+        rms = librosa.feature.rms(
+            y=chunk,
+            frame_length=frame_length,
+            hop_length=hop_length,
+            center=True,
+        )[0]
+        if len(rms) < len(f0):
+            rms = np.pad(rms, (0, len(f0)-len(rms)), mode="edge" if len(rms) else "constant")
+        elif len(rms) > len(f0):
+            rms = rms[:len(f0)]
+
+        strong_valid = (
+            voiced_flag & np.isfinite(f0) & np.isfinite(voiced_prob)
+            & (voiced_prob >= float(VOCAL_CONFIDENCE_DEMUCS))
+        )
+        valid = _recover_continuous_weak_voicing(
+            f0=f0,
+            voiced_flag=voiced_flag,
+            voiced_prob=voiced_prob,
+            rms=np.asarray(rms, dtype=float),
+            confidence_floor=float(VOCAL_CONFIDENCE_DEMUCS),
+            strong_valid=strong_valid,
+        )
+        midi_float = np.full(len(f0), np.nan, dtype=float)
+        midi_float[valid] = librosa.hz_to_midi(f0[valid])
+
+        absolute_times = librosa.times_like(f0, sr=sr, hop_length=hop_length) + float(analysis_start / sr)
+        core_t0 = float(core_start / sr)
+        core_t1 = float(core_end / sr)
+        keep = ((absolute_times >= core_t0) &
+                ((absolute_times < core_t1) if chunk_index + 1 < total_chunks else (absolute_times <= core_t1 + 1e-6)))
+        time_parts.append(absolute_times[keep])
+        midi_parts.append(midi_float[keep])
+        prob_parts.append(voiced_prob[keep])
 
         if progress_callback:
             progress_callback({
@@ -205,118 +233,16 @@ def analyze_vocal_notes(
                 "percent": round((chunk_index + 1) / total_chunks, 4),
             })
 
-    f0 = np.concatenate(f0_parts) if f0_parts else np.array([], dtype=float)
-    voiced_flag = (
-        np.concatenate(voiced_parts) if voiced_parts else np.array([], dtype=bool)
-    )
-    voiced_prob = (
-        np.concatenate(prob_parts) if prob_parts else np.array([], dtype=float)
-    )
     times = np.concatenate(time_parts) if time_parts else np.array([], dtype=float)
+    midi_float = np.concatenate(midi_parts) if midi_parts else np.array([], dtype=float)
+    voiced_prob = np.concatenate(prob_parts) if prob_parts else np.array([], dtype=float)
 
-    if not len(f0):
-        return {
-            "source": "vocals.wav",
-            "timebase": "original_audio_seconds",
-            "sample_rate": int(sr),
-            "hop_length": int(hop_length),
-            "note_count": 0,
-            "notes": [],
-        }
-
-    valid = (
-        voiced_flag
-        & np.isfinite(f0)
-        & np.isfinite(voiced_prob)
-        & (voiced_prob >= 0.48)
+    notes = _segment_notes(
+        times=times,
+        midi_float=midi_float,
+        voiced_prob=voiced_prob,
+        hop_seconds=float(hop_length) / float(sr),
     )
-    midi_float = np.full(len(f0), np.nan, dtype=float)
-    midi_float[valid] = librosa.hz_to_midi(f0[valid])
-
-    # Median smoothing of valid neighboring frames.
-    smoothed = midi_float.copy()
-    half = 3
-    for i in range(len(smoothed)):
-        lo = max(0, i - half)
-        hi = min(len(smoothed), i + half + 1)
-        finite = midi_float[lo:hi][np.isfinite(midi_float[lo:hi])]
-        if finite.size:
-            smoothed[i] = float(np.median(finite))
-
-    notes: list[dict[str, Any]] = []
-    current_note = None
-    start_idx = None
-    stable_candidate = None
-    stable_start = None
-    stable_frames = max(1, int(math.ceil(0.10 / (hop_length / sr))))
-
-    def close(end_idx: int) -> None:
-        nonlocal current_note, start_idx, stable_candidate, stable_start
-        if current_note is None or start_idx is None or end_idx < start_idx:
-            current_note = None
-            start_idx = None
-            stable_candidate = None
-            stable_start = None
-            return
-        start = float(times[start_idx])
-        end = float(times[min(end_idx, len(times) - 1)] + hop_length / sr)
-        if end - start >= 0.09:
-            probs = voiced_prob[start_idx:end_idx + 1]
-            finite_probs = probs[np.isfinite(probs)]
-            conf = float(np.mean(finite_probs)) if finite_probs.size else 0.0
-            notes.append({
-                "start": round(start, 6),
-                "end": round(end, 6),
-                "duration": round(end - start, 6),
-                "midi": int(np.clip(current_note, 0, 127)),
-                "note": str(
-                    librosa.midi_to_note(
-                        int(np.clip(current_note, 0, 127)),
-                        unicode=False,
-                    )
-                ),
-                "confidence": round(conf, 4),
-            })
-        current_note = None
-        start_idx = None
-        stable_candidate = None
-        stable_start = None
-
-    for i, value in enumerate(smoothed):
-        if not np.isfinite(value):
-            if current_note is not None:
-                close(i - 1)
-            continue
-
-        proposed = int(round(float(value)))
-        if current_note is None:
-            current_note = proposed
-            start_idx = i
-            continue
-
-        if abs(float(value) - float(current_note)) < 0.70:
-            stable_candidate = None
-            stable_start = None
-            continue
-
-        if proposed == current_note:
-            stable_candidate = None
-            stable_start = None
-            continue
-
-        if stable_candidate != proposed:
-            stable_candidate = proposed
-            stable_start = i
-            continue
-
-        if stable_start is not None and (i - stable_start + 1) >= stable_frames:
-            new_start = stable_start
-            close(new_start - 1)
-            current_note = proposed
-            start_idx = new_start
-
-    if current_note is not None:
-        close(len(times) - 1)
 
     if progress_callback:
         progress_callback({
@@ -328,14 +254,18 @@ def analyze_vocal_notes(
 
     return {
         "source": "vocals.wav",
+        "engine": "pyin-v3-adaptive-voicing-chunked-overlap",
         "timebase": "original_audio_seconds",
         "sample_rate": int(sr),
         "hop_length": int(hop_length),
         "chunk_seconds": float(chunk_seconds),
+        "overlap_seconds": float(overlap_seconds),
         "chunk_count": int(total_chunks),
+        "confidence_floor": float(VOCAL_CONFIDENCE_DEMUCS),
         "note_count": len(notes),
         "notes": notes,
     }
+
 
 def build_vocal_midi(
     notes: list[dict[str, Any]],
@@ -539,6 +469,48 @@ def analyze_drum_beats(
             "tempo": round(tempo_value, 4),
         })
     return result
+
+
+def drum_analysis_from_structure(structure: dict[str, Any]) -> dict[str, Any]:
+    """Build metric drum events from persisted beat timestamps; no audio re-analysis."""
+    timeline = list(structure.get("beat_timeline", []) or [])
+    if not timeline:
+        raise RuntimeError(
+            "La structure ne contient pas de beat_timeline canonique. "
+            "Recalculer Blocs / structure avant le MIDI."
+        )
+
+    bpb = max(2, int(structure.get("beats_per_bar", 4) or 4))
+    beats = []
+    for index, item in enumerate(timeline):
+        pos = index % bpb
+        strong = pos == 0
+        if bpb == 2:
+            medium = pos == 1
+        elif bpb == 4:
+            medium = pos == 2
+        elif bpb == 6:
+            medium = pos == 3
+        else:
+            medium = False
+        beats.append({
+            "index": int(index),
+            "time": round(float(item.get("time", 0.0) or 0.0), 6),
+            "strength": float(item.get("strength", 0.0) or 0.0),
+            "strong": bool(strong),
+            "medium": bool(medium),
+            "metric_position": int(pos),
+            "measure_index": int(index // bpb),
+        })
+
+    return {
+        "source": "structure.beat_timeline",
+        "timebase": "original_audio_seconds",
+        "tempo": float(structure.get("tempo", 0.0) or 0.0),
+        "beat_count": len(beats),
+        "beats_per_bar": bpb,
+        "beats": beats,
+    }
 
 
 def drum_events(
