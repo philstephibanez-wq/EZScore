@@ -372,3 +372,57 @@ La colonne supplémentaire ne modifie pas le moteur de structure :
 Nom, Début, Fin, Nb mesures et Suppression gardent leur comportement existant.
 
 Aucun changement dans Analyse, Player ou le MIDI vocal.
+
+
+## R12.4 — restauration stricte des paroles validées
+
+R12.2/R12.3 devaient être des changements de présentation uniquement.
+Le moteur de validation historique attend cependant la valeur de TOUS les
+blocs, y compris ceux qui ne sont plus rendus sous forme de textarea.
+
+R12.4 garantit explicitement ce contrat.
+
+### Récupération
+
+Pour chaque bloc :
+1. recherche dans `lyric_block_edits` courant ;
+2. si aucune correction courante ne correspond, recherche dans les snapshots
+   `analysis_versions` ;
+3. dans un snapshot, le bloc est identifié en priorité par son `block_id`,
+   puis par son `order_index` ;
+4. ses anciennes bornes de mesures sont converties avec le `music_json` de
+   cette même version ;
+5. la correction correspondante est restaurée en mémoire.
+
+Cela permet de récupérer les paroles validées même si les timestamps des
+mesures de la nouvelle analyse STEM diffèrent légèrement.
+
+### Protection contre la régression
+
+- aucun DELETE ;
+- aucune écriture automatique dans la DB ;
+- aucune correction existante non vide n'est écrasée ;
+- les blocs non sélectionnés gardent leur texte en session ;
+- `Valider blocs + paroles` reçoit toujours les textes de tous les blocs ;
+- la présentation master/detail reste inchangée.
+
+Une suppression volontaire effectuée après la récupération reste volontaire :
+elle n'est pas restaurée en boucle.
+
+
+## R12.5 — boutons réels pour sélectionner les paroles
+
+La case à cocher introduite en R12.3 est supprimée.
+
+Sous le tableau des blocs, EZScore affiche maintenant de vrais boutons :
+- `✏️ Couplet 1 · 1–17`
+- `✏️ Couplet 2 · 18–34`
+- etc.
+
+Le bouton du bloc actif est affiché en primaire avec `✓`.
+Cliquer un autre bouton bascule immédiatement l'éditeur de paroles.
+
+Le tableau reste dédié aux données de structure :
+Nom, Début, Fin, Nb mesures, Supprimer.
+
+La récupération anti-régression des paroles validées de R12.4 reste intacte.

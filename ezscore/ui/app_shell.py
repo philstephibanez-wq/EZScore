@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import html
+import json
+import sqlite3
 from pathlib import Path
 
 import streamlit as st
@@ -1228,28 +1230,25 @@ def _ezscore_columns(*args, **kwargs):
 
 
 def _ezscore_data_editor(*args, **kwargs):
-    """Add a per-row `Éditer paroles` selector to the structure table.
+    """Render the structure table unchanged, then real lyric-edit buttons.
 
-    Exactly one block is considered active for the lyric detail editor.
-    The existing structure editor remains authoritative for Nom/Fin/Delete.
+    R12.5 removes the checkbox selector entirely. Streamlit data_editor has no
+    native button column, so the action buttons are rendered immediately below
+    the full-width table, one per block.
     """
-    key = str(kwargs.get("key", "") or "")
+    result = _ORIGINAL_ST_DATA_EDITOR(*args, **kwargs)
 
+    key = str(kwargs.get("key", "") or "")
     if not (
         _block_editor_active()
         and key.startswith("structure_live_table_")
-        and args
     ):
-        return _ORIGINAL_ST_DATA_EDITOR(*args, **kwargs)
+        return result
 
     active_hash = _song_hash_for_context()
     draft = _block_editor_draft(active_hash)
     if not draft:
-        return _ORIGINAL_ST_DATA_EDITOR(*args, **kwargs)
-
-    source_df = args[0]
-    if not hasattr(source_df, "copy"):
-        return _ORIGINAL_ST_DATA_EDITOR(*args, **kwargs)
+        return result
 
     block_ids = [
         int(block.get("block_id", index + 1) or (index + 1))
@@ -1257,98 +1256,61 @@ def _ezscore_data_editor(*args, **kwargs):
     ]
     selected_key = _block_editor_selected_key(active_hash)
     current = _selected_block_id(active_hash)
+
     if current not in block_ids:
         current = block_ids[0]
         st.session_state[selected_key] = current
 
-    editor_df = source_df.copy()
+    st.markdown("#### Éditer les paroles")
 
-    # Keep the selector visually next to the block name.
-    selector_values = [
-        block_id == current
-        for block_id in block_ids[:len(editor_df)]
-    ]
-    while len(selector_values) < len(editor_df):
-        selector_values.append(False)
+    for row_start in range(0, len(draft), 4):
+        row_blocks = draft[row_start:row_start + 4]
+        cols = _ORIGINAL_ST_COLUMNS(len(row_blocks))
 
-    insert_at = 1 if "Nom" in list(editor_df.columns) else 0
-    if "Éditer paroles" in editor_df.columns:
-        editor_df["Éditer paroles"] = selector_values
-    else:
-        editor_df.insert(
-            insert_at,
-            "Éditer paroles",
-            selector_values,
-        )
-
-    editor_kwargs = dict(kwargs)
-    column_config = dict(editor_kwargs.get("column_config", {}) or {})
-    column_config["Éditer paroles"] = st.column_config.CheckboxColumn(
-        "✏️ Paroles",
-        width="small",
-        help=(
-            "Cochez le bloc dont vous voulez modifier les paroles. "
-            "Un seul bloc est édité à la fois."
-        ),
-    )
-    editor_kwargs["column_config"] = column_config
-
-    result = _ORIGINAL_ST_DATA_EDITOR(
-        editor_df,
-        *args[1:],
-        **editor_kwargs,
-    )
-
-    # Resolve the active row from the edited checkbox column.
-    checked_indices = []
-    if "Éditer paroles" in result.columns:
-        checked_indices = [
-            index
-            for index, checked in enumerate(
-                result["Éditer paroles"].tolist()
+        for local_index, block in enumerate(row_blocks):
+            absolute_index = row_start + local_index
+            block_id = block_ids[absolute_index]
+            title = (
+                str(block.get("custom_label", "") or "").strip()
+                or f"Bloc {absolute_index + 1}"
             )
-            if bool(checked) and index < len(block_ids)
-        ]
+            m0 = int(block.get("measure_start", 0) or 0)
+            m1 = int(block.get("measure_end", m0) or m0)
 
-    chosen = current
-    if checked_indices:
-        checked_ids = [block_ids[index] for index in checked_indices]
+            with cols[local_index]:
+                if st.button(
+                    (
+                        f"✏️ {title} · {m0}–{m1} ✓"
+                        if block_id == current
+                        else f"✏️ {title} · {m0}–{m1}"
+                    ),
+                    key=(
+                        f"edit_block_lyrics_btn_"
+                        f"{active_hash[:12]}_{block_id}"
+                    ),
+                    type="primary" if block_id == current else "secondary",
+                    width="stretch",
+                    help=f"Éditer les paroles de {title}.",
+                ):
+                    if block_id != current:
+                        st.session_state[selected_key] = block_id
+                        st.rerun()
 
-        # If the user checked another row while the current one was still
-        # checked, prefer the newly checked row.
-        alternatives = [
-            block_id
-            for block_id in checked_ids
-            if block_id != current
-        ]
-        chosen = alternatives[-1] if alternatives else checked_ids[-1]
+    selected_id = int(st.session_state.get(selected_key, current))
+    if selected_id not in block_ids:
+        selected_id = block_ids[0]
+        st.session_state[selected_key] = selected_id
 
-    if chosen not in block_ids:
-        chosen = block_ids[0]
-
-    if chosen != current:
-        st.session_state[selected_key] = chosen
-        current = chosen
-
-    # Normalize the returned selector to a single true row. The historical
-    # structure logic ignores this extra column, but normalization avoids any
-    # ambiguity in downstream code and the next rerun.
-    if "Éditer paroles" in result.columns:
-        result = result.copy()
-        result["Éditer paroles"] = [
-            block_id == current
-            for block_id in block_ids[:len(result)]
-        ]
-
-    # Persist a compact label for the detail panel.
-    selected_index = block_ids.index(current)
+    selected_index = block_ids.index(selected_id)
     selected_block = draft[selected_index]
     selected_title = (
         str(selected_block.get("custom_label", "") or "").strip()
         or f"Bloc {selected_index + 1}"
     )
     selected_m0 = int(selected_block.get("measure_start", 0) or 0)
-    selected_m1 = int(selected_block.get("measure_end", selected_m0) or selected_m0)
+    selected_m1 = int(
+        selected_block.get("measure_end", selected_m0) or selected_m0
+    )
     st.session_state[
         f"ez_block_detail_label_{active_hash[:12]}"
     ] = (
@@ -1356,6 +1318,225 @@ def _ezscore_data_editor(*args, **kwargs):
     )
 
     return result
+
+
+def _strong_interval_match(item_t0, item_t1, target_t0, target_t1):
+    """Return a score for the same lyric block, or None if too different."""
+    e0 = float(item_t0)
+    e1 = float(item_t1)
+    t0 = float(target_t0)
+    t1 = float(target_t1)
+
+    d0 = abs(e0 - t0)
+    d1 = abs(e1 - t1)
+    if d0 <= 0.02 and d1 <= 0.02:
+        return (3.0, -(d0 + d1))
+
+    current_duration = max(0.001, t1 - t0)
+    edit_duration = max(0.001, e1 - e0)
+    overlap = max(0.0, min(t1, e1) - max(t0, e0))
+    if overlap <= 0.0:
+        return None
+
+    overlap_ratio = overlap / min(current_duration, edit_duration)
+    if overlap_ratio < 0.70:
+        return None
+
+    center_distance = abs(((e0 + e1) / 2.0) - ((t0 + t1) / 2.0))
+    center_limit = 0.35 * max(current_duration, edit_duration)
+    if center_distance > center_limit:
+        return None
+
+    duration_ratio = min(current_duration, edit_duration) / max(
+        current_duration,
+        edit_duration,
+    )
+    return (2.0 + overlap_ratio, duration_ratio, -center_distance)
+
+
+def _block_interval_from_analysis(active_hash: str, block_id: int):
+    analysis = _persistence.load_latest_persisted_analysis(active_hash)
+    if not analysis:
+        return None
+
+    music = dict(analysis.get("musique", {}) or {})
+    measures = list(music.get("mesures", []) or [])
+    if not measures:
+        return None
+
+    blocks = _persistence.load_structure_blocks(active_hash)
+    block = next(
+        (
+            item for item in blocks
+            if int(item.get("block_id", -1)) == int(block_id)
+        ),
+        None,
+    )
+    if block is None:
+        return None
+
+    m0 = int(block.get("measure_start", 1) or 1)
+    m1 = int(block.get("measure_end", m0) or m0)
+    if not (1 <= m0 <= len(measures) and 1 <= m1 <= len(measures)):
+        return None
+
+    t0 = float(measures[m0 - 1].get("debut", 0.0) or 0.0)
+    t1 = float(measures[m1 - 1].get("fin", t0) or t0) + 0.001
+    return block, t0, t1
+
+
+def _recover_lyric_from_current_rows(active_hash: str, t0: float, t1: float):
+    """Read current lyric_block_edits without changing anything."""
+    try:
+        with sqlite3.connect(_persistence.DB_PATH) as conn:
+            rows = conn.execute(
+                """
+                SELECT corrected_text, time_start, time_end
+                FROM lyric_block_edits
+                WHERE audio_hash = ?
+                """,
+                (str(active_hash),),
+            ).fetchall()
+    except sqlite3.OperationalError:
+        return None
+
+    best = None
+    best_score = None
+    for corrected_text, e0, e1 in rows:
+        score = _strong_interval_match(e0, e1, t0, t1)
+        if score is None:
+            continue
+        if best_score is None or score > best_score:
+            best = str(corrected_text or "")
+            best_score = score
+
+    return best if best_score is not None else None
+
+
+def _recover_lyric_from_versions(
+    active_hash: str,
+    block_id: int,
+    current_block: dict,
+):
+    """Recover the lyric of the SAME block from complete historical snapshots.
+
+    Matching uses the persisted block_id first. This is intentionally stronger
+    than matching today's time boundaries, because R12 changed presentation and
+    the analysis source but must not detach previously validated lyrics.
+    """
+    try:
+        with sqlite3.connect(_persistence.DB_PATH) as conn:
+            rows = conn.execute(
+                """
+                SELECT version_no, music_json, structure_json, lyric_edits_json
+                FROM analysis_versions
+                WHERE audio_hash = ?
+                  AND trim(lyric_edits_json) NOT IN ('', '{}')
+                ORDER BY version_no DESC
+                """,
+                (str(active_hash),),
+            ).fetchall()
+    except sqlite3.OperationalError:
+        return None
+
+    current_order = int(current_block.get("order_index", 0) or 0)
+
+    for version_no, music_json, structure_json, lyric_json in rows:
+        try:
+            music = json.loads(music_json or "{}")
+            structure = json.loads(structure_json or "[]")
+            lyric_edits = json.loads(lyric_json or "{}")
+        except Exception:
+            continue
+
+        if not isinstance(structure, list) or not isinstance(lyric_edits, dict):
+            continue
+
+        historical_block = next(
+            (
+                item for item in structure
+                if isinstance(item, dict)
+                and int(item.get("block_id", -1)) == int(block_id)
+            ),
+            None,
+        )
+
+        if historical_block is None:
+            historical_block = next(
+                (
+                    item for item in structure
+                    if isinstance(item, dict)
+                    and int(item.get("order_index", -1)) == current_order
+                ),
+                None,
+            )
+
+        if historical_block is None:
+            continue
+
+        measures = list(dict(music or {}).get("mesures", []) or [])
+        if not measures:
+            continue
+
+        hm0 = int(historical_block.get("measure_start", 1) or 1)
+        hm1 = int(historical_block.get("measure_end", hm0) or hm0)
+        if not (1 <= hm0 <= len(measures) and 1 <= hm1 <= len(measures)):
+            continue
+
+        ht0 = float(measures[hm0 - 1].get("debut", 0.0) or 0.0)
+        ht1 = float(measures[hm1 - 1].get("fin", ht0) or ht0) + 0.001
+
+        best = None
+        best_score = None
+        for item in lyric_edits.values():
+            if not isinstance(item, dict):
+                continue
+            e0 = float(item.get("time_start", 0.0) or 0.0)
+            e1 = float(item.get("time_end", e0) or e0)
+            score = _strong_interval_match(e0, e1, ht0, ht1)
+            if score is None:
+                continue
+            if best_score is None or score > best_score:
+                best = str(item.get("corrected_text", "") or "")
+                best_score = score
+
+        if best_score is not None:
+            return {
+                "text": best,
+                "version_no": int(version_no),
+            }
+
+    return None
+
+
+def _validated_lyric_for_block(active_hash: str, block_id: int):
+    """Resolve validated lyric text without modifying DB state."""
+    interval = _block_interval_from_analysis(active_hash, block_id)
+    if interval is None:
+        return None
+
+    block, t0, t1 = interval
+
+    # Current table is always authoritative, including an explicitly empty edit.
+    current = _recover_lyric_from_current_rows(active_hash, t0, t1)
+    if current is not None:
+        return {
+            "text": current,
+            "source": "current",
+        }
+
+    historical = _recover_lyric_from_versions(
+        active_hash,
+        block_id,
+        block,
+    )
+    if historical is not None:
+        return {
+            "text": str(historical.get("text", "") or ""),
+            "source": f"version:{historical.get('version_no')}",
+        }
+
+    return None
 
 
 def _block_lyrics_widget_id(key: str) -> int | None:
@@ -1366,10 +1547,11 @@ def _block_lyrics_widget_id(key: str) -> int | None:
 
 
 def _ezscore_text_area(*args, **kwargs):
-    """Render only the selected block's lyric editor.
+    """Render only selected block while preserving every validated lyric.
 
-    Unselected blocks still return their session-state value so the existing
-    validation transaction continues to save the complete structure safely.
+    The R12 presentation refactor must never change the business data.
+    Hidden block editors therefore recover their validated value too, so the
+    global `Valider blocs + paroles` transaction cannot erase them.
     """
     key = str(kwargs.get("key", "") or "")
 
@@ -1378,10 +1560,37 @@ def _ezscore_text_area(*args, **kwargs):
         widget_block_id = _block_lyrics_widget_id(key)
         selected_id = _selected_block_id(active_hash)
 
+        if widget_block_id is None:
+            return _ORIGINAL_ST_TEXT_AREA(*args, **kwargs)
+
+        recovery_marker = (
+            f"ez_r124_lyrics_recovered_{active_hash[:12]}_{widget_block_id}"
+        )
+
+        if not st.session_state.get(recovery_marker, False):
+            current_value = str(st.session_state.get(key, "") or "")
+
+            # Only repair a stale/empty widget. Never overwrite a non-empty
+            # unvalidated edit already typed by the user.
+            if not current_value.strip():
+                recovered = _validated_lyric_for_block(
+                    active_hash,
+                    int(widget_block_id),
+                )
+                if recovered is not None:
+                    recovered_text = str(recovered.get("text", "") or "")
+                    if recovered_text.strip():
+                        st.session_state[key] = recovered_text
+                        st.session_state[
+                            f"ez_r124_lyrics_source_{active_hash[:12]}_{widget_block_id}"
+                        ] = str(recovered.get("source", "") or "")
+
+            st.session_state[recovery_marker] = True
+
         if widget_block_id != selected_id:
-            if key in st.session_state:
-                return str(st.session_state.get(key, "") or "")
-            return str(kwargs.get("value", "") or "")
+            # Hidden detail: return the preserved state to the old transaction
+            # without rendering another textarea.
+            return str(st.session_state.get(key, "") or "")
 
         kwargs = dict(kwargs)
         kwargs["height"] = max(150, int(kwargs.get("height", 120) or 120))
@@ -1489,8 +1698,8 @@ def _ezscore_caption(*args, **kwargs):
             )
         ):
             return _ORIGINAL_ST_CAPTION(
-                "Dans le tableau ci-dessus, cochez ✏️ Paroles sur le bloc "
-                "à modifier. Un seul éditeur de paroles est affiché à la fois."
+                "Sous le tableau, cliquez sur le bouton ✏️ du bloc à modifier. "
+                "Un seul éditeur de paroles est affiché à la fois."
             )
         if value == (
             "La lecture MIDI synchronisée est disponible dans "
