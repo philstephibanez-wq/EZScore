@@ -1293,13 +1293,16 @@ def _lyrics_anchor_id(active_hash: str, block_id: int) -> str:
 
 
 def _ezscore_data_editor(*args, **kwargs):
-    """Editable block grid with a real pencil action cell per row.
+    """Editable block grid using only start measure + measure count.
 
-    Layout:
-        Nom | Début | Fin | Nb mesures | Supprimer | ✏️
+    Visible layout:
+        Nom | Début | Nb mesures | Supprimer | ✏️
 
-    Clicking the pencil selects the corresponding lyric block, reruns, scrolls
-    to it and activates its text editor. All lyric blocks remain visible below.
+    `Fin` is derived internally as:
+        Fin = Début + Nb mesures - 1
+
+    This preserves the historical structure engine contract while simplifying
+    the UI exactly as requested.
     """
     key = str(kwargs.get("key", "") or "")
 
@@ -1337,13 +1340,18 @@ def _ezscore_data_editor(*args, **kwargs):
         key,
     )
 
-    widths = [3.2, 0.9, 0.9, 1.0, 0.70, 0.55]
+    total_measures = (
+        int(source_df["Fin"].max())
+        if "Fin" in source_df and len(source_df)
+        else max(int(b.get("measure_end", 1) or 1) for b in draft)
+    )
+
+    widths = [3.4, 1.0, 1.15, 0.70, 0.55]
 
     header = _ORIGINAL_ST_COLUMNS(widths, gap="small")
     labels = [
         "Nom",
         "Début",
-        "Fin",
         "Nb mesures",
         "🗑",
         "✏️",
@@ -1355,12 +1363,6 @@ def _ezscore_data_editor(*args, **kwargs):
                 unsafe_allow_html=True,
             )
 
-    max_fin = (
-        int(source_df["Fin"].max())
-        if "Fin" in source_df and len(source_df)
-        else max(int(b.get("measure_end", 1) or 1) for b in draft)
-    )
-
     for index, block in enumerate(draft):
         block_id = block_ids[index]
         row = _ORIGINAL_ST_COLUMNS(widths, gap="small")
@@ -1371,14 +1373,14 @@ def _ezscore_data_editor(*args, **kwargs):
         )
         m0 = int(block.get("measure_start", 1) or 1)
         m1 = int(block.get("measure_end", m0) or m0)
-        count = m1 - m0 + 1
+        current_count = max(1, m1 - m0 + 1)
 
         name_key = (
             f"block_grid_name_{active_hash[:12]}_"
             f"{block_id}_{revision_token}"
         )
-        fin_key = (
-            f"block_grid_fin_{active_hash[:12]}_"
+        count_key = (
+            f"block_grid_count_{active_hash[:12]}_"
             f"{block_id}_{revision_token}"
         )
         delete_key = (
@@ -1388,8 +1390,8 @@ def _ezscore_data_editor(*args, **kwargs):
 
         if name_key not in st.session_state:
             st.session_state[name_key] = current_name
-        if fin_key not in st.session_state:
-            st.session_state[fin_key] = int(m1)
+        if count_key not in st.session_state:
+            st.session_state[count_key] = int(current_count)
         if delete_key not in st.session_state:
             st.session_state[delete_key] = False
 
@@ -1406,30 +1408,31 @@ def _ezscore_data_editor(*args, **kwargs):
                 unsafe_allow_html=True,
             )
 
+        # Keep at least one measure for every following block.
+        remaining_blocks = max(0, len(draft) - index - 1)
+        max_count = max(
+            1,
+            total_measures - m0 + 1 - remaining_blocks,
+        )
+
         with row[2]:
-            fin_value = st.number_input(
-                f"Fin bloc {index + 1}",
+            count_value = st.number_input(
+                f"Nb mesures bloc {index + 1}",
                 min_value=1,
-                max_value=max_fin,
+                max_value=max_count,
                 step=1,
-                key=fin_key,
+                key=count_key,
                 label_visibility="collapsed",
             )
 
         with row[3]:
-            _ORIGINAL_ST_MARKDOWN(
-                f'<div class="ez-block-grid-value">{count}</div>',
-                unsafe_allow_html=True,
-            )
-
-        with row[4]:
             delete_value = st.checkbox(
                 f"Supprimer bloc {index + 1}",
                 key=delete_key,
                 label_visibility="collapsed",
             )
 
-        with row[5]:
+        with row[4]:
             if st.button(
                 "✏️",
                 key=(
@@ -1449,6 +1452,12 @@ def _ezscore_data_editor(*args, **kwargs):
                 ] = block_id
                 st.rerun()
 
+        # Derived end measure for the unchanged historical normalization engine.
+        derived_fin = min(
+            total_measures,
+            int(m0) + int(count_value) - 1,
+        )
+
         if index < len(result):
             row_index = result.index[index]
             if "Nom" in result.columns:
@@ -1456,9 +1465,9 @@ def _ezscore_data_editor(*args, **kwargs):
             if "Début" in result.columns:
                 result.at[row_index, "Début"] = int(m0)
             if "Fin" in result.columns:
-                result.at[row_index, "Fin"] = int(fin_value)
+                result.at[row_index, "Fin"] = int(derived_fin)
             if "Nb mesures" in result.columns:
-                result.at[row_index, "Nb mesures"] = int(count)
+                result.at[row_index, "Nb mesures"] = int(count_value)
             if "Supprimer" in result.columns:
                 result.at[row_index, "Supprimer"] = bool(delete_value)
 

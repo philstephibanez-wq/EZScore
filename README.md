@@ -510,3 +510,23 @@ Tous les blocs de paroles restent affichés sous la grille.
 
 Le recalage automatique après modification des bornes, la récupération des
 paroles validées et les timestamps canoniques restent inchangés.
+
+
+## R12.9 — grille simplifiée : Début + Nb mesures
+
+La colonne `Fin` n'est plus affichée.
+
+La grille visible devient :
+
+`Nom | Début | Nb mesures | 🗑 | ✏️`
+
+Le moteur conserve néanmoins `Fin` en interne, dérivée automatiquement :
+
+`Fin = Début + Nb mesures - 1`
+
+Ainsi :
+- l'utilisateur édite uniquement le nombre de mesures ;
+- le début des blocs suivants se recalcule via la normalisation séquentielle ;
+- aucun trou ni chevauchement n'est introduit ;
+- le recalage automatique des paroles reste inchangé ;
+- le bouton stylo + scroll restent inchangés.
