@@ -231,3 +231,57 @@ Correction :
 
 La même protection est utilisée par le superviseur MIDI pour lire les fichiers
 de progression du processus vocal.
+
+
+## R12 — modes de travail + onglets contextuels
+
+La navigation du morceau est simplifiée sans supprimer les éditeurs existants.
+
+### Barre latérale
+
+Pour un utilisateur ayant `song.edit` :
+- Analyse
+- Édition
+- Player
+
+Pour un utilisateur sans droit d'édition :
+- Player uniquement
+
+Le capodastre reste immédiatement accessible sous le mode de travail.
+
+### Zone principale
+
+`Analyse` conserve les quatre onglets déjà validés :
+- STEM
+- Paroles
+- Blocs / structure
+- MIDI
+
+`Édition` propose en haut de page :
+- Blocs
+- Paroles + accords
+- Grille
+
+Ces trois entrées réutilisent exactement les éditeurs persistants déjà présents
+dans `EZScore.py`. Il n'y a pas de second moteur d'édition.
+
+`Player` propose :
+- Karaoké
+- Paroles + accords
+- Grille
+
+Le mode Karaoké utilise le chemin éprouvé `Paroles + accords` avec le player
+audio/paroles synchronisé.
+
+### Compatibilité
+
+Le nouveau shell mappe les choix vers les anciennes valeurs internes
+`song_view` / `song_mode`. Cela permet de conserver :
+- édition des noms et bornes des blocs ;
+- édition des paroles par bloc et sauts de ligne ;
+- validation/persistance existantes ;
+- édition de grille ;
+- capo live ;
+- lecteurs existants.
+
+Aucune modification du MIDI vocal n'est faite dans R12.

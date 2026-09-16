@@ -6,11 +6,9 @@ __pycache__/
 .streamlit/secrets.toml
 
 # Local/runtime EZScore data
-data/EZScore.sqlite3
-data/audio/
-data/covers/
-data/logs/
+#data/EZScore.sqlite3
+#data/audio/
+#data/covers/
+#data/logs/
 
-# Local delivery/extraction residues
-EZScore_R30_*/
-EZScore_*_FIX*/
+

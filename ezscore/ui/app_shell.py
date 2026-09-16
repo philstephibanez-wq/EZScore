@@ -750,8 +750,179 @@ perf_event("midi.symbol.exported", exported=True)
 
 _ORIGINAL_ST_CHECKBOX = st.checkbox
 _ORIGINAL_ST_SELECTBOX = st.selectbox
+_ORIGINAL_ST_RADIO = st.radio
 _ORIGINAL_ST_CAPTION = st.caption
 _ORIGINAL_ST_INFO = st.info
+
+
+
+def _song_hash_for_context() -> str:
+    return str(st.session_state.get("active_song_hash", "") or "").strip()
+
+
+def _work_mode_key(active_hash: str) -> str:
+    return f"ez_work_mode_{active_hash[:12]}"
+
+
+def _edit_tab_key(active_hash: str) -> str:
+    return f"ez_edit_tab_{active_hash[:12]}"
+
+
+def _player_tab_key(active_hash: str) -> str:
+    return f"ez_player_tab_{active_hash[:12]}"
+
+
+def _analysis_exists(active_hash: str) -> bool:
+    if not active_hash:
+        return False
+    return load_latest_persisted_analysis(active_hash) is not None
+
+
+def _initial_work_mode(active_hash: str, legacy_view: str) -> str:
+    """Map the historical Vue/Édition state to the new three work modes."""
+    legacy_mode = str(
+        st.session_state.get(f"song_mode_{active_hash[:12]}", "") or ""
+    )
+    if legacy_view == "Analyse":
+        return "Analyse"
+    if legacy_mode == "Édition":
+        return "Édition"
+    if allowed("song.edit") and not _analysis_exists(active_hash):
+        return "Analyse"
+    return "Player"
+
+
+def _render_context_tabs(active_hash: str, work_mode: str) -> str:
+    """Render mode-specific navigation in the main page.
+
+    Returns the historical `song_view` value expected by EZScore.py.
+    The old rendering/editing code therefore remains authoritative.
+    """
+    global _SONG_CONTEXT_TABS_SLOT
+
+    if work_mode == "Analyse":
+        if _SONG_CONTEXT_TABS_SLOT is not None:
+            with _SONG_CONTEXT_TABS_SLOT.container():
+                st.caption("Mode Analyse · STEM · Paroles · Blocs / structure · MIDI")
+        return "Analyse"
+
+    if _SONG_CONTEXT_TABS_SLOT is None:
+        raise RuntimeError("Le conteneur d'onglets contextuels n'est pas initialisé.")
+
+    if work_mode == "Édition":
+        options = ["Blocs", "Paroles + accords", "Grille"]
+        state_key = _edit_tab_key(active_hash)
+        current = str(st.session_state.get(state_key, "Blocs") or "Blocs")
+        if current not in options:
+            current = "Blocs"
+
+        with _SONG_CONTEXT_TABS_SLOT.container():
+            selected = st.segmented_control(
+                "Édition",
+                options,
+                default=current,
+                key=state_key,
+                width="stretch",
+                label_visibility="collapsed",
+            )
+        return str(selected or current)
+
+    if work_mode == "Player":
+        options = ["Karaoké", "Paroles + accords", "Grille"]
+        state_key = _player_tab_key(active_hash)
+        current = str(st.session_state.get(state_key, "Karaoké") or "Karaoké")
+        if current not in options:
+            current = "Karaoké"
+
+        with _SONG_CONTEXT_TABS_SLOT.container():
+            selected = st.segmented_control(
+                "Player",
+                options,
+                default=current,
+                key=state_key,
+                width="stretch",
+                label_visibility="collapsed",
+            )
+
+        # The existing Paroles + accords player is already the karaoke surface:
+        # synchronized original audio + lyrics. Keep its tested rendering path.
+        selected = str(selected or current)
+        st.session_state[f"ez_player_surface_{active_hash[:12]}"] = selected
+        if selected == "Karaoké":
+            return "Paroles + accords"
+        return selected
+
+    raise RuntimeError(f"Mode de travail EZScore inconnu : {work_mode!r}")
+
+
+def _ezscore_radio(*args, **kwargs):
+    """Replace the historical View + View/Edit pair by a single work mode.
+
+    Sidebar:
+        Analyse / Édition / Player
+
+    Main area:
+        Édition -> Blocs / Paroles + accords / Grille
+        Player  -> Karaoké / Paroles + accords / Grille
+        Analyse -> the four existing STEM_LAB tabs
+    """
+    key = str(kwargs.get("key", "") or "")
+
+    if key.startswith("song_view_"):
+        active_hash = _song_hash_for_context()
+        if not active_hash:
+            return _ORIGINAL_ST_RADIO(*args, **kwargs)
+
+        legacy_view = str(st.session_state.get(key, "Paroles + accords") or "")
+        mode_key = _work_mode_key(active_hash)
+
+        if mode_key not in st.session_state:
+            st.session_state[mode_key] = _initial_work_mode(
+                active_hash,
+                legacy_view,
+            )
+
+        if allowed("song.edit"):
+            mode_options = ["Analyse", "Édition", "Player"]
+        else:
+            # Registered readers and public viewers do not receive edit/analyse controls.
+            mode_options = ["Player"]
+
+        current_mode = str(st.session_state.get(mode_key, mode_options[0]) or mode_options[0])
+        if current_mode not in mode_options:
+            current_mode = mode_options[0]
+            st.session_state[mode_key] = current_mode
+
+        selected_mode = _ORIGINAL_ST_RADIO(
+            "Mode",
+            mode_options,
+            key=mode_key,
+            index=mode_options.index(current_mode),
+            help=(
+                "Analyse = produire/contrôler les données · "
+                "Édition = modifier blocs, paroles et grille · "
+                "Player = lecture/karaoké."
+            ),
+        )
+        mapped_view = _render_context_tabs(active_hash, str(selected_mode))
+        st.session_state[key] = mapped_view
+        return mapped_view
+
+    if key.startswith("song_mode_") and key.endswith("_radio"):
+        active_hash = _song_hash_for_context()
+        work_mode = str(
+            st.session_state.get(_work_mode_key(active_hash), "Player")
+            if active_hash
+            else "Player"
+        )
+
+        # EZScore.py still expects one of these two labels and performs the
+        # historical mapping immediately afterwards.
+        if work_mode == "Édition" and allowed("song.edit"):
+            return "✏️ Éditer"
+        return "👁 Vue"
+
+    return _ORIGINAL_ST_RADIO(*args, **kwargs)
 
 
 def _ezscore_checkbox(*args, **kwargs):
@@ -803,6 +974,7 @@ def _ezscore_caption(*args, **kwargs):
 
 st.checkbox = _ezscore_checkbox
 st.selectbox = _ezscore_selectbox
+st.radio = _ezscore_radio
 st.caption = _ezscore_caption
 st.info = _ezscore_info
 
@@ -1121,7 +1293,12 @@ def analysis_sidebar_active() -> bool:
     return False
 
 
+_SONG_CONTEXT_TABS_SLOT = None
+
+
 def render_app_header() -> None:
+    global _SONG_CONTEXT_TABS_SLOT
+
     st.markdown(_SHELL_CSS, unsafe_allow_html=True)
     user = current_user()
     if user:
@@ -1141,6 +1318,10 @@ def render_app_header() -> None:
         """,
         unsafe_allow_html=True,
     )
+
+    # Filled later, when EZScore.py knows the active song.
+    # This keeps contextual tabs in the main area, not in the sidebar.
+    _SONG_CONTEXT_TABS_SLOT = st.empty()
 
 
 def _goto(section: str) -> None:
