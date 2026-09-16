@@ -197,3 +197,15 @@ Exemple traité :
 `A -> A# (120 ms) -> A` devient `A` continu.
 
 Une vraie transition chromatique soutenue n'est pas supprimée.
+
+
+## R11.1 — régénération MIDI explicite
+
+Dans `4 · MIDI`, un résultat terminé peut maintenant être relancé.
+
+- `Régénérer métrique` conserve le chant analysé et recrée accords, batterie et combiné.
+- `Régénérer tout le MIDI` supprime aussi `vocal_analysis.json`,
+  `vocal_progress.json` et `vocal.mid`, puis relance l'analyse du chant.
+
+Pour Aline et le nouveau nettoyage des faux demi-tons de R11 :
+utiliser `Régénérer tout le MIDI`.

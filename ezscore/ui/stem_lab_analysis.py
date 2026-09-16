@@ -313,10 +313,38 @@ def _metric_signature_label(beats_per_bar: int) -> str:
 
 
 def _invalidate_metric_midi(audio_hash: str) -> None:
+    """Invalidate only meter-dependent MIDI artifacts."""
     midi_dir = _work_dir(audio_hash) / "midi"
     for name in (
-        "chords.mid", "drums.mid", "stem_mix.mid", "stem_midi.json",
-        "job_status.json", "job.log", "rhythm_progress.json", "drum_analysis.json",
+        "chords.mid",
+        "drums.mid",
+        "stem_mix.mid",
+        "stem_midi.json",
+        "job_status.json",
+        "job.log",
+        "rhythm_progress.json",
+        "drum_analysis.json",
+    ):
+        path = midi_dir / name
+        if path.is_file():
+            path.unlink()
+
+
+def _invalidate_all_midi(audio_hash: str) -> None:
+    """Force a complete MIDI regeneration, including vocal F0."""
+    midi_dir = _work_dir(audio_hash) / "midi"
+    for name in (
+        "vocal_analysis.json",
+        "vocal_progress.json",
+        "vocal.mid",
+        "chords.mid",
+        "drums.mid",
+        "stem_mix.mid",
+        "stem_midi.json",
+        "job_status.json",
+        "job.log",
+        "rhythm_progress.json",
+        "drum_analysis.json",
     ):
         path = midi_dir / name
         if path.is_file():
@@ -783,6 +811,41 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                     "Génération MIDI arrêtée sur erreur : "
                     + str(job.get("message", ""))
                 )
+
+                retry_metric_col, retry_all_col = st.columns(2)
+                with retry_metric_col:
+                    if st.button(
+                        "↻ Réessayer métrique",
+                        width="stretch",
+                        key=f"ezstem_midi_retry_metric_{str(audio_hash)[:12]}",
+                    ):
+                        _invalidate_metric_midi(audio_hash)
+                        stems_now = cached_stem_paths(audio_hash)
+                        launch_stem_midi_job(
+                            vocals_path=stems_now["vocals"],
+                            drums_path=stems_now["drums"],
+                            structure_path=structure_path,
+                            output_dir=midi_dir,
+                        )
+                        st.rerun()
+
+                with retry_all_col:
+                    if st.button(
+                        "↻ Réessayer tout le MIDI",
+                        type="primary",
+                        width="stretch",
+                        key=f"ezstem_midi_retry_all_{str(audio_hash)[:12]}",
+                    ):
+                        _invalidate_all_midi(audio_hash)
+                        stems_now = cached_stem_paths(audio_hash)
+                        launch_stem_midi_job(
+                            vocals_path=stems_now["vocals"],
+                            drums_path=stems_now["drums"],
+                            structure_path=structure_path,
+                            output_dir=midi_dir,
+                        )
+                        st.rerun()
+
                 with st.expander("Diagnostic complet", expanded=True):
                     st.json(job)
                     st.code(str(job.get("traceback", "") or ""), language="text")
@@ -834,6 +897,46 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                         f"{int(midi_meta.get('vocal_note_count', 0))} notes chant · "
                         f"{int(midi_meta.get('drum_beat_count', 0))} beats batterie."
                     )
+
+                    st.markdown("### Régénération")
+                    st.caption(
+                        "Métrique = Accords + Batterie + combiné. "
+                        "Complète = réanalyse aussi le chant F0 et recrée vocal.mid."
+                    )
+                    regen_metric_col, regen_all_col = st.columns(2)
+
+                    with regen_metric_col:
+                        if st.button(
+                            "↻ Régénérer métrique",
+                            width="stretch",
+                            key=f"ezstem_midi_regen_metric_{str(audio_hash)[:12]}",
+                        ):
+                            _invalidate_metric_midi(audio_hash)
+                            stems_now = cached_stem_paths(audio_hash)
+                            launch_stem_midi_job(
+                                vocals_path=stems_now["vocals"],
+                                drums_path=stems_now["drums"],
+                                structure_path=structure_path,
+                                output_dir=midi_dir,
+                            )
+                            st.rerun()
+
+                    with regen_all_col:
+                        if st.button(
+                            "↻ Régénérer tout le MIDI",
+                            type="primary",
+                            width="stretch",
+                            key=f"ezstem_midi_regen_all_{str(audio_hash)[:12]}",
+                        ):
+                            _invalidate_all_midi(audio_hash)
+                            stems_now = cached_stem_paths(audio_hash)
+                            launch_stem_midi_job(
+                                vocals_path=stems_now["vocals"],
+                                drums_path=stems_now["drums"],
+                                structure_path=structure_path,
+                                output_dir=midi_dir,
+                            )
+                            st.rerun()
 
                     cols = st.columns(4)
                     for col, (label, filename, key_name) in zip(

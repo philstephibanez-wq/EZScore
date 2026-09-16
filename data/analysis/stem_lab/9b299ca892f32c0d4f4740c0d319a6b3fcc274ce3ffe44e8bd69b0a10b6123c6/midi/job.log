@@ -1,14 +1,15 @@
-[2026-09-16 09:56:47] MIDI worker start
-[2026-09-16 09:56:47] Metric Chords + Drums MIDI ready
-[2026-09-16 09:56:48] Processus d'analyse MIDI du chant démarré.
-[2026-09-16 09:56:53] pYIN chant : segment 1/9 (0.0s → 20.0s)
-[2026-09-16 09:57:03] pYIN chant : segment 2/9 (20.0s → 40.0s)
-[2026-09-16 09:57:14] pYIN chant : segment 3/9 (40.0s → 60.0s)
-[2026-09-16 09:57:25] pYIN chant : segment 4/9 (60.0s → 80.0s)
-[2026-09-16 09:57:38] pYIN chant : segment 5/9 (80.0s → 100.0s)
-[2026-09-16 09:57:53] pYIN chant : segment 6/9 (100.0s → 120.0s)
-[2026-09-16 09:58:05] pYIN chant : segment 7/9 (120.0s → 140.0s)
-[2026-09-16 09:58:18] pYIN chant : segment 8/9 (140.0s → 160.0s)
-[2026-09-16 09:58:33] pYIN chant : segment 9/9 (160.0s → 166.5s)
-[2026-09-16 09:58:38] Analyse chant terminée : 167 notes.
-[2026-09-16 09:58:38] MIDI bundle complete
+[2026-09-16 10:30:02] MIDI worker start
+[2026-09-16 10:30:02] Metric Chords + Drums MIDI ready
+[2026-09-16 10:30:04] Processus d'analyse MIDI du chant démarré.
+[2026-09-16 10:30:13] pYIN chant : segment 1/9 (0.0s → 20.0s)
+[2026-09-16 10:30:31] pYIN chant : segment 2/9 (20.0s → 40.0s)
+[2026-09-16 10:30:50] pYIN chant : segment 3/9 (40.0s → 60.0s)
+[2026-09-16 10:31:10] pYIN chant : segment 4/9 (60.0s → 80.0s)
+[2026-09-16 10:31:28] pYIN chant : segment 5/9 (80.0s → 100.0s)
+[2026-09-16 10:31:46] pYIN chant : segment 6/9 (100.0s → 120.0s)
+[2026-09-16 10:32:05] pYIN chant : segment 7/9 (120.0s → 140.0s)
+[2026-09-16 10:32:26] pYIN chant : segment 8/9 (140.0s → 160.0s)
+[2026-09-16 10:32:43] pYIN chant : segment 9/9 (160.0s → 166.5s)
+[2026-09-16 10:32:51] Analyse chant terminée : 151 notes.
+[2026-09-16 10:32:52] Analyse chant terminée : 151 notes.
+[2026-09-16 10:32:54] MIDI bundle complete
