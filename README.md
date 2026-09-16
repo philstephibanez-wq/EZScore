@@ -310,3 +310,40 @@ Résultat :
 - `Player` utilise les mêmes données éditées ;
 - `Analyse` reste la surface STEM_LAB ;
 - MIDI vocal inchangé.
+
+
+## R12.2 — éditeur Blocs master/detail
+
+### Ergonomie
+
+L'ancien écran Blocs utilisait deux colonnes permanentes :
+- structure à gauche ;
+- tous les textareas de paroles à droite.
+
+Sur un morceau réel cela réduisait fortement le tableau et créait une page
+très haute.
+
+R12.2 conserve le moteur d'édition/persistance existant mais change uniquement
+sa présentation :
+
+1. le tableau des blocs occupe toute la largeur ;
+2. un sélecteur `Paroles à éditer` choisit un bloc ;
+3. sous le tableau, un seul textarea de paroles est rendu ;
+4. les autres blocs restent en session et participent toujours à la
+   transaction `Valider blocs + paroles`.
+
+Le fonctionnement métier ne change pas :
+- Nom et Fin restent éditables dans le tableau ;
+- Début et Nb mesures sont recalculés ;
+- ajout/suppression de blocs conservés ;
+- sauts de ligne des paroles conservés ;
+- validation structure + paroles reste atomique ;
+- aucun timestamp canonique n'est déplacé.
+
+### Portée
+
+Cette adaptation est strictement limitée à `Édition > Blocs`.
+Les autres appels `st.columns`, `st.data_editor`, `st.text_area` de l'application
+restent inchangés.
+
+Analyse, Player et MIDI vocal ne sont pas modifiés.

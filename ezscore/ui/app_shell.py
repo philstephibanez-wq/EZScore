@@ -991,6 +991,10 @@ perf_event("midi.symbol.exported", exported=True)
 _ORIGINAL_ST_CHECKBOX = st.checkbox
 _ORIGINAL_ST_SELECTBOX = st.selectbox
 _ORIGINAL_ST_RADIO = st.radio
+_ORIGINAL_ST_COLUMNS = st.columns
+_ORIGINAL_ST_DATA_EDITOR = st.data_editor
+_ORIGINAL_ST_TEXT_AREA = st.text_area
+_ORIGINAL_ST_MARKDOWN = st.markdown
 _ORIGINAL_ST_CAPTION = st.caption
 _ORIGINAL_ST_INFO = st.info
 
@@ -1165,6 +1169,203 @@ def _ezscore_radio(*args, **kwargs):
     return _ORIGINAL_ST_RADIO(*args, **kwargs)
 
 
+
+_BLOCK_EDITOR_SELECTED_PREFIX = "ez_block_detail_id_"
+
+
+def _block_editor_active() -> bool:
+    """True only inside Édition > Blocs for the active song."""
+    active_hash = _song_hash_for_context()
+    if not active_hash:
+        return False
+
+    work_mode = str(
+        st.session_state.get(_work_mode_key(active_hash), "") or ""
+    )
+    song_view = str(
+        st.session_state.get(f"song_view_{active_hash[:12]}", "") or ""
+    )
+    return work_mode == "Édition" and song_view == "Blocs"
+
+
+def _block_editor_draft(active_hash: str) -> list[dict]:
+    key = f"structure_draft_{active_hash[:16]}"
+    draft = st.session_state.get(key, [])
+    if not isinstance(draft, list):
+        return []
+    return [dict(item) for item in draft if isinstance(item, dict)]
+
+
+def _block_editor_selected_key(active_hash: str) -> str:
+    return f"{_BLOCK_EDITOR_SELECTED_PREFIX}{active_hash[:12]}"
+
+
+def _selected_block_id(active_hash: str) -> int | None:
+    value = st.session_state.get(_block_editor_selected_key(active_hash))
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _ezscore_columns(*args, **kwargs):
+    """Stack the two historical block-editor panels vertically.
+
+    Only the exact top-level `[2, 3], gap="large"` split used by the
+    Blocs editor is replaced. All other columns in EZScore stay unchanged.
+    """
+    if _block_editor_active() and args:
+        spec = args[0]
+        gap = str(kwargs.get("gap", "") or "")
+        if (
+            isinstance(spec, (list, tuple))
+            and list(spec) == [2, 3]
+            and gap == "large"
+        ):
+            return [st.container(), st.container()]
+
+    return _ORIGINAL_ST_COLUMNS(*args, **kwargs)
+
+
+def _ezscore_data_editor(*args, **kwargs):
+    """Keep the structure table full width and select one lyric block below."""
+    result = _ORIGINAL_ST_DATA_EDITOR(*args, **kwargs)
+
+    key = str(kwargs.get("key", "") or "")
+    if not (
+        _block_editor_active()
+        and key.startswith("structure_live_table_")
+    ):
+        return result
+
+    active_hash = _song_hash_for_context()
+    draft = _block_editor_draft(active_hash)
+    if not draft:
+        return result
+
+    block_ids = [
+        int(block.get("block_id", index + 1) or (index + 1))
+        for index, block in enumerate(draft)
+    ]
+    selected_key = _block_editor_selected_key(active_hash)
+    current = _selected_block_id(active_hash)
+
+    if current not in block_ids:
+        st.session_state[selected_key] = block_ids[0]
+
+    labels = {}
+    for index, block in enumerate(draft):
+        block_id = block_ids[index]
+        title = (
+            str(block.get("custom_label", "") or "").strip()
+            or f"Bloc {index + 1}"
+        )
+        m0 = int(block.get("measure_start", 0) or 0)
+        m1 = int(block.get("measure_end", m0) or m0)
+        labels[block_id] = f"{title} · mesures {m0}–{m1}"
+
+    st.markdown("#### Paroles à éditer")
+    _ORIGINAL_ST_SELECTBOX(
+        "Bloc sélectionné",
+        block_ids,
+        key=selected_key,
+        format_func=lambda block_id: labels.get(
+            int(block_id),
+            f"Bloc {block_id}",
+        ),
+        help=(
+            "Un seul bloc de paroles est ouvert à la fois. "
+            "Le tableau de structure reste entièrement visible au-dessus."
+        ),
+    )
+
+    return result
+
+
+def _block_lyrics_widget_id(key: str) -> int | None:
+    match = __import__("re").search(r"_id(\d+)$", str(key or ""))
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def _ezscore_text_area(*args, **kwargs):
+    """Render only the selected block's lyric editor.
+
+    Unselected blocks still return their session-state value so the existing
+    validation transaction continues to save the complete structure safely.
+    """
+    key = str(kwargs.get("key", "") or "")
+
+    if _block_editor_active() and key.startswith("block_lyrics_"):
+        active_hash = _song_hash_for_context()
+        widget_block_id = _block_lyrics_widget_id(key)
+        selected_id = _selected_block_id(active_hash)
+
+        if widget_block_id != selected_id:
+            if key in st.session_state:
+                return str(st.session_state.get(key, "") or "")
+            return str(kwargs.get("value", "") or "")
+
+        kwargs = dict(kwargs)
+        kwargs["height"] = max(150, int(kwargs.get("height", 120) or 120))
+        return _ORIGINAL_ST_TEXT_AREA(*args, **kwargs)
+
+    return _ORIGINAL_ST_TEXT_AREA(*args, **kwargs)
+
+
+def _ezscore_markdown(*args, **kwargs):
+    """Suppress unselected lyric headings and update obsolete 2-column copy."""
+    if not args:
+        return _ORIGINAL_ST_MARKDOWN(*args, **kwargs)
+
+    value = str(args[0] or "")
+
+    if _block_editor_active():
+        value = value.replace(
+            "À gauche, modifiez le découpage. À droite, "
+            "contrôlez immédiatement les paroles et accords "
+            "correspondant aux bornes du brouillon.",
+            "Modifiez le découpage sur toute la largeur, puis sélectionnez "
+            "un seul bloc pour éditer ses paroles en dessous.",
+        )
+
+        # Historical loop prints one heading for every lyric block.
+        # Keep only the heading of the selected block.
+        match = __import__("re").fullmatch(
+            r"\*\*(.+?)\*\* · mesures (\d+)–(\d+)",
+            value.strip(),
+        )
+        if match:
+            active_hash = _song_hash_for_context()
+            selected_id = _selected_block_id(active_hash)
+            draft = _block_editor_draft(active_hash)
+
+            selected = next(
+                (
+                    block
+                    for index, block in enumerate(draft)
+                    if int(
+                        block.get("block_id", index + 1) or (index + 1)
+                    ) == selected_id
+                ),
+                None,
+            )
+            if selected is None:
+                return None
+
+            m0 = int(selected.get("measure_start", 0) or 0)
+            m1 = int(selected.get("measure_end", m0) or m0)
+            if int(match.group(2)) != m0 or int(match.group(3)) != m1:
+                return None
+
+            title = str(match.group(1))
+            value = f"### ✏️ {title} · mesures {m0}–{m1}"
+
+    new_args = (value, *args[1:])
+    return _ORIGINAL_ST_MARKDOWN(*new_args, **kwargs)
+
+
 def _ezscore_checkbox(*args, **kwargs):
     key = kwargs.get("key")
     if key == "setting_sections_enabled":
@@ -1204,6 +1405,18 @@ def _ezscore_info(*args, **kwargs):
 def _ezscore_caption(*args, **kwargs):
     if args:
         value = str(args[0] or "").strip()
+
+        if (
+            _block_editor_active()
+            and value.startswith(
+                "Paroles seules, sans accords. Chaque bloc suit les bornes"
+            )
+        ):
+            return _ORIGINAL_ST_CAPTION(
+                "Sélectionnez le bloc à éditer dans le tableau ci-dessus. "
+                "Seules ses paroles sont ouvertes ici ; les autres restent "
+                "compactes et sont conservées pour la validation globale."
+            )
         if value == (
             "La lecture MIDI synchronisée est disponible dans "
             "Grille > Jouer."
@@ -1215,6 +1428,10 @@ def _ezscore_caption(*args, **kwargs):
 st.checkbox = _ezscore_checkbox
 st.selectbox = _ezscore_selectbox
 st.radio = _ezscore_radio
+st.columns = _ezscore_columns
+st.data_editor = _ezscore_data_editor
+st.text_area = _ezscore_text_area
+st.markdown = _ezscore_markdown
 st.caption = _ezscore_caption
 st.info = _ezscore_info
 
