@@ -118,6 +118,76 @@ def _format1(
     )
 
 
+
+def _cleanup_semitone_spurs(
+    notes: list[dict[str, Any]],
+    *,
+    max_spur_duration: float = 0.22,
+    max_gap: float = 0.08,
+) -> list[dict[str, Any]]:
+    """Remove short ±1-semitone excursions surrounded by the same stable note.
+
+    Typical case: vibrato or pYIN jitter produces A -> A#/Ab -> A for a few
+    frames. This cleanup is intentionally conservative:
+    - only one-semitone excursions;
+    - only when the outer notes are identical;
+    - only for a short middle note;
+    - only when temporal gaps are small.
+
+    Genuine sustained semitone motion is preserved.
+    """
+    if len(notes) < 3:
+        return [dict(n) for n in notes]
+
+    items = [dict(n) for n in notes]
+    out: list[dict[str, Any]] = []
+    i = 0
+
+    while i < len(items):
+        if 0 < i < len(items) - 1:
+            prev = items[i - 1]
+            cur = items[i]
+            nxt = items[i + 1]
+
+            p = int(prev.get("midi", -999))
+            c = int(cur.get("midi", -999))
+            n = int(nxt.get("midi", -999))
+
+            cur_duration = float(cur.get("end", 0.0)) - float(cur.get("start", 0.0))
+            gap_left = float(cur.get("start", 0.0)) - float(prev.get("end", 0.0))
+            gap_right = float(nxt.get("start", 0.0)) - float(cur.get("end", 0.0))
+
+            if (
+                p == n
+                and abs(c - p) == 1
+                and cur_duration <= float(max_spur_duration)
+                and gap_left <= float(max_gap)
+                and gap_right <= float(max_gap)
+                and out
+            ):
+                merged = out[-1]
+                merged["end"] = float(nxt.get("end", merged.get("end", 0.0)))
+                merged["duration"] = round(
+                    float(merged["end"]) - float(merged.get("start", 0.0)),
+                    6,
+                )
+                merged["confidence"] = round(
+                    max(
+                        float(merged.get("confidence", 0.0)),
+                        float(prev.get("confidence", 0.0)),
+                        float(nxt.get("confidence", 0.0)),
+                    ),
+                    4,
+                )
+                i += 2
+                continue
+
+        out.append(dict(items[i]))
+        i += 1
+
+    return out
+
+
 def analyze_vocal_notes(
     vocals_path: Path,
     *,
@@ -242,6 +312,14 @@ def analyze_vocal_notes(
         midi_float=midi_float,
         voiced_prob=voiced_prob,
         hop_seconds=float(hop_length) / float(sr),
+        median_width=9,
+        hysteresis_cents=90.0,
+        stable_change_ms=140.0,
+    )
+    notes = _cleanup_semitone_spurs(
+        notes,
+        max_spur_duration=0.22,
+        max_gap=0.08,
     )
 
     if progress_callback:
@@ -254,7 +332,7 @@ def analyze_vocal_notes(
 
     return {
         "source": "vocals.wav",
-        "engine": "pyin-v3-adaptive-voicing-chunked-overlap",
+        "engine": "pyin-v3-adaptive-voicing-chunked-overlap-semitone-cleanup",
         "timebase": "original_audio_seconds",
         "sample_rate": int(sr),
         "hop_length": int(hop_length),

@@ -167,3 +167,33 @@ Aucun fallback et aucun traitement lourd MIDI n'est désormais hors watchdog.
 - vocal_analysis.json et vocal.mid préservés lors d'un changement de signature.
 - Progression MIDI auto-refresh chaque seconde via st.fragment(run_every=1.0).
 - Chant : moteur mature vocal.py réutilisé, pYIN chunké avec 1 s de recouvrement, segmentation globale anti-vibrato.
+
+
+## R11 — 4 onglets + nettoyage des fausses notes chant
+
+### Navigation
+
+La vue Analyse est maintenant organisée en quatre onglets :
+1. STEM
+2. Paroles
+3. Blocs / structure
+4. MIDI
+
+Le but est d'éliminer les scrolls verticaux permanents entre les étapes.
+
+### MIDI chant
+
+Le moteur R10 conservait encore trop de micro-transitions d'un demi-ton sur
+certains chants, notamment les vibratos.
+
+R11 renforce uniquement la segmentation MIDI (pas la timeline F0 brute) :
+- médiane : 9 frames ;
+- hystérésis : 90 cents ;
+- changement stable : 140 ms ;
+- suppression conservatrice des excursions ±1 demi-ton très courtes
+  lorsqu'elles sont entourées par la même note stable.
+
+Exemple traité :
+`A -> A# (120 ms) -> A` devient `A` continu.
+
+Une vraie transition chromatique soutenue n'est pas supprimée.
