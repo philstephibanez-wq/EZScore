@@ -1063,13 +1063,18 @@ def _render_context_tabs(active_hash: str, work_mode: str) -> str:
             current = "Blocs"
 
         with _SONG_CONTEXT_TABS_SLOT.container():
+            segmented_kwargs = {
+                "key": state_key,
+                "width": "stretch",
+                "label_visibility": "collapsed",
+            }
+            if state_key not in st.session_state:
+                segmented_kwargs["default"] = current
+
             selected = st.segmented_control(
                 "Édition",
                 options,
-                default=current,
-                key=state_key,
-                width="stretch",
-                label_visibility="collapsed",
+                **segmented_kwargs,
             )
         return str(selected or current)
 
@@ -1081,13 +1086,18 @@ def _render_context_tabs(active_hash: str, work_mode: str) -> str:
             current = "Karaoké"
 
         with _SONG_CONTEXT_TABS_SLOT.container():
+            segmented_kwargs = {
+                "key": state_key,
+                "width": "stretch",
+                "label_visibility": "collapsed",
+            }
+            if state_key not in st.session_state:
+                segmented_kwargs["default"] = current
+
             selected = st.segmented_control(
                 "Player",
                 options,
-                default=current,
-                key=state_key,
-                width="stretch",
-                label_visibility="collapsed",
+                **segmented_kwargs,
             )
 
         # The existing Paroles + accords player is already the karaoke surface:
@@ -1122,8 +1132,10 @@ def _ezscore_radio(*args, **kwargs):
         legacy_view = str(st.session_state.get(key, "Paroles + accords") or "")
         mode_key = _work_mode_key(active_hash)
 
-        if mode_key not in st.session_state:
-            st.session_state[mode_key] = _initial_work_mode(
+        if mode_key in st.session_state:
+            initial_mode = str(st.session_state.get(mode_key, "") or "")
+        else:
+            initial_mode = _initial_work_mode(
                 active_hash,
                 legacy_view,
             )
@@ -1134,21 +1146,34 @@ def _ezscore_radio(*args, **kwargs):
             # Registered readers and public viewers do not receive edit/analyse controls.
             mode_options = ["Player"]
 
-        current_mode = str(st.session_state.get(mode_key, mode_options[0]) or mode_options[0])
+        current_mode = str(
+            st.session_state.get(mode_key, initial_mode or mode_options[0])
+            or (initial_mode or mode_options[0])
+        )
         if current_mode not in mode_options:
             current_mode = mode_options[0]
-            st.session_state[mode_key] = current_mode
+            if mode_key in st.session_state:
+                st.session_state[mode_key] = current_mode
 
-        selected_mode = _ORIGINAL_ST_RADIO(
-            "Mode",
-            mode_options,
-            key=mode_key,
-            index=mode_options.index(current_mode),
-            help=(
+        radio_kwargs = {
+            "key": mode_key,
+            "help": (
                 "Analyse = produire/contrôler les données · "
                 "Édition = modifier blocs, paroles et grille · "
                 "Player = lecture/karaoké."
             ),
+        }
+
+        # Streamlit warning guard:
+        # once the widget key is present in Session State, the widget must not
+        # also receive an explicit default/index.
+        if mode_key not in st.session_state:
+            radio_kwargs["index"] = mode_options.index(current_mode)
+
+        selected_mode = _ORIGINAL_ST_RADIO(
+            "Mode",
+            mode_options,
+            **radio_kwargs,
         )
         mapped_view = _render_context_tabs(active_hash, str(selected_mode))
         st.session_state[key] = mapped_view
