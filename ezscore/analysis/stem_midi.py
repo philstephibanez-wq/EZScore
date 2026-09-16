@@ -23,6 +23,7 @@ import os
 import struct
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -445,23 +446,63 @@ def build_chord_midi(
     return _format0(events, tempo=tempo, name="EZScore Chords")
 
 
-def analyze_drum_beats(drums_path: Path) -> dict[str, Any]:
-    """Detect beat positions directly from drums.wav on original-audio seconds."""
+def analyze_drum_beats(
+    drums_path: Path,
+    *,
+    progress_callback=None,
+) -> dict[str, Any]:
+    """Detect beat positions from drums.wav with observable heavy stages."""
+    if progress_callback:
+        progress_callback({
+            "stage": "drums_load",
+            "message": "Batterie : chargement drums.wav…",
+            "percent": 0.05,
+        })
+
     y, sr = librosa.load(str(drums_path), sr=22050, mono=True)
     if y.size == 0:
         raise RuntimeError("drums.wav vide.")
 
+    if progress_callback:
+        progress_callback({
+            "stage": "drums_onset",
+            "message": "Batterie : calcul de l'enveloppe d'attaque…",
+            "percent": 0.25,
+            "samples": int(y.size),
+            "sample_rate": int(sr),
+            "duration_seconds": round(float(y.size / sr), 3),
+        })
+
     hop = 512
     onset_env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop)
+
+    if progress_callback:
+        progress_callback({
+            "stage": "drums_beat_track",
+            "message": "Batterie : détection tempo / beats…",
+            "percent": 0.55,
+            "onset_frames": int(len(onset_env)),
+        })
+
     tempo, beat_frames = librosa.beat.beat_track(
         onset_envelope=onset_env,
         sr=sr,
         hop_length=hop,
         trim=False,
     )
+
     tempo_value = float(np.asarray(tempo).reshape(-1)[0]) if np.asarray(tempo).size else 0.0
     frames = np.asarray(beat_frames, dtype=int)
     times = librosa.frames_to_time(frames, sr=sr, hop_length=hop)
+
+    if progress_callback:
+        progress_callback({
+            "stage": "drums_postprocess",
+            "message": "Batterie : classement des temps détectés…",
+            "percent": 0.80,
+            "beat_count": int(len(frames)),
+            "tempo": round(tempo_value, 4),
+        })
 
     strengths = onset_env[np.clip(frames, 0, max(0, len(onset_env) - 1))] if len(frames) else np.array([])
     if strengths.size:
@@ -481,13 +522,23 @@ def analyze_drum_beats(drums_path: Path) -> dict[str, Any]:
             "medium": bool(strength >= p50),
         })
 
-    return {
+    result = {
         "source": "drums.wav",
         "timebase": "original_audio_seconds",
         "tempo": round(tempo_value, 4),
         "beat_count": len(beats),
         "beats": beats,
     }
+
+    if progress_callback:
+        progress_callback({
+            "stage": "done",
+            "message": f"Batterie terminée : {len(beats)} beats.",
+            "percent": 1.0,
+            "beat_count": int(len(beats)),
+            "tempo": round(tempo_value, 4),
+        })
+    return result
 
 
 def drum_events(
@@ -680,6 +731,21 @@ def _job_status_path(output_dir: Path) -> Path:
     return Path(output_dir) / "job_status.json"
 
 
+def _terminate_pid(pid: int) -> None:
+    value = int(pid)
+    if value <= 0:
+        return
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/PID", str(value), "/T", "/F"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+    else:
+        os.kill(value, 15)
+
+
 def load_stem_midi_job(output_dir: Path) -> dict[str, Any]:
     path = _job_status_path(output_dir)
     if not path.is_file():
@@ -689,21 +755,41 @@ def load_stem_midi_job(output_dir: Path) -> dict[str, Any]:
     state = str(payload.get("state", "") or "")
     pid = payload.get("pid")
 
-    if state in {"starting", "running"} and pid is not None and not _pid_is_alive(pid):
-        stale = dict(payload)
-        stale.update({
-            "state": "error",
-            "stage": "worker_dead",
-            "message": (
-                f"Le worker MIDI PID {pid} n'existe plus alors que le job était "
-                "encore marqué en cours."
-            ),
-        })
-        path.write_text(
-            json.dumps(stale, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
-        return stale
+    if state in {"starting", "running"}:
+        if pid is not None and not _pid_is_alive(pid):
+            stale = dict(payload)
+            stale.update({
+                "state": "error",
+                "stage": "worker_dead",
+                "message": (
+                    f"Le worker MIDI PID {pid} n'existe plus alors que le job "
+                    "était encore marqué en cours."
+                ),
+            })
+            path.write_text(
+                json.dumps(stale, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            return stale
+
+        updated = float(payload.get("updated_at_epoch", 0.0) or 0.0)
+        age = max(0.0, time.time() - updated) if updated > 0 else 0.0
+        if age > 150.0 and pid is not None:
+            _terminate_pid(int(pid))
+            stale = dict(payload)
+            stale.update({
+                "state": "error",
+                "stage": "worker_stalled",
+                "message": (
+                    f"Worker MIDI bloqué : aucun statut actualisé depuis "
+                    f"{age:.0f}s. Le processus PID {pid} a été arrêté."
+                ),
+            })
+            path.write_text(
+                json.dumps(stale, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            return stale
 
     return payload
 

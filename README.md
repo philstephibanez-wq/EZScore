@@ -128,3 +128,30 @@ Aucun état `running` fantôme n'est conservé indéfiniment.
 - Blocs : minimum structurel de 4 mesures, sans découpage fixe en groupes de 4.
 - Anciennes structures avec blocs de 1–3 mesures normalisées à l'ouverture.
 - Aucun timestamp canonique de beat, mesure, accord ou parole n'est déplacé.
+
+
+## R9.2 — MIDI bloqué à l'étape 1/2
+
+Cause trouvée dans le code : R9 protégeait le chant avec un watchdog, mais
+`analyze_drum_beats(drums.wav)` restait exécuté directement dans le worker
+principal, sans watchdog ni heartbeat. Si `librosa.onset.onset_strength()` ou
+`librosa.beat.beat_track()` se bloque, l'UI reste donc éternellement sur
+`Étape MIDI 1/2 : batterie + accords` avec le même temps écoulé.
+
+R9.2 isole aussi la batterie/tempo dans un processus dédié.
+
+Sous-étapes visibles :
+- chargement drums.wav ;
+- enveloppe d'attaque ;
+- détection tempo / beats ;
+- post-traitement ;
+- écriture accords + batterie ;
+- pYIN chant segmenté ;
+- finalisation MIDI.
+
+Watchdogs :
+- batterie : 90 s sans progrès, 300 s total ;
+- chant : 120 s sans progrès, 900 s total ;
+- superviseur : statut figé 150 s -> arrêt explicite `worker_stalled`.
+
+Aucun fallback et aucun traitement lourd MIDI n'est désormais hors watchdog.

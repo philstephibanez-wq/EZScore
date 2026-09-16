@@ -10,14 +10,12 @@ import traceback
 from pathlib import Path
 
 from ezscore.analysis.stem_midi import (
-    analyze_drum_beats,
     browser_events_from_bundle,
     build_chord_midi,
     build_combined_midi,
     build_drum_midi,
     build_vocal_midi,
 )
-
 
 APP_DIR = Path(__file__).resolve().parents[2]
 
@@ -51,13 +49,115 @@ def _append_log(output_dir: Path, message: str) -> None:
         fh.write(f"[{stamp}] {message}\n")
 
 
+def _creationflags() -> int:
+    if os.name == "nt":
+        return int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    return 0
+
+
+def _run_child_with_watchdog(
+    *,
+    cmd: list[str],
+    progress_path: Path,
+    output_dir: Path,
+    started: float,
+    stage_prefix: str,
+    overall_start: float,
+    overall_span: float,
+    inactivity_timeout: float,
+    total_timeout: float,
+) -> None:
+    if progress_path.exists():
+        progress_path.unlink()
+
+    child = subprocess.Popen(
+        cmd,
+        cwd=str(APP_DIR),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        close_fds=(os.name != "nt"),
+        creationflags=_creationflags(),
+    )
+
+    child_started = time.time()
+    last_progress_epoch = child_started
+    last_signature = None
+
+    while True:
+        rc = child.poll()
+        progress = _read_json(progress_path)
+        now = time.time()
+
+        if progress:
+            signature = (
+                progress.get("stage"),
+                progress.get("percent"),
+                progress.get("message"),
+            )
+            updated = float(progress.get("updated_at_epoch", now) or now)
+            if signature != last_signature:
+                last_signature = signature
+                last_progress_epoch = updated
+                _append_log(output_dir, str(progress.get("message", "")))
+
+            child_percent = float(progress.get("percent", 0.0) or 0.0)
+            overall = overall_start + overall_span * max(0.0, min(1.0, child_percent))
+            _status(
+                output_dir,
+                {
+                    "state": "running",
+                    "stage": f"{stage_prefix}:{progress.get('stage', 'running')}",
+                    "message": str(progress.get("message", "Traitement en cours…")),
+                    "percent": round(overall, 4),
+                    "child_pid": int(child.pid),
+                    "child_elapsed_seconds": progress.get("elapsed_seconds"),
+                    "chunk_index": progress.get("chunk_index"),
+                    "chunk_total": progress.get("chunk_total"),
+                },
+                started=started,
+            )
+
+        if rc is not None:
+            break
+
+        if now - child_started > float(total_timeout):
+            child.kill()
+            child.wait(timeout=10)
+            raise RuntimeError(
+                f"Watchdog {stage_prefix} : durée totale dépassée "
+                f"({total_timeout:.0f}s)."
+            )
+
+        if now - last_progress_epoch > float(inactivity_timeout):
+            child.kill()
+            child.wait(timeout=10)
+            stuck = _read_json(progress_path)
+            raise RuntimeError(
+                f"Watchdog {stage_prefix} : aucun progrès depuis "
+                f"{inactivity_timeout:.0f}s. "
+                f"Dernière étape={stuck.get('stage')!r}."
+            )
+
+        time.sleep(1.0)
+
+    if child.returncode != 0:
+        progress = _read_json(progress_path)
+        raise RuntimeError(
+            f"{stage_prefix} échoué : "
+            + str(progress.get("message", f"code {child.returncode}"))
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--vocals", required=True)
     parser.add_argument("--drums", required=True)
     parser.add_argument("--structure", required=True)
     parser.add_argument("--output", required=True)
-    parser.add_argument("--chunk-timeout", type=float, default=120.0)
+    parser.add_argument("--rhythm-inactivity-timeout", type=float, default=90.0)
+    parser.add_argument("--rhythm-timeout", type=float, default=300.0)
+    parser.add_argument("--vocal-inactivity-timeout", type=float, default=120.0)
     parser.add_argument("--vocal-timeout", type=float, default=900.0)
     args = parser.parse_args()
 
@@ -74,20 +174,56 @@ def main() -> int:
         tempo = float(structure.get("tempo", 0.0) or 0.0)
         beats_per_bar = int(structure.get("beats_per_bar", 4) or 4)
 
+        rhythm_json = output_dir / "drum_analysis.json"
+        rhythm_progress = output_dir / "rhythm_progress.json"
+        if rhythm_json.exists():
+            rhythm_json.unlink()
+
         _status(
             output_dir,
             {
                 "state": "running",
-                "stage": "drums_chords",
-                "message": "Étape MIDI 1/2 : batterie + accords.",
-                "percent": 0.05,
+                "stage": "rhythm:start",
+                "message": "Étape MIDI 1/2 : batterie + accords — démarrage.",
+                "percent": 0.01,
             },
             started=started,
         )
-        _append_log(output_dir, "Analyze drums")
-        drum_analysis = analyze_drum_beats(drums_path)
+
+        _run_child_with_watchdog(
+            cmd=[
+                sys.executable, "-m", "ezscore.analysis.stem_rhythm_worker",
+                "--drums", str(drums_path),
+                "--output-json", str(rhythm_json),
+                "--progress-json", str(rhythm_progress),
+            ],
+            progress_path=rhythm_progress,
+            output_dir=output_dir,
+            started=started,
+            stage_prefix="rhythm",
+            overall_start=0.02,
+            overall_span=0.18,
+            inactivity_timeout=float(args.rhythm_inactivity_timeout),
+            total_timeout=float(args.rhythm_timeout),
+        )
+
+        drum_analysis = _read_json(rhythm_json)
+        if not drum_analysis or "beats" not in drum_analysis:
+            raise RuntimeError("Analyse batterie terminée sans drum_analysis.json valide.")
+
         if tempo <= 1.0:
             tempo = float(drum_analysis.get("tempo", 0.0) or 120.0)
+
+        _status(
+            output_dir,
+            {
+                "state": "running",
+                "stage": "rhythm:midi_write",
+                "message": "Étape MIDI 1/2 : écriture Accords + Batterie.",
+                "percent": 0.22,
+            },
+            started=started,
+        )
 
         chords_path = output_dir / "chords.mid"
         drums_out = output_dir / "drums.mid"
@@ -101,113 +237,28 @@ def main() -> int:
         )
         _append_log(output_dir, "Chords + drums MIDI ready")
 
-        # Vocal analysis is isolated in a child process.
         vocal_json = output_dir / "vocal_analysis.json"
         vocal_progress = output_dir / "vocal_progress.json"
         if vocal_json.exists():
             vocal_json.unlink()
-        if vocal_progress.exists():
-            vocal_progress.unlink()
 
-        cmd = [
-            sys.executable,
-            "-m",
-            "ezscore.analysis.stem_vocal_worker",
-            "--vocals",
-            str(vocals_path),
-            "--output-json",
-            str(vocal_json),
-            "--progress-json",
-            str(vocal_progress),
-            "--chunk-seconds",
-            "20",
-        ]
-
-        creationflags = 0
-        if os.name == "nt":
-            creationflags = int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
-
-        _append_log(output_dir, "Launch vocal child process")
-        child = subprocess.Popen(
-            cmd,
-            cwd=str(APP_DIR),
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            close_fds=(os.name != "nt"),
-            creationflags=creationflags,
+        _run_child_with_watchdog(
+            cmd=[
+                sys.executable, "-m", "ezscore.analysis.stem_vocal_worker",
+                "--vocals", str(vocals_path),
+                "--output-json", str(vocal_json),
+                "--progress-json", str(vocal_progress),
+                "--chunk-seconds", "20",
+            ],
+            progress_path=vocal_progress,
+            output_dir=output_dir,
+            started=started,
+            stage_prefix="vocal",
+            overall_start=0.25,
+            overall_span=0.65,
+            inactivity_timeout=float(args.vocal_inactivity_timeout),
+            total_timeout=float(args.vocal_timeout),
         )
-
-        child_started = time.time()
-        last_progress_epoch = child_started
-        last_signature = None
-
-        while True:
-            rc = child.poll()
-            progress = _read_json(vocal_progress)
-            now = time.time()
-
-            if progress:
-                signature = (
-                    progress.get("stage"),
-                    progress.get("chunk_index"),
-                    progress.get("percent"),
-                    progress.get("message"),
-                )
-                updated = float(progress.get("updated_at_epoch", now) or now)
-                if signature != last_signature:
-                    last_signature = signature
-                    last_progress_epoch = updated
-                    _append_log(output_dir, str(progress.get("message", "")))
-
-                child_percent = float(progress.get("percent", 0.0) or 0.0)
-                overall = 0.20 + (0.70 * max(0.0, min(1.0, child_percent)))
-                _status(
-                    output_dir,
-                    {
-                        "state": "running",
-                        "stage": str(progress.get("stage", "vocal")),
-                        "message": str(progress.get("message", "Analyse MIDI du chant…")),
-                        "percent": round(overall, 4),
-                        "child_pid": int(child.pid),
-                        "chunk_index": progress.get("chunk_index"),
-                        "chunk_total": progress.get("chunk_total"),
-                        "vocal_elapsed_seconds": progress.get("elapsed_seconds"),
-                    },
-                    started=started,
-                )
-
-            if rc is not None:
-                break
-
-            if now - child_started > float(args.vocal_timeout):
-                child.kill()
-                child.wait(timeout=10)
-                raise RuntimeError(
-                    "Watchdog MIDI chant : durée totale dépassée "
-                    f"({args.vocal_timeout:.0f}s). Voir job.log et vocal_progress.json."
-                )
-
-            if now - last_progress_epoch > float(args.chunk_timeout):
-                child.kill()
-                child.wait(timeout=10)
-                stuck = _read_json(vocal_progress)
-                raise RuntimeError(
-                    "Watchdog MIDI chant : aucun progrès détecté depuis "
-                    f"{args.chunk_timeout:.0f}s. "
-                    f"Dernière étape={stuck.get('stage')!r}, "
-                    f"segment={stuck.get('chunk_index')}/{stuck.get('chunk_total')}. "
-                    "Le processus vocal a été arrêté."
-                )
-
-            time.sleep(1.0)
-
-        if child.returncode != 0:
-            progress = _read_json(vocal_progress)
-            raise RuntimeError(
-                "Analyse MIDI chant échouée : "
-                + str(progress.get("message", f"code {child.returncode}"))
-            )
 
         vocal = _read_json(vocal_json)
         if not vocal or "notes" not in vocal:
@@ -218,7 +269,7 @@ def main() -> int:
             {
                 "state": "running",
                 "stage": "midi_render",
-                "message": "Étape MIDI 2/2 : écriture Chant + fichier combiné.",
+                "message": "Finalisation MIDI : Chant + fichier combiné.",
                 "percent": 0.92,
             },
             started=started,

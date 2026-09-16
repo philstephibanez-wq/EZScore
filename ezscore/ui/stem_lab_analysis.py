@@ -777,12 +777,16 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
 
         with st.expander("Diagnostic MIDI en cours", expanded=False):
             st.json(job)
-            progress_path = midi_dir / "vocal_progress.json"
-            if progress_path.is_file():
-                try:
-                    st.json(json.loads(progress_path.read_text(encoding="utf-8")))
-                except Exception:
-                    st.code(progress_path.read_text(encoding="utf-8", errors="replace"))
+
+            rhythm_progress = midi_dir / "rhythm_progress.json"
+            if rhythm_progress.is_file():
+                st.markdown("**Batterie / tempo**")
+                st.json(json.loads(rhythm_progress.read_text(encoding="utf-8")))
+
+            vocal_progress = midi_dir / "vocal_progress.json"
+            if vocal_progress.is_file():
+                st.markdown("**Chant / pYIN**")
+                st.json(json.loads(vocal_progress.read_text(encoding="utf-8")))
         return
 
     if job_state == "error":
