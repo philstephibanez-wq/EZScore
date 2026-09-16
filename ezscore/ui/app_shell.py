@@ -1293,74 +1293,174 @@ def _lyrics_anchor_id(active_hash: str, block_id: int) -> str:
 
 
 def _ezscore_data_editor(*args, **kwargs):
-    """Full-width structure table + one real Edit button per block.
+    """Editable block grid with a real pencil action cell per row.
 
-    The button is deliberately outside st.data_editor because Streamlit's
-    dataframe widget has no native action-button column. Each action is placed
-    in its own bordered box directly below the structure grid.
+    Layout:
+        Nom | Début | Fin | Nb mesures | Supprimer | ✏️
+
+    Clicking the pencil selects the corresponding lyric block, reruns, scrolls
+    to it and activates its text editor. All lyric blocks remain visible below.
     """
-    result = _ORIGINAL_ST_DATA_EDITOR(*args, **kwargs)
-
     key = str(kwargs.get("key", "") or "")
+
     if not (
         _block_editor_active()
         and key.startswith("structure_live_table_")
+        and args
     ):
-        return result
+        return _ORIGINAL_ST_DATA_EDITOR(*args, **kwargs)
+
+    source_df = args[0]
+    if not hasattr(source_df, "copy"):
+        return _ORIGINAL_ST_DATA_EDITOR(*args, **kwargs)
 
     active_hash = _song_hash_for_context()
     draft = _block_editor_draft(active_hash)
     if not draft:
-        return result
+        return _ORIGINAL_ST_DATA_EDITOR(*args, **kwargs)
 
+    result = source_df.copy()
     block_ids = [
         int(block.get("block_id", index + 1) or (index + 1))
         for index, block in enumerate(draft)
     ]
+
     selected_key = _block_editor_selected_key(active_hash)
     current = _selected_block_id(active_hash)
-
     if current not in block_ids:
         current = block_ids[0]
         st.session_state[selected_key] = current
 
-    st.markdown("#### Paroles")
+    revision_token = __import__("re").sub(
+        r"[^A-Za-z0-9_-]+",
+        "_",
+        key,
+    )
 
-    for row_start in range(0, len(draft), 4):
-        row_blocks = draft[row_start:row_start + 4]
-        cols = _ORIGINAL_ST_COLUMNS(len(row_blocks))
+    widths = [3.2, 0.9, 0.9, 1.0, 0.70, 0.55]
 
-        for local_index, block in enumerate(row_blocks):
-            absolute_index = row_start + local_index
-            block_id = block_ids[absolute_index]
-            title = (
-                str(block.get("custom_label", "") or "").strip()
-                or f"Bloc {absolute_index + 1}"
+    header = _ORIGINAL_ST_COLUMNS(widths, gap="small")
+    labels = [
+        "Nom",
+        "Début",
+        "Fin",
+        "Nb mesures",
+        "🗑",
+        "✏️",
+    ]
+    for col, label in zip(header, labels):
+        with col:
+            _ORIGINAL_ST_MARKDOWN(
+                f'<div class="ez-block-grid-header">{html.escape(label)}</div>',
+                unsafe_allow_html=True,
             )
-            m0 = int(block.get("measure_start", 0) or 0)
-            m1 = int(block.get("measure_end", m0) or m0)
 
-            with cols[local_index]:
-                with st.container(border=True):
-                    st.caption(f"{title} · mesures {m0}–{m1}")
-                    if st.button(
-                        "✏️ Éditer les paroles",
-                        key=(
-                            f"edit_block_lyrics_btn_"
-                            f"{active_hash[:12]}_{block_id}"
-                        ),
-                        type="primary" if block_id == current else "secondary",
-                        width="stretch",
-                        help=(
-                            f"Aller au bloc {title} et passer ses paroles "
-                            "en mode édition."
-                        ),
-                    ):
-                        st.session_state[selected_key] = block_id
-                        st.session_state[
-                            f"ez_scroll_lyrics_target_{active_hash[:12]}"
-                        ] = block_id
-                        st.rerun()
+    max_fin = (
+        int(source_df["Fin"].max())
+        if "Fin" in source_df and len(source_df)
+        else max(int(b.get("measure_end", 1) or 1) for b in draft)
+    )
+
+    for index, block in enumerate(draft):
+        block_id = block_ids[index]
+        row = _ORIGINAL_ST_COLUMNS(widths, gap="small")
+
+        current_name = (
+            str(block.get("custom_label", "") or "").strip()
+            or "Nouveau bloc"
+        )
+        m0 = int(block.get("measure_start", 1) or 1)
+        m1 = int(block.get("measure_end", m0) or m0)
+        count = m1 - m0 + 1
+
+        name_key = (
+            f"block_grid_name_{active_hash[:12]}_"
+            f"{block_id}_{revision_token}"
+        )
+        fin_key = (
+            f"block_grid_fin_{active_hash[:12]}_"
+            f"{block_id}_{revision_token}"
+        )
+        delete_key = (
+            f"block_grid_delete_{active_hash[:12]}_"
+            f"{block_id}_{revision_token}"
+        )
+
+        if name_key not in st.session_state:
+            st.session_state[name_key] = current_name
+        if fin_key not in st.session_state:
+            st.session_state[fin_key] = int(m1)
+        if delete_key not in st.session_state:
+            st.session_state[delete_key] = False
+
+        with row[0]:
+            name_value = st.text_input(
+                f"Nom bloc {index + 1}",
+                key=name_key,
+                label_visibility="collapsed",
+            )
+
+        with row[1]:
+            _ORIGINAL_ST_MARKDOWN(
+                f'<div class="ez-block-grid-value">{m0}</div>',
+                unsafe_allow_html=True,
+            )
+
+        with row[2]:
+            fin_value = st.number_input(
+                f"Fin bloc {index + 1}",
+                min_value=1,
+                max_value=max_fin,
+                step=1,
+                key=fin_key,
+                label_visibility="collapsed",
+            )
+
+        with row[3]:
+            _ORIGINAL_ST_MARKDOWN(
+                f'<div class="ez-block-grid-value">{count}</div>',
+                unsafe_allow_html=True,
+            )
+
+        with row[4]:
+            delete_value = st.checkbox(
+                f"Supprimer bloc {index + 1}",
+                key=delete_key,
+                label_visibility="collapsed",
+            )
+
+        with row[5]:
+            if st.button(
+                "✏️",
+                key=(
+                    f"edit_block_lyrics_btn_"
+                    f"{active_hash[:12]}_{block_id}_{revision_token}"
+                ),
+                type="primary" if block_id == current else "secondary",
+                width="stretch",
+                help=(
+                    f"Éditer les paroles de {current_name} et défiler "
+                    "jusqu'au bloc correspondant."
+                ),
+            ):
+                st.session_state[selected_key] = block_id
+                st.session_state[
+                    f"ez_scroll_lyrics_target_{active_hash[:12]}"
+                ] = block_id
+                st.rerun()
+
+        if index < len(result):
+            row_index = result.index[index]
+            if "Nom" in result.columns:
+                result.at[row_index, "Nom"] = str(name_value)
+            if "Début" in result.columns:
+                result.at[row_index, "Début"] = int(m0)
+            if "Fin" in result.columns:
+                result.at[row_index, "Fin"] = int(fin_value)
+            if "Nb mesures" in result.columns:
+                result.at[row_index, "Nb mesures"] = int(count)
+            if "Supprimer" in result.columns:
+                result.at[row_index, "Supprimer"] = bool(delete_value)
 
     return result
 
@@ -1903,7 +2003,7 @@ def _ezscore_markdown(*args, **kwargs):
             "À gauche, modifiez le découpage. À droite, "
             "contrôlez immédiatement les paroles et accords "
             "correspondant aux bornes du brouillon.",
-            "Modifiez le découpage sur toute la largeur. "
+            "Modifiez le découpage dans la grille. Chaque ligne contient son icône ✏️. "
             "Tous les blocs de paroles restent visibles en dessous.",
         )
 
@@ -1995,8 +2095,8 @@ def _ezscore_caption(*args, **kwargs):
         ):
             return _ORIGINAL_ST_CAPTION(
                 "Tous les blocs de paroles sont affichés ci-dessous. "
-                "Le bouton « Éditer les paroles » de la grille fait défiler "
-                "la page jusqu’au bloc demandé et active son éditeur."
+                "Dans la grille, cliquez sur ✏️ pour aller au bloc demandé "
+                "et activer son éditeur."
             )
         if value == (
             "La lecture MIDI synchronisée est disponible dans "
@@ -2171,6 +2271,24 @@ _persistence._source_words_for_interval = (
 
 _SHELL_CSS = r"""
 <style>
+
+.ez-block-grid-header {
+    font-size:.82rem;
+    font-weight:800;
+    opacity:.78;
+    padding:.42rem .35rem .28rem .35rem;
+    border-bottom:1px solid rgba(120,130,145,.30);
+}
+.ez-block-grid-value {
+    min-height:2.45rem;
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    padding:0 .55rem;
+    border:1px solid rgba(120,130,145,.24);
+    border-radius:.42rem;
+    font-variant-numeric:tabular-nums;
+}
 .ez-lyrics-block-anchor {
     scroll-margin-top: 5.5rem;
 }

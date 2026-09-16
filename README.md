@@ -490,3 +490,23 @@ Les corrections manuelles situées dans la zone temporelle commune sont
 préservées autant que possible, ainsi que leur mise en forme interne.
 
 Aucune commande supplémentaire de "recalage" n'est nécessaire.
+
+
+## R12.8 — icône stylo dans la grille des blocs
+
+La grille contient désormais directement la cellule d'action demandée :
+
+`Nom | Début | Fin | Nb mesures | Supprimer | ✏️`
+
+L'icône `✏️` est un vrai bouton Streamlit.
+
+Son clic :
+1. sélectionne le bloc correspondant ;
+2. relance l'interface ;
+3. scrolle jusqu'au bloc de paroles ;
+4. passe ce bloc en mode édition.
+
+Tous les blocs de paroles restent affichés sous la grille.
+
+Le recalage automatique après modification des bornes, la récupération des
+paroles validées et les timestamps canoniques restent inchangés.
