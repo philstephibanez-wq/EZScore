@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import json
 import sqlite3
+from difflib import SequenceMatcher
 from pathlib import Path
 
 import streamlit as st
@@ -45,6 +46,39 @@ from ezscore.diagnostics.perf import (
 )
 
 install_runtime_probes()
+
+
+_SCROLL_TO_LYRICS_JS = r"""
+export default function(component) {
+    const { data } = component;
+    const targetId = data && data.target_id;
+    if (!targetId) return;
+
+    const attempt = (remaining) => {
+        const target = document.getElementById(targetId);
+        if (target) {
+            target.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+                inline: "nearest"
+            });
+            return;
+        }
+        if (remaining > 0) {
+            window.setTimeout(() => attempt(remaining - 1), 40);
+        }
+    };
+
+    requestAnimationFrame(() => attempt(20));
+}
+"""
+
+_SCROLL_TO_LYRICS = st.components.v2.component(
+    "ezscore_scroll_to_lyrics_block",
+    js=_SCROLL_TO_LYRICS_JS,
+)
+
+
 
 
 APP_DIR = Path(__file__).resolve().parents[2]
@@ -1254,12 +1288,16 @@ def _ezscore_columns(*args, **kwargs):
     return _ORIGINAL_ST_COLUMNS(*args, **kwargs)
 
 
-def _ezscore_data_editor(*args, **kwargs):
-    """Render the structure table unchanged, then real lyric-edit buttons.
+def _lyrics_anchor_id(active_hash: str, block_id: int) -> str:
+    return f"ez-lyrics-{active_hash[:12]}-{int(block_id)}"
 
-    R12.5 removes the checkbox selector entirely. Streamlit data_editor has no
-    native button column, so the action buttons are rendered immediately below
-    the full-width table, one per block.
+
+def _ezscore_data_editor(*args, **kwargs):
+    """Full-width structure table + one real Edit button per block.
+
+    The button is deliberately outside st.data_editor because Streamlit's
+    dataframe widget has no native action-button column. Each action is placed
+    in its own bordered box directly below the structure grid.
     """
     result = _ORIGINAL_ST_DATA_EDITOR(*args, **kwargs)
 
@@ -1286,7 +1324,7 @@ def _ezscore_data_editor(*args, **kwargs):
         current = block_ids[0]
         st.session_state[selected_key] = current
 
-    st.markdown("#### Éditer les paroles")
+    st.markdown("#### Paroles")
 
     for row_start in range(0, len(draft), 4):
         row_blocks = draft[row_start:row_start + 4]
@@ -1303,44 +1341,26 @@ def _ezscore_data_editor(*args, **kwargs):
             m1 = int(block.get("measure_end", m0) or m0)
 
             with cols[local_index]:
-                if st.button(
-                    (
-                        f"✏️ {title} · {m0}–{m1} ✓"
-                        if block_id == current
-                        else f"✏️ {title} · {m0}–{m1}"
-                    ),
-                    key=(
-                        f"edit_block_lyrics_btn_"
-                        f"{active_hash[:12]}_{block_id}"
-                    ),
-                    type="primary" if block_id == current else "secondary",
-                    width="stretch",
-                    help=f"Éditer les paroles de {title}.",
-                ):
-                    if block_id != current:
+                with st.container(border=True):
+                    st.caption(f"{title} · mesures {m0}–{m1}")
+                    if st.button(
+                        "✏️ Éditer les paroles",
+                        key=(
+                            f"edit_block_lyrics_btn_"
+                            f"{active_hash[:12]}_{block_id}"
+                        ),
+                        type="primary" if block_id == current else "secondary",
+                        width="stretch",
+                        help=(
+                            f"Aller au bloc {title} et passer ses paroles "
+                            "en mode édition."
+                        ),
+                    ):
                         st.session_state[selected_key] = block_id
+                        st.session_state[
+                            f"ez_scroll_lyrics_target_{active_hash[:12]}"
+                        ] = block_id
                         st.rerun()
-
-    selected_id = int(st.session_state.get(selected_key, current))
-    if selected_id not in block_ids:
-        selected_id = block_ids[0]
-        st.session_state[selected_key] = selected_id
-
-    selected_index = block_ids.index(selected_id)
-    selected_block = draft[selected_index]
-    selected_title = (
-        str(selected_block.get("custom_label", "") or "").strip()
-        or f"Bloc {selected_index + 1}"
-    )
-    selected_m0 = int(selected_block.get("measure_start", 0) or 0)
-    selected_m1 = int(
-        selected_block.get("measure_end", selected_m0) or selected_m0
-    )
-    st.session_state[
-        f"ez_block_detail_label_{active_hash[:12]}"
-    ] = (
-        f"{selected_title} · mesures {selected_m0}–{selected_m1}"
-    )
 
     return result
 
@@ -1564,6 +1584,188 @@ def _validated_lyric_for_block(active_hash: str, block_id: int):
     return None
 
 
+
+def _token_spans(value: str):
+    return [
+        (match.group(0), match.start(), match.end())
+        for match in __import__("re").finditer(r"\S+", str(value or ""))
+    ]
+
+
+def _norm_token(value: str) -> str:
+    return __import__("re").sub(
+        r"^[^\wÀ-ÿ]+|[^\wÀ-ÿ]+$",
+        "",
+        str(value or "").casefold(),
+    )
+
+
+def _project_source_boundary(opcodes, source_index: int, target_len: int) -> int:
+    """Project a token boundary from source text to edited text."""
+    source_index = max(0, int(source_index))
+
+    for tag, i1, i2, j1, j2 in opcodes:
+        if source_index < i1:
+            return max(0, min(target_len, j1))
+
+        if i1 <= source_index <= i2:
+            if i2 == i1:
+                return max(0, min(target_len, j1))
+
+            fraction = (source_index - i1) / max(i2 - i1, 1)
+            projected = round(j1 + fraction * (j2 - j1))
+            return max(0, min(target_len, int(projected)))
+
+    return max(0, min(target_len, target_len))
+
+
+def _slice_tokens_preserve_layout(value: str, token_start: int, token_end: int) -> str:
+    spans = _token_spans(value)
+    token_start = max(0, min(len(spans), int(token_start)))
+    token_end = max(token_start, min(len(spans), int(token_end)))
+
+    if token_start >= token_end:
+        return ""
+
+    char_start = spans[token_start][1]
+    char_end = spans[token_end - 1][2]
+    return str(value or "")[char_start:char_end].strip()
+
+
+def _rebase_lyrics_after_boundary_change(
+    previous_original: str,
+    current_text: str,
+    new_original: str,
+) -> str:
+    """Reassign lyric text when a block is extended or shortened.
+
+    Canonical word timestamps do not move. This function only changes which
+    source words belong to the visual block.
+
+    Existing corrections in the overlapping core are preserved. Newly included
+    boundary words are taken from Whisper. Removed boundary words disappear.
+    """
+    old_tokens = [token for token, _, _ in _token_spans(previous_original)]
+    new_tokens = [token for token, _, _ in _token_spans(new_original)]
+    edited_tokens = [token for token, _, _ in _token_spans(current_text)]
+
+    if not old_tokens:
+        return str(new_original or "")
+    if not new_tokens:
+        return ""
+
+    old_norm = [_norm_token(token) for token in old_tokens]
+    new_norm = [_norm_token(token) for token in new_tokens]
+    edited_norm = [_norm_token(token) for token in edited_tokens]
+
+    if old_norm == new_norm:
+        return str(current_text or "")
+
+    boundary_matcher = SequenceMatcher(
+        a=old_norm,
+        b=new_norm,
+        autojunk=False,
+    )
+    common = boundary_matcher.find_longest_match(
+        0,
+        len(old_norm),
+        0,
+        len(new_norm),
+    )
+
+    # A block that became entirely different must use its canonical words.
+    minimum_common = min(3, len(old_norm), len(new_norm))
+    if common.size < minimum_common:
+        return str(new_original or "")
+
+    edit_matcher = SequenceMatcher(
+        a=old_norm,
+        b=edited_norm,
+        autojunk=False,
+    )
+    opcodes = edit_matcher.get_opcodes()
+
+    edited_start = _project_source_boundary(
+        opcodes,
+        common.a,
+        len(edited_tokens),
+    )
+    edited_end = _project_source_boundary(
+        opcodes,
+        common.a + common.size,
+        len(edited_tokens),
+    )
+
+    corrected_core = _slice_tokens_preserve_layout(
+        current_text,
+        edited_start,
+        edited_end,
+    )
+
+    new_prefix = " ".join(new_tokens[:common.b]).strip()
+    new_suffix = " ".join(
+        new_tokens[common.b + common.size:]
+    ).strip()
+
+    pieces = [
+        piece
+        for piece in (new_prefix, corrected_core, new_suffix)
+        if str(piece or "").strip()
+    ]
+    return " ".join(pieces).strip()
+
+
+def _draft_block_original_text(active_hash: str, block_id: int):
+    """Canonical Whisper words currently assigned to the draft block."""
+    analysis = _persistence.load_latest_persisted_analysis(active_hash)
+    if not analysis:
+        return None
+
+    result = dict(analysis.get("resultat", {}) or {})
+    music = dict(analysis.get("musique", {}) or {})
+    measures = list(music.get("mesures", []) or [])
+    if not measures:
+        return None
+
+    draft = _block_editor_draft(active_hash)
+    block = next(
+        (
+            item
+            for index, item in enumerate(draft)
+            if int(item.get("block_id", index + 1) or (index + 1))
+            == int(block_id)
+        ),
+        None,
+    )
+    if block is None:
+        return None
+
+    m0 = int(block.get("measure_start", 1) or 1)
+    m1 = int(block.get("measure_end", m0) or m0)
+    if not (1 <= m0 <= len(measures) and 1 <= m1 <= len(measures)):
+        return None
+
+    t0 = float(measures[m0 - 1].get("debut", 0.0) or 0.0)
+    t1 = float(measures[m1 - 1].get("fin", t0) or t0) + 0.001
+
+    words = _persistence._source_words_for_interval(
+        result,
+        t0,
+        t1,
+    )
+    original = " ".join(
+        str(word.get("text", "") or "").strip()
+        for word in words
+        if str(word.get("text", "") or "").strip()
+    ).strip()
+
+    return {
+        "measure_start": m0,
+        "measure_end": m1,
+        "original_text": original,
+    }
+
+
 def _block_lyrics_widget_id(key: str) -> int | None:
     match = __import__("re").search(r"_id(\d+)$", str(key or ""))
     if not match:
@@ -1572,60 +1774,125 @@ def _block_lyrics_widget_id(key: str) -> int | None:
 
 
 def _ezscore_text_area(*args, **kwargs):
-    """Render only selected block while preserving every validated lyric.
-
-    The R12 presentation refactor must never change the business data.
-    Hidden block editors therefore recover their validated value too, so the
-    global `Valider blocs + paroles` transaction cannot erase them.
-    """
+    """Show every lyric block; edit exactly one selected block."""
     key = str(kwargs.get("key", "") or "")
 
-    if _block_editor_active() and key.startswith("block_lyrics_"):
-        active_hash = _song_hash_for_context()
-        widget_block_id = _block_lyrics_widget_id(key)
-        selected_id = _selected_block_id(active_hash)
+    if not (_block_editor_active() and key.startswith("block_lyrics_")):
+        return _ORIGINAL_ST_TEXT_AREA(*args, **kwargs)
 
-        if widget_block_id is None:
-            return _ORIGINAL_ST_TEXT_AREA(*args, **kwargs)
+    active_hash = _song_hash_for_context()
+    widget_block_id = _block_lyrics_widget_id(key)
+    selected_id = _selected_block_id(active_hash)
 
-        recovery_marker = (
-            f"ez_r124_lyrics_recovered_{active_hash[:12]}_{widget_block_id}"
-        )
+    if widget_block_id is None:
+        return _ORIGINAL_ST_TEXT_AREA(*args, **kwargs)
 
-        if not st.session_state.get(recovery_marker, False):
-            current_value = str(st.session_state.get(key, "") or "")
+    # R12.4: recover validated text before presenting the block.
+    recovery_marker = (
+        f"ez_r124_lyrics_recovered_{active_hash[:12]}_{widget_block_id}"
+    )
+    if not st.session_state.get(recovery_marker, False):
+        current_value = str(st.session_state.get(key, "") or "")
+        if not current_value.strip():
+            recovered = _validated_lyric_for_block(
+                active_hash,
+                int(widget_block_id),
+            )
+            if recovered is not None:
+                recovered_text = str(recovered.get("text", "") or "")
+                if recovered_text.strip():
+                    st.session_state[key] = recovered_text
+        st.session_state[recovery_marker] = True
 
-            # Only repair a stale/empty widget. Never overwrite a non-empty
-            # unvalidated edit already typed by the user.
-            if not current_value.strip():
-                recovered = _validated_lyric_for_block(
-                    active_hash,
-                    int(widget_block_id),
+    # Automatic repartition when a block boundary changes.
+    current_assignment = _draft_block_original_text(
+        active_hash,
+        int(widget_block_id),
+    )
+    assignment_key = (
+        f"ez_lyrics_assignment_{active_hash[:12]}_{widget_block_id}"
+    )
+    previous_assignment = st.session_state.get(assignment_key)
+
+    if current_assignment is not None:
+        if isinstance(previous_assignment, dict):
+            previous_bounds = (
+                int(previous_assignment.get("measure_start", 0) or 0),
+                int(previous_assignment.get("measure_end", 0) or 0),
+            )
+            current_bounds = (
+                int(current_assignment.get("measure_start", 0) or 0),
+                int(current_assignment.get("measure_end", 0) or 0),
+            )
+
+            if previous_bounds != current_bounds:
+                previous_original = str(
+                    previous_assignment.get("original_text", "") or ""
                 )
-                if recovered is not None:
-                    recovered_text = str(recovered.get("text", "") or "")
-                    if recovered_text.strip():
-                        st.session_state[key] = recovered_text
-                        st.session_state[
-                            f"ez_r124_lyrics_source_{active_hash[:12]}_{widget_block_id}"
-                        ] = str(recovered.get("source", "") or "")
+                current_text = str(st.session_state.get(key, "") or "")
+                new_original = str(
+                    current_assignment.get("original_text", "") or ""
+                )
 
-            st.session_state[recovery_marker] = True
+                st.session_state[key] = _rebase_lyrics_after_boundary_change(
+                    previous_original,
+                    current_text,
+                    new_original,
+                )
 
-        if widget_block_id != selected_id:
-            # Hidden detail: return the preserved state to the old transaction
-            # without rendering another textarea.
-            return str(st.session_state.get(key, "") or "")
+        st.session_state[assignment_key] = dict(current_assignment)
 
+    current_text = str(st.session_state.get(key, "") or "")
+
+    if widget_block_id == selected_id:
+        pending_scroll_key = (
+            f"ez_scroll_lyrics_target_{active_hash[:12]}"
+        )
+        pending_target = st.session_state.get(pending_scroll_key)
+
+        if pending_target is not None and int(pending_target) == int(widget_block_id):
+            _SCROLL_TO_LYRICS(
+                data={
+                    "target_id": _lyrics_anchor_id(
+                        active_hash,
+                        int(widget_block_id),
+                    )
+                },
+                key=(
+                    f"scroll_to_lyrics_"
+                    f"{active_hash[:12]}_{widget_block_id}_"
+                    f"{int(st.session_state.get(
+                        'ez_scroll_seq_' + active_hash[:12],
+                        0
+                    ))}"
+                ),
+            )
+            st.session_state.pop(pending_scroll_key, None)
+            seq_key = f"ez_scroll_seq_{active_hash[:12]}"
+            st.session_state[seq_key] = int(
+                st.session_state.get(seq_key, 0)
+            ) + 1
+
+        st.caption("✏️ Mode édition")
         kwargs = dict(kwargs)
         kwargs["height"] = max(150, int(kwargs.get("height", 120) or 120))
         return _ORIGINAL_ST_TEXT_AREA(*args, **kwargs)
 
-    return _ORIGINAL_ST_TEXT_AREA(*args, **kwargs)
+    # Read-only compact view for every non-selected block.
+    display = html.escape(current_text or "[instrumental]")
+    _ORIGINAL_ST_MARKDOWN(
+        (
+            '<div class="ez-lyrics-preview-readonly">'
+            + display.replace("\n", "<br>")
+            + "</div>"
+        ),
+        unsafe_allow_html=True,
+    )
+    return current_text
 
 
 def _ezscore_markdown(*args, **kwargs):
-    """Suppress unselected lyric headings and update obsolete 2-column copy."""
+    """Show every lyric block and attach a stable browser anchor."""
     if not args:
         return _ORIGINAL_ST_MARKDOWN(*args, **kwargs)
 
@@ -1636,44 +1903,48 @@ def _ezscore_markdown(*args, **kwargs):
             "À gauche, modifiez le découpage. À droite, "
             "contrôlez immédiatement les paroles et accords "
             "correspondant aux bornes du brouillon.",
-            "Modifiez le découpage sur toute la largeur, puis sélectionnez "
-            "un seul bloc pour éditer ses paroles en dessous.",
+            "Modifiez le découpage sur toute la largeur. "
+            "Tous les blocs de paroles restent visibles en dessous.",
         )
 
-        # Historical loop prints one heading for every lyric block.
-        # Keep only the heading of the selected block.
         match = __import__("re").fullmatch(
             r"\*\*(.+?)\*\* · mesures (\d+)–(\d+)",
             value.strip(),
         )
         if match:
             active_hash = _song_hash_for_context()
-            selected_id = _selected_block_id(active_hash)
             draft = _block_editor_draft(active_hash)
+            m0 = int(match.group(2))
+            m1 = int(match.group(3))
 
-            selected = next(
-                (
-                    block
-                    for index, block in enumerate(draft)
-                    if int(
-                        block.get("block_id", index + 1) or (index + 1)
-                    ) == selected_id
-                ),
-                None,
-            )
-            if selected is None:
-                return None
+            block_id = None
+            for index, block in enumerate(draft):
+                if (
+                    int(block.get("measure_start", 0) or 0) == m0
+                    and int(block.get("measure_end", 0) or 0) == m1
+                ):
+                    block_id = int(
+                        block.get("block_id", index + 1)
+                        or (index + 1)
+                    )
+                    break
 
-            m0 = int(selected.get("measure_start", 0) or 0)
-            m1 = int(selected.get("measure_end", m0) or m0)
-            if int(match.group(2)) != m0 or int(match.group(3)) != m1:
-                return None
+            if block_id is not None:
+                title = html.escape(str(match.group(1)))
+                anchor = _lyrics_anchor_id(active_hash, block_id)
+                return _ORIGINAL_ST_MARKDOWN(
+                    (
+                        f'<div id="{anchor}" '
+                        'class="ez-lyrics-block-anchor"></div>'
+                        '<div class="ez-lyrics-block-heading">'
+                        f'<strong>{title}</strong>'
+                        f' · mesures {m0}–{m1}'
+                        "</div>"
+                    ),
+                    unsafe_allow_html=True,
+                )
 
-            title = str(match.group(1))
-            value = f"### ✏️ {title} · mesures {m0}–{m1}"
-
-    new_args = (value, *args[1:])
-    return _ORIGINAL_ST_MARKDOWN(*new_args, **kwargs)
+    return _ORIGINAL_ST_MARKDOWN(*args, **kwargs)
 
 
 def _ezscore_checkbox(*args, **kwargs):
@@ -1723,8 +1994,9 @@ def _ezscore_caption(*args, **kwargs):
             )
         ):
             return _ORIGINAL_ST_CAPTION(
-                "Sous le tableau, cliquez sur le bouton ✏️ du bloc à modifier. "
-                "Un seul éditeur de paroles est affiché à la fois."
+                "Tous les blocs de paroles sont affichés ci-dessous. "
+                "Le bouton « Éditer les paroles » de la grille fait défiler "
+                "la page jusqu’au bloc demandé et active son éditeur."
             )
         if value == (
             "La lecture MIDI synchronisée est disponible dans "
@@ -1899,6 +2171,25 @@ _persistence._source_words_for_interval = (
 
 _SHELL_CSS = r"""
 <style>
+.ez-lyrics-block-anchor {
+    scroll-margin-top: 5.5rem;
+}
+.ez-lyrics-block-heading {
+    font-size: 1.05rem;
+    font-weight: 800;
+    margin: 1rem 0 .35rem 0;
+    padding: .35rem .55rem;
+    border-left: 4px solid var(--primary-color, #4da3ff);
+}
+.ez-lyrics-preview-readonly {
+    white-space: pre-wrap;
+    line-height: 1.35;
+    padding: .7rem .8rem;
+    margin: 0 0 .45rem 0;
+    border: 1px solid rgba(120,130,145,.25);
+    border-radius: .5rem;
+    background: rgba(120,130,145,.035);
+}
 .ez-topbar {
     display:flex;
     align-items:center;

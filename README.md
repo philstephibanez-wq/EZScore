@@ -426,3 +426,67 @@ Le tableau reste dédié aux données de structure :
 Nom, Début, Fin, Nb mesures, Supprimer.
 
 La récupération anti-régression des paroles validées de R12.4 reste intacte.
+
+
+## R12.6 — correction warning Streamlit Session State
+
+Correction du warning :
+
+`The widget with key "ez_work_mode_..." was created with a default value but also had its value set via the Session State API.`
+
+Cause :
+le mode `Analyse / Édition / Player` écrivait d'abord la clé dans
+`st.session_state`, puis créait le `st.radio` avec `index=...`.
+
+R12.6 :
+- n'écrit plus la clé avant la création initiale du widget ;
+- passe `index` uniquement lorsque la clé n'existe pas encore ;
+- applique la même règle aux `segmented_control` Édition et Player ;
+- ne change ni les données, ni les paroles, ni la persistance.
+
+Aucun autre comportement fonctionnel n'est modifié.
+
+
+## R12.7 — tous les blocs de paroles visibles + bouton Éditer + scroll
+
+### Présentation
+
+Sous la grille des blocs, tous les blocs de paroles sont désormais affichés
+dans l'ordre du morceau.
+
+Un seul bloc est éditable à la fois. Les autres restent visibles en lecture.
+
+### Bouton demandé
+
+Sous la grille des blocs, chaque bloc possède sa propre case d'action contenant
+un vrai bouton :
+
+`✏️ Éditer les paroles`
+
+Le clic :
+1. sélectionne ce bloc ;
+2. relance Streamlit ;
+3. utilise un composant Streamlit **v2** pour faire défiler la page jusqu'au
+   bloc demandé ;
+4. passe ce bloc en textarea éditable.
+
+Aucun `st.components.v1.html` n'est utilisé.
+
+### Recalage automatique des paroles
+
+Modifier `Fin` d'un bloc recalcule automatiquement le contenu de TOUS les blocs
+sur le brouillon courant.
+
+Les timestamps Whisper restent immuables.
+
+Si un bloc est étendu :
+- les mots nouvellement inclus sont ajoutés depuis la timeline Whisper.
+
+S'il est raccourci :
+- les mots sortant de l'intervalle disparaissent de ce bloc et deviennent
+  disponibles dans le bloc voisin.
+
+Les corrections manuelles situées dans la zone temporelle commune sont
+préservées autant que possible, ainsi que leur mise en forme interne.
+
+Aucune commande supplémentaire de "recalage" n'est nécessaire.
