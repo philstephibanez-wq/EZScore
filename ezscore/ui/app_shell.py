@@ -1228,20 +1228,28 @@ def _ezscore_columns(*args, **kwargs):
 
 
 def _ezscore_data_editor(*args, **kwargs):
-    """Keep the structure table full width and select one lyric block below."""
-    result = _ORIGINAL_ST_DATA_EDITOR(*args, **kwargs)
+    """Add a per-row `Éditer paroles` selector to the structure table.
 
+    Exactly one block is considered active for the lyric detail editor.
+    The existing structure editor remains authoritative for Nom/Fin/Delete.
+    """
     key = str(kwargs.get("key", "") or "")
+
     if not (
         _block_editor_active()
         and key.startswith("structure_live_table_")
+        and args
     ):
-        return result
+        return _ORIGINAL_ST_DATA_EDITOR(*args, **kwargs)
 
     active_hash = _song_hash_for_context()
     draft = _block_editor_draft(active_hash)
     if not draft:
-        return result
+        return _ORIGINAL_ST_DATA_EDITOR(*args, **kwargs)
+
+    source_df = args[0]
+    if not hasattr(source_df, "copy"):
+        return _ORIGINAL_ST_DATA_EDITOR(*args, **kwargs)
 
     block_ids = [
         int(block.get("block_id", index + 1) or (index + 1))
@@ -1249,34 +1257,102 @@ def _ezscore_data_editor(*args, **kwargs):
     ]
     selected_key = _block_editor_selected_key(active_hash)
     current = _selected_block_id(active_hash)
-
     if current not in block_ids:
-        st.session_state[selected_key] = block_ids[0]
+        current = block_ids[0]
+        st.session_state[selected_key] = current
 
-    labels = {}
-    for index, block in enumerate(draft):
-        block_id = block_ids[index]
-        title = (
-            str(block.get("custom_label", "") or "").strip()
-            or f"Bloc {index + 1}"
+    editor_df = source_df.copy()
+
+    # Keep the selector visually next to the block name.
+    selector_values = [
+        block_id == current
+        for block_id in block_ids[:len(editor_df)]
+    ]
+    while len(selector_values) < len(editor_df):
+        selector_values.append(False)
+
+    insert_at = 1 if "Nom" in list(editor_df.columns) else 0
+    if "Éditer paroles" in editor_df.columns:
+        editor_df["Éditer paroles"] = selector_values
+    else:
+        editor_df.insert(
+            insert_at,
+            "Éditer paroles",
+            selector_values,
         )
-        m0 = int(block.get("measure_start", 0) or 0)
-        m1 = int(block.get("measure_end", m0) or m0)
-        labels[block_id] = f"{title} · mesures {m0}–{m1}"
 
-    st.markdown("#### Paroles à éditer")
-    _ORIGINAL_ST_SELECTBOX(
-        "Bloc sélectionné",
-        block_ids,
-        key=selected_key,
-        format_func=lambda block_id: labels.get(
-            int(block_id),
-            f"Bloc {block_id}",
-        ),
+    editor_kwargs = dict(kwargs)
+    column_config = dict(editor_kwargs.get("column_config", {}) or {})
+    column_config["Éditer paroles"] = st.column_config.CheckboxColumn(
+        "✏️ Paroles",
+        width="small",
         help=(
-            "Un seul bloc de paroles est ouvert à la fois. "
-            "Le tableau de structure reste entièrement visible au-dessus."
+            "Cochez le bloc dont vous voulez modifier les paroles. "
+            "Un seul bloc est édité à la fois."
         ),
+    )
+    editor_kwargs["column_config"] = column_config
+
+    result = _ORIGINAL_ST_DATA_EDITOR(
+        editor_df,
+        *args[1:],
+        **editor_kwargs,
+    )
+
+    # Resolve the active row from the edited checkbox column.
+    checked_indices = []
+    if "Éditer paroles" in result.columns:
+        checked_indices = [
+            index
+            for index, checked in enumerate(
+                result["Éditer paroles"].tolist()
+            )
+            if bool(checked) and index < len(block_ids)
+        ]
+
+    chosen = current
+    if checked_indices:
+        checked_ids = [block_ids[index] for index in checked_indices]
+
+        # If the user checked another row while the current one was still
+        # checked, prefer the newly checked row.
+        alternatives = [
+            block_id
+            for block_id in checked_ids
+            if block_id != current
+        ]
+        chosen = alternatives[-1] if alternatives else checked_ids[-1]
+
+    if chosen not in block_ids:
+        chosen = block_ids[0]
+
+    if chosen != current:
+        st.session_state[selected_key] = chosen
+        current = chosen
+
+    # Normalize the returned selector to a single true row. The historical
+    # structure logic ignores this extra column, but normalization avoids any
+    # ambiguity in downstream code and the next rerun.
+    if "Éditer paroles" in result.columns:
+        result = result.copy()
+        result["Éditer paroles"] = [
+            block_id == current
+            for block_id in block_ids[:len(result)]
+        ]
+
+    # Persist a compact label for the detail panel.
+    selected_index = block_ids.index(current)
+    selected_block = draft[selected_index]
+    selected_title = (
+        str(selected_block.get("custom_label", "") or "").strip()
+        or f"Bloc {selected_index + 1}"
+    )
+    selected_m0 = int(selected_block.get("measure_start", 0) or 0)
+    selected_m1 = int(selected_block.get("measure_end", selected_m0) or selected_m0)
+    st.session_state[
+        f"ez_block_detail_label_{active_hash[:12]}"
+    ] = (
+        f"{selected_title} · mesures {selected_m0}–{selected_m1}"
     )
 
     return result
@@ -1413,9 +1489,8 @@ def _ezscore_caption(*args, **kwargs):
             )
         ):
             return _ORIGINAL_ST_CAPTION(
-                "Sélectionnez le bloc à éditer dans le tableau ci-dessus. "
-                "Seules ses paroles sont ouvertes ici ; les autres restent "
-                "compactes et sont conservées pour la validation globale."
+                "Dans le tableau ci-dessus, cochez ✏️ Paroles sur le bloc "
+                "à modifier. Un seul éditeur de paroles est affiché à la fois."
             )
         if value == (
             "La lecture MIDI synchronisée est disponible dans "

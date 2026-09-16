@@ -347,3 +347,28 @@ Les autres appels `st.columns`, `st.data_editor`, `st.text_area` de l'applicatio
 restent inchangés.
 
 Analyse, Player et MIDI vocal ne sont pas modifiés.
+
+
+## R12.3 — sélection des paroles directement dans le tableau des blocs
+
+Le sélecteur séparé sous le tableau est supprimé.
+
+Une nouvelle colonne est ajoutée au tableau :
+
+`✏️ Paroles`
+
+Chaque ligne possède une case. La case sélectionne le bloc dont le textarea de
+paroles est affiché sous le tableau.
+
+Règles :
+- un seul bloc de paroles actif à la fois ;
+- le premier bloc est sélectionné par défaut ;
+- cocher un autre bloc le rend immédiatement actif ;
+- l'éditeur complet n'affiche que ce bloc ;
+- les autres textes restent conservés en session et sont sauvegardés avec
+  `Valider blocs + paroles`.
+
+La colonne supplémentaire ne modifie pas le moteur de structure :
+Nom, Début, Fin, Nb mesures et Suppression gardent leur comportement existant.
+
+Aucun changement dans Analyse, Player ou le MIDI vocal.
