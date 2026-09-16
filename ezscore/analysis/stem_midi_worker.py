@@ -25,13 +25,28 @@ def _atomic_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(path)
+    os.replace(tmp, path)
 
 
-def _read_json(path: Path) -> dict:
+def _read_json(path: Path, *, attempts: int = 12, delay_seconds: float = 0.025) -> dict:
+    """Read JSON shared between worker processes without hiding persistent errors."""
     if not path.is_file():
         return {}
-    return json.loads(path.read_text(encoding="utf-8"))
+
+    last_error = None
+    for attempt in range(max(1, int(attempts))):
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (PermissionError, FileNotFoundError, json.JSONDecodeError) as exc:
+            last_error = exc
+            if attempt + 1 >= max(1, int(attempts)):
+                break
+            time.sleep(max(0.0, float(delay_seconds)))
+
+    raise RuntimeError(
+        "Lecture JSON worker impossible après contention inter-processus : "
+        f"{path} · {type(last_error).__name__}: {last_error}"
+    ) from last_error
 
 
 def _status(output_dir: Path, payload: dict, *, started: float) -> None:

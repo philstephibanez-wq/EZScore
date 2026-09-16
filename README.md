@@ -209,3 +209,25 @@ Dans `4 · MIDI`, un résultat terminé peut maintenant être relancé.
 
 Pour Aline et le nouveau nettoyage des faux demi-tons de R11 :
 utiliser `Régénérer tout le MIDI`.
+
+
+## R11.2 — correction PermissionError Windows sur job_status.json
+
+Sous Windows, le fragment Streamlit relit `job_status.json` chaque seconde
+pendant que le worker le remplace atomiquement. Une très courte fenêtre de
+partage de fichier peut provoquer :
+
+`PermissionError: [Errno 13] Permission denied: ...\job_status.json`
+
+Correction :
+- lecture JSON partagée avec retry borné ;
+- 12 tentatives espacées de 25 ms ;
+- uniquement pour `PermissionError`, `FileNotFoundError` transitoire et
+  `JSONDecodeError` transitoire pendant remplacement ;
+- si la contention persiste, une `RuntimeError` explicite est levée avec le
+  chemin et l'exception réelle ;
+- aucun fallback silencieux ;
+- écritures atomiques via `os.replace`.
+
+La même protection est utilisée par le superviseur MIDI pour lire les fichiers
+de progression du processus vocal.

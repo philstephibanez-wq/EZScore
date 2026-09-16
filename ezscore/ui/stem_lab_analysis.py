@@ -40,6 +40,7 @@ from ezscore.analysis.stem_midi import (
     browser_events_from_bundle,
     launch_stem_midi_job,
     load_stem_midi_job,
+    _read_json_with_retry,
 )
 
 from ezscore.midi.stem_sync_player import render_stem_midi_sync_player
@@ -498,7 +499,7 @@ def _render_midi_progress_fragment(midi_dir: Path) -> None:
         vp=midi_dir/"vocal_progress.json"
         if vp.is_file():
             st.markdown("**Chant / pYIN**")
-            st.json(json.loads(vp.read_text(encoding="utf-8")))
+            st.json(_read_json_with_retry(vp))
 
 
 def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
@@ -859,7 +860,7 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
             else:
                 midi_meta = None
                 if meta_path.is_file():
-                    midi_meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                    midi_meta = _read_json_with_retry(meta_path)
 
                 midi_complete = bool(
                     midi_meta

@@ -777,6 +777,39 @@ def _pid_is_alive(pid: int | None) -> bool:
     return True
 
 
+def _read_json_with_retry(
+    path: Path,
+    *,
+    attempts: int = 12,
+    delay_seconds: float = 0.025,
+) -> dict[str, Any]:
+    """Read a JSON file that may be atomically replaced by another process.
+
+    Windows can expose a very short sharing/replace window where opening the
+    destination raises PermissionError. This is expected inter-process
+    contention, not an application fallback.
+
+    We retry only the transient filesystem access. A persistent failure is
+    raised explicitly with the original path and last exception.
+    """
+    target = Path(path)
+    last_error: Exception | None = None
+
+    for attempt in range(max(1, int(attempts))):
+        try:
+            return json.loads(target.read_text(encoding="utf-8"))
+        except (PermissionError, FileNotFoundError, json.JSONDecodeError) as exc:
+            last_error = exc
+            if attempt + 1 >= max(1, int(attempts)):
+                break
+            time.sleep(max(0.0, float(delay_seconds)))
+
+    raise RuntimeError(
+        "Lecture JSON impossible après contention inter-processus : "
+        f"{target} · {type(last_error).__name__}: {last_error}"
+    ) from last_error
+
+
 def _job_status_path(output_dir: Path) -> Path:
     return Path(output_dir) / "job_status.json"
 
@@ -801,7 +834,7 @@ def load_stem_midi_job(output_dir: Path) -> dict[str, Any]:
     if not path.is_file():
         return {"state": "idle"}
 
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = _read_json_with_retry(path)
     state = str(payload.get("state", "") or "")
     pid = payload.get("pid")
 
