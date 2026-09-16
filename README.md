@@ -285,3 +285,28 @@ Le nouveau shell mappe les choix vers les anciennes valeurs internes
 - lecteurs existants.
 
 Aucune modification du MIDI vocal n'est faite dans R12.
+
+
+## R12.1 — vrai basculement Édition / Player
+
+R12 changeait le mode dans la sidebar mais, pour un morceau analysé uniquement
+par STEM_LAB, l'ancien orchestrateur ne trouvait aucune ligne dans `analyses`.
+Il affichait donc encore la page Analyse.
+
+R12.1 ajoute un pont de compatibilité non destructif :
+- beat_timeline STEM -> beats éditables ;
+- mesures STEM -> mesures EZScore ;
+- accords STEM -> grille ;
+- Whisper small -> structure `segments[].words[]` attendue par l'éditeur ;
+- blocs STEM -> initialisation de `structure_blocks` si aucun bloc utilisateur
+  n'existe déjà.
+
+Aucun modèle audio n'est relancé.
+Aucun timestamp n'est déplacé.
+Les blocs utilisateur déjà persistés ne sont jamais écrasés.
+
+Résultat :
+- `Édition` ouvre réellement `Blocs / Paroles + accords / Grille` ;
+- `Player` utilise les mêmes données éditées ;
+- `Analyse` reste la surface STEM_LAB ;
+- MIDI vocal inchangé.

@@ -17,6 +17,7 @@ from ezscore.midi import (
     build_midi_file as _build_midi_file,
 )
 import ezscore.transcription as _transcription
+from ezscore.notation import formatter_mesure_signature as _formatter_mesure_signature
 from ezscore.midi.analysis_player import render_analysis_midi_player as _render_analysis_midi_player
 from ezscore.analysis.vocal import (
     analyze_vocal_pitch as _analyze_vocal_pitch,
@@ -42,6 +43,245 @@ from ezscore.diagnostics.perf import (
 )
 
 install_runtime_probes()
+
+
+APP_DIR = Path(__file__).resolve().parents[2]
+
+# ---------------------------------------------------------------------------
+# R12.1 — STEM_LAB -> historical editor compatibility bridge.
+# ---------------------------------------------------------------------------
+
+_ORIGINAL_LOAD_LATEST_PERSISTED_ANALYSIS = load_latest_persisted_analysis
+
+
+def _stem_lab_cache_dir(audio_hash: str) -> Path:
+    return APP_DIR / "data" / "analysis" / "stem_lab" / str(audio_hash)
+
+
+def _read_required_json(path: Path) -> dict:
+    if not path.is_file():
+        raise FileNotFoundError(str(path))
+    return __import__("json").loads(path.read_text(encoding="utf-8"))
+
+
+def _stem_lab_editor_bridge(audio_hash: str) -> dict | None:
+    """Expose STEM_LAB data to the mature Blocs/Paroles/Grille editors."""
+    active_hash = str(audio_hash or "").strip()
+    if not active_hash:
+        return None
+
+    work_mode = str(
+        st.session_state.get(f"ez_work_mode_{active_hash[:12]}", "") or ""
+    )
+    if work_mode not in {"Édition", "Player"}:
+        return None
+
+    cache_dir = _stem_lab_cache_dir(active_hash)
+    structure_path = cache_dir / "structure_analysis.json"
+    speech_path = cache_dir / "whisper_original_small.json"
+
+    if not structure_path.is_file() or not speech_path.is_file():
+        return None
+
+    structure = _read_required_json(structure_path)
+    speech = _read_required_json(speech_path)
+
+    beat_timeline = list(structure.get("beat_timeline", []) or [])
+    source_measures = list(structure.get("measures", []) or [])
+    source_words = list(speech.get("words", []) or [])
+
+    if len(beat_timeline) < 2:
+        raise RuntimeError(
+            "Mode Édition impossible : beat_timeline STEM_LAB absente ou incomplète."
+        )
+    if not source_measures:
+        raise RuntimeError(
+            "Mode Édition impossible : aucune mesure STEM_LAB disponible."
+        )
+    if not source_words:
+        raise RuntimeError(
+            "Mode Édition impossible : aucun mot Whisper horodaté disponible."
+        )
+
+    tempo = float(structure.get("tempo", 0.0) or 0.0)
+    if tempo <= 1.0:
+        raise RuntimeError("Mode Édition impossible : tempo STEM_LAB invalide.")
+
+    beats_per_measure = max(
+        1,
+        int(structure.get("beats_per_bar", 4) or 4),
+    )
+    signature = str(
+        structure.get("signature", "") or (
+            "6/8" if beats_per_measure == 6 else f"{beats_per_measure}/4"
+        )
+    )
+    median_interval = 60.0 / tempo
+
+    beats = []
+    for index, item in enumerate(beat_timeline):
+        start = float(item.get("time", 0.0) or 0.0)
+        if index + 1 < len(beat_timeline):
+            end = float(beat_timeline[index + 1].get("time", start))
+        else:
+            end = start + median_interval
+
+        chord = str(item.get("chord", "N") or "N").strip()
+        if chord in {"", "N"}:
+            chord = "."
+
+        beats.append({
+            "index": int(index),
+            "temps": start,
+            "fin": max(start + 0.001, end),
+            "intervalle": max(0.001, end - start),
+            "accord": chord,
+            "silence": chord == ".",
+            "rms_ratio": 0.0 if chord == "." else 1.0,
+            "chroma_ratio": 0.0 if chord == "." else 1.0,
+        })
+
+    measures = []
+    for index, measure in enumerate(source_measures):
+        chords = [
+            "." if str(x or "N").strip() in {"", "N"} else str(x).strip()
+            for x in list(measure.get("beat_chords", []) or [])
+        ]
+        while len(chords) < beats_per_measure:
+            chords.append(".")
+        chords = chords[:beats_per_measure]
+
+        measures.append({
+            "numero": int(measure.get("measure", index + 1) or index + 1),
+            "debut": float(measure.get("time_start", 0.0) or 0.0),
+            "fin": float(measure.get("time_end", 0.0) or 0.0),
+            "accords": chords,
+            "notation": _formatter_mesure_signature(
+                chords,
+                signature,
+                fermata=False,
+            ),
+            "fermata": False,
+        })
+
+    whisper_words = []
+    for word in source_words:
+        text = str(word.get("text", "") or "").strip()
+        start = float(word.get("start", 0.0) or 0.0)
+        end = float(word.get("end", start) or start)
+        if text and end > start:
+            whisper_words.append({
+                "word": text,
+                "start": start,
+                "end": end,
+            })
+
+    if not whisper_words:
+        raise RuntimeError(
+            "Mode Édition impossible : aucun mot Whisper valide après adaptation."
+        )
+
+    result = {
+        "language": str(speech.get("language", "") or ""),
+        "text": str(speech.get("text", "") or "").strip(),
+        "segments": [{
+            "start": float(whisper_words[0]["start"]),
+            "end": float(whisper_words[-1]["end"]),
+            "text": str(speech.get("text", "") or "").strip(),
+            "words": whisper_words,
+        }],
+        "source": "stem_lab_whisper_small",
+    }
+
+    music = {
+        "sr": 22050,
+        "tempo": tempo,
+        "tempo_brut": tempo,
+        "beats": beats,
+        "mesures": measures,
+        "median_interval": float(median_interval),
+        "tonalite": {},
+        "tonalite_nom": "?",
+        "accords_dominants": [],
+        "vocabulaire": [],
+        "alternance_active": False,
+        "couverture_pair": 0.0,
+        "taux_alternance_pair": 0.0,
+        "signature": signature,
+        "signature_mode": "STEM_LAB",
+        "signature_auto": {},
+        "beats_par_mesure": int(beats_per_measure),
+        "analyse_sr": 22050,
+        "hop_length": 512,
+        "silence_rms_ratio": 0.22,
+        "silence_chroma_ratio": 0.18,
+        "poids_fondamentale": 0.10,
+        "poids_accompagnement": 0.90,
+        "harmonic_source_mix": {
+            "other": 0.90,
+            "bass_root_support": 0.10,
+        },
+        "performance": {
+            "source": "stem_lab_bridge",
+            "audio_reanalysis": False,
+        },
+    }
+
+    parameters = {
+        "signature_mode": signature,
+        "analyse_sr": 22050,
+        "hop_length": 512,
+        "silence_rms_ratio": 0.22,
+        "silence_chroma_ratio": 0.18,
+        "poids_fondamentale": 0.10,
+        "fermata_enabled": False,
+        "fermata_gap_ratio": 1.85,
+        "whisper_device": "stem_lab",
+        "source": "stem_lab_bridge",
+    }
+
+    existing_blocks = _persistence.load_structure_blocks(active_hash)
+    if not existing_blocks:
+        visual_blocks = list(structure.get("visual_blocks", []) or [])
+        detected_sections = []
+        for index, block in enumerate(visual_blocks):
+            m0 = int(block.get("measure_start", 1) or 1)
+            m1 = int(block.get("measure_end", m0) or m0)
+            detected_sections.append({
+                "measure_start": m0,
+                "measure_end": m1,
+                "cluster": str(
+                    block.get("cluster", chr(ord("A") + (index % 26)))
+                ),
+                "custom_label": str(block.get("custom_label", "") or "").strip(),
+            })
+
+        _persistence.ensure_structure_blocks(
+            audio_hash=active_hash,
+            detected_sections=detected_sections,
+            total_measures=len(measures),
+        )
+
+    return {
+        "analysis_key": "stem_lab_editor_bridge_v1",
+        "parameters": parameters,
+        "musique": music,
+        "resultat": result,
+        "updated_at": "",
+        "source": "stem_lab_bridge",
+    }
+
+
+def load_latest_persisted_analysis(audio_hash):
+    """Load historical analysis, or adapt STEM_LAB data for Edit/Player mode."""
+    persisted = _ORIGINAL_LOAD_LATEST_PERSISTED_ANALYSIS(audio_hash)
+    if persisted is not None:
+        return persisted
+    return _stem_lab_editor_bridge(str(audio_hash or ""))
+
+
+_persistence.load_latest_persisted_analysis = load_latest_persisted_analysis
+
 
 
 # ---------------------------------------------------------------------------
