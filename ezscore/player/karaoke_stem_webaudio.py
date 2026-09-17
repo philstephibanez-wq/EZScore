@@ -1,0 +1,863 @@
+from __future__ import annotations
+
+import json
+import shutil
+import subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+from typing import Any
+
+import streamlit as st
+
+from ezscore.analysis.stems import STEM_NAMES
+from ezscore.player.media_url import register_media_url
+
+
+def ffmpeg_available() -> bool:
+    return shutil.which("ffmpeg") is not None
+
+
+def _preview_target(path: Path, preview_dir: Path) -> Path:
+    preview_dir.mkdir(parents=True, exist_ok=True)
+    return preview_dir / f"{path.stem}.browser64.mp3"
+
+
+def _preview_is_current(source: Path, target: Path) -> bool:
+    return (
+        target.is_file()
+        and target.stat().st_size > 0
+        and target.stat().st_mtime_ns >= source.stat().st_mtime_ns
+    )
+
+
+def make_browser_preview(path: Path, preview_dir: Path) -> Path:
+    target = _preview_target(path, preview_dir)
+    if _preview_is_current(path, target):
+        return target
+
+    if not ffmpeg_available():
+        raise RuntimeError("FFmpeg est requis pour créer les copies MP3 du lecteur.")
+
+    cmd = [
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-i", str(path), "-vn", "-map_metadata", "-1",
+        "-codec:a", "libmp3lame", "-b:a", "64k", "-ar", "44100",
+        str(target),
+    ]
+    proc = subprocess.run(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0 or not target.is_file():
+        raise RuntimeError(
+            f"Impossible de créer la pré-écoute MP3 pour {path.name}:\\n"
+            + (proc.stdout or "")
+        )
+    return target
+
+
+def prepare_browser_previews(
+    source: Path,
+    stems: dict[str, Path],
+    preview_dir: Path,
+) -> dict[str, Path]:
+    preview_dir.mkdir(parents=True, exist_ok=True)
+    inputs = {"original": source, **stems}
+    result: dict[str, Path] = {}
+    pending: dict[str, Path] = {}
+
+    for name, path in inputs.items():
+        target = _preview_target(path, preview_dir)
+        if _preview_is_current(path, target):
+            result[name] = target
+        else:
+            pending[name] = path
+
+    if not pending:
+        return result
+
+    status = st.status(
+        f"Préparation du lecteur : {len(pending)} piste(s) à compresser…",
+        expanded=True,
+    )
+    progress = st.progress(0.0)
+    workers = min(4, max(1, len(pending)))
+    done = 0
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {
+            pool.submit(make_browser_preview, path, preview_dir): name
+            for name, path in pending.items()
+        }
+        for future in as_completed(futures):
+            name = futures[future]
+            result[name] = future.result()
+            done += 1
+            progress.progress(done / len(pending))
+            status.write(f"✓ {name}")
+
+    progress.empty()
+    status.update(
+        label="Préparation du lecteur terminée.",
+        state="complete",
+        expanded=False,
+    )
+    return result
+
+
+def _conductor_cache_path(preview_dir: Path) -> Path:
+    return preview_dir.parent / "karaoke_conductor.json"
+
+
+def _meter_defaults(preview_dir: Path) -> dict[str, Any]:
+    structure_path = preview_dir.parent / "structure_analysis.json"
+    if structure_path.is_file():
+        try:
+            structure = json.loads(structure_path.read_text(encoding="utf-8"))
+            meter = dict(structure.get("meter", {}) or {})
+            return {
+                "signature": str(
+                    meter.get("signature")
+                    or structure.get("signature")
+                    or "4/4"
+                ),
+                "grouping": str(meter.get("grouping", "") or ""),
+            }
+        except Exception:
+            pass
+    return {"signature": "4/4", "grouping": ""}
+
+
+def _cache_is_current(
+    cache_path: Path,
+    source: Path,
+    drums_path: Path,
+) -> bool:
+    if not cache_path.is_file():
+        return False
+    try:
+        cache_mtime = cache_path.stat().st_mtime_ns
+        return (
+            cache_mtime >= source.stat().st_mtime_ns
+            and cache_mtime >= drums_path.stat().st_mtime_ns
+        )
+    except OSError:
+        return False
+
+
+def _build_conductor_timeline(
+    source: Path,
+    stems: dict[str, Path],
+    preview_dir: Path,
+) -> dict[str, Any]:
+    """Build/cache the absolute musical timeline needed by the karaoke view.
+
+    This deliberately does not depend on the old automatic block detector.
+    Rhythm and harmony remain independent absolute-time tracks.
+    """
+    drums = Path(stems["drums"])
+    cache_path = _conductor_cache_path(preview_dir)
+
+    if _cache_is_current(cache_path, source, drums):
+        try:
+            payload = json.loads(cache_path.read_text(encoding="utf-8"))
+            if payload.get("beats"):
+                return payload
+        except Exception:
+            pass
+
+    from ezscore.analysis.rhythm_quality import analyze_beats
+    from ezscore.analysis.chords_quality import (
+        analyze_chords_absolute,
+        chord_for_interval,
+    )
+
+    rhythm = analyze_beats(drums)
+    beat_times = [float(x) for x in (rhythm.get("beats", []) or [])]
+    tempo = float(rhythm.get("tempo", 0.0) or 0.0)
+    if len(beat_times) < 2:
+        raise RuntimeError("Timeline rythmique insuffisante pour le conducteur.")
+
+    chord_payload = analyze_chords_absolute(
+        source,
+        cache_path=preview_dir.parent / "chord_analysis_lv_chordia.json",
+        force=False,
+    )
+    chord_segments = list(chord_payload.get("segments", []) or [])
+    if not chord_segments:
+        raise RuntimeError("Timeline harmonique vide pour le conducteur.")
+
+    default_interval = 60.0 / max(1.0, tempo)
+    beats: list[dict[str, Any]] = []
+    for index, start in enumerate(beat_times):
+        end = (
+            beat_times[index + 1]
+            if index + 1 < len(beat_times)
+            else start + default_interval
+        )
+        chord, raw_chord, overlap = chord_for_interval(
+            chord_segments, start, end
+        )
+        normalized = str(chord or "N").strip()
+        if normalized in {"", "N", "NC", "N.C.", "no_chord"}:
+            normalized = "."
+        beats.append(
+            {
+                "index": index,
+                "start": round(start, 6),
+                "end": round(float(end), 6),
+                "chord": normalized,
+                "raw_chord": str(raw_chord or ""),
+                "overlap": round(float(overlap or 0.0), 6),
+            }
+        )
+
+    payload = {
+        "version": 1,
+        "tempo": tempo,
+        "beats": beats,
+        "rhythm_engine": str(rhythm.get("engine", "") or ""),
+        "harmony_engine": str(chord_payload.get("engine", "") or ""),
+        "meter_default": _meter_defaults(preview_dir),
+    }
+    cache_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return payload
+
+
+_HTML = r"""
+<div class="ezk-root">
+  <div class="transport">
+    <button class="play" type="button">▶ Lecture</button>
+    <button class="pause" type="button">⏸ Pause</button>
+    <button class="stop" type="button">⏹ Stop</button>
+    <span class="time">0:00 / 0:00</span>
+  </div>
+  <input class="seek" type="range" min="0" max="1" step="0.001" value="0">
+
+  <div class="meter-box">
+    <strong>Mesure</strong>
+    <input class="meter-num" type="number" min="1" step="1" value="4">
+    <span>/</span>
+    <input class="meter-den" type="number" min="1" step="1" value="4">
+    <label>Groupement <input class="meter-group" type="text" placeholder="auto"></label>
+    <span class="meter-state"></span>
+  </div>
+
+  <div class="karaoke">
+    <div class="line previous"></div>
+    <div class="chords"></div>
+    <div class="line current"></div>
+    <div class="line next"></div>
+  </div>
+
+  <details class="mixer-details">
+    <summary>Mixeur STEM</summary>
+    <div class="tracks"></div>
+    <div class="master-row">
+      <strong>Master</strong>
+      <input class="master-volume" type="range" min="0" max="1.25" step="0.01" value="1">
+      <span class="master-value">100%</span>
+    </div>
+  </details>
+
+  <div class="hint">
+    Audio original = horloge maître · paroles Whisper + accords HQ sur la même timeline.
+  </div>
+</div>
+"""
+
+_CSS = r"""
+:host { display:block; width:100%; }
+.ezk-root {
+  box-sizing:border-box; width:100%;
+  border:1px solid color-mix(in srgb, var(--st-text-color) 24%, transparent);
+  border-radius:12px; padding:12px;
+  background:color-mix(in srgb, var(--st-text-color) 3%, transparent);
+  color:var(--st-text-color); font-family:var(--st-font);
+}
+.transport { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.transport button {
+  min-height:32px; border-radius:7px;
+  border:1px solid color-mix(in srgb, var(--st-text-color) 35%, transparent);
+  background:color-mix(in srgb, var(--st-text-color) 8%, transparent);
+  color:var(--st-text-color); cursor:pointer; padding:4px 9px;
+}
+.time { margin-left:auto; font-size:12px; opacity:.75; font-variant-numeric:tabular-nums; }
+.seek { width:100%; margin:10px 0; }
+.meter-box {
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  font-size:12px; margin:4px 0 12px;
+  padding:7px 9px; border-radius:8px;
+  background:color-mix(in srgb, var(--st-text-color) 5%, transparent);
+}
+.meter-box input {
+  background:color-mix(in srgb, var(--st-text-color) 5%, transparent);
+  color:var(--st-text-color);
+  border:1px solid color-mix(in srgb, var(--st-text-color) 25%, transparent);
+  border-radius:5px; padding:3px 5px;
+}
+.meter-num,.meter-den { width:52px; }
+.meter-group { width:92px; }
+.meter-state { opacity:.68; margin-left:auto; }
+
+.karaoke {
+  min-height:248px; display:flex; flex-direction:column;
+  justify-content:center; overflow:hidden; border-radius:10px;
+  padding:18px 12px;
+  background:color-mix(in srgb, var(--st-text-color) 5%, transparent);
+}
+.line {
+  text-align:center; line-height:1.34;
+  transition:opacity 100ms linear, transform 100ms linear;
+}
+.line.previous,.line.next {
+  min-height:34px; font-size:20px; opacity:.25;
+}
+.line.current {
+  min-height:54px; font-size:31px; font-weight:760; opacity:1;
+}
+.word { display:inline; margin-right:.28em; opacity:.48; }
+.word.past { opacity:.82; }
+.word.active {
+  opacity:1; font-weight:900;
+  text-decoration:underline;
+  text-decoration-thickness:3px;
+  text-underline-offset:5px;
+}
+.chords {
+  position:relative; height:44px; margin:4px 0 2px;
+  font-family:Consolas,"Courier New",monospace;
+  font-size:21px; font-weight:900; white-space:nowrap;
+}
+.chord-marker {
+  position:absolute; transform:translateX(-10%);
+  padding:2px 5px; border-radius:5px;
+  background:color-mix(in srgb, #4da3ff 16%, transparent);
+}
+.chord-marker.active {
+  background:color-mix(in srgb, #4da3ff 38%, transparent);
+  transform:translateX(-10%) scale(1.06);
+}
+.mixer-details { margin-top:12px; }
+.mixer-details summary { cursor:pointer; font-weight:800; }
+.tracks { margin-top:8px; display:grid; gap:5px; }
+.track {
+  display:grid; grid-template-columns:minmax(90px,1fr) 58px minmax(120px,2fr);
+  gap:8px; align-items:center; font-size:12px;
+  padding:4px 0; border-top:1px solid color-mix(in srgb, var(--st-text-color) 10%, transparent);
+}
+.track input[type="range"], .master-volume { width:100%; }
+.master-row {
+  display:grid; grid-template-columns:90px 1fr 55px; gap:8px;
+  align-items:center; margin-top:8px;
+}
+.master-value { text-align:right; font-size:11px; opacity:.72; }
+.hint { margin-top:10px; font-size:11px; opacity:.65; }
+"""
+
+_JS = r"""
+export default function(component) {
+  const data = component.data || {};
+  const root = component.parentElement;
+
+  const tracksDef = Array.isArray(data.tracks) ? data.tracks : [];
+  const words = Array.isArray(data.words) ? data.words : [];
+  const beats = Array.isArray(data.beats) ? data.beats : [];
+  const meterDefault = data.meter_default || {signature:"4/4", grouping:""};
+
+  const playBtn = root.querySelector(".play");
+  const pauseBtn = root.querySelector(".pause");
+  const stopBtn = root.querySelector(".stop");
+  const seek = root.querySelector(".seek");
+  const timeLabel = root.querySelector(".time");
+  const tracksNode = root.querySelector(".tracks");
+  const masterSlider = root.querySelector(".master-volume");
+  const masterValue = root.querySelector(".master-value");
+  const numInput = root.querySelector(".meter-num");
+  const denInput = root.querySelector(".meter-den");
+  const groupingInput = root.querySelector(".meter-group");
+  const meterState = root.querySelector(".meter-state");
+  const prevLine = root.querySelector(".previous");
+  const currentLine = root.querySelector(".current");
+  const nextLine = root.querySelector(".next");
+  const chordsNode = root.querySelector(".chords");
+
+  const meterParts = String(meterDefault.signature || "4/4").split("/");
+  numInput.value = String(Math.max(1, Number(meterParts[0] || 4)));
+  denInput.value = String(Math.max(1, Number(meterParts[1] || 4)));
+  groupingInput.value = String(meterDefault.grouping || "");
+
+  const storageKey = "ezscore-karaoke-meter:" + String(data.storage_key || "default");
+  try {
+    const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
+    if (saved) {
+      numInput.value = String(saved.numerator || numInput.value);
+      denInput.value = String(saved.denominator || denInput.value);
+      groupingInput.value = String(saved.grouping || groupingInput.value);
+    }
+  } catch (_) {}
+
+  let context = null;
+  let decoded = [];
+  let nodes = [];
+  let masterGain = null;
+  let sources = [];
+  let ready = false;
+  let playing = false;
+  let position = 0;
+  let startedAt = 0;
+  let duration = 0;
+  let disposed = false;
+  let raf = null;
+  let lineIndex = -1;
+
+  const trackState = tracksDef.map((x) => ({
+    enabled: Boolean(x.enabled),
+    volume: Number(x.volume ?? .8)
+  }));
+
+  function fmt(value) {
+    const t = Math.max(0, Number(value) || 0);
+    const m = Math.floor(t / 60);
+    return m + ":" + String(Math.floor(t % 60)).padStart(2, "0");
+  }
+
+  function currentTime() {
+    if (!playing || !context) return position;
+    return Math.max(0, Math.min(duration, position + context.currentTime - startedAt));
+  }
+
+  function parseGrouping(n, d, text) {
+    const raw = String(text || "").trim();
+    if (raw) {
+      const groups = raw.split("+").map(x => Number(x.trim())).filter(x => x > 0);
+      if (groups.length && groups.reduce((a,b)=>a+b,0) === n) return groups;
+    }
+    if (d >= 8 && n > 3 && n % 3 === 0) return Array(n/3).fill(3);
+    if (d >= 8 && n === 5) return [2,3];
+    if (d >= 8 && n === 7) return [2,2,3];
+    if (d === 4 && n === 5) return [3,2];
+    if (d === 4 && n === 7) return [4,3];
+    return Array(n).fill(1);
+  }
+
+  function meter() {
+    const n = Math.max(1, Math.floor(Number(numInput.value || 4)));
+    const d = Math.max(1, Math.floor(Number(denInput.value || 4)));
+    const groups = parseGrouping(n, d, groupingInput.value);
+    const grouped = d >= 8 && groups.some(x => x > 1);
+    const beatsPerMeasure = grouped ? groups.length : n;
+    return {n, d, groups, grouped, beatsPerMeasure};
+  }
+
+  function persistMeter() {
+    const m = meter();
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({
+        numerator:m.n, denominator:m.d, grouping:groupingInput.value
+      }));
+    } catch (_) {}
+    meterState.textContent =
+      m.n + "/" + m.d + " · " +
+      (groupingInput.value.trim() || m.groups.join("+"));
+    renderConductor(currentTime(), true);
+  }
+
+  [numInput, denInput, groupingInput].forEach((el) => {
+    el.addEventListener("change", persistMeter);
+    el.addEventListener("input", persistMeter);
+  });
+  persistMeter();
+
+  function buildLines() {
+    if (!words.length) return [];
+    const lines = [];
+    let current = [];
+    let lastEnd = null;
+
+    function flush() {
+      if (!current.length) return;
+      lines.push({
+        words: current,
+        start: Number(current[0].start || 0),
+        end: Number(current[current.length-1].end || current[current.length-1].start || 0)
+      });
+      current = [];
+    }
+
+    words.forEach((w) => {
+      const text = String(w.text || "").trim();
+      if (!text) return;
+      const start = Number(w.start || 0);
+      const end = Number(w.end || start);
+      const gap = lastEnd === null ? 0 : start - lastEnd;
+      if (current.length && (gap > 1.05 || current.length >= 10)) flush();
+      current.push({...w, text, start, end});
+      lastEnd = end;
+      if (/[.!?;:]$/.test(text) && current.length >= 4) flush();
+    });
+    flush();
+    return lines;
+  }
+
+  const lines = buildLines();
+
+  function lineAt(time) {
+    if (!lines.length) return -1;
+    for (let i=0;i<lines.length;i++) {
+      if (time >= lines[i].start - .15 && time <= lines[i].end + .45) return i;
+      if (time < lines[i].start) return Math.max(0, i);
+    }
+    return lines.length - 1;
+  }
+
+  function renderLine(node, line, time, active) {
+    node.innerHTML = "";
+    if (!line) return;
+    line.words.forEach((w) => {
+      const span = document.createElement("span");
+      span.className = "word";
+      if (time >= w.end) span.classList.add("past");
+      if (active && time >= w.start && time < Math.max(w.end, w.start + .04)) {
+        span.classList.add("active");
+      }
+      span.textContent = w.text;
+      node.appendChild(span);
+    });
+  }
+
+  function measureNotation(measureIndex, m) {
+    const startBeat = measureIndex * m.beatsPerMeasure;
+    if (startBeat >= beats.length) return null;
+    const beatSlice = beats.slice(startBeat, startBeat + m.beatsPerMeasure);
+    if (!beatSlice.length) return null;
+
+    let notation = "";
+    let prevChord = null;
+    beatSlice.forEach((beat, localIndex) => {
+      let chord = String(beat.chord || ".").trim() || ".";
+      let token;
+      if (chord === ".") token = ".";
+      else if (localIndex === 0) token = chord;
+      else if (chord === prevChord) token = "-";
+      else token = chord;
+
+      if (m.grouped) {
+        const count = Math.max(1, Number(m.groups[localIndex] || 1));
+        if (token === ".") notation += ".".repeat(count);
+        else if (token === "-") notation += "-".repeat(count);
+        else notation += token + "-".repeat(Math.max(0, count - 1));
+      } else {
+        notation += token;
+      }
+      prevChord = chord;
+    });
+    return {
+      notation,
+      start: Number(beatSlice[0].start || 0),
+      end: Number(beatSlice[beatSlice.length-1].end || beatSlice[beatSlice.length-1].start || 0),
+    };
+  }
+
+  function measuresForWindow(t0, t1) {
+    const m = meter();
+    const count = Math.ceil(beats.length / m.beatsPerMeasure);
+    const out = [];
+    for (let i=0;i<count;i++) {
+      const item = measureNotation(i, m);
+      if (!item) continue;
+      if (item.end < t0 || item.start > t1) continue;
+      out.push(item);
+    }
+    return out;
+  }
+
+  function renderChords(line, time) {
+    chordsNode.innerHTML = "";
+    if (!line) return;
+    const t0 = line.start;
+    const t1 = Math.max(t0 + .01, line.end);
+    const measures = measuresForWindow(t0 - .4, t1 + .4);
+    measures.forEach((measure) => {
+      const marker = document.createElement("span");
+      marker.className = "chord-marker";
+      if (time >= measure.start && time < measure.end) marker.classList.add("active");
+      const pos = Math.max(0, Math.min(100, ((measure.start - t0) / (t1 - t0)) * 100));
+      marker.style.left = pos + "%";
+      marker.textContent = measure.notation;
+      chordsNode.appendChild(marker);
+    });
+  }
+
+  function renderConductor(time, force=false) {
+    const idx = lineAt(time);
+    if (idx < 0) return;
+    if (force || idx !== lineIndex) lineIndex = idx;
+    renderLine(prevLine, lines[idx-1], time, false);
+    renderLine(currentLine, lines[idx], time, true);
+    renderLine(nextLine, lines[idx+1], time, false);
+    renderChords(lines[idx], time);
+  }
+
+  function applyTrack(index) {
+    if (!ready || !nodes[index] || !context) return;
+    const gain = trackState[index].enabled ? trackState[index].volume : 0;
+    nodes[index].gain.gain.setTargetAtTime(gain, context.currentTime, .015);
+  }
+
+  async function ensureReady() {
+    if (ready) {
+      if (context.state === "suspended") await context.resume();
+      return;
+    }
+    playBtn.disabled = true;
+    playBtn.textContent = "Chargement audio…";
+    context = new (window.AudioContext || window.webkitAudioContext)({latencyHint:"interactive"});
+    masterGain = context.createGain();
+    masterGain.gain.value = Number(masterSlider.value || 1);
+    masterGain.connect(context.destination);
+
+    for (let i=0;i<tracksDef.length;i++) {
+      const def = tracksDef[i];
+      const response = await fetch(String(def.url || ""), {cache:"force-cache"});
+      if (!response.ok) throw new Error("HTTP média " + response.status);
+      const buf = await context.decodeAudioData(await response.arrayBuffer());
+      decoded.push(buf);
+      const gain = context.createGain();
+      gain.connect(masterGain);
+      nodes.push({gain});
+      if (i === 0) duration = Number(buf.duration || 0);
+    }
+
+    seek.max = String(Math.max(.001, duration));
+    ready = true;
+    trackState.forEach((_,i)=>applyTrack(i));
+    playBtn.disabled = false;
+    playBtn.textContent = "▶ Lecture";
+  }
+
+  function stopSources() {
+    sources.forEach((s) => {
+      try { s.stop(); } catch (_) {}
+      try { s.disconnect(); } catch (_) {}
+    });
+    sources = [];
+  }
+
+  function startSources(offset) {
+    stopSources();
+    const when = context.currentTime + .03;
+    sources = decoded.map((buffer,index) => {
+      const src = context.createBufferSource();
+      src.buffer = buffer;
+      src.connect(nodes[index].gain);
+      const safe = Math.max(0, Math.min(Number(offset)||0, Math.max(0, buffer.duration-.001)));
+      src.start(when, safe);
+      return src;
+    });
+    position = Math.max(0, Math.min(duration, Number(offset)||0));
+    startedAt = when;
+    playing = true;
+  }
+
+  async function playAll() {
+    await ensureReady();
+    if (context.state === "suspended") await context.resume();
+    if (playing) return;
+    if (position >= duration-.01) position = 0;
+    startSources(position);
+  }
+
+  function pauseAll() {
+    if (!playing) return;
+    position = currentTime();
+    playing = false;
+    stopSources();
+  }
+
+  function stopAll() {
+    playing = false;
+    stopSources();
+    position = 0;
+    seek.value = "0";
+    renderConductor(0, true);
+  }
+
+  function seekTo(value) {
+    position = Math.max(0, Math.min(duration, Number(value)||0));
+    if (playing) startSources(position);
+    renderConductor(position, true);
+  }
+
+  tracksDef.forEach((def,index) => {
+    const row = document.createElement("div");
+    row.className = "track";
+
+    const name = document.createElement("strong");
+    name.textContent = String(def.label || def.name || "Piste");
+
+    const onLabel = document.createElement("label");
+    const on = document.createElement("input");
+    on.type = "checkbox";
+    on.checked = trackState[index].enabled;
+    on.addEventListener("change", () => {
+      trackState[index].enabled = on.checked;
+      applyTrack(index);
+    });
+    onLabel.append(on, document.createTextNode(" Actif"));
+
+    const vol = document.createElement("input");
+    vol.type = "range"; vol.min="0"; vol.max="1.25"; vol.step=".01";
+    vol.value = String(trackState[index].volume);
+    vol.addEventListener("input", () => {
+      trackState[index].volume = Number(vol.value);
+      applyTrack(index);
+    });
+
+    row.append(name, onLabel, vol);
+    tracksNode.appendChild(row);
+  });
+
+  masterSlider.addEventListener("input", () => {
+    const value = Number(masterSlider.value || 1);
+    masterValue.textContent = Math.round(value * 100) + "%";
+    if (masterGain && context) masterGain.gain.setTargetAtTime(value, context.currentTime, .015);
+  });
+
+  playBtn.addEventListener("click", () => playAll().catch((e) => {
+    playBtn.disabled = false;
+    playBtn.textContent = "▶ Lecture";
+    console.error(e);
+  }));
+  pauseBtn.addEventListener("click", pauseAll);
+  stopBtn.addEventListener("click", stopAll);
+  seek.addEventListener("input", () => seekTo(Number(seek.value || 0)));
+
+  function tick() {
+    if (disposed) return;
+    const t = currentTime();
+    seek.value = String(t);
+    timeLabel.textContent = fmt(t) + " / " + fmt(duration);
+    renderConductor(t);
+    if (playing && t >= duration-.01) stopAll();
+    raf = requestAnimationFrame(tick);
+  }
+
+  renderConductor(0, true);
+  tick();
+
+  return function() {
+    disposed = true;
+    if (raf !== null) cancelAnimationFrame(raf);
+    stopSources();
+    try { if (context) context.close(); } catch (_) {}
+  };
+}
+"""
+
+_COMPONENT = st.components.v2.component(
+    "ezscore_karaoke_stem_player",
+    html=_HTML,
+    css=_CSS,
+    js=_JS,
+    isolate_styles=True,
+)
+
+
+def render_player(
+    source: Path,
+    stems: dict[str, Path],
+    *,
+    preview_dir: Path,
+    key: str,
+    words: list[dict[str, Any]] | None = None,
+) -> None:
+    """Drop-in replacement for stem_webaudio.render_player.
+
+    Before lyrics exist, it behaves as a STEM mixer.
+    As soon as Whisper words exist, it builds the HQ rhythm/harmony timeline
+    and shows a karaoke-style lyrics+chords conductor.
+    """
+    previews = prepare_browser_previews(source, stems, preview_dir)
+
+    tracks: list[dict[str, Any]] = []
+
+    def pack(name: str, label: str, path: Path, enabled: bool, volume: float) -> None:
+        preview = previews[name]
+        tracks.append(
+            {
+                "name": name,
+                "label": label,
+                "url": register_media_url(
+                    preview,
+                    coordinates=f"{key}:karaoke:{name}",
+                    mimetype="audio/mpeg",
+                ),
+                "enabled": enabled,
+                "volume": volume,
+            }
+        )
+
+    pack("original", "Original", source, True, 0.75)
+    defaults = {
+        "vocals": (True, 0.90),
+        "drums": (False, 0.75),
+        "bass": (False, 0.75),
+        "other": (False, 0.75),
+    }
+    labels = {
+        "vocals": "Chant",
+        "drums": "Batterie",
+        "bass": "Basse",
+        "other": "Other",
+    }
+    for name in STEM_NAMES:
+        if name in stems:
+            enabled, volume = defaults[name]
+            pack(name, labels[name], stems[name], enabled, volume)
+
+    player_words = list(words or [])
+    conductor: dict[str, Any] = {
+        "beats": [],
+        "meter_default": _meter_defaults(preview_dir),
+    }
+
+    if player_words:
+        try:
+            with st.spinner(
+                "Préparation du conducteur paroles + accords "
+                "(rythme + harmonie HQ)…"
+            ):
+                conductor = _build_conductor_timeline(source, stems, preview_dir)
+        except Exception as exc:
+            st.warning(
+                "Le lecteur paroles reste disponible, mais la timeline d'accords "
+                f"n'a pas pu être préparée : {exc}"
+            )
+
+    st.caption(
+        "Conducteur : paroles Whisper + accords/mesures sur l'horloge audio. "
+        "La signature et le groupement sont modifiables sans relancer Whisper."
+        if player_words
+        else
+        "Lecteur STEM prêt. Le conducteur apparaîtra après l'analyse des paroles."
+    )
+
+    _COMPONENT(
+        data={
+            "tracks": tracks,
+            "words": player_words,
+            "beats": list(conductor.get("beats", []) or []),
+            "meter_default": dict(conductor.get("meter_default", {}) or {}),
+            "storage_key": str(key),
+        },
+        key=key,
+        width="stretch",
+        height=650 if player_words else 430,
+    )

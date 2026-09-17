@@ -1,106 +1,44 @@
-# EZScore — BS-RoFormer multi-format
+# EZScore — conducteur karaoké paroles + accords
 
-Ce livrable ajoute une couche audio modulaire sans modèles, stems ni temporaires dans `H:\EZScore`.
+Base lue : branche `feature/stem-analysis-pipeline`, commit
+`c1fd40afa47890fadb5a8efe83745f8ca010ad65`.
 
-## Fonctionnement
+## But de ce livrable
 
-Entrées acceptées : WAV, MP3, FLAC, M4A, OGG, OPUS, AAC, WMA.
+Afficher, dès que l'analyse Whisper est terminée, un conducteur synchronisé
+sur l'audio avec :
 
-Pipeline :
+- ligne précédente / ligne active / ligne suivante ;
+- mot actif mis en évidence ;
+- accords au-dessus de la ligne active ;
+- notation de mesure avec `-` pour la tenue et `.` pour l'absence d'accord ;
+- support du `^` dès qu'une timeline canonique fournit une fermata ;
+- signature éditable `N/D` ;
+- groupement métrique éditable (`3+3`, `2+2+3`, `3+2`, `4+3`, etc.) ;
+- prise en charge de 2/4, 3/4, 4/4, 5/4, 7/4, 3/8, 5/8, 6/8, 7/8,
+  9/8, 12/8 et des signatures personnalisées ;
+- changement de métrique sans relancer Whisper ni BS-RoFormer.
 
-`audio utilisateur -> FFmpeg WAV 44,1 kHz stéréo -> BS-RoFormer -> mix harmonique -> analyse EZScore -> nettoyage`
+La timeline rythmique utilise `madmom-infer` sur le stem batterie et la
+timeline harmonique utilise `lv-chordia`, comme l'étape 3 actuelle. Le cache
+est écrit dans le répertoire d'analyse du morceau sous
+`karaoke_conductor.json`.
 
-BS-RoFormer est prioritaire. Demucs reste disponible en secours pour éviter une régression sur un autre environnement.
+## Installation
 
-Pour le mix harmonique BS-RoFormer :
-- vocals : exclu
-- drums : exclu
-- guitar : 1,00
-- piano : 1,00
-- other : 0,80
-- bass : 0,65
+Décompresser directement ce ZIP dans la racine du dépôt `H:\EZScore`
+en conservant l'arborescence et en autorisant l'écrasement de
+`ezscore/ui/__init__.py`.
 
-## Temporaires
+Aucun `H:\Temp` n'est utilisé.
 
-Priorité :
-1. `EZSCORE_TEMP_DIR` si définie ;
-2. sous Windows, `H:\Temp\EZScore` si `H:\Temp` existe ;
-3. sinon le temp système.
+Puis lancer EZScore normalement. Après `2 · Paroles`, revenir au lecteur STEM :
+le conducteur apparaît sous le transport avec les accords synchronisés.
 
-Les modèles restent hors dépôt via :
-`BS_ROFORMER_MODELS_PATH=H:\EZScoreModels\bs-roformer`
+## Remarque d'intégration
 
-## Dézip
-
-```powershell
-New-Item -ItemType Directory -Force H:\Temp\EZScore_BSRoformer_Update | Out-Null
-Expand-Archive -Force .\EZScore_BSRoformer_Multiformat.zip H:\Temp\EZScore_BSRoformer_Update
-```
-
-## Vérifier le dépôt avant application
-
-```powershell
-cd H:\EZScore
-git status --short
-```
-
-## Appliquer
-
-```powershell
-python H:\Temp\EZScore_BSRoformer_Update\apply_integration.py H:\EZScore
-```
-
-Le script :
-- ajoute `ezscore\audio\__init__.py`
-- ajoute `ezscore\audio\separation.py`
-- modifie `EZScore.py`
-- crée `EZScore.py.before_bs_roformer`
-- ne fait aucun commit
-- ne fait aucun push
-
-## Compilation
-
-```powershell
-cd H:\EZScore
-python -m py_compile EZScore.py
-python -m py_compile ezscore\audio\__init__.py
-python -m py_compile ezscore\audio\separation.py
-```
-
-## Test
-
-```powershell
-python -m streamlit run EZScore.py
-```
-
-La sidebar doit afficher `BS-RoFormer : disponible`.
-
-Tester ensuite un MP3 directement dans l'import EZScore. La conversion WAV est interne et temporaire.
-
-## Contrôle des temporaires
-
-Pendant l'analyse :
-
-```powershell
-Get-ChildItem H:\Temp\EZScore -Recurse
-```
-
-Après l'analyse, le sous-dossier `ezscore_audio_*` doit avoir disparu.
-
-## Contrôle Git avant ton push
-
-```powershell
-cd H:\EZScore
-git status --short
-git diff -- EZScore.py ezscore/audio/__init__.py ezscore/audio/separation.py
-```
-
-Aucun `.ckpt`, stem `.wav` ou fichier temporaire ne doit apparaître.
-
-Après validation :
-
-```powershell
-Remove-Item H:\EZScore\EZScore.py.before_bs_roformer
-```
-
-Puis tu fais ton commit/push selon ton workflow.
+Pour éviter de modifier le gros fichier `stem_lab_analysis.py` à ce stade,
+`ezscore/ui/__init__.py` remplace uniquement la fonction lecteur importée par
+l'analyse STEM. C'est volontairement un crochet de validation. Une fois le
+rendu validé, il faudra transformer ce crochet en import explicite dans
+`stem_lab_analysis.py`.
