@@ -517,6 +517,27 @@ _HTML = r"""
   </div>
   <input class="seek" type="range" min="0" max="1" step="0.001" value="0">
 
+  <div class="source-presets">
+    <strong>Source</strong>
+    <button class="preset-original" type="button">Original</button>
+    <button class="preset-stems" type="button">Mix STEM</button>
+    <span class="source-state">Original</span>
+  </div>
+
+  <div class="mixer">
+    <div class="mixer-head">
+      <div>Piste</div><div>ON</div><div>Volume</div>
+      <div>Graves</div><div>Médiums</div><div>Aigus</div><div></div>
+    </div>
+    <div class="tracks"></div>
+
+    <div class="master-row">
+      <div class="master-name">Master</div>
+      <div class="master-value">100%</div>
+      <input class="master-volume master-control" type="range" min="0" max="1.25" step="0.01" value="1">
+    </div>
+  </div>
+
   <div class="meter-box">
     <strong>Mesure</strong>
     <input class="meter-num" type="number" min="1" step="1" value="4">
@@ -529,18 +550,21 @@ _HTML = r"""
   <div class="karaoke">
     <div class="playhead"></div>
     <div class="future-hint">temps courant</div>
+
     <div class="timeline-row chord-row">
       <div class="timeline-label">Accords</div>
       <div class="timeline-viewport chord-viewport">
         <div class="timeline-track chord-track"></div>
       </div>
     </div>
+
     <div class="timeline-row lyric-row lead-row">
       <div class="timeline-label">Chant</div>
       <div class="timeline-viewport lyric-viewport">
         <div class="timeline-track lyric-track"></div>
       </div>
     </div>
+
     <div class="timeline-row lyric-row backing-row">
       <div class="timeline-label">Chœurs</div>
       <div class="timeline-viewport backing-viewport">
@@ -549,18 +573,8 @@ _HTML = r"""
     </div>
   </div>
 
-  <details class="mixer-details" style="display:none">
-    <summary>Mixeur STEM</summary>
-    <div class="tracks"></div>
-    <div class="master-row">
-      <strong>Master</strong>
-      <input class="master-volume" type="range" min="0" max="1.25" step="0.01" value="1">
-      <span class="master-value">100%</span>
-    </div>
-  </details>
-
   <div class="hint">
-    Audio original = horloge maître · paroles Whisper + accords HQ sur la même timeline.
+    Une seule horloge WebAudio · Original ou mix STEM · EQ 3 bandes · accords + Chant + Chœurs synchronisés.
   </div>
 </div>
 """
@@ -568,41 +582,147 @@ _HTML = r"""
 _CSS = r"""
 :host { display:block; width:100%; }
 .ezk-root {
-  box-sizing:border-box; width:100%;
+  box-sizing:border-box;
+  width:100%;
   border:1px solid color-mix(in srgb, var(--st-text-color) 24%, transparent);
-  border-radius:12px; padding:12px;
+  border-radius:12px;
+  padding:12px;
   background:color-mix(in srgb, var(--st-text-color) 3%, transparent);
-  color:var(--st-text-color); font-family:var(--st-font);
+  color:var(--st-text-color);
+  font-family:var(--st-font);
 }
-.transport { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-.transport button {
-  min-height:32px; border-radius:7px;
+
+.transport {
+  display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+}
+.transport button,
+.source-presets button,
+.eq-reset {
+  min-height:32px;
+  border-radius:7px;
   border:1px solid color-mix(in srgb, var(--st-text-color) 35%, transparent);
   background:color-mix(in srgb, var(--st-text-color) 8%, transparent);
-  color:var(--st-text-color); cursor:pointer; padding:4px 9px;
+  color:var(--st-text-color);
+  cursor:pointer;
+  padding:4px 9px;
 }
-.time { margin-left:auto; font-size:12px; opacity:.75; font-variant-numeric:tabular-nums; }
-.seek { width:100%; margin:10px 0; }
+.time {
+  margin-left:auto;
+  font-size:12px;
+  opacity:.75;
+  font-variant-numeric:tabular-nums;
+}
+.seek { width:100%; margin:10px 0 12px; }
+
+.source-presets {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  margin:0 0 10px 0;
+  padding:7px 9px;
+  border-radius:8px;
+  background:color-mix(in srgb, var(--st-text-color) 5%, transparent);
+}
+.source-state {
+  margin-left:auto;
+  font-size:11px;
+  opacity:.70;
+}
+
+.mixer {
+  padding:9px;
+  margin-bottom:10px;
+  border-radius:9px;
+  background:color-mix(in srgb, var(--st-text-color) 4%, transparent);
+}
+.mixer-head, .track {
+  display:grid;
+  grid-template-columns:minmax(82px,1.15fr) 52px minmax(110px,1.35fr)
+                        minmax(90px,1fr) minmax(90px,1fr) minmax(90px,1fr) 66px;
+  gap:8px;
+  align-items:center;
+}
+.mixer-head {
+  font-size:11px;
+  font-weight:800;
+  opacity:.65;
+  padding:0 4px 5px;
+}
+.tracks { display:grid; gap:3px; }
+.track {
+  padding:5px 4px;
+  border-top:1px solid color-mix(in srgb, var(--st-text-color) 12%, transparent);
+}
+.track-name { font-weight:800; }
+.track-toggle {
+  display:flex;
+  align-items:center;
+  gap:5px;
+  font-size:11px;
+}
+.control-cell {
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:5px;
+  align-items:center;
+}
+.control-cell input[type="range"] { width:100%; min-width:0; }
+.volume-control input[type="range"], .master-control { accent-color:#4da3ff; }
+.low-control input[type="range"] { accent-color:#e67e22; }
+.mid-control input[type="range"] { accent-color:#9b59b6; }
+.high-control input[type="range"] { accent-color:#2ecc71; }
+.control-value {
+  width:42px;
+  text-align:right;
+  font-size:10px;
+  opacity:.72;
+  font-variant-numeric:tabular-nums;
+}
+.eq-reset { font-size:10px; min-height:28px; }
+
+.master-row {
+  display:grid;
+  grid-template-columns:82px 48px 1fr;
+  gap:8px;
+  align-items:center;
+  margin-top:10px;
+  padding-top:9px;
+  border-top:1px solid color-mix(in srgb, var(--st-text-color) 18%, transparent);
+}
+.master-name { font-weight:900; }
+.master-value {
+  font-size:11px;
+  opacity:.75;
+  font-variant-numeric:tabular-nums;
+}
+.master-volume { width:100%; }
+
 .meter-box {
-  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
-  font-size:12px; margin:4px 0 12px;
-  padding:7px 9px; border-radius:8px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+  font-size:12px;
+  margin:4px 0 12px;
+  padding:7px 9px;
+  border-radius:8px;
   background:color-mix(in srgb, var(--st-text-color) 5%, transparent);
 }
 .meter-box input {
   background:color-mix(in srgb, var(--st-text-color) 5%, transparent);
   color:var(--st-text-color);
   border:1px solid color-mix(in srgb, var(--st-text-color) 25%, transparent);
-  border-radius:5px; padding:3px 5px;
+  border-radius:5px;
+  padding:3px 5px;
 }
 .meter-num,.meter-den { width:52px; }
 .meter-group { width:92px; }
 .meter-state { opacity:.68; margin-left:auto; }
 
-
 .karaoke {
   position:relative;
-  min-height:196px;
+  min-height:238px;
   overflow:hidden;
   border-radius:10px;
   padding:14px 12px 12px;
@@ -632,7 +752,7 @@ _CSS = r"""
   display:grid;
   grid-template-columns:64px 1fr;
   align-items:center;
-  min-height:66px;
+  min-height:70px;
 }
 .timeline-label {
   position:relative;
@@ -646,7 +766,7 @@ _CSS = r"""
 .timeline-viewport {
   position:relative;
   overflow:hidden;
-  height:62px;
+  height:66px;
 }
 .timeline-track {
   position:absolute;
@@ -656,31 +776,26 @@ _CSS = r"""
   will-change:transform;
   transform:translate3d(0,0,0);
 }
-.chord-track {
-  white-space:nowrap;
-}
-.lyric-track,.backing-track {
-  white-space:nowrap;
-}
+.chord-track,.lyric-track,.backing-track { white-space:nowrap; }
+
 .lyric-token {
   position:absolute;
-  top:17px;
+  top:18px;
   display:inline-block;
   font-size:27px;
   font-weight:760;
   opacity:.34;
-  transition:opacity 70ms linear, transform 70ms linear;
-  transform-origin:center left;
+  transition:opacity 70ms linear;
 }
-.lyric-token.past { opacity:.62; }
+.lyric-token.past { opacity:.60; }
 .lyric-token.current {
   opacity:1;
   font-weight:900;
-  transform:none;
   text-decoration:underline;
   text-decoration-thickness:3px;
   text-underline-offset:6px;
 }
+.lead-row .lyric-token { color:#f4f4f4; }
 .backing-row .lyric-token {
   font-size:22px;
   color:#d49bff;
@@ -690,12 +805,10 @@ _CSS = r"""
   color:#f0c8ff;
   opacity:1;
 }
-.lead-row .lyric-token {
-  color:#f4f4f4;
-}
+
 .chord-marker {
   position:absolute;
-  top:13px;
+  top:14px;
   display:inline-block;
   font-family:Consolas,"Courier New",monospace;
   font-size:20px;
@@ -705,29 +818,21 @@ _CSS = r"""
   background:color-mix(in srgb, #4da3ff 20%, #15181d);
   border:1px solid color-mix(in srgb, #4da3ff 28%, transparent);
   transition:background 70ms linear, border-color 70ms linear;
-  transform:none;
 }
 .chord-marker.active {
   background:color-mix(in srgb, #4da3ff 42%, #15181d);
   border-color:color-mix(in srgb, #4da3ff 72%, transparent);
-  transform:none;
 }
-.timeline-row.hidden { display:none; }
-.mixer-details { margin-top:12px; }
-.mixer-details summary { cursor:pointer; font-weight:800; }
-.tracks { margin-top:8px; display:grid; gap:5px; }
-.track {
-  display:grid; grid-template-columns:minmax(90px,1fr) 58px minmax(120px,2fr);
-  gap:8px; align-items:center; font-size:12px;
-  padding:4px 0; border-top:1px solid color-mix(in srgb, var(--st-text-color) 10%, transparent);
+.hint { margin-top:10px; font-size:11px; opacity:.66; }
+
+@media(max-width:950px) {
+  .mixer-head { display:none; }
+  .track { grid-template-columns:1fr 58px; }
+  .track-name { grid-column:1; }
+  .track-toggle { grid-column:2; justify-self:end; }
+  .control-cell, .eq-reset { grid-column:1 / -1; }
+  .eq-reset { justify-self:start; }
 }
-.track input[type="range"], .master-volume { width:100%; }
-.master-row {
-  display:grid; grid-template-columns:90px 1fr 55px; gap:8px;
-  align-items:center; margin-top:8px;
-}
-.master-value { text-align:right; font-size:11px; opacity:.72; }
-.hint { margin-top:10px; font-size:11px; opacity:.65; }
 """
 
 _JS = r"""
@@ -735,26 +840,32 @@ export default function(component) {
   const data = component.data || {};
   const root = component.parentElement;
 
-  const tracksDef = Array.isArray(data.tracks) ? data.tracks : [];
+  const defs = Array.isArray(data.tracks) ? data.tracks : [];
   const words = Array.isArray(data.words) ? data.words : [];
   const leadInput = Array.isArray(data.lead_words) ? data.lead_words : words;
   const backingInput = Array.isArray(data.backing_words) ? data.backing_words : [];
   const beats = Array.isArray(data.beats) ? data.beats : [];
   const meterDefault = data.meter_default || {signature:"4/4", grouping:""};
 
-  const playBtn = root.querySelector(".play");
-  const pauseBtn = root.querySelector(".pause");
-  const stopBtn = root.querySelector(".stop");
+  const playButton = root.querySelector(".play");
+  const pauseButton = root.querySelector(".pause");
+  const stopButton = root.querySelector(".stop");
   const seek = root.querySelector(".seek");
   const timeLabel = root.querySelector(".time");
+
+  const presetOriginal = root.querySelector(".preset-original");
+  const presetStems = root.querySelector(".preset-stems");
+  const sourceState = root.querySelector(".source-state");
+
   const tracksNode = root.querySelector(".tracks");
-  const masterSlider = root.querySelector(".master-volume");
+  const masterVolume = root.querySelector(".master-volume");
   const masterValue = root.querySelector(".master-value");
+
   const numInput = root.querySelector(".meter-num");
   const denInput = root.querySelector(".meter-den");
   const groupingInput = root.querySelector(".meter-group");
   const meterState = root.querySelector(".meter-state");
-  const karaokeNode = root.querySelector(".karaoke");
+
   const leadViewport = root.querySelector(".lyric-viewport");
   const leadTrack = root.querySelector(".lyric-track");
   const chordViewport = root.querySelector(".chord-viewport");
@@ -763,6 +874,112 @@ export default function(component) {
   const backingViewport = root.querySelector(".backing-viewport");
   const backingTrack = root.querySelector(".backing-track");
 
+  const trackState = defs.map((track) => ({
+    enabled:Boolean(track.enabled),
+    volume:Number(track.volume ?? .8),
+    low:Number(track.low ?? 0),
+    mid:Number(track.mid ?? 0),
+    high:Number(track.high ?? 0),
+  }));
+  let masterState = 1.0;
+
+  let context = null;
+  let decoded = [];
+  let trackNodes = [];
+  let masterGain = null;
+  let sources = [];
+  let ready = false;
+  let playing = false;
+  let disposed = false;
+  let position = 0;
+  let startedAtContextTime = 0;
+  let duration = 0;
+  let raf = null;
+
+  const anchorRatio = .38;
+
+  function fmt(seconds) {
+    const t = Math.max(0, Number(seconds) || 0);
+    const m = Math.floor(t / 60);
+    return m + ":" + String(Math.floor(t % 60)).padStart(2,"0");
+  }
+
+  function currentTime() {
+    if (!playing || !context) return position;
+    return Math.max(
+      0,
+      Math.min(duration, position + (context.currentTime - startedAtContextTime))
+    );
+  }
+
+  function dbToLinear(db) {
+    return Math.pow(10, Number(db || 0) / 20);
+  }
+
+  function compensationFor(state) {
+    const avg = (
+      dbToLinear(state.low) +
+      dbToLinear(state.mid) +
+      dbToLinear(state.high)
+    ) / 3;
+    if (!Number.isFinite(avg) || avg <= .0001) return 1.0;
+    return Math.max(.72, Math.min(1.25, 1 / avg));
+  }
+
+  function applyTrackState(index, smooth=true) {
+    if (!ready || !trackNodes[index] || !context) return;
+    const state = trackState[index];
+    const nodes = trackNodes[index];
+    const now = context.currentTime;
+
+    const setValue = (param, value) => {
+      if (smooth) param.setTargetAtTime(value, now, .015);
+      else param.value = value;
+    };
+
+    setValue(nodes.lowGain.gain, dbToLinear(state.low));
+    setValue(nodes.midGain.gain, dbToLinear(state.mid));
+    setValue(nodes.highGain.gain, dbToLinear(state.high));
+    const enabledGain = state.enabled ? state.volume : 0;
+    setValue(nodes.trackGain.gain, enabledGain * compensationFor(state));
+  }
+
+  function applyMasterState(smooth=true) {
+    if (!ready || !masterGain || !context) return;
+    const now = context.currentTime;
+    if (smooth) masterGain.gain.setTargetAtTime(masterState, now, .015);
+    else masterGain.gain.value = masterState;
+  }
+
+  function sourceModeLabel() {
+    const originalIndex = defs.findIndex(d => d.name === "original");
+    const originalOn = originalIndex >= 0 && trackState[originalIndex].enabled;
+    const stemOn = defs.some((d,i) => d.name !== "original" && trackState[i].enabled);
+    if (originalOn && !stemOn) return "Original";
+    if (!originalOn && stemOn) return "Mix STEM";
+    if (originalOn && stemOn) return "Original + STEM";
+    return "Muet";
+  }
+
+  function refreshSourceState() {
+    sourceState.textContent = sourceModeLabel();
+  }
+
+  function setPreset(mode) {
+    defs.forEach((def,index) => {
+      if (mode === "original") {
+        trackState[index].enabled = def.name === "original";
+      } else {
+        trackState[index].enabled = def.name !== "original";
+      }
+      const checkbox = root.querySelector(`[data-track-on="${index}"]`);
+      if (checkbox) checkbox.checked = trackState[index].enabled;
+      applyTrackState(index);
+    });
+    refreshSourceState();
+  }
+
+  // -------- Meter / presentation only --------
   const meterParts = String(meterDefault.signature || "4/4").split("/");
   numInput.value = String(Math.max(1, Number(meterParts[0] || 4)));
   denInput.value = String(Math.max(1, Number(meterParts[1] || 4)));
@@ -778,38 +995,7 @@ export default function(component) {
     }
   } catch (_) {}
 
-  let context = null;
-  let decoded = [];
-  let nodes = [];
-  let masterGain = null;
-  let sources = [];
-  let ready = false;
-  let playing = false;
-  let position = 0;
-  let startedAt = 0;
-  let duration = 0;
-  let disposed = false;
-  let raf = null;
-  const pixelsPerSecond = 92;
-  const anchorRatio = 0.38;
-
-  const trackState = tracksDef.map((x) => ({
-    enabled: Boolean(x.enabled),
-    volume: Number(x.volume ?? .8)
-  }));
-
-  function fmt(value) {
-    const t = Math.max(0, Number(value) || 0);
-    const m = Math.floor(t / 60);
-    return m + ":" + String(Math.floor(t % 60)).padStart(2, "0");
-  }
-
-  function currentTime() {
-    if (!playing || !context) return position;
-    return Math.max(0, Math.min(duration, position + context.currentTime - startedAt));
-  }
-
-  function parseGrouping(n, d, text) {
+  function parseGrouping(n,d,text) {
     const raw = String(text || "").trim();
     if (raw) {
       const groups = raw.split("+").map(x => Number(x.trim())).filter(x => x > 0);
@@ -826,69 +1012,66 @@ export default function(component) {
   function meter() {
     const n = Math.max(1, Math.floor(Number(numInput.value || 4)));
     const d = Math.max(1, Math.floor(Number(denInput.value || 4)));
-    const groups = parseGrouping(n, d, groupingInput.value);
+    const groups = parseGrouping(n,d,groupingInput.value);
     const grouped = d >= 8 && groups.some(x => x > 1);
-    const beatsPerMeasure = grouped ? groups.length : n;
-    return {n, d, groups, grouped, beatsPerMeasure};
+    return {
+      n,d,groups,grouped,
+      beatsPerMeasure: grouped ? groups.length : n
+    };
   }
 
+  let renderedMeterKey = "";
   function persistMeter() {
     const m = meter();
     try {
       localStorage.setItem(storageKey, JSON.stringify({
-        numerator:m.n, denominator:m.d, grouping:groupingInput.value
+        numerator:m.n,
+        denominator:m.d,
+        grouping:groupingInput.value
       }));
     } catch (_) {}
     meterState.textContent =
       m.n + "/" + m.d + " · " +
       (groupingInput.value.trim() || m.groups.join("+"));
+    renderedMeterKey = "";
   }
 
-  [numInput, denInput, groupingInput].forEach((el) => {
+  [numInput,denInput,groupingInput].forEach(el => {
     el.addEventListener("change", persistMeter);
     el.addEventListener("input", persistMeter);
   });
 
+  // -------- Continuous lyrics geometry --------
   function normalizedWords(input) {
     return (Array.isArray(input) ? input : [])
-      .map((w) => ({
+      .map(w => ({
         text:String(w.text || "").trim(),
         start:Number(w.start || 0),
         end:Number(w.end || w.start || 0),
       }))
-      .filter((w) => w.text && Number.isFinite(w.start) && Number.isFinite(w.end))
-      .sort((a,b) => a.start - b.start || a.end - b.end);
+      .filter(w => w.text && Number.isFinite(w.start) && Number.isFinite(w.end))
+      .sort((a,b)=>a.start-b.start || a.end-b.end);
   }
 
   const leadWords = normalizedWords(leadInput);
   const backingWords = normalizedWords(backingInput);
-
-  // Master semantic sequence used only for visual geometry. It contains both
-  // lanes so intro backing vocals and later lead lyrics share one continuous
-  // compact timeline without black temporal canyons.
-  const masterWords = normalizedWords(
-    [...leadWords, ...backingWords].sort((a,b) => a.start - b.start || a.end - b.end)
-  );
+  const masterWords = normalizedWords([...leadWords,...backingWords]);
 
   let masterVisualX = [];
-
   function buildMasterGeometry() {
-    masterVisualX = [];
     let cursor = 0;
-    masterWords.forEach((w) => {
+    masterVisualX = [];
+    masterWords.forEach(w => {
       masterVisualX.push(cursor);
-      const estimatedWidth = Math.max(34, w.text.length * 15 + 18);
-      cursor += estimatedWidth;
+      cursor += Math.max(34, w.text.length * 15 + 18);
     });
     return Math.max(1, cursor + 260);
   }
-
   const masterWidth = buildMasterGeometry();
 
   function visualXForTime(time) {
     if (!masterWords.length) return 0;
     const t = Number(time || 0);
-
     if (masterWords.length === 1) return masterVisualX[0];
 
     const first = masterWords[0];
@@ -896,98 +1079,95 @@ export default function(component) {
       const span = Math.max(.25, first.start);
       const p = Math.max(0, Math.min(1, t / span));
       const preview = Math.min(360, Math.max(180, leadViewport.clientWidth * .32));
-      return masterVisualX[0] - preview * (1 - p);
+      return masterVisualX[0] - preview * (1-p);
     }
 
-    let low = 0, high = masterWords.length - 1, left = 0;
+    let low=0, high=masterWords.length-1, left=0;
     while (low <= high) {
-      const mid = (low + high) >> 1;
+      const mid=(low+high)>>1;
       if (masterWords[mid].start <= t) {
-        left = mid;
-        low = mid + 1;
-      } else {
-        high = mid - 1;
-      }
+        left=mid; low=mid+1;
+      } else high=mid-1;
     }
 
-    if (left >= masterWords.length - 1) {
-      const last = masterWords[masterWords.length - 1];
-      const after = Math.max(0, t - last.start);
-      return masterVisualX[masterVisualX.length - 1] + Math.min(260, after * 28);
+    if (left >= masterWords.length-1) {
+      const last = masterWords[masterWords.length-1];
+      return masterVisualX[masterVisualX.length-1] +
+        Math.min(260, Math.max(0,t-last.start)*28);
     }
 
-    const a = masterWords[left];
-    const b = masterWords[left + 1];
-    const ta = Number(a.start);
-    const tb = Math.max(ta + .04, Number(b.start));
-    const p = Math.max(0, Math.min(1, (t - ta) / (tb - ta)));
-    return masterVisualX[left] + (masterVisualX[left + 1] - masterVisualX[left]) * p;
+    const a=masterWords[left], b=masterWords[left+1];
+    const ta=a.start, tb=Math.max(ta+.04,b.start);
+    const p=Math.max(0,Math.min(1,(t-ta)/(tb-ta)));
+    return masterVisualX[left] +
+      (masterVisualX[left+1]-masterVisualX[left])*p;
   }
 
   function createLane(track, sourceWords) {
     track.innerHTML = "";
     track.style.width = masterWidth + "px";
-    return sourceWords.map((w) => {
-      const span = document.createElement("span");
-      span.className = "lyric-token";
-      span.textContent = w.text;
-      span.style.left = visualXForTime(w.start) + "px";
+    return sourceWords.map(w => {
+      const span=document.createElement("span");
+      span.className="lyric-token";
+      span.textContent=w.text;
+      span.style.left=visualXForTime(w.start)+"px";
       track.appendChild(span);
       return span;
     });
   }
 
-  const leadNodes = createLane(leadTrack, leadWords);
-  const backingNodes = createLane(backingTrack, backingWords);
+  const leadNodes=createLane(leadTrack,leadWords);
+  const backingNodes=createLane(backingTrack,backingWords);
+  backingRow.style.display = backingWords.length ? "grid" : "none";
 
-  if (!backingWords.length) {
-    backingRow.style.display = "none";
-  } else {
-    backingRow.style.display = "grid";
-  }
-
-  function activeWordIndex(sourceWords, time) {
+  function activeWordIndex(sourceWords,time) {
     if (!sourceWords.length) return -1;
     let low=0, high=sourceWords.length-1, answer=-1;
-    while (low <= high) {
+    while (low<=high) {
       const mid=(low+high)>>1;
-      if (sourceWords[mid].start <= time) {
-        answer=mid;
-        low=mid+1;
+      if (sourceWords[mid].start<=time) {
+        answer=mid; low=mid+1;
       } else high=mid-1;
     }
-    if (answer < 0) return -1;
+    if (answer<0) return -1;
     const w=sourceWords[answer];
-    if (time <= Math.max(w.end, w.start + .06)) return answer;
-    return -1;
+    return time <= Math.max(w.end,w.start+.06) ? answer : -1;
   }
 
-  function measureNotation(measureIndex, m) {
-    const startBeat = measureIndex * m.beatsPerMeasure;
-    if (startBeat >= beats.length) return null;
-    const beatSlice = beats.slice(startBeat, startBeat + m.beatsPerMeasure);
+  function translateLyricTimeline(track,viewport,time) {
+    if (!track || !viewport) return;
+    const anchor=viewport.clientWidth*anchorRatio;
+    track.style.transform =
+      "translate3d(" + (anchor-visualXForTime(time)).toFixed(2) + "px,0,0)";
+  }
+
+  // -------- Chords / measure presentation --------
+  function measureNotation(measureIndex,m) {
+    const startBeat=measureIndex*m.beatsPerMeasure;
+    if (startBeat>=beats.length) return null;
+    const beatSlice=beats.slice(startBeat,startBeat+m.beatsPerMeasure);
     if (!beatSlice.length) return null;
 
-    let notation = "";
-    let prevChord = null;
-    beatSlice.forEach((beat, localIndex) => {
-      let chord = String(beat.chord || ".").trim() || ".";
+    let notation="";
+    let prevChord=null;
+    beatSlice.forEach((beat,localIndex) => {
+      const chord=String(beat.chord || ".").trim() || ".";
       let token;
-      if (chord === ".") token = ".";
-      else if (localIndex === 0) token = chord;
-      else if (chord === prevChord) token = "-";
-      else token = chord;
+      if (chord === ".") token=".";
+      else if (localIndex===0) token=chord;
+      else if (chord===prevChord) token="-";
+      else token=chord;
 
       if (m.grouped) {
-        const count = Math.max(1, Number(m.groups[localIndex] || 1));
+        const count=Math.max(1,Number(m.groups[localIndex] || 1));
         if (token === ".") notation += ".".repeat(count);
         else if (token === "-") notation += "-".repeat(count);
-        else notation += token + "-".repeat(Math.max(0, count - 1));
-      } else {
-        notation += token;
-      }
-      prevChord = chord;
+        else notation += token + "-".repeat(Math.max(0,count-1));
+      } else notation += token;
+
+      prevChord=chord;
     });
+
     return {
       notation,
       start:Number(beatSlice[0].start || 0),
@@ -995,260 +1175,348 @@ export default function(component) {
     };
   }
 
-  let renderedMeterKey = "";
-  let chordMeasures = [];
-  let chordNodes = [];
-  const measureSlotWidth = 138;
+  let chordMeasures=[];
+  let chordNodes=[];
+  const measureSlotWidth=138;
 
   function rebuildChordTimeline() {
-    const m = meter();
-    const key = m.n + "/" + m.d + "|" + m.groups.join("+");
-    if (key === renderedMeterKey && chordNodes.length) return;
-    renderedMeterKey = key;
-    chordTrack.innerHTML = "";
-    chordMeasures = [];
-    chordNodes = [];
+    const m=meter();
+    const key=m.n+"/"+m.d+"|"+m.groups.join("+");
+    if (key===renderedMeterKey && chordNodes.length) return;
 
-    const count = Math.ceil(beats.length / m.beatsPerMeasure);
+    renderedMeterKey=key;
+    chordTrack.innerHTML="";
+    chordMeasures=[];
+    chordNodes=[];
+
+    const count=Math.ceil(beats.length/m.beatsPerMeasure);
     for (let i=0;i<count;i++) {
-      const item = measureNotation(i, m);
+      const item=measureNotation(i,m);
       if (!item) continue;
-      item.visualX = i * measureSlotWidth;
+      item.visualX=i*measureSlotWidth;
       chordMeasures.push(item);
 
-      const marker = document.createElement("span");
-      marker.className = "chord-marker";
-      marker.textContent = item.notation;
-      marker.style.left = item.visualX + "px";
-      marker.style.width = (measureSlotWidth - 12) + "px";
-      marker.style.boxSizing = "border-box";
-      marker.style.overflow = "hidden";
-      marker.style.textOverflow = "clip";
+      const marker=document.createElement("span");
+      marker.className="chord-marker";
+      marker.textContent=item.notation;
+      marker.style.left=item.visualX+"px";
+      marker.style.width=(measureSlotWidth-12)+"px";
+      marker.style.boxSizing="border-box";
+      marker.style.overflow="hidden";
       chordTrack.appendChild(marker);
       chordNodes.push(marker);
     }
-    chordTrack.style.width =
-      Math.max(1, chordMeasures.length * measureSlotWidth + 220) + "px";
+    chordTrack.style.width=
+      Math.max(1,chordMeasures.length*measureSlotWidth+220)+"px";
   }
 
   function chordVisualXForTime(time) {
     if (!chordMeasures.length) return 0;
-    const t = Number(time || 0);
-
-    if (t <= chordMeasures[0].start) return chordMeasures[0].visualX;
+    const t=Number(time || 0);
+    if (t<=chordMeasures[0].start) return chordMeasures[0].visualX;
 
     for (let i=0;i<chordMeasures.length;i++) {
-      const m = chordMeasures[i];
-      if (t >= m.start && t < Math.max(m.end, m.start + .02)) {
-        const duration = Math.max(.02, m.end - m.start);
-        const p = Math.max(0, Math.min(1, (t - m.start) / duration));
-        return m.visualX + p * measureSlotWidth;
+      const m=chordMeasures[i];
+      if (t>=m.start && t<Math.max(m.end,m.start+.02)) {
+        const p=Math.max(0,Math.min(1,(t-m.start)/Math.max(.02,m.end-m.start)));
+        return m.visualX+p*measureSlotWidth;
       }
     }
-    return chordMeasures[chordMeasures.length - 1].visualX + measureSlotWidth;
+    return chordMeasures[chordMeasures.length-1].visualX+measureSlotWidth;
   }
 
-  function translateLyricTimeline(track, viewport, time) {
-    if (!track || !viewport) return;
-    const anchor = viewport.clientWidth * anchorRatio;
-    const xNow = visualXForTime(time);
-    track.style.transform =
-      "translate3d(" + (anchor - xNow).toFixed(2) + "px,0,0)";
-  }
-
-  function translateChordTimeline(time) {
-    if (!chordTrack || !chordViewport) return;
-    const anchor = chordViewport.clientWidth * anchorRatio;
-    const xNow = chordVisualXForTime(time);
-    chordTrack.style.transform =
-      "translate3d(" + (anchor - xNow).toFixed(2) + "px,0,0)";
-  }
-
-  function renderConductor(time, force=false) {
+  function renderConductor(time) {
     rebuildChordTimeline();
 
-    translateLyricTimeline(leadTrack, leadViewport, time);
-    translateChordTimeline(time);
+    const chordAnchor=chordViewport.clientWidth*anchorRatio;
+    chordTrack.style.transform =
+      "translate3d(" + (chordAnchor-chordVisualXForTime(time)).toFixed(2) + "px,0,0)";
 
+    translateLyricTimeline(leadTrack,leadViewport,time);
     if (backingWords.length) {
-      translateLyricTimeline(backingTrack, backingViewport, time);
+      translateLyricTimeline(backingTrack,backingViewport,time);
     }
 
-    const currentWord = activeWordIndex(leadWords, time);
-    leadNodes.forEach((node, i) => {
-      const w = leadWords[i];
-      node.classList.toggle("past", time > w.end);
-      node.classList.toggle("current", i === currentWord);
+    const currentLead=activeWordIndex(leadWords,time);
+    leadNodes.forEach((node,i) => {
+      node.classList.toggle("past", time>leadWords[i].end);
+      node.classList.toggle("current", i===currentLead);
     });
 
-    const currentBackingWord = activeWordIndex(backingWords, time);
-    backingNodes.forEach((node, i) => {
-      const w = backingWords[i];
-      node.classList.toggle("past", time > w.end);
-      node.classList.toggle("current", i === currentBackingWord);
+    const currentBacking=activeWordIndex(backingWords,time);
+    backingNodes.forEach((node,i) => {
+      node.classList.toggle("past", time>backingWords[i].end);
+      node.classList.toggle("current", i===currentBacking);
     });
 
-    chordNodes.forEach((node, i) => {
-      const m = chordMeasures[i];
-      node.classList.toggle(
-        "active",
-        Boolean(m && time >= m.start && time < m.end)
-      );
+    chordNodes.forEach((node,i) => {
+      const m=chordMeasures[i];
+      node.classList.toggle("active",Boolean(m && time>=m.start && time<m.end));
     });
   }
 
   persistMeter();
-  renderConductor(0, true);
+  renderConductor(0);
 
-  function applyTrack(index) {
-    if (!ready || !nodes[index] || !context) return;
-    const gain = trackState[index].enabled ? trackState[index].volume : 0;
-    nodes[index].gain.gain.setTargetAtTime(gain, context.currentTime, .015);
+  // -------- Mixer UI --------
+  function makeSlider(index,field,min,max,step,suffix,categoryClass="") {
+    const wrap=document.createElement("div");
+    wrap.className="control-cell" + (categoryClass ? " "+categoryClass : "");
+
+    const slider=document.createElement("input");
+    slider.type="range";
+    slider.min=String(min);
+    slider.max=String(max);
+    slider.step=String(step);
+    slider.value=String(trackState[index][field]);
+
+    const value=document.createElement("span");
+    value.className="control-value";
+
+    function renderValue() {
+      const v=Number(slider.value);
+      value.textContent = suffix==="dB"
+        ? (v>0?"+":"")+v.toFixed(0)+" dB"
+        : Math.round(v*100)+"%";
+    }
+
+    slider.addEventListener("input",() => {
+      trackState[index][field]=Number(slider.value);
+      renderValue();
+      applyTrackState(index);
+    });
+
+    renderValue();
+    wrap.append(slider,value);
+    return {wrap,slider,renderValue};
   }
 
+  const rowControls=[];
+  defs.forEach((def,index) => {
+    const row=document.createElement("div");
+    row.className="track";
+
+    const name=document.createElement("div");
+    name.className="track-name";
+    name.textContent=String(def.label || def.name || "Piste");
+
+    const toggleLabel=document.createElement("label");
+    toggleLabel.className="track-toggle";
+    const on=document.createElement("input");
+    on.type="checkbox";
+    on.checked=trackState[index].enabled;
+    on.dataset.trackOn=String(index);
+    on.addEventListener("change",() => {
+      trackState[index].enabled=on.checked;
+      applyTrackState(index);
+      refreshSourceState();
+    });
+    toggleLabel.append(on,document.createTextNode(" Actif"));
+
+    const volume=makeSlider(index,"volume",0,1.25,.01,"","volume-control");
+    const low=makeSlider(index,"low",-12,12,1,"dB","low-control");
+    const mid=makeSlider(index,"mid",-12,12,1,"dB","mid-control");
+    const high=makeSlider(index,"high",-12,12,1,"dB","high-control");
+
+    const reset=document.createElement("button");
+    reset.className="eq-reset";
+    reset.type="button";
+    reset.textContent="Reset EQ";
+    reset.addEventListener("click",() => {
+      trackState[index].low=0;
+      trackState[index].mid=0;
+      trackState[index].high=0;
+      low.slider.value="0";
+      mid.slider.value="0";
+      high.slider.value="0";
+      low.renderValue(); mid.renderValue(); high.renderValue();
+      applyTrackState(index);
+    });
+
+    row.append(
+      name,toggleLabel,volume.wrap,low.wrap,mid.wrap,high.wrap,reset
+    );
+    tracksNode.appendChild(row);
+    rowControls.push({on,volume,low,mid,high});
+  });
+
+  presetOriginal.addEventListener("click",()=>setPreset("original"));
+  presetStems.addEventListener("click",()=>setPreset("stems"));
+
+  masterVolume.addEventListener("input",() => {
+    masterState=Number(masterVolume.value || 1);
+    masterValue.textContent=Math.round(masterState*100)+"%";
+    applyMasterState();
+  });
+
+  refreshSourceState();
+
+  // -------- WebAudio engine / proven 3-band crossover --------
   async function ensureReady() {
     if (ready) {
-      if (context.state === "suspended") await context.resume();
+      if (context.state==="suspended") await context.resume();
       return;
     }
-    playBtn.disabled = true;
-    playBtn.textContent = "Chargement audio…";
-    context = new (window.AudioContext || window.webkitAudioContext)({latencyHint:"interactive"});
-    masterGain = context.createGain();
-    masterGain.gain.value = Number(masterSlider.value || 1);
+
+    playButton.disabled=true;
+    playButton.textContent="Chargement audio…";
+
+    context=new (window.AudioContext || window.webkitAudioContext)({
+      latencyHint:"interactive"
+    });
+    masterGain=context.createGain();
+    masterGain.gain.value=masterState;
     masterGain.connect(context.destination);
 
-    for (let i=0;i<tracksDef.length;i++) {
-      const def = tracksDef[i];
-      const response = await fetch(String(def.url || ""), {cache:"force-cache"});
-      if (!response.ok) throw new Error("HTTP média " + response.status);
-      const buf = await context.decodeAudioData(await response.arrayBuffer());
-      decoded.push(buf);
-      const gain = context.createGain();
-      gain.connect(masterGain);
-      nodes.push({gain});
-      if (i === 0) duration = Number(buf.duration || 0);
+    decoded=[];
+    trackNodes=[];
+
+    for (let i=0;i<defs.length;i++) {
+      const response=await fetch(String(defs[i].url || ""),{cache:"force-cache"});
+      if (!response.ok) {
+        throw new Error("HTTP média "+response.status+" pour "+String(defs[i].label || defs[i].name));
+      }
+
+      const buffer=await context.decodeAudioData(await response.arrayBuffer());
+      decoded.push(buffer);
+
+      const lowLP=context.createBiquadFilter();
+      lowLP.type="lowpass";
+      lowLP.frequency.value=250;
+      lowLP.Q.value=.707;
+
+      const midHP=context.createBiquadFilter();
+      midHP.type="highpass";
+      midHP.frequency.value=250;
+      midHP.Q.value=.707;
+
+      const midLP=context.createBiquadFilter();
+      midLP.type="lowpass";
+      midLP.frequency.value=4000;
+      midLP.Q.value=.707;
+
+      const highHP=context.createBiquadFilter();
+      highHP.type="highpass";
+      highHP.frequency.value=4000;
+      highHP.Q.value=.707;
+
+      const lowGain=context.createGain();
+      const midGain=context.createGain();
+      const highGain=context.createGain();
+      const bandSum=context.createGain();
+      const trackGain=context.createGain();
+
+      lowLP.connect(lowGain); lowGain.connect(bandSum);
+      midHP.connect(midLP); midLP.connect(midGain); midGain.connect(bandSum);
+      highHP.connect(highGain); highGain.connect(bandSum);
+      bandSum.connect(trackGain);
+      trackGain.connect(masterGain);
+
+      trackNodes.push({
+        lowLP,midHP,midLP,highHP,
+        lowGain,midGain,highGain,bandSum,trackGain
+      });
+
+      if (i===0) duration=Number(buffer.duration || 0);
     }
 
-    seek.max = String(Math.max(.001, duration));
-    ready = true;
-    trackState.forEach((_,i)=>applyTrack(i));
-    playBtn.disabled = false;
-    playBtn.textContent = "▶ Lecture";
+    seek.max=String(Math.max(.001,duration));
+    ready=true;
+    trackState.forEach((_,i)=>applyTrackState(i,false));
+    applyMasterState(false);
+
+    playButton.disabled=false;
+    playButton.textContent="▶ Lecture";
   }
 
   function stopSources() {
-    sources.forEach((s) => {
-      try { s.stop(); } catch (_) {}
-      try { s.disconnect(); } catch (_) {}
+    sources.forEach(source => {
+      try { source.stop(); } catch (_) {}
+      try { source.disconnect(); } catch (_) {}
     });
-    sources = [];
+    sources=[];
   }
 
   function startSources(offset) {
     stopSources();
-    const when = context.currentTime + .03;
-    sources = decoded.map((buffer,index) => {
-      const src = context.createBufferSource();
-      src.buffer = buffer;
-      src.connect(nodes[index].gain);
-      const safe = Math.max(0, Math.min(Number(offset)||0, Math.max(0, buffer.duration-.001)));
-      src.start(when, safe);
-      return src;
+    const when=context.currentTime+.030;
+
+    sources=decoded.map((buffer,index) => {
+      const source=context.createBufferSource();
+      source.buffer=buffer;
+
+      // Same source fans out into the three crossover branches.
+      source.connect(trackNodes[index].lowLP);
+      source.connect(trackNodes[index].midHP);
+      source.connect(trackNodes[index].highHP);
+
+      const safeOffset=Math.max(
+        0,
+        Math.min(Number(offset)||0,Math.max(0,buffer.duration-.001))
+      );
+      source.start(when,safeOffset);
+      return source;
     });
-    position = Math.max(0, Math.min(duration, Number(offset)||0));
-    startedAt = when;
-    playing = true;
+
+    position=Math.max(0,Math.min(duration,Number(offset)||0));
+    startedAtContextTime=when;
+    playing=true;
   }
 
   async function playAll() {
     await ensureReady();
-    if (context.state === "suspended") await context.resume();
+    if (context.state==="suspended") await context.resume();
     if (playing) return;
-    if (position >= duration-.01) position = 0;
+    if (position>=duration-.01) position=0;
     startSources(position);
   }
 
   function pauseAll() {
     if (!playing) return;
-    position = currentTime();
-    playing = false;
+    position=currentTime();
+    playing=false;
     stopSources();
   }
 
   function stopAll() {
-    playing = false;
+    playing=false;
     stopSources();
-    position = 0;
-    seek.value = "0";
-    renderConductor(0, true);
+    position=0;
+    seek.value="0";
+    renderConductor(0);
+    timeLabel.textContent="0:00 / "+fmt(duration);
   }
 
   function seekTo(value) {
-    position = Math.max(0, Math.min(duration, Number(value)||0));
+    position=Math.max(0,Math.min(duration,Number(value)||0));
     if (playing) startSources(position);
-    renderConductor(position, true);
+    renderConductor(position);
   }
 
-  tracksDef.forEach((def,index) => {
-    const row = document.createElement("div");
-    row.className = "track";
-
-    const name = document.createElement("strong");
-    name.textContent = String(def.label || def.name || "Piste");
-
-    const onLabel = document.createElement("label");
-    const on = document.createElement("input");
-    on.type = "checkbox";
-    on.checked = trackState[index].enabled;
-    on.addEventListener("change", () => {
-      trackState[index].enabled = on.checked;
-      applyTrack(index);
-    });
-    onLabel.append(on, document.createTextNode(" Actif"));
-
-    const vol = document.createElement("input");
-    vol.type = "range"; vol.min="0"; vol.max="1.25"; vol.step=".01";
-    vol.value = String(trackState[index].volume);
-    vol.addEventListener("input", () => {
-      trackState[index].volume = Number(vol.value);
-      applyTrack(index);
-    });
-
-    row.append(name, onLabel, vol);
-    tracksNode.appendChild(row);
-  });
-
-  masterSlider.addEventListener("input", () => {
-    const value = Number(masterSlider.value || 1);
-    masterValue.textContent = Math.round(value * 100) + "%";
-    if (masterGain && context) masterGain.gain.setTargetAtTime(value, context.currentTime, .015);
-  });
-
-  playBtn.addEventListener("click", () => playAll().catch((e) => {
-    playBtn.disabled = false;
-    playBtn.textContent = "▶ Lecture";
+  playButton.addEventListener("click",()=>playAll().catch(e => {
+    playButton.disabled=false;
+    playButton.textContent="▶ Lecture";
     console.error(e);
   }));
-  pauseBtn.addEventListener("click", pauseAll);
-  stopBtn.addEventListener("click", stopAll);
-  seek.addEventListener("input", () => seekTo(Number(seek.value || 0)));
+  pauseButton.addEventListener("click",pauseAll);
+  stopButton.addEventListener("click",stopAll);
+  seek.addEventListener("input",()=>seekTo(Number(seek.value || 0)));
 
   function tick() {
     if (disposed) return;
-    const t = currentTime();
-    seek.value = String(t);
-    timeLabel.textContent = fmt(t) + " / " + fmt(duration);
+    const t=currentTime();
+    seek.value=String(t);
+    timeLabel.textContent=fmt(t)+" / "+fmt(duration);
     renderConductor(t);
-    if (playing && t >= duration-.01) stopAll();
-    raf = requestAnimationFrame(tick);
+    if (playing && t>=duration-.01) stopAll();
+    raf=requestAnimationFrame(tick);
   }
 
   tick();
 
   return function() {
-    disposed = true;
-    if (raf !== null) cancelAnimationFrame(raf);
+    disposed=true;
+    if (raf!==null) cancelAnimationFrame(raf);
     stopSources();
     try { if (context) context.close(); } catch (_) {}
   };
@@ -1256,7 +1524,7 @@ export default function(component) {
 """
 
 _COMPONENT = st.components.v2.component(
-    "ezscore_karaoke_stem_player_r8",
+    "ezscore_karaoke_stem_player_r9",
     html=_HTML,
     css=_CSS,
     js=_JS,
@@ -1278,24 +1546,63 @@ def render_player(
     As soon as Whisper words exist, it builds the HQ rhythm/harmony timeline
     and shows a karaoke-style lyrics+chords conductor.
     """
-    # The regular STEM controls already exist in the analysis surface.
-    # This conductor therefore owns only the master/original audio transport;
-    # it must not duplicate the STEM mixer or play the separated stems again.
-    original_preview = make_browser_preview(source, preview_dir)
-    original_url = register_media_url(
-        original_preview,
-        coordinates=f"{key}:karaoke:original",
-        mimetype="audio/mpeg",
-    )
-    tracks: list[dict[str, Any]] = [
-        {
-            "name": "original",
-            "label": "Original",
-            "url": original_url,
-            "enabled": True,
-            "volume": 1.0,
-        }
-    ]
+    # Single unified player: original + all persisted canonical STEMs.
+    # Every buffer is started on the same WebAudio clock and offset.
+    previews = prepare_browser_previews(source, stems, preview_dir)
+
+    tracks: list[dict[str, Any]] = []
+
+    def pack(
+        name: str,
+        label: str,
+        path: Path,
+        *,
+        enabled: bool,
+        volume: float,
+    ) -> None:
+        preview = previews[name]
+        tracks.append(
+            {
+                "name": name,
+                "label": label,
+                "url": register_media_url(
+                    preview,
+                    coordinates=f"{key}:unified:{name}",
+                    mimetype="audio/mpeg",
+                ),
+                "enabled": enabled,
+                "volume": volume,
+                "low": 0.0,
+                "mid": 0.0,
+                "high": 0.0,
+            }
+        )
+
+    # Default = original only. "Mix STEM" switches this off and enables stems.
+    pack("original", "Original", source, enabled=True, volume=1.0)
+
+    labels = {
+        "vocals": "Chant",
+        "drums": "Batterie",
+        "bass": "Basse",
+        "other": "Other",
+    }
+    defaults = {
+        "vocals": 0.90,
+        "drums": 0.75,
+        "bass": 0.75,
+        "other": 0.75,
+    }
+    for name in STEM_NAMES:
+        path = stems.get(name)
+        if path is not None and name in previews:
+            pack(
+                name,
+                labels.get(name, name.title()),
+                path,
+                enabled=False,
+                volume=defaults.get(name, 0.75),
+            )
 
     lead_words = list(words or [])
     player_words = list(lead_words)
@@ -1343,10 +1650,9 @@ def render_player(
             )
 
     st.caption(
-        "Conducteur : Chant = transcription principale · Chœurs = vocalises/mots "
-        "récupérés uniquement par la passe sur le stem voix · accords/mesures sur "
-        "l'horloge audio. La signature et le groupement sont modifiables sans "
-        "relancer Whisper."
+        "Lecteur unique : Original ou mix STEM avec EQ 3 bandes · Chant + Chœurs + "
+        "accords synchronisés sur la même horloge. La signature et le groupement "
+        "modifient la présentation sans changer les timestamps audio."
         if player_words
         else
         "Lecteur STEM prêt. Le conducteur apparaîtra après l'analyse des paroles."
@@ -1431,5 +1737,5 @@ def render_player(
         },
         key=key,
         width="stretch",
-        height=600 if player_words else 400,
+        height=900 if player_words else 620,
     )

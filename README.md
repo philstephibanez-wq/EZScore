@@ -1,4 +1,4 @@
-# EZScore — conducteur karaoké paroles + accords — R8
+# EZScore — lecteur unifié STEM + karaoké — R9
 
 Base lue : branche `feature/stem-analysis-pipeline`, commit
 `c1fd40afa47890fadb5a8efe83745f8ca010ad65`.
@@ -164,3 +164,37 @@ Deux corrections ciblées :
 
 Le composant frontend est renommé `ezscore_karaoke_stem_player_r8` pour forcer
 le rechargement du bundle Bidi.
+
+
+## R9 — lecteur final unifié : STEM + EQ + karaoké continu
+
+R9 annule la mauvaise direction de R8 qui avait réduit le lecteur à l'audio
+original uniquement.
+
+Le même composant possède maintenant :
+
+- une seule horloge WebAudio pour toutes les pistes ;
+- `Original` + les STEM canoniques disponibles ;
+- preset `Original` ;
+- preset `Mix STEM` ;
+- ON/OFF individuel par piste ;
+- volume individuel ;
+- égaliseur 3 bandes **restauré depuis le lecteur STEM validé** :
+  - Graves : crossover < 250 Hz ;
+  - Médiums : 250 Hz → 4 kHz ;
+  - Aigus : > 4 kHz ;
+  - réglages ±12 dB ;
+  - compensation automatique de niveau ;
+  - bouton `Reset EQ` par piste ;
+- volume Master ;
+- seek/lecture/pause/stop communs ;
+- conducteur continu sur la même horloge ;
+- ligne `Chant` ;
+- ligne `Chœurs` en violet, incluant les vocalises récupérées (`la la la`,
+  `na na`, `oh`, etc.) ;
+- accords et notation `-` / `.` ;
+- signature N/D et groupement modifiables uniquement pour la présentation ;
+- boutons de ré-analyse utilisant l'audio/stems déjà persistés.
+
+Il n'y a plus deux lecteurs concurrents : le mixeur STEM et le karaoké vivent
+dans le même composant et démarrent tous les buffers au même instant WebAudio.
