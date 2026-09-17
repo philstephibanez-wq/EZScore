@@ -1,20 +1,20 @@
 """EZScore UI helpers.
 
 Integration hook for the validated unified STEM/karaoke player.
-R11c keeps the R10 audio engine and fixes only conductor presentation.
+R11d keeps the R10 audio engine and fixes only conductor presentation.
 """
 
 def _install_karaoke_patch() -> None:
     try:
         from ezscore.ui import stem_lab_analysis as _stem_lab
-        from ezscore.player.karaoke_stem_webaudio_r11c import (
+        from ezscore.player.karaoke_stem_webaudio_r11d import (
             render_player as _karaoke_player,
         )
         _stem_lab._render_stem_player = _karaoke_player
     except Exception as exc:
         try:
             import streamlit as st
-            st.error(f"Lecteur karaoké R11c indisponible : {exc}")
+            st.error(f"Lecteur karaoké R11d indisponible : {exc}")
         except Exception:
             pass
 

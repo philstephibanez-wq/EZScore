@@ -1,46 +1,41 @@
-# EZScore — R11c
+# EZScore — R11d
 
-Correctif ciblé du conducteur karaoké, sans modifier le moteur audio R10.
+Correctif visuel ciblé sur les listes `Mesure` et `Vitesse`.
 
-## Corrections
+## Correction
 
-- suppression de la barre verticale blanche et du texte `temps courant` ;
-- `Diagramme` et `Accord courant` sont fixés sur la ligne de mire à 38 % ;
-- quand `Diagrammes guitare` est coché, la ligne diagramme reste stable :
-  elle ne disparaît plus au hasard selon l'accord ;
-- fallback déterministe des slash-chords (`Gm/5` -> voicing de `Gm`) ;
-- la signature recompose maintenant la géométrie de **toutes** les files :
-  `Accords`, `Chant`, `Chœurs` ;
-- passage `4/4 -> 2/4 -> 9/8` : les paroles se repositionnent visuellement
-  avec les accords, sans changer leurs timestamps ;
-- la vitesse reste synchronisée avec l'horloge WebAudio.
+Les `<select>` et leurs `<option>` utilisent maintenant explicitement un fond
+sombre et un texte clair. La liste déroulée reste lisible sur le thème sombre,
+y compris les valeurs non sélectionnées.
+
+Aucun changement sur :
+- audio / STEMs ;
+- EQ ;
+- synchro ;
+- géométrie du karaoké ;
+- time signature ;
+- vitesse ;
+- diagrammes.
 
 ## Installation
 
 Depuis `H:\EZScore` :
 
 ```powershell
-Expand-Archive -Path .\EZScore_R11c_focus_sync.zip -DestinationPath . -Force
+cd H:\EZScore
 
-python -m py_compile .\ezscore\player\karaoke_stem_webaudio_r11c.py
+Expand-Archive `
+  -Path "$env:USERPROFILE\Downloads\EZScore_R11d_dark_selects.zip" `
+  -DestinationPath . `
+  -Force
+
+python -m py_compile .\ezscore\player\karaoke_stem_webaudio_r11d.py
 python -m py_compile .\ezscore\ui\__init__.py
 
 git diff --check
 git status
 ```
 
-Redémarrer Streamlit après décompression.
+Puis redémarrer Streamlit.
 
-## Test avant push
-
-Tester la même position audio successivement en `4/4`, `2/4` puis `9/8`.
-Les trois files doivent se recomposer ensemble. Les timestamps audio ne doivent
-pas changer.
-
-Cocher `Diagrammes guitare` :
-- la ligne Diagramme apparaît au-dessus ;
-- le diagramme courant est centré sur la ligne de mire ;
-- l'accord courant est juste en dessous au même X ;
-- la ligne Diagramme ne saute plus selon les accords.
-
-Ne pas pousser avant validation visuelle.
+Ne pousser qu'après vérification visuelle de `Mesure` et `Vitesse`.
