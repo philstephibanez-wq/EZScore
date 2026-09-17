@@ -1,21 +1,106 @@
-# EZScore Analysis HQ R14.1 — BS-RoFormer API fix
+# EZScore — BS-RoFormer multi-format
 
-Correctif ciblé sur **Analyse / STEM uniquement**.
+Ce livrable ajoute une couche audio modulaire sans modèles, stems ni temporaires dans `H:\EZScore`.
 
-R14 utilisait à tort `BSRoformerSession`, symbole inexistant dans
-`bs-roformer-infer` 0.1.3.
+## Fonctionnement
 
-R14.1 utilise les points d'entrée officiels :
+Entrées acceptées : WAV, MP3, FLAC, M4A, OGG, OPUS, AAC, WMA.
 
-- `MODEL_REGISTRY`
-- `python -m bs_roformer.download`
-- `python -m bs_roformer.inference`
+Pipeline :
 
-Le package upstream traite les WAV du dossier d'entrée ; EZScore convertit donc
-l'original en WAV via FFmpeg avant séparation.
+`audio utilisateur -> FFmpeg WAV 44,1 kHz stéréo -> BS-RoFormer -> mix harmonique -> analyse EZScore -> nettoyage`
 
-Les modèles restent hors Git et doivent être placés sur H: via :
+BS-RoFormer est prioritaire. Demucs reste disponible en secours pour éviter une régression sur un autre environnement.
 
+Pour le mix harmonique BS-RoFormer :
+- vocals : exclu
+- drums : exclu
+- guitar : 1,00
+- piano : 1,00
+- other : 0,80
+- bass : 0,65
+
+## Temporaires
+
+Priorité :
+1. `EZSCORE_TEMP_DIR` si définie ;
+2. sous Windows, `H:\Temp\EZScore` si `H:\Temp` existe ;
+3. sinon le temp système.
+
+Les modèles restent hors dépôt via :
 `BS_ROFORMER_MODELS_PATH=H:\EZScoreModels\bs-roformer`
 
-Aucun fichier MIDI n'est modifié.
+## Dézip
+
+```powershell
+New-Item -ItemType Directory -Force H:\Temp\EZScore_BSRoformer_Update | Out-Null
+Expand-Archive -Force .\EZScore_BSRoformer_Multiformat.zip H:\Temp\EZScore_BSRoformer_Update
+```
+
+## Vérifier le dépôt avant application
+
+```powershell
+cd H:\EZScore
+git status --short
+```
+
+## Appliquer
+
+```powershell
+python H:\Temp\EZScore_BSRoformer_Update\apply_integration.py H:\EZScore
+```
+
+Le script :
+- ajoute `ezscore\audio\__init__.py`
+- ajoute `ezscore\audio\separation.py`
+- modifie `EZScore.py`
+- crée `EZScore.py.before_bs_roformer`
+- ne fait aucun commit
+- ne fait aucun push
+
+## Compilation
+
+```powershell
+cd H:\EZScore
+python -m py_compile EZScore.py
+python -m py_compile ezscore\audio\__init__.py
+python -m py_compile ezscore\audio\separation.py
+```
+
+## Test
+
+```powershell
+python -m streamlit run EZScore.py
+```
+
+La sidebar doit afficher `BS-RoFormer : disponible`.
+
+Tester ensuite un MP3 directement dans l'import EZScore. La conversion WAV est interne et temporaire.
+
+## Contrôle des temporaires
+
+Pendant l'analyse :
+
+```powershell
+Get-ChildItem H:\Temp\EZScore -Recurse
+```
+
+Après l'analyse, le sous-dossier `ezscore_audio_*` doit avoir disparu.
+
+## Contrôle Git avant ton push
+
+```powershell
+cd H:\EZScore
+git status --short
+git diff -- EZScore.py ezscore/audio/__init__.py ezscore/audio/separation.py
+```
+
+Aucun `.ckpt`, stem `.wav` ou fichier temporaire ne doit apparaître.
+
+Après validation :
+
+```powershell
+Remove-Item H:\EZScore\EZScore.py.before_bs_roformer
+```
+
+Puis tu fais ton commit/push selon ton workflow.
