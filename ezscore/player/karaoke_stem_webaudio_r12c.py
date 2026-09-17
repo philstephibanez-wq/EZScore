@@ -1,0 +1,1052 @@
+from __future__ import annotations
+
+"""R12c karaoke presentation layer.
+
+This module deliberately reuses the validated R10 audio/STEM/EQ implementation
+and only replaces the conductor presentation/control layer.
+"""
+
+from typing import Any
+from pathlib import Path
+import shutil
+import subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import streamlit as st
+
+from ezscore.guitar import (
+    choices as guitar_choices,
+    get_voicing,
+    load_show_diagrams,
+    load_voicings,
+    svg as guitar_svg,
+)
+from ezscore.player import karaoke_stem_webaudio as _base
+from ezscore.player.media_url import register_media_url
+
+
+_AUDIO_HASH_BY_STORAGE_KEY: dict[str, str] = {}
+_TEMPO_VARIANTS_BY_STORAGE_KEY: dict[str, dict[str, dict[str, str]]] = {}
+
+TEMPO_RATES = (0.75, 0.85, 1.00, 1.10, 1.25)
+
+
+def _tempo_key(rate: float) -> str:
+    return f"{float(rate):.2f}"
+
+
+def _tempo_target(source: Path, preview_dir: Path, rate: float) -> Path:
+    token = str(int(round(float(rate) * 100))).zfill(3)
+    return preview_dir / f"{source.stem}.tempo{token}.browser64.mp3"
+
+
+def _tempo_preview_is_current(source: Path, target: Path) -> bool:
+    return (
+        target.is_file()
+        and target.stat().st_size > 0
+        and target.stat().st_mtime_ns >= source.stat().st_mtime_ns
+    )
+
+
+def _make_tempo_preview(source: Path, target: Path, rate: float) -> Path:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if _tempo_preview_is_current(source, target):
+        return target
+
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise RuntimeError(
+            "FFmpeg est requis pour la vitesse sans changement de tonalité."
+        )
+
+    cmd = [
+        ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
+        "-i", str(source),
+        "-vn", "-map_metadata", "-1",
+        "-filter:a", f"atempo={float(rate):.6f}",
+        "-codec:a", "libmp3lame", "-b:a", "64k", "-ar", "44100",
+        str(target),
+    ]
+    proc = subprocess.run(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0 or not target.is_file():
+        raise RuntimeError(
+            f"FFmpeg atempo a échoué pour {source.name} à {rate:.2f}x:\n"
+            + (proc.stdout or "")
+        )
+    return target
+
+
+def _prepare_tempo_variants(
+    source: Path,
+    stems: dict[str, Path],
+    preview_dir: Path,
+    storage_key: str,
+) -> dict[str, dict[str, str]]:
+    """Build/cache pitch-preserving player previews with FFmpeg atempo/WSOLA."""
+    inputs: dict[str, Path] = {"original": Path(source)}
+    for name, path in stems.items():
+        if path is not None:
+            inputs[str(name)] = Path(path)
+
+    jobs: list[tuple[float, str, Path, Path]] = []
+    variants: dict[str, dict[str, str]] = {}
+
+    for rate in TEMPO_RATES:
+        if abs(rate - 1.0) < 1e-9:
+            continue
+        rkey = _tempo_key(rate)
+        variants[rkey] = {}
+        for name, path in inputs.items():
+            target = _tempo_target(path, preview_dir, rate)
+            jobs.append((rate, name, path, target))
+
+    pending = [
+        job for job in jobs
+        if not _tempo_preview_is_current(job[2], job[3])
+    ]
+
+    if pending:
+        with st.spinner(
+            "Préparation des vitesses avec tonalité conservée "
+            "(FFmpeg WSOLA, mise en cache)…"
+        ):
+            workers = min(4, max(1, len(pending)))
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                futures = {
+                    pool.submit(
+                        _make_tempo_preview,
+                        source_path,
+                        target,
+                        rate,
+                    ): (rate, name)
+                    for rate, name, source_path, target in pending
+                }
+                for future in as_completed(futures):
+                    future.result()
+
+    for rate, name, _source_path, target in jobs:
+        rkey = _tempo_key(rate)
+        variants[rkey][name] = register_media_url(
+            target,
+            coordinates=f"{storage_key}:tempo:{rkey}:{name}",
+            mimetype="audio/mpeg",
+        )
+
+    return variants
+
+
+def _replace_once(source: str, old: str, new: str, label: str) -> str:
+    if old not in source:
+        raise RuntimeError(f"EZScore R11 patch point missing: {label}")
+    return source.replace(old, new, 1)
+
+
+_HTML = _base._HTML
+
+_HTML = _replace_once(
+    _HTML,
+    """  <div class="transport">
+    <button class="play" type="button">▶ Lecture</button>
+    <button class="pause" type="button">⏸ Pause</button>
+    <button class="stop" type="button">⏹ Stop</button>
+    <span class="time">0:00 / 0:00</span>
+  </div>
+  <input class="seek" type="range" min="0" max="1" step="0.001" value="0">
+
+""",
+    "",
+    "top transport",
+)
+
+_HTML = _replace_once(
+    _HTML,
+    """  <div class="meter-box">
+    <strong>Mesure</strong>
+    <input class="meter-num" type="number" min="1" step="1" value="4">
+    <span>/</span>
+    <input class="meter-den" type="number" min="1" step="1" value="4">
+    <label>Groupement <input class="meter-group" type="text" placeholder="auto"></label>
+    <span class="meter-state"></span>
+  </div>
+
+  <div class="karaoke">
+""",
+    """  <div class="meter-box">
+    <label><strong>Mesure</strong>
+      <select class="meter-signature">
+        <option value="2/4">2/4</option>
+        <option value="3/4">3/4</option>
+        <option value="4/4">4/4</option>
+        <option value="5/4">5/4</option>
+        <option value="6/8">6/8</option>
+        <option value="7/8">7/8</option>
+        <option value="9/8">9/8</option>
+        <option value="12/8">12/8</option>
+      </select>
+    </label>
+
+    <label><strong>Vitesse</strong>
+      <select class="playback-rate">
+        <option value="0.75">0.75×</option>
+        <option value="0.85">0.85×</option>
+        <option value="1.00" selected>1.00×</option>
+        <option value="1.10">1.10×</option>
+        <option value="1.25">1.25×</option>
+      </select>
+    </label>
+
+    <label class="diagram-toggle">
+      <input class="show-diagrams" type="checkbox">
+      Diagrammes guitare
+    </label>
+
+    <span class="meter-state"></span>
+  </div>
+
+  <div class="transport transport-karaoke">
+    <button class="play" type="button">▶ Lecture</button>
+    <button class="pause" type="button">⏸ Pause</button>
+    <button class="stop" type="button">⏹ Stop</button>
+    <span class="time">0:00 / 0:00</span>
+  </div>
+  <input class="seek" type="range" min="0" max="1" step="0.001" value="0">
+
+  <div class="karaoke">
+""",
+    "meter / transport",
+)
+
+_HTML = _replace_once(
+    _HTML,
+    """    <div class="timeline-row chord-row">
+      <div class="timeline-label">Accords</div>
+""",
+    """    <div class="current-diagram-row">
+      <div class="timeline-label">Diagramme</div>
+      <div class="current-diagram"></div>
+    </div>
+
+    <div class="current-chord-row">
+      <div class="timeline-label">Accord</div>
+      <div class="current-chord">—</div>
+    </div>
+
+    <div class="timeline-row chord-row">
+      <div class="timeline-label">Accords</div>
+""",
+    "current chord rows",
+)
+
+
+_CSS = _base._CSS + r"""
+
+/* R12c presentation controls */
+.meter-box select {
+  background:#1f232b;
+  color:#f4f4f4;
+  border:1px solid color-mix(in srgb, var(--st-text-color) 25%, transparent);
+  border-radius:5px;
+  padding:4px 7px;
+  color-scheme:dark;
+}
+.meter-box select option {
+  background:#1f232b;
+  color:#f4f4f4;
+}
+.meter-box select:focus {
+  outline:2px solid color-mix(in srgb, #4da3ff 70%, transparent);
+  outline-offset:1px;
+}
+.meter-box label {
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.diagram-toggle {
+  margin-left:4px;
+  white-space:nowrap;
+}
+.transport-karaoke {
+  margin-top:4px;
+}
+.playhead,
+.future-hint {
+  display:none !important;
+}
+.current-diagram-row,
+.current-chord-row {
+  display:grid;
+  grid-template-columns:64px 1fr;
+  align-items:center;
+  position:relative;
+}
+.current-diagram-row {
+  display:none;
+  min-height:126px;
+}
+.current-diagram {
+  position:absolute;
+  left:38%;
+  top:2px;
+  transform:translateX(-50%);
+  min-height:118px;
+  width:112px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:7;
+}
+.current-diagram svg {
+  width:92px;
+  height:auto;
+  max-height:118px;
+  display:block;
+}
+.diagram-unavailable {
+  width:106px;
+  padding:7px 5px;
+  border:1px dashed color-mix(in srgb, var(--st-text-color) 30%, transparent);
+  border-radius:7px;
+  font-size:10px;
+  opacity:.62;
+  text-align:center;
+}
+.current-chord-row {
+  min-height:54px;
+}
+.current-chord {
+  position:absolute;
+  left:38%;
+  top:7px;
+  transform:translateX(-50%);
+  min-width:140px;
+  text-align:center;
+  font-family:Consolas,"Courier New",monospace;
+  font-size:32px;
+  font-weight:950;
+  line-height:1;
+  color:#f4f4f4;
+}
+"""
+
+
+_JS = _base._JS
+
+_JS = _replace_once(
+    _JS,
+    """  const meterDefault = data.meter_default || {signature:"4/4", grouping:""};
+""",
+    """  const meterDefault = data.meter_default || {signature:"4/4", grouping:""};
+  const chordDiagrams = data.chord_diagrams || {};
+  const tempoVariants = data.tempo_variants || {};
+""",
+    "data chord diagrams",
+)
+
+_JS = _replace_once(
+    _JS,
+    """  const numInput = root.querySelector(".meter-num");
+  const denInput = root.querySelector(".meter-den");
+  const groupingInput = root.querySelector(".meter-group");
+  const meterState = root.querySelector(".meter-state");
+""",
+    """  const meterSelect = root.querySelector(".meter-signature");
+  const rateSelect = root.querySelector(".playback-rate");
+  const showDiagramsInput = root.querySelector(".show-diagrams");
+  const meterState = root.querySelector(".meter-state");
+  const currentDiagramRow = root.querySelector(".current-diagram-row");
+  const currentDiagramNode = root.querySelector(".current-diagram");
+  const currentChordNode = root.querySelector(".current-chord");
+""",
+    "meter selectors",
+)
+
+_JS = _replace_once(
+    _JS,
+    """  let duration = 0;
+  let raf = null;
+""",
+    """  let duration = 0;
+  let raf = null;
+  let playbackRate = 1.0;
+  const visualDelay = 0.35;
+  let showDiagrams = Boolean(data.show_diagrams_default);
+  const decodedByRate = {};
+  let rateChangeGeneration = 0;
+  let resumeAfterRateChange = false;
+""",
+    "player state",
+)
+
+_JS = _replace_once(
+    _JS,
+    """  function currentTime() {
+    if (!playing || !context) return position;
+    return Math.max(
+      0,
+      Math.min(duration, position + (context.currentTime - startedAtContextTime))
+    );
+  }
+""",
+    """  function currentTime() {
+    if (!playing || !context) return position;
+    return Math.max(
+      0,
+      Math.min(
+        duration,
+        position + (context.currentTime - startedAtContextTime) * playbackRate
+      )
+    );
+  }
+""",
+    "rate-aware clock",
+)
+
+meter_start = _JS.index("  // -------- Meter / presentation only --------")
+lyrics_start = _JS.index("  // -------- Continuous lyrics geometry --------")
+_JS = (
+    _JS[:meter_start]
+    + r"""  // -------- Meter / presentation only --------
+  const allowedMeters = new Set([
+    "2/4","3/4","4/4","5/4","6/8","7/8","9/8","12/8"
+  ]);
+  const defaultSignature = allowedMeters.has(String(meterDefault.signature || ""))
+    ? String(meterDefault.signature)
+    : "4/4";
+  meterSelect.value = defaultSignature;
+  rateSelect.value = "1.00";
+  showDiagramsInput.checked = showDiagrams;
+
+  const storageKey = "ezscore-karaoke-meter:" + String(data.storage_key || "default");
+  try {
+    const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
+    if (saved && allowedMeters.has(String(saved.signature || ""))) {
+      meterSelect.value = String(saved.signature);
+    }
+  } catch (_) {}
+
+  function defaultGrouping(n,d) {
+    if (d >= 8 && n > 3 && n % 3 === 0) return Array(n/3).fill(3);
+    if (d >= 8 && n === 5) return [2,3];
+    if (d >= 8 && n === 7) return [2,2,3];
+    if (d === 4 && n === 5) return [3,2];
+    if (d === 4 && n === 7) return [4,3];
+    return Array(n).fill(1);
+  }
+
+  function meter() {
+    const parts = String(meterSelect.value || "4/4").split("/");
+    const n = Math.max(1, Math.floor(Number(parts[0] || 4)));
+    const d = Math.max(1, Math.floor(Number(parts[1] || 4)));
+    const groups = defaultGrouping(n,d);
+    const grouped = d >= 8 && groups.some(x => x > 1);
+    return {
+      n,d,groups,grouped,
+      beatsPerMeasure: grouped ? groups.length : n
+    };
+  }
+
+  let renderedMeterKey = "";
+  function persistMeter() {
+    const m = meter();
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({
+        signature:m.n + "/" + m.d
+      }));
+    } catch (_) {}
+    meterState.textContent = m.grouped
+      ? m.n + "/" + m.d + " · " + m.groups.join("+")
+      : m.n + "/" + m.d;
+    renderedMeterKey = "";
+  }
+
+"""
+    + _JS[lyrics_start:]
+)
+
+lyrics_start = _JS.index("  // -------- Continuous lyrics geometry --------")
+chords_start = _JS.index("  // -------- Chords / measure presentation --------")
+_JS = (
+    _JS[:lyrics_start]
+    + r"""  // -------- One meter-aware geometry for ALL scrolling lanes --------
+  /*
+  Timestamps never change.
+  The selected time signature only changes the visual measure grouping.
+  One visual measure keeps a fixed width, so changing 4/4 -> 2/4 -> 9/8
+  reflows chords AND lyrics together while preserving absolute time.
+  */
+  const measureSlotWidth = 318;
+
+  function beatIndexAndProgress(time) {
+    const t = Number(time || 0);
+    if (!beats.length) return {index:0,progress:0};
+
+    if (t <= Number(beats[0].start || 0)) {
+      return {index:0,progress:0};
+    }
+
+    let low=0, high=beats.length-1, index=0;
+    while (low<=high) {
+      const mid=(low+high)>>1;
+      if (Number(beats[mid].start || 0) <= t) {
+        index=mid;
+        low=mid+1;
+      } else {
+        high=mid-1;
+      }
+    }
+
+    const beat=beats[index];
+    const start=Number(beat.start || 0);
+    const end=Math.max(start+.02,Number(beat.end || start+.5));
+    const progress=Math.max(0,Math.min(1,(t-start)/(end-start)));
+    return {index,progress};
+  }
+
+  function timelineVisualXForTime(time) {
+    if (!beats.length) return Math.max(0,Number(time || 0))*74;
+
+    const mp=meter();
+    const bp=beatIndexAndProgress(time);
+    const measureIndex=Math.floor(bp.index/mp.beatsPerMeasure);
+    const localBeat=bp.index%mp.beatsPerMeasure;
+    const measureProgress=(localBeat+bp.progress)/mp.beatsPerMeasure;
+
+    return measureIndex*measureSlotWidth + measureProgress*measureSlotWidth;
+  }
+
+  function sharedTimelineWidth() {
+    const mp=meter();
+    const count=Math.max(1,Math.ceil(beats.length/mp.beatsPerMeasure));
+    return count*measureSlotWidth+320;
+  }
+
+  function normalizedWords(input) {
+    return (Array.isArray(input) ? input : [])
+      .map(w => ({
+        text:String(w.text || "").trim(),
+        start:Number(w.start || 0),
+        end:Number(w.end || w.start || 0),
+      }))
+      .filter(w => w.text && Number.isFinite(w.start) && Number.isFinite(w.end))
+      .sort((a,b)=>a.start-b.start || a.end-b.end);
+  }
+
+  const leadWords = normalizedWords(leadInput);
+  const backingWords = normalizedWords(backingInput);
+
+  let leadNodes=[];
+  let backingNodes=[];
+
+  function createLane(track, sourceWords) {
+    track.innerHTML="";
+    track.style.width=sharedTimelineWidth()+"px";
+    return sourceWords.map(w => {
+      const span=document.createElement("span");
+      span.className="lyric-token";
+      span.textContent=w.text;
+      span.style.left=timelineVisualXForTime(w.start)+"px";
+      track.appendChild(span);
+      return span;
+    });
+  }
+
+  function rebuildLyricGeometry() {
+    leadNodes=createLane(leadTrack,leadWords);
+    backingNodes=createLane(backingTrack,backingWords);
+    backingRow.style.display = backingWords.length ? "grid" : "none";
+  }
+
+  function activeWordIndex(sourceWords,time) {
+    if (!sourceWords.length) return -1;
+    let low=0,high=sourceWords.length-1,answer=-1;
+    while (low<=high) {
+      const mid=(low+high)>>1;
+      if (sourceWords[mid].start<=time) {
+        answer=mid;
+        low=mid+1;
+      } else {
+        high=mid-1;
+      }
+    }
+    if (answer<0) return -1;
+    const w=sourceWords[answer];
+    return time<=Math.max(w.end,w.start+.06) ? answer : -1;
+  }
+
+  function translateLyricTimeline(track,viewport,time) {
+    if (!track || !viewport) return;
+    const anchor=viewport.clientWidth*anchorRatio;
+    track.style.transform=
+      "translate3d(" +
+      (anchor-timelineVisualXForTime(time)).toFixed(2) +
+      "px,0,0)";
+  }
+
+  rebuildLyricGeometry();
+
+"""
+    + _JS[chords_start:]
+)
+
+chords_start = _JS.index("  // -------- Chords / measure presentation --------")
+persist_call = _JS.index("  persistMeter();", chords_start)
+_JS = (
+    _JS[:chords_start]
+    + r"""  // -------- Chords / measure presentation --------
+  function measureNotation(measureIndex,m) {
+    const startBeat=measureIndex*m.beatsPerMeasure;
+    if (startBeat>=beats.length) return null;
+    const beatSlice=beats.slice(startBeat,startBeat+m.beatsPerMeasure);
+    if (!beatSlice.length) return null;
+
+    let notation="";
+    let prevChord=null;
+    beatSlice.forEach((beat,localIndex) => {
+      const chord=String(beat.chord || ".").trim() || ".";
+      let token;
+      if (chord === ".") token=".";
+      else if (localIndex===0) token=chord;
+      else if (chord===prevChord) token="-";
+      else token=chord;
+
+      if (m.grouped) {
+        const count=Math.max(1,Number(m.groups[localIndex] || 1));
+        if (token === ".") notation += ".".repeat(count);
+        else if (token === "-") notation += "-".repeat(count);
+        else notation += token + "-".repeat(Math.max(0,count-1));
+      } else {
+        notation += token;
+      }
+      prevChord=chord;
+    });
+
+    return {
+      notation,
+      start:Number(beatSlice[0].start || 0),
+      end:Number(
+        beatSlice[beatSlice.length-1].end ||
+        beatSlice[beatSlice.length-1].start ||
+        0
+      ),
+    };
+  }
+
+  let chordMeasures=[];
+  let chordNodes=[];
+
+  function rebuildChordTimeline() {
+    const m=meter();
+    const key=m.n+"/"+m.d+"|"+m.groups.join("+");
+    if (key===renderedMeterKey && chordNodes.length) return;
+
+    renderedMeterKey=key;
+    chordTrack.innerHTML="";
+    chordMeasures=[];
+    chordNodes=[];
+
+    const count=Math.ceil(beats.length/m.beatsPerMeasure);
+    for (let i=0;i<count;i++) {
+      const item=measureNotation(i,m);
+      if (!item) continue;
+
+      item.visualX=i*measureSlotWidth;
+      item.visualWidth=measureSlotWidth;
+      chordMeasures.push(item);
+
+      const marker=document.createElement("span");
+      marker.className="chord-marker";
+      marker.textContent=item.notation;
+      marker.style.left=item.visualX+"px";
+      marker.style.width=Math.max(36,item.visualWidth-12)+"px";
+      marker.style.boxSizing="border-box";
+      marker.style.overflow="hidden";
+      chordTrack.appendChild(marker);
+      chordNodes.push(marker);
+    }
+
+    chordTrack.style.width=sharedTimelineWidth()+"px";
+  }
+
+  function chordVisualXForTime(time) {
+    return timelineVisualXForTime(time);
+  }
+
+  function currentChordAtTime(time) {
+    if (!beats.length) return ".";
+    const t=Number(time || 0);
+    if (t < Number(beats[0].start || 0)) return ".";
+
+    const bp=beatIndexAndProgress(t);
+    const index=Math.max(0,Math.min(beats.length-1,bp.index));
+    return String(beats[index].chord || ".").trim() || ".";
+  }
+
+  function renderCurrentChord(time) {
+    const chord=currentChordAtTime(time);
+    currentChordNode.textContent=chord==="." ? "—" : chord;
+
+    if (!showDiagrams) {
+      currentDiagramRow.style.display="none";
+      currentDiagramNode.innerHTML="";
+      return;
+    }
+
+    currentDiagramRow.style.display="grid";
+    const svg=chordDiagrams[chord] || "";
+    if (svg) {
+      currentDiagramNode.innerHTML=svg;
+    } else {
+      currentDiagramNode.innerHTML=
+        '<div class="diagram-unavailable">Diagramme indisponible<br>' +
+        String(chord==="." ? "—" : chord) +
+        '</div>';
+    }
+  }
+
+  function renderConductor(time) {
+    rebuildChordTimeline();
+
+    const chordAnchor=chordViewport.clientWidth*anchorRatio;
+    chordTrack.style.transform =
+      "translate3d(" +
+      (chordAnchor-chordVisualXForTime(time)).toFixed(2) +
+      "px,0,0)";
+
+    translateLyricTimeline(leadTrack,leadViewport,time);
+    if (backingWords.length) {
+      translateLyricTimeline(backingTrack,backingViewport,time);
+    }
+
+    const currentLead=activeWordIndex(leadWords,time);
+    leadNodes.forEach((node,i) => {
+      node.classList.toggle("past", time>leadWords[i].end);
+      node.classList.toggle("current", i===currentLead);
+    });
+
+    const currentBacking=activeWordIndex(backingWords,time);
+    backingNodes.forEach((node,i) => {
+      node.classList.toggle("past", time>backingWords[i].end);
+      node.classList.toggle("current", i===currentBacking);
+    });
+
+    chordNodes.forEach((node,i) => {
+      const item=chordMeasures[i];
+      node.classList.toggle(
+        "active",
+        Boolean(item && time>=item.start && time<item.end)
+      );
+    });
+
+    renderCurrentChord(time);
+  }
+
+  meterSelect.addEventListener("change",() => {
+    persistMeter();
+    rebuildLyricGeometry();
+    rebuildChordTimeline();
+    renderConductor(Math.max(0,currentTime()-visualDelay));
+  });
+
+  rateSelect.addEventListener("change",async() => {
+    const generation=++rateChangeGeneration;
+    const requestedRate=Math.max(
+      .75,
+      Math.min(1.25,Number(rateSelect.value || 1))
+    );
+
+    const t=currentTime();
+    position=t;
+
+    // Keep the user's playback intent across successive speed changes.
+    // Example: while playing, 1.00 -> 0.75 -> 1.25 must resume at 1.25,
+    // even though the second change occurs while audio sources are stopped.
+    resumeAfterRateChange = resumeAfterRateChange || playing;
+
+    if (playing) {
+      playing=false;
+      stopSources();
+    }
+
+    playbackRate=requestedRate;
+
+    try {
+      await ensureReady();
+      await loadRateBuffers(requestedRate);
+
+      // A newer user choice supersedes this asynchronous decode.
+      if (generation !== rateChangeGeneration) return;
+
+      playbackRate=requestedRate;
+      const shouldResume=resumeAfterRateChange;
+      resumeAfterRateChange=false;
+
+      if (shouldResume) startSources(position);
+      renderConductor(Math.max(0,position-visualDelay));
+    } catch (e) {
+      if (generation !== rateChangeGeneration) return;
+
+      console.error(e);
+      rateSelect.value="1.00";
+      playbackRate=1.0;
+      decoded=decodedByRate["1.00"] || decoded;
+
+      const shouldResume=resumeAfterRateChange;
+      resumeAfterRateChange=false;
+
+      if (shouldResume) startSources(position);
+      renderConductor(Math.max(0,position-visualDelay));
+    }
+  });
+
+  showDiagramsInput.addEventListener("change",() => {
+    showDiagrams=Boolean(showDiagramsInput.checked);
+    renderCurrentChord(Math.max(0,currentTime()-visualDelay));
+  });
+
+"""
+    + _JS[persist_call:]
+)
+
+_JS = _replace_once(
+    _JS,
+    """      const source=context.createBufferSource();
+      source.buffer=buffer;
+
+      // One serial Biquad EQ chain per track.
+""",
+    """      const source=context.createBufferSource();
+      source.buffer=buffer;
+      source.playbackRate.value=1.0;
+
+      // One serial Biquad EQ chain per track.
+""",
+    "buffer playbackRate",
+)
+
+# R12: keep the decoded 1.00x buffers as the reference set.
+_JS = _replace_once(
+    _JS,
+    """    seek.max=String(Math.max(.001,duration));
+    ready=true;
+""",
+    """    seek.max=String(Math.max(.001,duration));
+    decodedByRate["1.00"]=decoded;
+    ready=true;
+""",
+    "cache reference buffers",
+)
+
+# R12: lazy-decode the cached FFmpeg/WSOLA tempo variants on first use.
+_JS = _replace_once(
+    _JS,
+    """  function stopSources() {
+""",
+    """  async function loadRateBuffers(rate) {
+    const rateKey=Number(rate || 1).toFixed(2);
+
+    if (decodedByRate[rateKey]) {
+      decoded=decodedByRate[rateKey];
+      return;
+    }
+
+    const mapping=tempoVariants[rateKey] || {};
+    const buffers=[];
+
+    for (let i=0;i<defs.length;i++) {
+      const def=defs[i];
+      const url=String(mapping[String(def.name)] || "");
+      if (!url) {
+        throw new Error(
+          "Pré-écoute tempo absente pour " +
+          String(def.label || def.name) +
+          " à " + rateKey + "×"
+        );
+      }
+
+      const response=await fetch(url,{cache:"force-cache"});
+      if (!response.ok) {
+        throw new Error(
+          "HTTP média tempo " + response.status +
+          " pour " + String(def.name)
+        );
+      }
+      buffers.push(
+        await context.decodeAudioData(await response.arrayBuffer())
+      );
+    }
+
+    decodedByRate[rateKey]=buffers;
+    decoded=buffers;
+  }
+
+  function stopSources() {
+""",
+    "tempo buffer loader",
+)
+
+# The stretched preview's timebase is wall-time, so original musical time t
+# corresponds to t/rate seconds in that preview file.
+_JS = _replace_once(
+    _JS,
+    """      const safeOffset=Math.max(
+        0,
+        Math.min(Number(offset)||0,Math.max(0,buffer.duration-.001))
+      );
+""",
+    """      const processedOffset=
+        (Number(offset)||0)/Math.max(.01,playbackRate);
+      const safeOffset=Math.max(
+        0,
+        Math.min(processedOffset,Math.max(0,buffer.duration-.001))
+      );
+""",
+    "tempo preview offset",
+)
+
+# R12 visual follow delay: audio clock stays authoritative; only conductor
+# rendering is shown 350 ms behind for easier reading.
+_JS = _JS.replace(
+    "renderConductor(position);",
+    "renderConductor(Math.max(0,position-visualDelay));",
+)
+_JS = _JS.replace(
+    "renderConductor(t);",
+    "renderConductor(Math.max(0,t-visualDelay));",
+)
+_JS = _JS.replace(
+    "renderConductor(Math.max(0,0-visualDelay));",
+    "renderConductor(0);",
+)
+
+
+_COMPONENT_R12C = st.components.v2.component(
+    "ezscore_karaoke_stem_player_r12c",
+    html=_HTML,
+    css=_CSS,
+    js=_JS,
+    isolate_styles=True,
+)
+
+
+def _build_chord_diagrams(
+    audio_hash: str,
+    beats: list[dict[str, Any]],
+) -> dict[str, str]:
+    saved_voicings = load_voicings(audio_hash)
+    diagrams: dict[str, str] = {}
+
+    for beat in beats:
+        symbol = str(beat.get("chord", "") or "").strip()
+        if not symbol or symbol == "." or symbol in diagrams:
+            continue
+
+        candidates = [symbol]
+        if "/" in symbol:
+            base_symbol = symbol.split("/", 1)[0].strip()
+            if base_symbol and base_symbol not in candidates:
+                candidates.append(base_symbol)
+
+        selected = None
+        selected_symbol = None
+
+        for candidate in candidates:
+            available = guitar_choices(candidate)
+            if not available:
+                continue
+
+            saved_name = (
+                saved_voicings.get(symbol)
+                or saved_voicings.get(candidate)
+            )
+            selected = get_voicing(
+                candidate,
+                saved_name if saved_name else available[0].name,
+            )
+            if selected is not None:
+                selected_symbol = candidate
+                break
+
+        if selected is None or selected_symbol is None:
+            continue
+
+        # Keep the actual current chord as the diagram title, while using the
+        # deterministic base voicing for slash chords when needed.
+        diagrams[symbol] = guitar_svg(
+            symbol,
+            selected,
+            width=92,
+            height=118,
+        )
+
+    return diagrams
+
+
+def _component_with_r12c_data(*, data: dict[str, Any], **kwargs):
+    payload = dict(data or {})
+    storage_key = str(payload.get("storage_key", "") or "")
+    audio_hash = _AUDIO_HASH_BY_STORAGE_KEY.get(storage_key, "")
+    payload["tempo_variants"] = _TEMPO_VARIANTS_BY_STORAGE_KEY.get(
+        storage_key,
+        {},
+    )
+
+    if audio_hash:
+        beats = list(payload.get("beats", []) or [])
+        try:
+            payload["chord_diagrams"] = _build_chord_diagrams(
+                audio_hash,
+                beats,
+            )
+        except Exception:
+            payload["chord_diagrams"] = {}
+
+        try:
+            payload["show_diagrams_default"] = bool(
+                load_show_diagrams(audio_hash)
+            )
+        except Exception:
+            payload["show_diagrams_default"] = False
+    else:
+        payload["chord_diagrams"] = {}
+        payload["show_diagrams_default"] = False
+
+    return _COMPONENT_R12C(data=payload, **kwargs)
+
+
+_base._COMPONENT = _component_with_r12c_data
+
+
+def render_player(
+    source,
+    stems,
+    *,
+    preview_dir,
+    key: str,
+    words=None,
+) -> None:
+    storage_key = str(key)
+    _AUDIO_HASH_BY_STORAGE_KEY[storage_key] = preview_dir.parent.name
+    _TEMPO_VARIANTS_BY_STORAGE_KEY[storage_key] = _prepare_tempo_variants(
+        Path(source),
+        {
+            name: Path(path)
+            for name, path in stems.items()
+            if path is not None
+        },
+        Path(preview_dir),
+        storage_key,
+    )
+    return _base.render_player(
+        source,
+        stems,
+        preview_dir=preview_dir,
+        key=key,
+        words=words,
+    )

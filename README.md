@@ -1,52 +1,50 @@
-# EZScore — R12 vitesse sans changement de tonalité
+# EZScore — R12c
 
-Le contrôle de vitesse n'utilise plus l'effet "bande magnétique" de
-`AudioBufferSourceNode.playbackRate`.
+Correctif de portée après audit du changement de vitesse.
 
-## Principe
+## Portée contrôlée
 
-EZScore crée et met en cache des pré-écoutes à :
+Le changement de vitesse touche :
+- état du sélecteur ;
+- intention Lecture/Pause ;
+- horloge musicale ;
+- arrêt/redémarrage des AudioBufferSourceNode ;
+- offset de reprise ;
+- cache/décodage des variantes tempo ;
+- rendu Accords / Chant / Chœurs ;
+- diagramme courant ;
+- changement de mesure pendant lecture.
 
-- 0.75x
-- 0.85x
-- 1.00x
-- 1.10x
-- 1.25x
+## Correctifs R12c
 
-Les variantes autres que 1.00x sont produites par FFmpeg `atempo`, algorithme
-WSOLA de changement de tempo. La hauteur/tonalité n'est donc pas transposée
-avec la vitesse.
+1. Le sélecteur de vitesse reste toujours manipulable.
+2. Les changements rapides ne perdent plus l'intention de lecture.
+   Exemple validé par construction :
+   `1.00 -> 0.75 -> 1.25 -> 0.85`
+   pendant la lecture doit reprendre avec le dernier choix.
+3. Les décodages asynchrones obsolètes sont ignorés.
+4. Le retard visuel de 350 ms est appliqué aussi lors :
+   - d'un changement de mesure ;
+   - d'un changement d'affichage des diagrammes.
+5. Aucun changement sur :
+   - sources audio / STEMs ;
+   - EQ ;
+   - volumes ;
+   - timestamps persistés ;
+   - analyse harmonique ;
+   - time-stretch FFmpeg `atempo`.
 
-Les fichiers audio/STEM sources et la timeline d'analyse restent immuables.
-Seuls des MP3 de pré-écoute sont ajoutés au cache du player.
-
-Le conducteur conserve la timeline originale. Pour une vitesse `r` :
-
-`temps musical = position + temps mural écoulé * r`
-
-et le démarrage dans la pré-écoute étirée utilise :
-
-`offset pré-écoute = temps musical / r`
-
-## Lisibilité du conducteur
-
-Le conducteur est rendu volontairement 350 ms derrière l'horloge audio :
-
-`temps affiché = temps audio - 0.35 s`
-
-C'est seulement un retard d'affichage ; aucun timestamp n'est réécrit.
-
-## Installation depuis Downloads
+## Installation
 
 ```powershell
 cd H:\EZScore
 
 Expand-Archive `
-  -Path "$env:USERPROFILE\Downloads\EZScore_R12_pitch_preserved.zip" `
+  -Path "$env:USERPROFILE\Downloads\EZScore_R12c_speed_transition_safe.zip" `
   -DestinationPath . `
   -Force
 
-python -m py_compile .\ezscore\player\karaoke_stem_webaudio_r12.py
+python -m py_compile .\ezscore\player\karaoke_stem_webaudio_r12c.py
 python -m py_compile .\ezscore\ui\__init__.py
 
 git diff --check
@@ -55,16 +53,18 @@ git status
 
 Puis redémarrer Streamlit.
 
-Le premier chargement peut être plus long : les variantes manquantes sont
-générées une fois, puis réutilisées.
+## Test ciblé
 
-## Contrôles avant push
+Pendant Lecture :
+1. `1.00 -> 0.75`
+2. immédiatement `0.75 -> 1.25`
+3. immédiatement `1.25 -> 0.85`
+4. retour `1.00`
 
-- comparer 1.00x et 0.75x : même tonalité ;
-- vérifier 0.85x / 1.10x / 1.25x ;
-- vérifier Original puis Mix STEM ;
-- vérifier EQ, volumes et Master ;
-- vérifier accords / Chant / Chœurs ;
-- confirmer que le retard visuel de 350 ms améliore la lecture.
-
-Ne pas pousser avant validation auditive.
+Attendus :
+- sélecteur toujours actif ;
+- le dernier choix gagne ;
+- la lecture reprend ;
+- tonalité inchangée ;
+- aucune désynchronisation STEM ;
+- conducteur toujours légèrement retardé.
