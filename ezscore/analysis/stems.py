@@ -23,6 +23,8 @@ import importlib.util
 import json
 import os
 import shutil
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -254,6 +256,65 @@ def _write_manifest(
     tmp.replace(path)
 
 
+def _require_model_root() -> Path:
+    value = str(os.getenv("BS_ROFORMER_MODELS_PATH", "") or "").strip()
+    if not value:
+        raise RuntimeError(
+            "BS_ROFORMER_MODELS_PATH n'est pas défini. "
+            "Exemple attendu : H:\\EZScoreModels\\bs-roformer."
+        )
+    root = Path(value).expanduser()
+    if root.drive and root.drive.upper() == "C:":
+        raise RuntimeError(
+            "BS_ROFORMER_MODELS_PATH pointe vers C:. "
+            "Les modèles EZScore doivent rester hors du disque système."
+        )
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _run_checked(command: list[str], *, timeout_seconds: int) -> str:
+    proc = subprocess.run(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        timeout=int(timeout_seconds),
+        check=False,
+    )
+    log = proc.stdout or ""
+    if proc.returncode != 0:
+        tail = "\\n".join(log.splitlines()[-80:])
+        raise RuntimeError(
+            "Commande d'analyse échouée "
+            f"(code {proc.returncode}) : {' '.join(command)}\\n{tail}"
+        )
+    return log
+
+
+def _convert_to_wav(source: Path, destination: Path, *, timeout_seconds: int) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise RuntimeError(
+            "FFmpeg est requis pour préparer l'entrée WAV de BS-RoFormer."
+        )
+    _run_checked(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel", "error",
+            "-y",
+            "-i", str(source),
+            "-vn",
+            "-acodec", "pcm_f32le",
+            str(destination),
+        ],
+        timeout_seconds=timeout_seconds,
+    )
+    if not destination.is_file() or destination.stat().st_size <= 0:
+        raise RuntimeError("Conversion WAV BS-RoFormer invalide.")
+
+
 def ensure_stems(
     *,
     audio_bytes: bytes,
@@ -263,9 +324,11 @@ def ensure_stems(
     force: bool = False,
     timeout_seconds: int = 7200,
 ) -> dict[str, Any]:
-    """Generate/cache the quality-first six-stem RoFormer analysis."""
-    del timeout_seconds  # BSRoformerSession is in-process; retained for API compatibility.
+    """Generate/cache quality-first six-stem RoFormer analysis.
 
+    bs-roformer-infer 0.1.3 exposes MODEL_REGISTRY plus its download and
+    inference entry points.  It does not expose BSRoformerSession.
+    """
     if not audio_bytes:
         raise ValueError("Audio vide.")
 
@@ -286,7 +349,33 @@ def ensure_stems(
             "manifest": load_stem_manifest(audio_hash, model=model) or {},
         }
 
-    from bs_roformer import BSRoformerSession
+    from bs_roformer import MODEL_REGISTRY
+
+    try:
+        entry = MODEL_REGISTRY.get(model)
+    except KeyError as exc:
+        raise RuntimeError(f"Modèle BS-RoFormer inconnu : {model!r}.") from exc
+
+    model_root = _require_model_root()
+    model_dir = model_root / entry.slug
+    config_path = model_dir / entry.config
+    checkpoint_path = model_dir / entry.checkpoint
+
+    if force or not config_path.is_file() or not checkpoint_path.is_file():
+        cmd = [
+            sys.executable,
+            "-m", "bs_roformer.download",
+            "--model", entry.slug,
+            "--output-dir", str(model_root),
+        ]
+        if force:
+            cmd.append("--force")
+        _run_checked(cmd, timeout_seconds=max(1800, int(timeout_seconds)))
+
+    if not config_path.is_file():
+        raise RuntimeError(f"Config BS-RoFormer absente : {config_path}")
+    if not checkpoint_path.is_file():
+        raise RuntimeError(f"Checkpoint BS-RoFormer absent : {checkpoint_path}")
 
     parent = cache_dir.parent
     parent.mkdir(parents=True, exist_ok=True)
@@ -297,7 +386,7 @@ def ensure_stems(
         )
     )
 
-    device = str(os.getenv("EZSCORE_STEM_DEVICE", "auto") or "auto").strip()
+    device = str(os.getenv("EZSCORE_STEM_DEVICE", "cuda:0") or "cuda:0").strip()
 
     try:
         input_dir = staging / "input"
@@ -308,22 +397,35 @@ def ensure_stems(
         output_dir.mkdir()
         raw_dir.mkdir(parents=True)
 
-        # RoFormer accepts WAV reliably; preserve the original bytes via ffmpeg/librosa
-        # is intentionally avoided here.  The package itself reads the source file.
         suffix = str(extension or ".mp3").strip().lower()
         if not suffix.startswith("."):
             suffix = "." + suffix
-        source = input_dir / f"source{suffix}"
-        source.write_bytes(audio_bytes)
 
-        with BSRoformerSession(device=device) as session:
-            session.load()
-            session.infer(str(input_dir), store_dir=str(output_dir))
-            info = session.cache_info() or {}
+        original = staging / f"source{suffix}"
+        original.write_bytes(audio_bytes)
 
-        source_stem = source.stem
+        wav_source = input_dir / "source.wav"
+        _convert_to_wav(
+            original,
+            wav_source,
+            timeout_seconds=min(900, max(120, int(timeout_seconds))),
+        )
+
+        inference_log = _run_checked(
+            [
+                sys.executable,
+                "-m", "bs_roformer.inference",
+                "--config_path", str(config_path),
+                "--model_path", str(checkpoint_path),
+                "--input_folder", str(input_dir),
+                "--store_dir", str(output_dir),
+                "--device", device,
+            ],
+            timeout_seconds=max(1800, int(timeout_seconds)),
+        )
+
         located = {
-            name: _pick_raw_stem(output_dir, source_stem, name)
+            name: _pick_raw_stem(output_dir, wav_source.stem, name)
             for name in RAW_STEM_NAMES
         }
 
@@ -352,7 +454,12 @@ def ensure_stems(
             model=model,
             cache_dir=payload_dir,
             device=device,
-            cache_info=dict(info) if isinstance(info, dict) else {"value": str(info)},
+            cache_info={
+                "root": str(model_root),
+                "slug": str(entry.slug),
+                "config": str(config_path),
+                "checkpoint": str(checkpoint_path),
+            },
         )
 
         if cache_dir.exists():
@@ -366,10 +473,7 @@ def ensure_stems(
             "cache_dir": cache_dir,
             "paths": cached_stem_paths(audio_hash, model=model),
             "manifest": load_stem_manifest(audio_hash, model=model) or {},
-            "log_tail": (
-                "BS-RoFormer-SW : 6 stems générés. "
-                "Canonical other = guitar + piano + other."
-            ),
+            "log_tail": "\\n".join(inference_log.splitlines()[-30:]),
         }
     finally:
         shutil.rmtree(staging, ignore_errors=True)
