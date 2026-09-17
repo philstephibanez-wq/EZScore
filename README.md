@@ -1,4 +1,4 @@
-# EZScore — conducteur karaoké paroles + accords — R2
+# EZScore — conducteur karaoké paroles + accords — R3
 
 Base lue : branche `feature/stem-analysis-pipeline`, commit
 `c1fd40afa47890fadb5a8efe83745f8ca010ad65`.
@@ -54,3 +54,11 @@ rendu validé, il faudra transformer ce crochet en import explicite dans
   utilise temporairement `librosa` sur le stem batterie ;
 - ce fallback est limité à l'aperçu karaoké : il n'altère pas le principe
   d'analyse HQ canonique.
+
+
+## Correctif R3
+
+- corrige `name 'np' is not defined` dans le fallback rythmique provisoire ;
+- aucun autre changement fonctionnel : le conducteur reste immédiatement
+  disponible après Whisper, avec accords dès que la timeline harmonique/rythmique
+  est construite.
