@@ -169,15 +169,80 @@ def _build_conductor_timeline(
         except Exception:
             pass
 
-    from ezscore.analysis.rhythm_quality import analyze_beats
     from ezscore.analysis.chords_quality import (
         analyze_chords_absolute,
         chord_for_interval,
     )
 
-    rhythm = analyze_beats(drums)
-    beat_times = [float(x) for x in (rhythm.get("beats", []) or [])]
-    tempo = float(rhythm.get("tempo", 0.0) or 0.0)
+    # Preview conductor priority:
+    # 1. Reuse the canonical beat timeline if step 3 has already produced it.
+    # 2. Otherwise try the HQ rhythm engine.
+    # 3. If madmom-infer is unavailable/broken, build a *provisional* beat grid
+    #    from the drums stem with librosa. This is intentionally limited to the
+    #    immediate karaoke preview after Whisper; the canonical analysis still
+    #    remains the HQ pipeline when available.
+    rhythm_engine = ""
+    beat_times: list[float] = []
+    tempo = 0.0
+
+    structure_path = preview_dir.parent / "structure_analysis.json"
+    if structure_path.is_file():
+        try:
+            structure = json.loads(structure_path.read_text(encoding="utf-8"))
+            beat_timeline = list(structure.get("beat_timeline", []) or [])
+            beat_times = [
+                float(item.get("time", 0.0) or 0.0)
+                for item in beat_timeline
+                if item.get("time") is not None
+            ]
+            beat_times = sorted(set(beat_times))
+            tempo = float(structure.get("tempo", 0.0) or 0.0)
+            if len(beat_times) >= 2:
+                rhythm_engine = str(
+                    (structure.get("analysis_engines", {}) or {}).get("rhythm", "")
+                    or "structure-cache"
+                )
+        except Exception:
+            beat_times = []
+            tempo = 0.0
+
+    if len(beat_times) < 2:
+        try:
+            from ezscore.analysis.rhythm_quality import analyze_beats
+            rhythm = analyze_beats(drums)
+            beat_times = [float(x) for x in (rhythm.get("beats", []) or [])]
+            tempo = float(rhythm.get("tempo", 0.0) or 0.0)
+            rhythm_engine = str(rhythm.get("engine", "") or "")
+        except Exception as exc:
+            # Deliberate preview-only fallback: the user asked to see a
+            # synchronized conductor immediately after lyrics analysis.
+            import librosa
+            y, sr = librosa.load(str(drums), sr=22050, mono=True)
+            onset_env = librosa.onset.onset_strength(y=y, sr=sr)
+            tempo_est, beat_frames = librosa.beat.beat_track(
+                onset_envelope=onset_env,
+                sr=sr,
+                units="frames",
+            )
+            beat_times_np = librosa.frames_to_time(beat_frames, sr=sr)
+            beat_times = [float(x) for x in beat_times_np.tolist()]
+            try:
+                tempo = float(np.asarray(tempo_est).reshape(-1)[0])
+            except Exception:
+                tempo = 0.0
+            rhythm_engine = "librosa-preview-fallback"
+            if len(beat_times) < 2:
+                raise RuntimeError(
+                    "Impossible de construire même la timeline rythmique "
+                    f"provisoire : {exc}"
+                ) from exc
+
+    if tempo <= 1.0 and len(beat_times) >= 2:
+        intervals = np.diff(np.asarray(beat_times, dtype=float))
+        intervals = intervals[intervals > 1e-6]
+        if intervals.size:
+            tempo = 60.0 / float(np.median(intervals))
+
     if len(beat_times) < 2:
         raise RuntimeError("Timeline rythmique insuffisante pour le conducteur.")
 
@@ -219,7 +284,7 @@ def _build_conductor_timeline(
         "version": 1,
         "tempo": tempo,
         "beats": beats,
-        "rhythm_engine": str(rhythm.get("engine", "") or ""),
+        "rhythm_engine": rhythm_engine,
         "harmony_engine": str(chord_payload.get("engine", "") or ""),
         "meter_default": _meter_defaults(preview_dir),
     }
@@ -473,7 +538,6 @@ export default function(component) {
     el.addEventListener("change", persistMeter);
     el.addEventListener("input", persistMeter);
   });
-  persistMeter();
 
   function buildLines() {
     if (!words.length) return [];
@@ -507,6 +571,8 @@ export default function(component) {
   }
 
   const lines = buildLines();
+  // `lines` must exist before persistMeter() triggers renderConductor().
+  persistMeter();
 
   function lineAt(time) {
     if (!lines.length) return -1;

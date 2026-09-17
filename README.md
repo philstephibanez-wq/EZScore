@@ -1,4 +1,4 @@
-# EZScore — conducteur karaoké paroles + accords
+# EZScore — conducteur karaoké paroles + accords — R2
 
 Base lue : branche `feature/stem-analysis-pipeline`, commit
 `c1fd40afa47890fadb5a8efe83745f8ca010ad65`.
@@ -42,3 +42,15 @@ Pour éviter de modifier le gros fichier `stem_lab_analysis.py` à ce stade,
 l'analyse STEM. C'est volontairement un crochet de validation. Une fois le
 rendu validé, il faudra transformer ce crochet en import explicite dans
 `stem_lab_analysis.py`.
+
+
+## Correctifs R2
+
+- corrige l'erreur Bidi `Cannot access 'lines' before initialization` ;
+- réutilise la `beat_timeline` canonique si l'étape 3 existe déjà ;
+- tente ensuite `madmom-infer` ;
+- si `madmom-infer` est installé mais incomplet/incompatible
+  (`No module named 'madmom_infer.features.beats'`), le conducteur immédiat
+  utilise temporairement `librosa` sur le stem batterie ;
+- ce fallback est limité à l'aperçu karaoké : il n'altère pas le principe
+  d'analyse HQ canonique.
