@@ -31,7 +31,6 @@ from .storage import (
     user_count,
 )
 
-
 _AUTH_CSS = r"""
 <style>
 .ez-auth-hero {
@@ -86,9 +85,7 @@ def render_account_header() -> None:
         with c1:
             if user:
                 name = str(user.get("display_name") or user.get("email") or "Compte")
-                st.markdown(
-                    "**👤 " + name + "** · rôle " + str(user.get("role") or "reader")
-                )
+                st.markdown("**👤 " + name + "** · rôle " + str(user.get("role") or "reader"))
             else:
                 st.markdown("**👤 Visiteur** · accès public")
         with c2:
@@ -111,7 +108,6 @@ def render_account_header() -> None:
 
 def _render_login_panel() -> None:
     st.subheader("Connexion")
-
     c1, c2, c3 = st.columns(3)
     with c1:
         _provider_button("google", "Google", "auth_google")
@@ -123,14 +119,16 @@ def _render_login_panel() -> None:
     st.markdown('<div class="ez-auth-or">ou</div>', unsafe_allow_html=True)
 
     with st.form("auth_login_form", clear_on_submit=False):
-        identifier = st.text_input(
-            "Nom affiché ou e-mail",
-            key="auth_login_email",
-        )
+        identifier = st.text_input("Nom affiché ou e-mail", key="auth_login_email")
         password = st.text_input(
             "Mot de passe",
             type="password",
             key="auth_login_password",
+        )
+        remember = st.checkbox(
+            "Rester connecté 30 jours",
+            value=True,
+            help="La session locale est restaurée après un redémarrage de Streamlit.",
         )
         submitted = st.form_submit_button(
             "Se connecter",
@@ -139,7 +137,7 @@ def _render_login_panel() -> None:
         )
 
     if submitted:
-        if login(identifier, password):
+        if login(identifier, password, remember=remember):
             st.session_state["_pending_main_menu"] = "Répertoire"
             st.rerun()
         st.error("Identifiants invalides.")
@@ -165,6 +163,11 @@ def _render_registration_panel() -> None:
             type="password",
             key="auth_register_confirm",
         )
+        remember = st.checkbox(
+            "Rester connecté 30 jours",
+            value=True,
+            key="auth_register_remember",
+        )
         submitted = st.form_submit_button(
             "Créer mon compte",
             type="primary",
@@ -180,6 +183,7 @@ def _render_registration_panel() -> None:
                 email=email,
                 password=password,
                 display_name=display_name,
+                remember=remember,
             )
             st.session_state["_pending_main_menu"] = "Répertoire"
             st.rerun()
@@ -278,10 +282,7 @@ def _render_profile(user: dict) -> None:
             "Confirmer le nouveau mot de passe",
             type="password",
         )
-        change = st.form_submit_button(
-            "Changer le mot de passe",
-            width="stretch",
-        )
+        change = st.form_submit_button("Changer le mot de passe", width="stretch")
     if change:
         if new_password != confirm_password:
             st.error("Les deux nouveaux mots de passe sont différents.")
@@ -364,8 +365,7 @@ def render_admin_users() -> None:
                     + str(item["email"])
                 )
                 st.caption(
-                    "Morceaux assignés : "
-                    + str(int(item.get("assigned_songs") or 0))
+                    "Morceaux assignés : " + str(int(item.get("assigned_songs") or 0))
                 )
 
                 login_name = st.text_input(
@@ -447,7 +447,6 @@ def render_admin_users() -> None:
 def render_account_page() -> None:
     st.markdown(_AUTH_CSS, unsafe_allow_html=True)
     user = current_user()
-
     st.header("Compte EZScore")
 
     if user:

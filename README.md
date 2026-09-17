@@ -1,4 +1,4 @@
-# EZScore — lecteur unifié STEM + karaoké — R9
+# EZScore — lecteur unifié STEM + karaoké + session — R10
 
 Base lue : branche `feature/stem-analysis-pipeline`, commit
 `c1fd40afa47890fadb5a8efe83745f8ca010ad65`.
@@ -198,3 +198,42 @@ Le même composant possède maintenant :
 
 Il n'y a plus deux lecteurs concurrents : le mixeur STEM et le karaoké vivent
 dans le même composant et démarrent tous les buffers au même instant WebAudio.
+
+
+## R10 — vrai EQ spectral + session persistante
+
+### Egaliseur
+
+Le traitement par piste devient :
+
+`source -> lowshelf(200 Hz) -> peaking(1 kHz, Q=0.9) -> highshelf(5 kHz)
+-> volume piste -> master`
+
+Les trois potentiomètres travaillent directement en dB sur des
+`BiquadFilterNode`. La compensation automatique de niveau de R9 est supprimée.
+Le volume de piste est donc totalement séparé de l'EQ.
+
+### Session locale persistante
+
+Ajout de `Rester connecté 30 jours`.
+
+- token aléatoire opaque côté navigateur ;
+- seulement le SHA-256 du token dans la table SQLite `app_sessions` ;
+- restauration après redémarrage Streamlit ;
+- révocation + effacement à la déconnexion ;
+- refus de restauration si l'utilisateur est désactivé ;
+- OIDC/Google garde son propre mécanisme de session.
+
+Le cookie créé par le composant Streamlit V2 est `SameSite=Lax` et `Secure`
+sous HTTPS. JavaScript ne peut pas créer un cookie `HttpOnly`; pour un
+déploiement public durci, OIDC reste le mécanisme recommandé.
+
+
+## R10b — correctif Streamlit Components V2
+
+Correction de l'erreur `BidiComponentInvalidDefaultKeyError` au démarrage.
+
+Streamlit Components V2 impose qu'un état présent dans `default` possède le
+callback Python correspondant `on_<state>_change`. L'état `token` dispose
+maintenant de `on_token_change`, ce qui rend le pont de session persistante
+valide avec Streamlit 1.63+.

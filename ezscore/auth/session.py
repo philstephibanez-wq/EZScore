@@ -5,6 +5,13 @@ from __future__ import annotations
 import re
 import streamlit as st
 
+from .persistent import (
+    SESSION_DAYS,
+    create_persistent_session,
+    ensure_persistent_session_schema,
+    resolve_persistent_session,
+    revoke_persistent_session,
+)
 from .roles import Role, can, normalize_role
 from .storage import (
     authenticate_local,
@@ -16,10 +23,124 @@ from .storage import (
 
 _SESSION_USER_ID = "_ezscore_auth_user_id"
 _OIDC_USER_ID = "_ezscore_oidc_user_id"
+_PERSIST_COMPONENT_KEY = "_ezscore_persistent_session_component"
+_PERSIST_TOKEN = "_ezscore_persistent_active_token"
+_PERSIST_STORE = "_ezscore_persistent_store_token"
+_PERSIST_CLEAR = "_ezscore_persistent_clear"
+
+_SESSION_COMPONENT = st.components.v2.component(
+    "ezscore_auth_persistent_session_v1",
+    html='<span class="ezscore-auth-session-bridge" hidden></span>',
+    css=".ezscore-auth-session-bridge{display:none!important}",
+    js=r"""
+export default function(component) {
+  const {data, setStateValue} = component;
+  const cookieName = "ezscore_local_session";
+  const known = String(data.known_token || "");
+  const store = String(data.store_token || "");
+  const clear = Boolean(data.clear_token);
+
+  function readCookie() {
+    const prefix = cookieName + "=";
+    for (const part of document.cookie.split(";")) {
+      const item = part.trim();
+      if (item.startsWith(prefix)) {
+        return decodeURIComponent(item.slice(prefix.length));
+      }
+    }
+    return "";
+  }
+
+  function writeCookie(value, maxAge) {
+    let cookie =
+      cookieName + "=" + encodeURIComponent(value) +
+      "; Path=/; Max-Age=" + String(maxAge) +
+      "; SameSite=Lax";
+    if (window.location.protocol === "https:") cookie += "; Secure";
+    document.cookie = cookie;
+  }
+
+  const current = readCookie();
+
+  if (clear) {
+    if (current) writeCookie("", 0);
+    if (known) setStateValue("token", "");
+    return;
+  }
+
+  if (store) {
+    if (current !== store) writeCookie(store, Number(data.max_age || 2592000));
+    if (known !== store) setStateValue("token", store);
+    return;
+  }
+
+  if (current !== known) setStateValue("token", current);
+}
+""",
+    isolate_styles=True,
+)
+
+
+def _component_token(value) -> str:
+    if value is None:
+        return ""
+    try:
+        token = getattr(value, "token", None)
+        if token is not None:
+            return str(token or "").strip()
+    except Exception:
+        pass
+    try:
+        return str(value.get("token", "") or "").strip()
+    except Exception:
+        return ""
 
 
 def initialize_auth() -> None:
     bootstrap_admin_from_env()
+    ensure_persistent_session_schema()
+
+    existing = st.session_state.get(_PERSIST_COMPONENT_KEY)
+    known_token = _component_token(existing)
+    store_token = str(st.session_state.get(_PERSIST_STORE, "") or "")
+    clear_token = bool(st.session_state.get(_PERSIST_CLEAR, False))
+
+    def _on_token_change() -> None:
+        # Required by Streamlit Components V2 for state names used in `default`.
+        # The actual value is read from the component result just below.
+        return None
+
+    result = _SESSION_COMPONENT(
+        data={
+            "known_token": known_token,
+            "store_token": store_token,
+            "clear_token": clear_token,
+            "max_age": int(SESSION_DAYS * 24 * 60 * 60),
+        },
+        default={"token": known_token},
+        key=_PERSIST_COMPONENT_KEY,
+        on_token_change=_on_token_change,
+    )
+    browser_token = _component_token(result)
+
+    if store_token and browser_token == store_token:
+        st.session_state.pop(_PERSIST_STORE, None)
+    if clear_token and not browser_token:
+        st.session_state.pop(_PERSIST_CLEAR, None)
+    if browser_token:
+        st.session_state[_PERSIST_TOKEN] = browser_token
+
+    if (
+        not _streamlit_oidc_logged_in()
+        and st.session_state.get(_SESSION_USER_ID) is None
+        and browser_token
+    ):
+        user_id = resolve_persistent_session(browser_token)
+        if user_id is not None:
+            st.session_state[_SESSION_USER_ID] = int(user_id)
+        else:
+            st.session_state.pop(_PERSIST_TOKEN, None)
+            st.session_state[_PERSIST_CLEAR] = True
 
 
 def _streamlit_oidc_logged_in() -> bool:
@@ -178,7 +299,6 @@ def current_user() -> dict | None:
             if user and user.get("active"):
                 st.session_state[_OIDC_USER_ID] = int(user["user_id"])
                 return user
-
         return None
 
     user_id = st.session_state.get(_SESSION_USER_ID)
@@ -201,6 +321,8 @@ def current_auth_method() -> str:
     if _streamlit_oidc_logged_in():
         return _provider_from_claims(_oidc_claims())
     if st.session_state.get(_SESSION_USER_ID) is not None:
+        if st.session_state.get(_PERSIST_TOKEN):
+            return "local · session persistante"
         return "local"
     return "anonymous"
 
@@ -214,12 +336,24 @@ def require(permission: str) -> None:
         raise PermissionError("Permission requise : " + str(permission))
 
 
-def login(identifier: str, password: str) -> bool:
+def login(identifier: str, password: str, *, remember: bool = False) -> bool:
     user = authenticate_local(identifier, password)
     if not user:
         return False
+
     st.session_state[_SESSION_USER_ID] = int(user["user_id"])
     st.session_state.pop(_OIDC_USER_ID, None)
+
+    if remember:
+        token = create_persistent_session(int(user["user_id"]))
+        st.session_state[_PERSIST_TOKEN] = token
+        st.session_state[_PERSIST_STORE] = token
+        st.session_state.pop(_PERSIST_CLEAR, None)
+    else:
+        old_token = str(st.session_state.pop(_PERSIST_TOKEN, "") or "")
+        if old_token:
+            revoke_persistent_session(old_token)
+        st.session_state[_PERSIST_CLEAR] = True
     return True
 
 
@@ -228,6 +362,7 @@ def register_and_login(
     email: str,
     password: str,
     display_name: str = "",
+    remember: bool = True,
 ) -> dict:
     user = register_reader(
         email=email,
@@ -236,6 +371,10 @@ def register_and_login(
     )
     st.session_state[_SESSION_USER_ID] = int(user["user_id"])
     st.session_state.pop(_OIDC_USER_ID, None)
+    if remember:
+        token = create_persistent_session(int(user["user_id"]))
+        st.session_state[_PERSIST_TOKEN] = token
+        st.session_state[_PERSIST_STORE] = token
     return user
 
 
@@ -248,6 +387,11 @@ def login_oidc(provider: str) -> None:
 
 
 def logout() -> None:
+    token = str(st.session_state.pop(_PERSIST_TOKEN, "") or "")
+    if token:
+        revoke_persistent_session(token)
+    st.session_state[_PERSIST_CLEAR] = True
+    st.session_state.pop(_PERSIST_STORE, None)
     st.session_state.pop(_SESSION_USER_ID, None)
     st.session_state.pop(_OIDC_USER_ID, None)
     if _streamlit_oidc_logged_in():

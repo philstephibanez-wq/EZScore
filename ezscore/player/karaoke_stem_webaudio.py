@@ -574,7 +574,7 @@ _HTML = r"""
   </div>
 
   <div class="hint">
-    Une seule horloge WebAudio · Original ou mix STEM · EQ 3 bandes · accords + Chant + Chœurs synchronisés.
+    Une seule horloge WebAudio · Original ou mix STEM · EQ spectral 3 bandes · accords + Chant + Chœurs synchronisés.
   </div>
 </div>
 """
@@ -912,20 +912,6 @@ export default function(component) {
     );
   }
 
-  function dbToLinear(db) {
-    return Math.pow(10, Number(db || 0) / 20);
-  }
-
-  function compensationFor(state) {
-    const avg = (
-      dbToLinear(state.low) +
-      dbToLinear(state.mid) +
-      dbToLinear(state.high)
-    ) / 3;
-    if (!Number.isFinite(avg) || avg <= .0001) return 1.0;
-    return Math.max(.72, Math.min(1.25, 1 / avg));
-  }
-
   function applyTrackState(index, smooth=true) {
     if (!ready || !trackNodes[index] || !context) return;
     const state = trackState[index];
@@ -937,11 +923,11 @@ export default function(component) {
       else param.value = value;
     };
 
-    setValue(nodes.lowGain.gain, dbToLinear(state.low));
-    setValue(nodes.midGain.gain, dbToLinear(state.mid));
-    setValue(nodes.highGain.gain, dbToLinear(state.high));
-    const enabledGain = state.enabled ? state.volume : 0;
-    setValue(nodes.trackGain.gain, enabledGain * compensationFor(state));
+    // Spectral EQ only. Volume is independent.
+    setValue(nodes.lowEQ.gain, Number(state.low || 0));
+    setValue(nodes.midEQ.gain, Number(state.mid || 0));
+    setValue(nodes.highEQ.gain, Number(state.high || 0));
+    setValue(nodes.trackGain.gain, state.enabled ? Number(state.volume || 0) : 0);
   }
 
   function applyMasterState(smooth=true) {
@@ -1380,42 +1366,30 @@ export default function(component) {
       const buffer=await context.decodeAudioData(await response.arrayBuffer());
       decoded.push(buffer);
 
-      const lowLP=context.createBiquadFilter();
-      lowLP.type="lowpass";
-      lowLP.frequency.value=250;
-      lowLP.Q.value=.707;
+      const lowEQ=context.createBiquadFilter();
+      lowEQ.type="lowshelf";
+      lowEQ.frequency.value=200;
+      lowEQ.gain.value=0;
 
-      const midHP=context.createBiquadFilter();
-      midHP.type="highpass";
-      midHP.frequency.value=250;
-      midHP.Q.value=.707;
+      const midEQ=context.createBiquadFilter();
+      midEQ.type="peaking";
+      midEQ.frequency.value=1000;
+      midEQ.Q.value=.9;
+      midEQ.gain.value=0;
 
-      const midLP=context.createBiquadFilter();
-      midLP.type="lowpass";
-      midLP.frequency.value=4000;
-      midLP.Q.value=.707;
+      const highEQ=context.createBiquadFilter();
+      highEQ.type="highshelf";
+      highEQ.frequency.value=5000;
+      highEQ.gain.value=0;
 
-      const highHP=context.createBiquadFilter();
-      highHP.type="highpass";
-      highHP.frequency.value=4000;
-      highHP.Q.value=.707;
-
-      const lowGain=context.createGain();
-      const midGain=context.createGain();
-      const highGain=context.createGain();
-      const bandSum=context.createGain();
       const trackGain=context.createGain();
 
-      lowLP.connect(lowGain); lowGain.connect(bandSum);
-      midHP.connect(midLP); midLP.connect(midGain); midGain.connect(bandSum);
-      highHP.connect(highGain); highGain.connect(bandSum);
-      bandSum.connect(trackGain);
+      lowEQ.connect(midEQ);
+      midEQ.connect(highEQ);
+      highEQ.connect(trackGain);
       trackGain.connect(masterGain);
 
-      trackNodes.push({
-        lowLP,midHP,midLP,highHP,
-        lowGain,midGain,highGain,bandSum,trackGain
-      });
+      trackNodes.push({lowEQ,midEQ,highEQ,trackGain});
 
       if (i===0) duration=Number(buffer.duration || 0);
     }
@@ -1445,10 +1419,8 @@ export default function(component) {
       const source=context.createBufferSource();
       source.buffer=buffer;
 
-      // Same source fans out into the three crossover branches.
-      source.connect(trackNodes[index].lowLP);
-      source.connect(trackNodes[index].midHP);
-      source.connect(trackNodes[index].highHP);
+      // One serial Biquad EQ chain per track.
+      source.connect(trackNodes[index].lowEQ);
 
       const safeOffset=Math.max(
         0,
@@ -1524,7 +1496,7 @@ export default function(component) {
 """
 
 _COMPONENT = st.components.v2.component(
-    "ezscore_karaoke_stem_player_r9",
+    "ezscore_karaoke_stem_player_r10",
     html=_HTML,
     css=_CSS,
     js=_JS,
