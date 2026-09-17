@@ -35,6 +35,15 @@ from ezscore.analysis.stems import (
     load_stem_manifest,
     stems_cache_complete,
 )
+from ezscore.analysis.chords_quality import (
+    analyze_chords_absolute,
+    chord_for_interval,
+    quality_chord_engine_available,
+)
+from ezscore.analysis.rhythm_quality import (
+    analyze_beats as analyze_quality_beats,
+    quality_rhythm_engine_available,
+)
 import ezscore.persistence as _persistence
 from ezscore.analysis.stem_midi import (
     browser_events_from_bundle,
@@ -214,6 +223,10 @@ def _estimate_chord(chroma: np.ndarray, bass: np.ndarray | None) -> str:
 
 def _structure_cache_path(audio_hash: str) -> Path:
     return _work_dir(audio_hash) / "structure_analysis.json"
+
+
+def _chord_cache_path(audio_hash: str) -> Path:
+    return _work_dir(audio_hash) / "chord_analysis_lv_chordia.json"
 
 
 
@@ -691,35 +704,87 @@ def _structure_from_beat_timeline(
     return payload
 
 
-def _analyze_structure(*, audio_hash: str, stems: dict[str, Path], meter: dict[str, Any]) -> dict[str, Any]:
-    y_drums, sr = librosa.load(str(stems["drums"]), sr=22050, mono=True)
-    y_other, _ = librosa.load(str(stems["other"]), sr=sr, mono=True)
-    y_bass, _ = librosa.load(str(stems["bass"]), sr=sr, mono=True)
-    onset_env = librosa.onset.onset_strength(y=y_drums, sr=sr, hop_length=512)
-    tempo, beat_frames = librosa.beat.beat_track(onset_envelope=onset_env, sr=sr, hop_length=512, trim=False)
-    beat_frames=np.asarray(beat_frames,dtype=int)
-    beat_times=librosa.frames_to_time(beat_frames,sr=sr,hop_length=512)
-    if len(beat_times) < 2: raise RuntimeError("Pas assez de beats détectés sur drums.wav.")
-    strengths=onset_env[np.clip(beat_frames,0,max(0,len(onset_env)-1))] if len(beat_frames) else np.array([])
-    chroma_other=librosa.feature.chroma_cqt(y=y_other,sr=sr,hop_length=512)
-    chroma_bass=librosa.feature.chroma_cqt(y=y_bass,sr=sr,hop_length=512)
-    tempo_value=float(np.asarray(tempo).reshape(-1)[0])
-    beat_timeline=[]
-    for i,t0 in enumerate(beat_times):
-        t1=float(beat_times[i+1]) if i+1 < len(beat_times) else float(t0)+60.0/max(1.0,tempo_value)
-        f0=max(0,int(librosa.time_to_frames(t0,sr=sr,hop_length=512)))
-        f1=max(f0+1,int(librosa.time_to_frames(t1,sr=sr,hop_length=512)))
-        f1=min(f1,chroma_other.shape[1]); f0=min(f0,max(0,f1-1))
-        co=np.mean(chroma_other[:,f0:f1],axis=1); cb=np.mean(chroma_bass[:,f0:f1],axis=1)
-        beat_timeline.append({"index":int(i),"time":round(float(t0),6),
-                              "strength":round(float(strengths[i]) if i < len(strengths) else 0.0,6),
-                              "chord":_estimate_chord(co,cb)})
-    return _structure_from_beat_timeline(
+def _analyze_structure(
+    *,
+    audio_hash: str,
+    stems: dict[str, Path],
+    meter: dict[str, Any],
+) -> dict[str, Any]:
+    """Quality-first rhythm + harmony analysis.
+
+    Rhythm is extracted from the separated drums stem with madmom-infer.
+    Harmony is extracted independently from the ORIGINAL audio with the
+    lv-chordia five-network ensemble + HMM.
+
+    Neither engine is allowed to silently fall back to the historical
+    librosa/template recognizers.
+    """
+    drums_path = Path(stems["drums"])
+    song = _song_for_hash(audio_hash)
+    source = _source_path(audio_hash, song)
+    if source is None or not source.is_file():
+        raise RuntimeError(
+            "Audio original introuvable pour l'analyse harmonique haute qualité."
+        )
+
+    rhythm = analyze_quality_beats(drums_path)
+    beat_times = np.asarray(rhythm["beats"], dtype=float)
+    tempo_value = float(rhythm["tempo"])
+
+    chord_payload = analyze_chords_absolute(
+        source,
+        cache_path=_chord_cache_path(audio_hash),
+        force=False,
+    )
+    chord_segments = list(chord_payload.get("segments", []) or [])
+    if not chord_segments:
+        raise RuntimeError("Timeline harmonique lv-chordia vide.")
+
+    beat_timeline = []
+    for i, t0 in enumerate(beat_times):
+        t1 = (
+            float(beat_times[i + 1])
+            if i + 1 < len(beat_times)
+            else float(t0) + 60.0 / max(1.0, tempo_value)
+        )
+        chord, raw_chord, overlap = chord_for_interval(
+            chord_segments,
+            float(t0),
+            float(t1),
+        )
+        beat_timeline.append(
+            {
+                "index": int(i),
+                "time": round(float(t0), 6),
+                "strength": 0.0,
+                "chord": chord,
+                "chord_raw": raw_chord,
+                "chord_overlap": round(float(overlap), 6),
+                "rhythm_engine": str(rhythm.get("engine", "")),
+                "harmony_engine": str(chord_payload.get("engine", "")),
+            }
+        )
+
+    structure = _structure_from_beat_timeline(
         audio_hash=audio_hash,
         beat_timeline=beat_timeline,
         tempo=tempo_value,
         meter=meter,
     )
+    structure["analysis_engines"] = {
+        "stems": "bs-roformer-sw-6stems-v1",
+        "rhythm": str(rhythm.get("engine", "")),
+        "harmony": str(chord_payload.get("engine", "")),
+        "harmony_dictionary": str(chord_payload.get("dictionary", "")),
+    }
+    structure["chord_segment_count"] = int(
+        chord_payload.get("segment_count", len(chord_segments)) or len(chord_segments)
+    )
+    _structure_cache_path(audio_hash).write_text(
+        json.dumps(structure, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return structure
 
 
 def _load_structure(audio_hash: str) -> dict[str, Any] | None:
@@ -809,7 +874,7 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
     st.write(
         f"**Fichier :** {source.name}  \n"
         f"**Hash :** `{str(audio_hash)[:12]}`  \n"
-        f"**Modèle STEM :** `{DEFAULT_DEMUCS_MODEL}`"
+        f"**Modèle STEM HQ :** `{DEFAULT_DEMUCS_MODEL}`"
     )
 
     tab_stem, tab_lyrics, tab_blocks, tab_midi = st.tabs(
@@ -826,18 +891,18 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
     # ========================================================
     with tab_stem:
         st.markdown("## 1 — STEM")
-        st.caption("Séparation vocals / drums / bass / other.")
+        st.caption("Séparation HQ BS-RoFormer-SW · 6 stems bruts, 4 stems canoniques EZScore.")
 
         if not demucs_available():
-            st.error("Demucs n'est pas disponible dans cet environnement Python.")
+            st.error("BS-RoFormer-Infer n’est pas installé dans cet environnement Python.")
         elif not stems_cache_complete(audio_hash):
             if st.button(
-                "Extraire les 4 stems",
+                "Extraire les STEM HQ",
                 type="primary",
                 width="stretch",
                 key=f"ezstem_extract_{str(audio_hash)[:12]}",
             ):
-                with st.spinner("Demucs sépare vocals / drums / bass / other…"):
+                with st.spinner("BS-RoFormer-SW sépare vocals / drums / bass / guitar / piano / other…"):
                     result = ensure_stems(
                         audio_bytes=source.read_bytes(),
                         extension=source.suffix.lower() or ".mp3",
@@ -854,7 +919,7 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
             if len(stems) != len(STEM_NAMES):
                 st.error("Cache STEM déclaré complet mais fichiers stems incomplets.")
             else:
-                st.success("✓ 4 stems prêts.")
+                st.success("✓ STEM HQ prêts · BS-RoFormer-SW.")
                 _download_stems(stems)
 
                 if not _stem_ffmpeg_available():
@@ -936,6 +1001,10 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
             "La signature regroupe les beats en mesures et détermine les temps "
             "forts/faibles. Les timestamps audio des beats restent inchangés."
         )
+        if not quality_rhythm_engine_available():
+            st.error("Analyse rythmique HQ indisponible : paquet `madmom-infer` absent.")
+        if not quality_chord_engine_available():
+            st.error("Analyse harmonique HQ indisponible : paquet `lv-chordia` absent.")
 
         if not stems_cache_complete(audio_hash):
             st.info("Terminer d'abord l'étape 1 — STEM.")
@@ -1004,7 +1073,7 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                     type="primary",
                     width="stretch",
                     key=f"ezstem_structure_{str(audio_hash)[:12]}",
-                    disabled=selected_meter is None,
+                    disabled=(selected_meter is None or not quality_rhythm_engine_available() or not quality_chord_engine_available()),
                 ):
                     with st.spinner("Analyse beats + accords + répétitions + blocs…"):
                         _analyze_structure(
@@ -1035,7 +1104,7 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                     type="primary" if signature_changed else "secondary",
                     width="stretch",
                     key=f"ezstem_structure_recalc_{str(audio_hash)[:12]}",
-                    disabled=selected_meter is None,
+                    disabled=(selected_meter is None or not quality_rhythm_engine_available() or not quality_chord_engine_available()),
                 ):
                     if has_beat_timeline:
                         with st.spinner("Reconstruction métrique + blocs…"):

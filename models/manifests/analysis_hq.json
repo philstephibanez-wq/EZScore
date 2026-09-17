@@ -1,0 +1,38 @@
+{
+  "profile": "EZScore analysis HQ R14",
+  "weights_in_git": false,
+  "engines": {
+    "stems": {
+      "package": "bs-roformer-infer",
+      "model": "roformer-model-bs-roformer-sw-by-jarredou",
+      "architecture": "BS-RoFormer",
+      "raw_stems": [
+        "vocals",
+        "drums",
+        "bass",
+        "guitar",
+        "piano",
+        "other"
+      ],
+      "cache_env": "BS_ROFORMER_MODELS_PATH",
+      "git_weights": false
+    },
+    "rhythm": {
+      "package": "madmom-infer",
+      "pipeline": "RNNBeatProcessor -> DBNBeatTrackingProcessor",
+      "source": "BS-RoFormer drums stem"
+    },
+    "chords": {
+      "package": "lv-chordia",
+      "pipeline": "CQT -> 5 CNN ensemble -> probability fusion -> HMM",
+      "dictionary": "submission",
+      "source": "original audio",
+      "timebase": "original_audio_seconds"
+    },
+    "lyrics": {
+      "package": "openai-whisper",
+      "model": "small",
+      "source": "original audio"
+    }
+  }
+}

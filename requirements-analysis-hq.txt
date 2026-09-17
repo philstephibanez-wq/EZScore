@@ -1,0 +1,6 @@
+# EZScore quality-first analysis dependencies
+# Model weights are NOT stored in the EZScore Git repository.
+bs-roformer-infer
+lv-chordia
+madmom-infer
+soundfile
