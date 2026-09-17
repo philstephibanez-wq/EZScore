@@ -1,4 +1,4 @@
-# EZScore — conducteur karaoké paroles + accords — R6
+# EZScore — conducteur karaoké paroles + accords — R7
 
 Base lue : branche `feature/stem-analysis-pipeline`, commit
 `c1fd40afa47890fadb5a8efe83745f8ca010ad65`.
@@ -116,3 +116,27 @@ R6 utilise une timeline **sémantique continue** :
 - aucun silence audio ne peut créer un canyon noir dans le conducteur ;
 - nouveau nom de composant Bidi `ezscore_karaoke_stem_player_r6` pour éviter
   de réutiliser un ancien bundle frontend en cache.
+
+
+## R7 — lisibilité + ré-analyse sans réimport
+
+### Lisibilité
+
+La rangée des accords n'utilise plus la compression sémantique des paroles.
+Chaque mesure dispose maintenant d'un slot visuel fixe. La tête de lecture
+reste synchronisée sur le temps réel et interpole sa position à l'intérieur de
+la mesure. Cela supprime les superpositions/flous visibles en R6.
+
+Le mot actif ne subit plus de `scale()` CSS, ce qui évite également le flou et
+les petits sauts typographiques.
+
+### Ré-analyse
+
+Trois boutons sont ajoutés au-dessus du conducteur :
+
+- `Ré-analyser paroles` : relance Whisper à partir de l'audio déjà persisté ;
+- `Ré-analyser accords` : invalide puis recalcule rythme + harmonie ;
+- `Ré-analyser tout` : relance les deux chaînes.
+
+Aucun de ces boutons ne demande de réimporter le MP3 et aucun ne refait les
+STEM BS-RoFormer existants.

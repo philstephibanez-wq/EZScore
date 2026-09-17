@@ -631,7 +631,7 @@ _CSS = r"""
 .lyric-token.current {
   opacity:1;
   font-weight:900;
-  transform:scale(1.05);
+  transform:none;
   text-decoration:underline;
   text-decoration-thickness:3px;
   text-underline-offset:6px;
@@ -652,13 +652,15 @@ _CSS = r"""
   font-weight:900;
   padding:3px 6px;
   border-radius:5px;
-  background:color-mix(in srgb, #4da3ff 16%, transparent);
-  transition:background 70ms linear, transform 70ms linear;
-  transform-origin:left center;
+  background:color-mix(in srgb, #4da3ff 20%, #15181d);
+  border:1px solid color-mix(in srgb, #4da3ff 28%, transparent);
+  transition:background 70ms linear, border-color 70ms linear;
+  transform:none;
 }
 .chord-marker.active {
-  background:color-mix(in srgb, #4da3ff 42%, transparent);
-  transform:scale(1.07);
+  background:color-mix(in srgb, #4da3ff 42%, #15181d);
+  border-color:color-mix(in srgb, #4da3ff 72%, transparent);
+  transform:none;
 }
 .timeline-row.hidden { display:none; }
 .mixer-details { margin-top:12px; }
@@ -927,6 +929,7 @@ export default function(component) {
   let renderedMeterKey = "";
   let chordMeasures = [];
   let chordNodes = [];
+  const measureSlotWidth = 138;
 
   function rebuildChordTimeline() {
     const m = meter();
@@ -938,29 +941,45 @@ export default function(component) {
     chordNodes = [];
 
     const count = Math.ceil(beats.length / m.beatsPerMeasure);
-    let maxX = 0;
     for (let i=0;i<count;i++) {
       const item = measureNotation(i, m);
       if (!item) continue;
+      item.visualX = i * measureSlotWidth;
       chordMeasures.push(item);
 
       const marker = document.createElement("span");
       marker.className = "chord-marker";
       marker.textContent = item.notation;
-
-      // Chords use the same semantic time -> visual-position mapping as lyrics,
-      // so they remain above the relevant sung area without making long
-      // silences consume metres of empty screen.
-      const x = visualXForTime(item.start);
-      marker.style.left = x + "px";
+      marker.style.left = item.visualX + "px";
+      marker.style.width = (measureSlotWidth - 12) + "px";
+      marker.style.boxSizing = "border-box";
+      marker.style.overflow = "hidden";
+      marker.style.textOverflow = "clip";
       chordTrack.appendChild(marker);
       chordNodes.push(marker);
-      maxX = Math.max(maxX, x + Math.max(80, marker.offsetWidth || 80));
     }
-    chordTrack.style.width = Math.max(maxX + 240, leadTrack.offsetWidth || 1) + "px";
+    chordTrack.style.width =
+      Math.max(1, chordMeasures.length * measureSlotWidth + 220) + "px";
   }
 
-  function translateSemanticTimeline(track, viewport, time) {
+  function chordVisualXForTime(time) {
+    if (!chordMeasures.length) return 0;
+    const t = Number(time || 0);
+
+    if (t <= chordMeasures[0].start) return chordMeasures[0].visualX;
+
+    for (let i=0;i<chordMeasures.length;i++) {
+      const m = chordMeasures[i];
+      if (t >= m.start && t < Math.max(m.end, m.start + .02)) {
+        const duration = Math.max(.02, m.end - m.start);
+        const p = Math.max(0, Math.min(1, (t - m.start) / duration));
+        return m.visualX + p * measureSlotWidth;
+      }
+    }
+    return chordMeasures[chordMeasures.length - 1].visualX + measureSlotWidth;
+  }
+
+  function translateLyricTimeline(track, viewport, time) {
     if (!track || !viewport) return;
     const anchor = viewport.clientWidth * anchorRatio;
     const xNow = visualXForTime(time);
@@ -968,14 +987,22 @@ export default function(component) {
       "translate3d(" + (anchor - xNow).toFixed(2) + "px,0,0)";
   }
 
+  function translateChordTimeline(time) {
+    if (!chordTrack || !chordViewport) return;
+    const anchor = chordViewport.clientWidth * anchorRatio;
+    const xNow = chordVisualXForTime(time);
+    chordTrack.style.transform =
+      "translate3d(" + (anchor - xNow).toFixed(2) + "px,0,0)";
+  }
+
   function renderConductor(time, force=false) {
     rebuildChordTimeline();
 
-    translateSemanticTimeline(leadTrack, leadViewport, time);
-    translateSemanticTimeline(chordTrack, chordViewport, time);
+    translateLyricTimeline(leadTrack, leadViewport, time);
+    translateChordTimeline(time);
 
     if (!backingRow.classList.contains("hidden")) {
-      translateSemanticTimeline(backingTrack, backingViewport, time);
+      translateLyricTimeline(backingTrack, backingViewport, time);
     }
 
     const currentWord = activeWordIndex(leadWords, time);
@@ -1153,7 +1180,7 @@ export default function(component) {
 """
 
 _COMPONENT = st.components.v2.component(
-    "ezscore_karaoke_stem_player_r6",
+    "ezscore_karaoke_stem_player_r7",
     html=_HTML,
     css=_CSS,
     js=_JS,
@@ -1259,6 +1286,73 @@ def render_player(
         else
         "Lecteur STEM prêt. Le conducteur apparaîtra après l'analyse des paroles."
     )
+
+    # Re-analysis works from the persisted source audio; no MP3 re-import.
+    if player_words:
+        audio_hash = preview_dir.parent.name
+        controls = st.columns(3)
+
+        with controls[0]:
+            if st.button(
+                "↻ Ré-analyser paroles",
+                width="stretch",
+                key=f"{key}_reanalyze_lyrics",
+                help="Relance Whisper sur l'audio déjà stocké, sans réimport.",
+            ):
+                original_cache = preview_dir.parent / "whisper_original_small.json"
+                vocal_cache = _vocal_whisper_cache_path(preview_dir)
+                for cache in (original_cache, vocal_cache):
+                    if cache.is_file():
+                        cache.unlink()
+
+                from ezscore.ui.stem_lab_analysis import _transcribe_original
+                with st.spinner("Ré-analyse Whisper sur l'audio existant…"):
+                    _transcribe_original(source, audio_hash)
+                st.rerun()
+
+        with controls[1]:
+            if st.button(
+                "↻ Ré-analyser accords",
+                width="stretch",
+                key=f"{key}_reanalyze_chords",
+                help="Recalcule rythme + harmonie depuis l'audio/stems déjà stockés.",
+            ):
+                for cache in (
+                    _conductor_cache_path(preview_dir),
+                    preview_dir.parent / "chord_analysis_lv_chordia.json",
+                ):
+                    if cache.is_file():
+                        cache.unlink()
+                with st.spinner("Ré-analyse rythme + accords sur les fichiers existants…"):
+                    _build_conductor_timeline(source, stems, preview_dir)
+                st.rerun()
+
+        with controls[2]:
+            if st.button(
+                "↻ Ré-analyser tout",
+                type="primary",
+                width="stretch",
+                key=f"{key}_reanalyze_all",
+                help="Relance paroles + complément vocal + rythme + accords sans réimporter l'audio.",
+            ):
+                for cache in (
+                    preview_dir.parent / "whisper_original_small.json",
+                    _vocal_whisper_cache_path(preview_dir),
+                    _conductor_cache_path(preview_dir),
+                    preview_dir.parent / "chord_analysis_lv_chordia.json",
+                ):
+                    if cache.is_file():
+                        cache.unlink()
+
+                from ezscore.ui.stem_lab_analysis import _transcribe_original
+                with st.spinner("Ré-analyse complète depuis l'audio déjà enregistré…"):
+                    speech = _transcribe_original(source, audio_hash)
+                    refreshed_words = list(speech.get("words", []) or [])
+                    _ensure_vocal_whisper_supplement(
+                        source, stems, preview_dir, refreshed_words
+                    )
+                    _build_conductor_timeline(source, stems, preview_dir)
+                st.rerun()
 
     _COMPONENT(
         data={

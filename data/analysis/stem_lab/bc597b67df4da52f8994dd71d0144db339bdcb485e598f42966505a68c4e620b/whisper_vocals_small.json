@@ -5,544 +5,328 @@
   "language": "en",
   "words": [
     {
-      "start": 4.56,
-      "end": 5.18,
-      "text": "la,",
-      "confidence": 0.9180397987365723
+      "start": 83.98,
+      "end": 84.4,
+      "text": "me",
+      "confidence": 0.9702743887901306
     },
     {
-      "start": 5.74,
-      "end": 6.34,
-      "text": "la",
-      "confidence": 0.9795711040496826
+      "start": 84.4,
+      "end": 85.12,
+      "text": "slowly",
+      "confidence": 0.9685590863227844
     },
     {
-      "start": 6.34,
-      "end": 6.8,
-      "text": "la",
-      "confidence": 0.8932255506515503
+      "start": 85.12,
+      "end": 85.96,
+      "text": "what",
+      "confidence": 0.9089153409004211
     },
     {
-      "start": 7.42,
-      "end": 7.86,
-      "text": "la",
-      "confidence": 0.42314714193344116
+      "start": 85.96,
+      "end": 86.34,
+      "text": "I",
+      "confidence": 0.9704821705818176
     },
     {
-      "start": 9.3,
-      "end": 9.98,
-      "text": "la",
-      "confidence": 0.9554852247238159
+      "start": 86.34,
+      "end": 86.98,
+      "text": "only",
+      "confidence": 0.8743230700492859
     },
     {
-      "start": 9.98,
-      "end": 10.42,
-      "text": "la",
-      "confidence": 0.9874542951583862
+      "start": 86.98,
+      "end": 87.68,
+      "text": "know",
+      "confidence": 0.991788923740387
     },
     {
-      "start": 10.42,
-      "end": 10.84,
-      "text": "la",
-      "confidence": 0.8224075436592102
+      "start": 87.68,
+      "end": 88.1,
+      "text": "the",
+      "confidence": 0.7003459930419922
     },
     {
-      "start": 10.84,
-      "end": 11.38,
-      "text": "na,",
-      "confidence": 0.5029299855232239
+      "start": 88.1,
+      "end": 88.72,
+      "text": "limits",
+      "confidence": 0.9874817132949829
     },
     {
-      "start": 12.54,
-      "end": 13.58,
-      "text": "la",
-      "confidence": 0.9890223741531372
+      "start": 88.72,
+      "end": 89.7,
+      "text": "of",
+      "confidence": 0.9467300772666931
     },
     {
-      "start": 13.58,
-      "end": 14.44,
-      "text": "la",
-      "confidence": 0.9870210289955139
+      "start": 91.32,
+      "end": 91.88,
+      "text": "me",
+      "confidence": 0.881329357624054
     },
     {
-      "start": 14.44,
-      "end": 15.08,
-      "text": "la,",
-      "confidence": 0.9372519254684448
+      "start": 91.88,
+      "end": 92.44,
+      "text": "to",
+      "confidence": 0.9525915384292603
     },
     {
-      "start": 15.56,
-      "end": 19.26,
-      "text": "la",
-      "confidence": 0.9669812917709351
+      "start": 92.44,
+      "end": 92.7,
+      "text": "the",
+      "confidence": 0.9972065091133118
     },
     {
-      "start": 19.26,
-      "end": 19.7,
-      "text": "la.",
-      "confidence": 0.8686912059783936
+      "start": 92.7,
+      "end": 93.16,
+      "text": "end",
+      "confidence": 0.9821889996528625
     },
     {
-      "start": 97.22,
-      "end": 98.58,
+      "start": 93.16,
+      "end": 94.26,
+      "text": "of",
+      "confidence": 0.9953466057777405
+    },
+    {
+      "start": 94.26,
+      "end": 94.94,
+      "text": "love",
+      "confidence": 0.9637024998664856
+    },
+    {
+      "start": 97.08,
+      "end": 98.44,
       "text": "Dance",
-      "confidence": 0.5527815222740173
+      "confidence": 0.8170671463012695
     },
     {
-      "start": 98.58,
+      "start": 98.44,
       "end": 99.0,
       "text": "me",
-      "confidence": 0.8766164183616638
+      "confidence": 0.9955925345420837
     },
     {
       "start": 99.0,
       "end": 99.66,
       "text": "to",
-      "confidence": 0.7306665182113647
+      "confidence": 0.9932500123977661
     },
     {
       "start": 99.66,
-      "end": 99.9,
+      "end": 99.92,
       "text": "the",
-      "confidence": 0.993549644947052
+      "confidence": 0.9985253214836121
     },
     {
-      "start": 99.9,
-      "end": 100.6,
+      "start": 99.92,
+      "end": 100.64,
       "text": "end",
-      "confidence": 0.8250514268875122
+      "confidence": 0.996155321598053
     },
     {
-      "start": 100.6,
+      "start": 100.64,
       "end": 101.54,
       "text": "of",
-      "confidence": 0.8847740888595581
+      "confidence": 0.9928921461105347
     },
     {
       "start": 101.54,
-      "end": 103.0,
-      "text": "love.",
-      "confidence": 0.9723246097564697
+      "end": 102.36,
+      "text": "love",
+      "confidence": 0.9910573959350586
     },
     {
-      "start": 155.76,
-      "end": 156.4,
-      "text": "Dance",
-      "confidence": 0.8212827444076538
+      "start": 206.44,
+      "end": 206.92,
+      "text": "la",
+      "confidence": 0.5832776427268982
     },
     {
-      "start": 156.4,
-      "end": 156.72,
-      "text": "me",
-      "confidence": 0.6137309074401855
+      "start": 206.92,
+      "end": 207.32,
+      "text": "la,",
+      "confidence": 0.9285283088684082
     },
     {
-      "start": 156.72,
-      "end": 157.06,
-      "text": "to",
-      "confidence": 0.9470145106315613
+      "start": 207.92,
+      "end": 208.68,
+      "text": "la",
+      "confidence": 0.9249110817909241
     },
     {
-      "start": 157.06,
-      "end": 157.42,
-      "text": "the",
-      "confidence": 0.9949878454208374
+      "start": 208.68,
+      "end": 209.68,
+      "text": "la",
+      "confidence": 0.9744244813919067
     },
     {
-      "start": 157.42,
-      "end": 158.16,
-      "text": "children",
-      "confidence": 0.9824253916740417
+      "start": 209.68,
+      "end": 212.1,
+      "text": "la",
+      "confidence": 0.9540814757347107
     },
     {
-      "start": 158.16,
-      "end": 159.14,
-      "text": "who",
-      "confidence": 0.8398910760879517
+      "start": 212.18,
+      "end": 212.56,
+      "text": "la",
+      "confidence": 0.31921911239624023
     },
     {
-      "start": 159.14,
-      "end": 159.52,
-      "text": "are",
-      "confidence": 0.9935824275016785
+      "start": 212.56,
+      "end": 214.12,
+      "text": "la",
+      "confidence": 0.8958902359008789
     },
     {
-      "start": 159.52,
-      "end": 160.18,
-      "text": "asking",
-      "confidence": 0.9885547757148743
+      "start": 214.12,
+      "end": 216.2,
+      "text": "la",
+      "confidence": 0.9892880916595459
     },
     {
-      "start": 160.18,
-      "end": 160.82,
-      "text": "to",
-      "confidence": 0.9969586133956909
+      "start": 216.2,
+      "end": 216.66,
+      "text": "la",
+      "confidence": 0.9776002764701843
     },
     {
-      "start": 160.82,
-      "end": 161.08,
-      "text": "be",
-      "confidence": 0.9991613626480103
+      "start": 216.66,
+      "end": 217.5,
+      "text": "la",
+      "confidence": 0.9660274982452393
     },
     {
-      "start": 161.08,
-      "end": 161.94,
-      "text": "born.",
-      "confidence": 0.9966930150985718
+      "start": 217.5,
+      "end": 221.26,
+      "text": "la",
+      "confidence": 0.943760097026825
     },
     {
-      "start": 162.62,
-      "end": 163.56,
-      "text": "Dance",
-      "confidence": 0.9915181994438171
+      "start": 221.26,
+      "end": 222.02,
+      "text": "la",
+      "confidence": 0.8870648145675659
     },
     {
-      "start": 163.56,
-      "end": 164.04,
-      "text": "me",
-      "confidence": 0.9984649419784546
+      "start": 222.02,
+      "end": 222.56,
+      "text": "la",
+      "confidence": 0.766491174697876
     },
     {
-      "start": 164.04,
-      "end": 164.36,
-      "text": "through",
-      "confidence": 0.9857026934623718
+      "start": 222.56,
+      "end": 223.0,
+      "text": "la",
+      "confidence": 0.6526667475700378
     },
     {
-      "start": 164.36,
-      "end": 164.66,
-      "text": "the",
-      "confidence": 0.9986159801483154
+      "start": 223.0,
+      "end": 223.84,
+      "text": "la",
+      "confidence": 0.9588886499404907
     },
     {
-      "start": 164.66,
-      "end": 165.48,
-      "text": "curtains",
-      "confidence": 0.985468327999115
+      "start": 223.84,
+      "end": 224.38,
+      "text": "la",
+      "confidence": 0.9748237729072571
     },
     {
-      "start": 165.48,
-      "end": 166.16,
-      "text": "that",
-      "confidence": 0.9760960936546326
+      "start": 224.38,
+      "end": 224.8,
+      "text": "la",
+      "confidence": 0.46826982498168945
     },
     {
-      "start": 166.16,
-      "end": 166.6,
-      "text": "our",
-      "confidence": 0.9644848704338074
+      "start": 224.8,
+      "end": 224.84,
+      "text": "la",
+      "confidence": 0.34556737542152405
     },
     {
-      "start": 166.6,
-      "end": 167.22,
-      "text": "kisses",
-      "confidence": 0.9913173913955688
+      "start": 224.84,
+      "end": 227.78,
+      "text": "la",
+      "confidence": 0.6817272901535034
     },
     {
-      "start": 167.22,
-      "end": 168.06,
-      "text": "have",
-      "confidence": 0.9893320798873901
+      "start": 229.24,
+      "end": 229.66,
+      "text": "your",
+      "confidence": 0.9627097249031067
     },
     {
-      "start": 168.06,
-      "end": 169.02,
-      "text": "outworn.",
-      "confidence": 0.8792495528856913
+      "start": 229.66,
+      "end": 230.52,
+      "text": "beauty",
+      "confidence": 0.9884986281394958
     },
     {
-      "start": 170.32,
-      "end": 171.0,
-      "text": "Raise",
-      "confidence": 0.9826202988624573
+      "start": 230.52,
+      "end": 231.2,
+      "text": "with",
+      "confidence": 0.8671206831932068
     },
     {
-      "start": 171.0,
-      "end": 171.36,
+      "start": 231.2,
+      "end": 231.68,
       "text": "a",
-      "confidence": 0.6759569644927979
+      "confidence": 0.9763595461845398
     },
     {
-      "start": 171.36,
-      "end": 171.76,
-      "text": "tint",
-      "confidence": 0.4827239513397217
+      "start": 231.68,
+      "end": 232.52,
+      "text": "burning",
+      "confidence": 0.9921820759773254
     },
     {
-      "start": 171.76,
-      "end": 172.14,
-      "text": "of",
-      "confidence": 0.9974268078804016
+      "start": 232.52,
+      "end": 233.52,
+      "text": "violin",
+      "confidence": 0.94245845079422
     },
     {
-      "start": 172.14,
-      "end": 172.66,
-      "text": "shelter",
-      "confidence": 0.9598643779754639
-    },
-    {
-      "start": 172.66,
-      "end": 173.4,
-      "text": "now",
-      "confidence": 0.7867931723594666
-    },
-    {
-      "start": 173.4,
-      "end": 173.9,
-      "text": "though",
-      "confidence": 0.8047240972518921
-    },
-    {
-      "start": 173.9,
-      "end": 174.62,
-      "text": "every",
-      "confidence": 0.9471943378448486
-    },
-    {
-      "start": 174.62,
-      "end": 175.18,
-      "text": "threat",
-      "confidence": 0.5305189490318298
-    },
-    {
-      "start": 175.18,
-      "end": 175.62,
-      "text": "is",
-      "confidence": 0.9977536797523499
-    },
-    {
-      "start": 175.62,
-      "end": 176.12,
-      "text": "torn.",
-      "confidence": 0.942943274974823
-    },
-    {
-      "start": 177.44,
-      "end": 178.02,
+      "start": 263.52,
+      "end": 264.82,
       "text": "Dance",
-      "confidence": 0.9923612475395203
+      "confidence": 0.6740947365760803
     },
     {
-      "start": 178.02,
-      "end": 178.64,
-      "text": "me",
-      "confidence": 0.9963986873626709
+      "start": 264.82,
+      "end": 265.2,
+      "text": "Me",
+      "confidence": 0.4654530882835388
     },
     {
-      "start": 178.64,
-      "end": 179.2,
+      "start": 265.2,
+      "end": 266.02,
       "text": "to",
-      "confidence": 0.927149772644043
+      "confidence": 0.6612229943275452
     },
     {
-      "start": 179.2,
-      "end": 179.46,
+      "start": 266.02,
+      "end": 266.32,
       "text": "the",
-      "confidence": 0.9982128143310547
+      "confidence": 0.9698580503463745
     },
     {
-      "start": 179.46,
-      "end": 180.14,
-      "text": "end",
-      "confidence": 0.9808026552200317
-    },
-    {
-      "start": 180.14,
-      "end": 181.1,
-      "text": "of",
-      "confidence": 0.9949378967285156
-    },
-    {
-      "start": 181.1,
-      "end": 181.62,
-      "text": "love.",
-      "confidence": 0.9766612648963928
-    },
-    {
-      "start": 241.82,
-      "end": 243.06,
-      "text": "Touch",
-      "confidence": 0.45737889409065247
-    },
-    {
-      "start": 243.06,
-      "end": 243.44,
-      "text": "me",
-      "confidence": 0.9042314887046814
-    },
-    {
-      "start": 243.44,
-      "end": 243.82,
-      "text": "with",
-      "confidence": 0.9802083373069763
-    },
-    {
-      "start": 243.82,
-      "end": 244.22,
-      "text": "your",
-      "confidence": 0.9211745858192444
-    },
-    {
-      "start": 244.22,
-      "end": 244.94,
-      "text": "naked",
-      "confidence": 0.6890618205070496
-    },
-    {
-      "start": 244.94,
-      "end": 245.72,
-      "text": "hand,",
-      "confidence": 0.9178230166435242
-    },
-    {
-      "start": 246.48,
-      "end": 246.62,
-      "text": "touch",
-      "confidence": 0.4412892758846283
-    },
-    {
-      "start": 246.62,
-      "end": 247.06,
-      "text": "me",
-      "confidence": 0.9981895089149475
-    },
-    {
-      "start": 247.06,
-      "end": 247.5,
-      "text": "with",
-      "confidence": 0.9972084164619446
-    },
-    {
-      "start": 247.5,
-      "end": 247.82,
-      "text": "your",
-      "confidence": 0.9922888875007629
-    },
-    {
-      "start": 247.82,
-      "end": 248.42,
-      "text": "glove",
-      "confidence": 0.7331641912460327
-    },
-    {
-      "start": 250.24,
-      "end": 250.8,
-      "text": "me",
-      "confidence": 0.9112904667854309
-    },
-    {
-      "start": 250.8,
-      "end": 251.5,
-      "text": "to",
-      "confidence": 0.9639111161231995
-    },
-    {
-      "start": 251.5,
-      "end": 251.78,
-      "text": "the",
-      "confidence": 0.9981233477592468
-    },
-    {
-      "start": 251.78,
-      "end": 252.36,
-      "text": "end",
-      "confidence": 0.9732761979103088
-    },
-    {
-      "start": 252.36,
-      "end": 253.4,
-      "text": "of",
-      "confidence": 0.9898345470428467
-    },
-    {
-      "start": 253.4,
-      "end": 253.9,
-      "text": "love",
-      "confidence": 0.9821480512619019
-    },
-    {
-      "start": 256.72,
-      "end": 257.36,
-      "text": "Dance",
-      "confidence": 0.6336756944656372
-    },
-    {
-      "start": 257.36,
-      "end": 258.06,
-      "text": "me",
-      "confidence": 0.9955117106437683
-    },
-    {
-      "start": 258.06,
-      "end": 258.7,
-      "text": "to",
-      "confidence": 0.9962037205696106
-    },
-    {
-      "start": 258.7,
-      "end": 258.92,
-      "text": "the",
-      "confidence": 0.9988967180252075
-    },
-    {
-      "start": 258.92,
-      "end": 259.62,
-      "text": "end",
-      "confidence": 0.9956861734390259
-    },
-    {
-      "start": 259.62,
-      "end": 260.52,
-      "text": "of",
-      "confidence": 0.9918621778488159
-    },
-    {
-      "start": 260.52,
-      "end": 261.4,
-      "text": "love",
-      "confidence": 0.9953480362892151
-    },
-    {
-      "start": 263.4,
-      "end": 264.68,
-      "text": "Dance",
-      "confidence": 0.8206428289413452
-    },
-    {
-      "start": 264.68,
-      "end": 265.26,
-      "text": "me",
-      "confidence": 0.9967920184135437
-    },
-    {
-      "start": 265.26,
-      "end": 266.0,
-      "text": "to",
-      "confidence": 0.9973757266998291
-    },
-    {
-      "start": 266.0,
-      "end": 266.28,
-      "text": "the",
-      "confidence": 0.9990850687026978
-    },
-    {
-      "start": 266.28,
+      "start": 266.32,
       "end": 266.88,
       "text": "end",
-      "confidence": 0.9965505599975586
+      "confidence": 0.6828992962837219
     },
     {
       "start": 266.88,
-      "end": 267.82,
+      "end": 267.88,
       "text": "of",
-      "confidence": 0.9963470101356506
+      "confidence": 0.9792791604995728
     },
     {
-      "start": 267.82,
-      "end": 268.6,
-      "text": "love",
-      "confidence": 0.9955602884292603
+      "start": 267.88,
+      "end": 268.62,
+      "text": "love.",
+      "confidence": 0.7918086051940918
     }
   ]
 }
