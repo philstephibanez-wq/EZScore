@@ -6,7 +6,9 @@
     "1": "li",
     "3": "li"
   },
-  "line_break_after_lead": [],
+  "line_break_after_lead": [
+    8
+  ],
   "chord_overrides": {
     "8": "A"
   },
@@ -14,17 +16,17 @@
     {
       "id": "33d592b7-a65e-4c9d-9b94-9eb4fc106cf6",
       "label": "Intro",
-      "time": 1.973696,
+      "time": 0.603719,
       "snap": "beat",
-      "snap_index": 3
+      "snap_index": 0
     },
     {
       "id": "46fc364d-a1f6-4ce2-9364-924bdb23d974",
       "label": "couplet 1",
-      "time": 3.784853,
+      "time": 32.252517,
       "snap": "beat",
-      "snap_index": 7
+      "snap_index": 70
     }
   ],
-  "updated_at": "2026-09-17T23:45:55.690185+00:00"
+  "updated_at": "2026-09-17T23:56:25.888433+00:00"
 }

@@ -1,32 +1,47 @@
-# EZScore — R5.1 correctif Streamlit BidiComponent
+# EZScore — R5.2 ergonomie ancres + scrollbar
 
-Erreur corrigée :
+Patch volontairement limité aux templates de l'éditeur visuel.
 
-```text
-BidiComponentInvalidDefaultKeyError:
-Key 'snapshot' in default is not a valid state name.
-Valid state names are those with corresponding on_[state_name]_change callbacks.
-```
+## Modifications
 
-Cause : R5 déclare `default={"snapshot": ...}` sans callback correspondant.
+### Déplacement d'une ancre
 
-R5.1 ajoute uniquement :
+- clic droit maintenu sur une ancre ;
+- glisser horizontalement ;
+- l'ancre suit la souris ;
+- au relâchement, elle se recale sur le beat ou la frontière de mots la plus proche ;
+- le timestamp technique n'est jamais modifié ;
+- l'ancre reste un overlay éditorial ;
+- pendant le déplacement, un libellé indique le temps et le type de snap.
 
-```python
-on_snapshot_change=lambda: None
-```
+Renommage : double-clic inchangé.
+Suppression : sélectionner l'ancre puis touche `Suppr`.
 
-à l'appel du composant V2.
+### Scrollbar
+
+- hauteur portée à 22 px ;
+- poignée plus contrastée ;
+- hover plus visible ;
+- même scrollbar unique pour Sections / Accords / Chant / Chœurs.
+
+### Sauts de ligne
+
+- le marqueur `|` est plus visible ;
+- inactif : discret ;
+- actif : jaune ;
+- aucun vrai retour de ligne n'est appliqué dans la timeline.
 
 ## Portée
 
-Un seul fichier :
-- `ezscore/ui/lyrics_inline_editor.py`
+Uniquement :
 
-Aucun template modifié.
-Aucun player modifié.
-Aucun moteur audio modifié.
-Aucune donnée runtime modifiée.
+- `templates/views/lyrics-editor.css`
+- `templates/views/lyrics-editor.js`
+
+Aucun Python modifié.
+Aucun player audio modifié.
+Aucune persistance modifiée.
+Aucun template `.score` modifié.
 
 ## Installation
 
@@ -34,13 +49,23 @@ Aucune donnée runtime modifiée.
 cd H:\EZScore
 
 Expand-Archive `
-  -Path "$env:USERPROFILE\Downloads\EZScore_INLINE_TIMELINE_R5_1.zip" `
+  -Path "$env:USERPROFILE\Downloads\EZScore_INLINE_TIMELINE_R5_2.zip" `
   -DestinationPath . `
   -Force
 
-python -m py_compile .\ezscore\ui\lyrics_inline_editor.py
+node --check .\templates\views\lyrics-editor.js
 git diff --check
 git status --short
 ```
 
-Puis relancer Streamlit et ouvrir `Analyse > Paroles`.
+Puis relancer Streamlit et tester dans `Analyse > Paroles`.
+
+## Test ciblé
+
+1. Vérifier que la scrollbar est plus facile à manipuler.
+2. Clic droit maintenu sur `Couplet 1`.
+3. Glisser l'ancre à gauche/droite.
+4. Vérifier le snap au relâchement.
+5. Enregistrer.
+6. Changer d'onglet puis revenir : position conservée.
+7. Cliquer sur plusieurs marqueurs `|`, enregistrer et vérifier leur persistance.

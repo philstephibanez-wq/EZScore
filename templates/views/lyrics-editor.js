@@ -309,12 +309,18 @@ export default function(component) {
     return best;
   }
 
+  function updateAnchorFromSnap(anchor, snap) {
+    anchor.time = snap.time;
+    anchor.snap = snap.snap;
+    anchor.snap_index = snap.snap_index;
+  }
+
   function makeAnchorNode(anchor) {
     const node = document.createElement("span");
     node.className = "ez-anchor";
     node.style.left = xFor(anchor.time) + "px";
     node.textContent = String(anchor.label || "Section");
-    node.title = "Double-clic = renommer · Suppr = supprimer";
+    node.title = "Double-clic = renommer · clic droit + glisser = déplacer · Suppr = supprimer";
 
     startInlineEdit(
       node,
@@ -323,6 +329,90 @@ export default function(component) {
         anchor.label = text;
       },
     );
+
+    node.addEventListener("contextmenu", event => {
+      event.preventDefault();
+    });
+
+    let anchorDrag = null;
+
+    node.addEventListener("pointerdown", event => {
+      if (event.button !== 2 || node.contentEditable === "true") return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const rect = sectionTrack.getBoundingClientRect();
+      const startX = event.clientX - rect.left;
+      anchorDrag = {
+        pointerId: event.pointerId,
+        startClientX: event.clientX,
+        initialLeft: parseFloat(node.style.left) || xFor(anchor.time),
+        trackRect: rect,
+      };
+
+      node.classList.add("dragging");
+
+      const dragLabel = document.createElement("span");
+      dragLabel.className = "ez-anchor-drag-label";
+      dragLabel.textContent = `${anchor.label} · ${fmt(anchor.time)}`;
+      node.appendChild(dragLabel);
+      anchorDrag.label = dragLabel;
+
+      node.setPointerCapture(event.pointerId);
+    });
+
+    node.addEventListener("pointermove", event => {
+      if (!anchorDrag || event.pointerId !== anchorDrag.pointerId) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const delta = event.clientX - anchorDrag.startClientX;
+      const rawX = Math.max(
+        0,
+        Math.min(trackWidth, anchorDrag.initialLeft + delta)
+      );
+      const rawTime = timeForX(rawX);
+      const snap = nearestSnap(rawTime);
+      if (!snap) return;
+
+      node.style.left = xFor(snap.time) + "px";
+      anchorDrag.snap = snap;
+      anchorDrag.label.textContent =
+        `${anchor.label} · ${fmt(snap.time)} · ${
+          snap.snap === "beat" ? "beat" : "mots"
+        }`;
+    });
+
+    function finishAnchorDrag(event) {
+      if (!anchorDrag || event.pointerId !== anchorDrag.pointerId) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      if (anchorDrag.snap) {
+        updateAnchorFromSnap(anchor, anchorDrag.snap);
+        node.style.left = xFor(anchor.time) + "px";
+        editorial.anchors.sort(
+          (a, b) => Number(a.time || 0) - Number(b.time || 0)
+        );
+        emit();
+      } else {
+        node.style.left = xFor(anchor.time) + "px";
+      }
+
+      try {
+        node.releasePointerCapture(event.pointerId);
+      } catch (_) {}
+
+      anchorDrag.label?.remove();
+      anchorDrag = null;
+      node.classList.remove("dragging");
+    }
+
+    node.addEventListener("pointerup", finishAnchorDrag);
+    node.addEventListener("pointercancel", finishAnchorDrag);
 
     node.addEventListener("keydown", event => {
       if (event.key === "Delete" && node.contentEditable !== "true") {

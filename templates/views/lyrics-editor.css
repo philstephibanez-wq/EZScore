@@ -23,6 +23,7 @@
   scrollbar-gutter:stable;
   scrollbar-width:auto;
   cursor:grab;
+  padding-bottom:2px;
 }
 
 .ez-editor-viewport.dragging{
@@ -31,18 +32,25 @@
 }
 
 .ez-editor-viewport::-webkit-scrollbar{
-  height:14px;
+  height:22px;
 }
 
 .ez-editor-viewport::-webkit-scrollbar-thumb{
-  background:color-mix(in srgb,#4da3ff 45%,#444);
-  border-radius:10px;
-  border:3px solid transparent;
+  background:color-mix(in srgb,#4da3ff 68%,#4a4f58);
+  border-radius:12px;
+  border:4px solid transparent;
+  background-clip:padding-box;
+  min-width:80px;
+}
+
+.ez-editor-viewport::-webkit-scrollbar-thumb:hover{
+  background:color-mix(in srgb,#4da3ff 82%,#5a606a);
   background-clip:padding-box;
 }
 
 .ez-editor-viewport::-webkit-scrollbar-track{
-  background:color-mix(in srgb,var(--st-text-color) 6%,transparent);
+  background:color-mix(in srgb,var(--st-text-color) 10%,transparent);
+  border-radius:12px;
 }
 
 .ez-editor-canvas{
@@ -55,7 +63,7 @@
   position:absolute;
   left:38%;
   top:0;
-  bottom:14px;
+  bottom:22px;
   width:2px;
   z-index:50;
   pointer-events:none;
@@ -130,8 +138,21 @@
   font-size:11px;
   font-weight:850;
   white-space:nowrap;
-  cursor:text;
+  cursor:grab;
   z-index:8;
+  user-select:none;
+}
+
+.ez-anchor:hover{
+  border-color:#9ed0ff;
+  box-shadow:0 0 0 1px color-mix(in srgb,#4da3ff 30%,transparent);
+}
+
+.ez-anchor.dragging{
+  cursor:grabbing;
+  background:#235f91;
+  border-color:#b9dcff;
+  z-index:25;
 }
 
 .ez-anchor::after{
@@ -148,6 +169,23 @@
 .ez-anchor[contenteditable="true"]{
   outline:2px solid #85c2ff;
   outline-offset:1px;
+  cursor:text;
+  user-select:text;
+}
+
+.ez-anchor-drag-label{
+  position:absolute;
+  left:50%;
+  top:-21px;
+  transform:translateX(-50%);
+  padding:1px 5px;
+  border-radius:4px;
+  background:#0f1722;
+  color:#b9dcff;
+  font-size:9px;
+  font-weight:700;
+  white-space:nowrap;
+  pointer-events:none;
 }
 
 .ez-chord{
@@ -197,29 +235,32 @@
 
 .ez-linebreak{
   position:absolute;
-  top:43px;
-  width:14px;
-  height:22px;
+  top:42px;
+  width:16px;
+  height:24px;
   padding:0;
   border:0;
+  border-radius:3px;
   background:transparent;
-  color:color-mix(in srgb,var(--st-text-color) 18%,transparent);
+  color:color-mix(in srgb,var(--st-text-color) 32%,transparent);
   font-family:Consolas,monospace;
-  font-size:18px;
-  line-height:20px;
+  font-size:19px;
+  font-weight:800;
+  line-height:22px;
   cursor:pointer;
-  opacity:.35;
+  opacity:.62;
 }
 
 .ez-linebreak:hover{
-  opacity:.85;
+  opacity:1;
   color:#ffcf5a;
+  background:color-mix(in srgb,#ffcf5a 8%,transparent);
 }
 
 .ez-linebreak.active{
   opacity:1;
   color:#ffcf5a;
-  font-weight:900;
+  background:color-mix(in srgb,#ffcf5a 10%,transparent);
 }
 
 .ez-pending-anchor{
