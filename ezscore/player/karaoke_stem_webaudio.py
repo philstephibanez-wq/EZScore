@@ -215,6 +215,51 @@ def _merge_vocal_gap_words(
     return merged
 
 
+def _supplement_only_words(
+    original_words: list[dict[str, Any]],
+    merged_words: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Return words present only in the vocal-stem supplementation.
+
+    Matching is temporal first because punctuation/casing can differ between
+    Whisper passes. These words are displayed on the provisional Chœurs lane.
+    """
+    original = [
+        {
+            "start": float(w.get("start", 0.0) or 0.0),
+            "end": float(w.get("end", w.get("start", 0.0)) or 0.0),
+            "text": str(w.get("text", "") or "").strip(),
+        }
+        for w in original_words
+        if str(w.get("text", "") or "").strip()
+    ]
+
+    additions: list[dict[str, Any]] = []
+    for word in merged_words:
+        text_value = str(word.get("text", "") or "").strip()
+        if not text_value:
+            continue
+        start = float(word.get("start", 0.0) or 0.0)
+        end = float(word.get("end", start) or start)
+        center = (start + end) / 2.0
+
+        matched = False
+        for ref in original:
+            # A supplemental token that lands inside/very near an original word
+            # is not a distinct backing-vocal event.
+            if ref["start"] - 0.18 <= center <= ref["end"] + 0.18:
+                matched = True
+                break
+
+        if not matched:
+            additions.append(
+                {"start": start, "end": end, "text": text_value}
+            )
+
+    return additions
+
+
+
 def _ensure_vocal_whisper_supplement(
     source: Path,
     stems: dict[str, Path],
@@ -496,7 +541,7 @@ _HTML = r"""
         <div class="timeline-track lyric-track"></div>
       </div>
     </div>
-    <div class="timeline-row lyric-row backing-row hidden">
+    <div class="timeline-row lyric-row backing-row">
       <div class="timeline-label">Chœurs</div>
       <div class="timeline-viewport backing-viewport">
         <div class="timeline-track backing-track"></div>
@@ -504,7 +549,7 @@ _HTML = r"""
     </div>
   </div>
 
-  <details class="mixer-details">
+  <details class="mixer-details" style="display:none">
     <summary>Mixeur STEM</summary>
     <div class="tracks"></div>
     <div class="master-row">
@@ -639,6 +684,11 @@ _CSS = r"""
 .backing-row .lyric-token {
   font-size:22px;
   color:#d49bff;
+  opacity:.46;
+}
+.backing-row .lyric-token.current {
+  color:#f0c8ff;
+  opacity:1;
 }
 .lead-row .lyric-token {
   color:#f4f4f4;
@@ -687,6 +737,8 @@ export default function(component) {
 
   const tracksDef = Array.isArray(data.tracks) ? data.tracks : [];
   const words = Array.isArray(data.words) ? data.words : [];
+  const leadInput = Array.isArray(data.lead_words) ? data.lead_words : words;
+  const backingInput = Array.isArray(data.backing_words) ? data.backing_words : [];
   const beats = Array.isArray(data.beats) ? data.beats : [];
   const meterDefault = data.meter_default || {signature:"4/4", grouping:""};
 
@@ -808,73 +860,90 @@ export default function(component) {
       .sort((a,b) => a.start - b.start || a.end - b.end);
   }
 
-  const leadWords = normalizedWords(words);
-  let wordVisualX = [];
-  let leadNodes = [];
+  const leadWords = normalizedWords(leadInput);
+  const backingWords = normalizedWords(backingInput);
 
-  function layoutLyricTimeline() {
-    leadTrack.innerHTML = "";
-    wordVisualX = [];
-    leadNodes = [];
+  // Master semantic sequence used only for visual geometry. It contains both
+  // lanes so intro backing vocals and later lead lyrics share one continuous
+  // compact timeline without black temporal canyons.
+  const masterWords = normalizedWords(
+    [...leadWords, ...backingWords].sort((a,b) => a.start - b.start || a.end - b.end)
+  );
 
+  let masterVisualX = [];
+
+  function buildMasterGeometry() {
+    masterVisualX = [];
     let cursor = 0;
-    leadWords.forEach((w) => {
-      const span = document.createElement("span");
-      span.className = "lyric-token";
-      span.textContent = w.text;
-      span.style.left = cursor + "px";
-      leadTrack.appendChild(span);
-
-      // Once inserted, offsetWidth is authoritative. Keep a minimum readable
-      // gap; silence duration never creates a black visual canyon.
-      const width = Math.max(18, Number(span.offsetWidth || (w.text.length * 15)));
-      wordVisualX.push(cursor);
-      leadNodes.push(span);
-      cursor += width + 18;
+    masterWords.forEach((w) => {
+      masterVisualX.push(cursor);
+      const estimatedWidth = Math.max(34, w.text.length * 15 + 18);
+      cursor += estimatedWidth;
     });
-
-    leadTrack.style.width = Math.max(1, cursor + 240) + "px";
+    return Math.max(1, cursor + 260);
   }
 
-  layoutLyricTimeline();
+  const masterWidth = buildMasterGeometry();
 
   function visualXForTime(time) {
-    if (!leadWords.length) return 0;
+    if (!masterWords.length) return 0;
     const t = Number(time || 0);
 
-    if (leadWords.length === 1) return wordVisualX[0];
+    if (masterWords.length === 1) return masterVisualX[0];
 
-    const first = leadWords[0];
+    const first = masterWords[0];
     if (t <= first.start) {
-      // During a long intro, keep the first upcoming lyric visible at the
-      // right side and let it approach the playhead continuously.
       const span = Math.max(.25, first.start);
       const p = Math.max(0, Math.min(1, t / span));
       const preview = Math.min(360, Math.max(180, leadViewport.clientWidth * .32));
-      return wordVisualX[0] - preview * (1 - p);
+      return masterVisualX[0] - preview * (1 - p);
     }
 
-    let low = 0, high = leadWords.length - 1, left = 0;
+    let low = 0, high = masterWords.length - 1, left = 0;
     while (low <= high) {
       const mid = (low + high) >> 1;
-      if (leadWords[mid].start <= t) {
+      if (masterWords[mid].start <= t) {
         left = mid;
         low = mid + 1;
-      } else high = mid - 1;
+      } else {
+        high = mid - 1;
+      }
     }
 
-    if (left >= leadWords.length - 1) {
-      const last = leadWords[leadWords.length - 1];
+    if (left >= masterWords.length - 1) {
+      const last = masterWords[masterWords.length - 1];
       const after = Math.max(0, t - last.start);
-      return wordVisualX[wordVisualX.length - 1] + Math.min(260, after * 28);
+      return masterVisualX[masterVisualX.length - 1] + Math.min(260, after * 28);
     }
 
-    const a = leadWords[left];
-    const b = leadWords[left + 1];
+    const a = masterWords[left];
+    const b = masterWords[left + 1];
     const ta = Number(a.start);
     const tb = Math.max(ta + .04, Number(b.start));
     const p = Math.max(0, Math.min(1, (t - ta) / (tb - ta)));
-    return wordVisualX[left] + (wordVisualX[left + 1] - wordVisualX[left]) * p;
+    return masterVisualX[left] + (masterVisualX[left + 1] - masterVisualX[left]) * p;
+  }
+
+  function createLane(track, sourceWords) {
+    track.innerHTML = "";
+    track.style.width = masterWidth + "px";
+    return sourceWords.map((w) => {
+      const span = document.createElement("span");
+      span.className = "lyric-token";
+      span.textContent = w.text;
+      span.style.left = visualXForTime(w.start) + "px";
+      track.appendChild(span);
+      return span;
+    });
+  }
+
+  const leadNodes = createLane(leadTrack, leadWords);
+  const backingNodes = createLane(backingTrack, backingWords);
+
+  if (!backingWords.length) {
+    backingRow.style.display = "none";
+  } else {
+    backingRow.style.display = "grid";
   }
 
   function activeWordIndex(sourceWords, time) {
@@ -1001,7 +1070,7 @@ export default function(component) {
     translateLyricTimeline(leadTrack, leadViewport, time);
     translateChordTimeline(time);
 
-    if (!backingRow.classList.contains("hidden")) {
+    if (backingWords.length) {
       translateLyricTimeline(backingTrack, backingViewport, time);
     }
 
@@ -1010,6 +1079,13 @@ export default function(component) {
       const w = leadWords[i];
       node.classList.toggle("past", time > w.end);
       node.classList.toggle("current", i === currentWord);
+    });
+
+    const currentBackingWord = activeWordIndex(backingWords, time);
+    backingNodes.forEach((node, i) => {
+      const w = backingWords[i];
+      node.classList.toggle("past", time > w.end);
+      node.classList.toggle("current", i === currentBackingWord);
     });
 
     chordNodes.forEach((node, i) => {
@@ -1180,7 +1256,7 @@ export default function(component) {
 """
 
 _COMPONENT = st.components.v2.component(
-    "ezscore_karaoke_stem_player_r7",
+    "ezscore_karaoke_stem_player_r8",
     html=_HTML,
     css=_CSS,
     js=_JS,
@@ -1202,45 +1278,28 @@ def render_player(
     As soon as Whisper words exist, it builds the HQ rhythm/harmony timeline
     and shows a karaoke-style lyrics+chords conductor.
     """
-    previews = prepare_browser_previews(source, stems, preview_dir)
+    # The regular STEM controls already exist in the analysis surface.
+    # This conductor therefore owns only the master/original audio transport;
+    # it must not duplicate the STEM mixer or play the separated stems again.
+    original_preview = make_browser_preview(source, preview_dir)
+    original_url = register_media_url(
+        original_preview,
+        coordinates=f"{key}:karaoke:original",
+        mimetype="audio/mpeg",
+    )
+    tracks: list[dict[str, Any]] = [
+        {
+            "name": "original",
+            "label": "Original",
+            "url": original_url,
+            "enabled": True,
+            "volume": 1.0,
+        }
+    ]
 
-    tracks: list[dict[str, Any]] = []
-
-    def pack(name: str, label: str, path: Path, enabled: bool, volume: float) -> None:
-        preview = previews[name]
-        tracks.append(
-            {
-                "name": name,
-                "label": label,
-                "url": register_media_url(
-                    preview,
-                    coordinates=f"{key}:karaoke:{name}",
-                    mimetype="audio/mpeg",
-                ),
-                "enabled": enabled,
-                "volume": volume,
-            }
-        )
-
-    pack("original", "Original", source, True, 0.75)
-    defaults = {
-        "vocals": (True, 0.90),
-        "drums": (False, 0.75),
-        "bass": (False, 0.75),
-        "other": (False, 0.75),
-    }
-    labels = {
-        "vocals": "Chant",
-        "drums": "Batterie",
-        "bass": "Basse",
-        "other": "Other",
-    }
-    for name in STEM_NAMES:
-        if name in stems:
-            enabled, volume = defaults[name]
-            pack(name, labels[name], stems[name], enabled, volume)
-
-    player_words = list(words or [])
+    lead_words = list(words or [])
+    player_words = list(lead_words)
+    backing_words: list[dict[str, Any]] = []
     conductor: dict[str, Any] = {
         "beats": [],
         "meter_default": _meter_defaults(preview_dir),
@@ -1251,7 +1310,7 @@ def render_player(
             vocal_cache = _vocal_whisper_cache_path(preview_dir)
             if vocal_cache.is_file():
                 player_words = _ensure_vocal_whisper_supplement(
-                    source, stems, preview_dir, player_words
+                    source, stems, preview_dir, lead_words
                 )
             else:
                 with st.spinner(
@@ -1259,8 +1318,12 @@ def render_player(
                     "(vocalises / omissions Whisper)…"
                 ):
                     player_words = _ensure_vocal_whisper_supplement(
-                        source, stems, preview_dir, player_words
+                        source, stems, preview_dir, lead_words
                     )
+            backing_words = _supplement_only_words(
+                lead_words,
+                player_words,
+            )
         except Exception as exc:
             st.warning(
                 "Complément vocal indisponible ; la transcription originale "
@@ -1280,8 +1343,10 @@ def render_player(
             )
 
     st.caption(
-        "Conducteur : paroles Whisper + accords/mesures sur l'horloge audio. "
-        "La signature et le groupement sont modifiables sans relancer Whisper."
+        "Conducteur : Chant = transcription principale · Chœurs = vocalises/mots "
+        "récupérés uniquement par la passe sur le stem voix · accords/mesures sur "
+        "l'horloge audio. La signature et le groupement sont modifiables sans "
+        "relancer Whisper."
         if player_words
         else
         "Lecteur STEM prêt. Le conducteur apparaîtra après l'analyse des paroles."
@@ -1358,11 +1423,13 @@ def render_player(
         data={
             "tracks": tracks,
             "words": player_words,
+            "lead_words": lead_words,
+            "backing_words": backing_words,
             "beats": list(conductor.get("beats", []) or []),
             "meter_default": dict(conductor.get("meter_default", {}) or {}),
             "storage_key": str(key),
         },
         key=key,
         width="stretch",
-        height=650 if player_words else 430,
+        height=600 if player_words else 400,
     )

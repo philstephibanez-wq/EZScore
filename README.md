@@ -1,4 +1,4 @@
-# EZScore — conducteur karaoké paroles + accords — R7
+# EZScore — conducteur karaoké paroles + accords — R8
 
 Base lue : branche `feature/stem-analysis-pipeline`, commit
 `c1fd40afa47890fadb5a8efe83745f8ca010ad65`.
@@ -140,3 +140,27 @@ Trois boutons sont ajoutés au-dessus du conducteur :
 
 Aucun de ces boutons ne demande de réimporter le MP3 et aucun ne refait les
 STEM BS-RoFormer existants.
+
+
+## R8 — piste Chœurs restaurée + suppression du double STEM
+
+Deux corrections ciblées :
+
+1. **Piste Chœurs**
+   - `Chant` = mots de la transcription Whisper principale sur le mix original ;
+   - `Chœurs` = mots/vocalises ajoutés uniquement par la passe Whisper sur le
+     stem `vocals`, c'est-à-dire les événements trouvés dans les trous de la
+     transcription principale ;
+   - la piste Chœurs a une couleur violette distincte et défile sur la même
+     timeline compacte.
+   - Cette attribution est volontairement qualifiée de *provisoire* : elle ne
+     prétend pas encore être une séparation acoustique lead/backing parfaite.
+
+2. **STEM non doublés**
+   - le conducteur ne rend plus son propre mixeur STEM ;
+   - il ne charge/joue plus les stems séparés ;
+   - son transport utilise uniquement l'audio original comme horloge maître.
+   - Le mixeur STEM normal de l'analyse reste la seule interface STEM.
+
+Le composant frontend est renommé `ezscore_karaoke_stem_player_r8` pour forcer
+le rechargement du bundle Bidi.
