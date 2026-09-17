@@ -1,16 +1,75 @@
-# EZScore — player correction
+# EZScore — EDITOR R1
 
-Correctifs inclus :
-- restauration défensive de la ligne `Chœurs` / vocalises (`la la la`) depuis
-  `whisper_vocals_small.json` si le payload courant arrive vide ;
-- suppression de la génération FFmpeg de toutes les vitesses pendant le rendu
-  Streamlit ;
-- changement de vitesse côté navigateur via `HTMLMediaElement.playbackRate`
-  avec `preservesPitch = true` ;
-- EQ 3 bandes et volumes restent dans WebAudio ;
-- même horloge média pour Accord / Accords / Chant / Chœurs ;
-- correction de dérive STEM uniquement au-delà de 80 ms ;
-- retard visuel du conducteur conservé à 350 ms.
+Base de référence obligatoire :
+`stable-karaoke-pre-editor` / `45a912e322129359c1a7bbb9aa36feae8d256a6e`
+
+## Analyse d'impact
+
+### Fichier modifié
+- `ezscore/backoffice/player.py`
+
+### Fichiers explicitement non modifiés
+- `ezscore/player/karaoke_stem_webaudio_r12c.py`
+- `ezscore/player/karaoke_stem_webaudio.py`
+- `ezscore/ui/__init__.py`
+- `ezscore/ui/stem_lab_analysis.py`
+- `ezscore/analysis/*`
+- `ezscore/persistence.py`
+- `ezscore/printing.py`
+- `EZScore.py`
+- `data/*`
+
+Le moteur audio validé n'est donc pas modifié.
+
+## Fonctions ajoutées
+
+Dans le player d'édition uniquement :
+
+1. `⚑ Ancres + paroles`
+   - modification du nom de section ;
+   - modification de l'ancre de début en numéro de mesure ;
+   - ancres strictement croissantes ;
+   - première ancre obligatoirement mesure 1 ;
+   - les fins de sections sont dérivées de l'ancre suivante ;
+   - paroles éditables avec sauts de ligne ;
+   - validation commune ancres + paroles.
+
+2. `♬ Accords beat par beat`
+   - mesure et beat non modifiables ;
+   - timestamp visible mais non modifiable ;
+   - seul le symbole d'accord est éditable ;
+   - stockage via la couche `measure_edits` déjà utilisée par EZScore ;
+   - aucun timestamp ni résultat d'analyse n'est modifié.
+
+## Zéro fallback
+
+Le nouveau code n'invente aucune structure ni aucune valeur :
+- structure absente => erreur explicite ;
+- ancre invalide => sauvegarde refusée ;
+- nombre de blocs incohérent => sauvegarde refusée ;
+- beat manquant => sauvegarde refusée ;
+- symbole vide / avec espace / excessivement long => sauvegarde refusée ;
+- aucune correction automatique ou valeur de secours n'est appliquée.
+
+Les valeurs non modifiées restent simplement les valeurs canoniques existantes :
+ce n'est pas un fallback d'exécution.
+
+## Non-régression attendue
+
+À retester après installation :
+- player karaoké stable inchangé en Vue ;
+- Original / Mix STEM ;
+- volumes et EQ ;
+- vitesse pitch-preserved ;
+- seek / pause / reprise ;
+- Chant ;
+- Chœurs / `la la la` ;
+- diagrammes ;
+- mesure ;
+- accord courant ;
+- grille Vue ;
+- paroles Vue ;
+- impression.
 
 ## Installation
 
@@ -18,23 +77,24 @@ Correctifs inclus :
 cd H:\EZScore
 
 Expand-Archive `
-  -Path "$env:USERPROFILE\Downloads\EZScore_PLAYER_FIX_choeurs_pitch.zip" `
+  -Path "$env:USERPROFILE\Downloads\EZScore_EDITOR_R1_anchors_lyrics_chords.zip" `
   -DestinationPath . `
   -Force
 
-python -m py_compile .\ezscore\player\karaoke_stem_webaudio_r12c.py
-python -m py_compile .\ezscore\ui\__init__.py
+python -m py_compile .\ezscore\backoffice\player.py
 
 git diff --check
-git status
+git status --short
 ```
 
-Redémarrer Streamlit.
+## Contrôle de portée Git avant test
 
-## Test
-1. vérifier `Chœurs` et les `la la la` ;
-2. tester 1.00x / 0.75x / 1.25x : tonalité inchangée ;
-3. tester Original puis Mix STEM ;
-4. tester Pause / Lecture / Seek ;
-5. vérifier EQ/volumes ;
-6. surveiller l'absence du retour de WinError 10054.
+La commande suivante doit montrer uniquement :
+
+`ezscore/backoffice/player.py`
+
+```powershell
+git diff --name-only stable-karaoke-pre-editor
+```
+
+Ne pas pousser avant validation fonctionnelle.
