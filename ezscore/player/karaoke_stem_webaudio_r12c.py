@@ -8,9 +8,7 @@ and only replaces the conductor presentation/control layer.
 
 from typing import Any
 from pathlib import Path
-import shutil
-import subprocess
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import json
 
 import streamlit as st
 
@@ -22,123 +20,10 @@ from ezscore.guitar import (
     svg as guitar_svg,
 )
 from ezscore.player import karaoke_stem_webaudio as _base
-from ezscore.player.media_url import register_media_url
 
 
 _AUDIO_HASH_BY_STORAGE_KEY: dict[str, str] = {}
-_TEMPO_VARIANTS_BY_STORAGE_KEY: dict[str, dict[str, dict[str, str]]] = {}
-
-TEMPO_RATES = (0.75, 0.85, 1.00, 1.10, 1.25)
-
-
-def _tempo_key(rate: float) -> str:
-    return f"{float(rate):.2f}"
-
-
-def _tempo_target(source: Path, preview_dir: Path, rate: float) -> Path:
-    token = str(int(round(float(rate) * 100))).zfill(3)
-    return preview_dir / f"{source.stem}.tempo{token}.browser64.mp3"
-
-
-def _tempo_preview_is_current(source: Path, target: Path) -> bool:
-    return (
-        target.is_file()
-        and target.stat().st_size > 0
-        and target.stat().st_mtime_ns >= source.stat().st_mtime_ns
-    )
-
-
-def _make_tempo_preview(source: Path, target: Path, rate: float) -> Path:
-    target.parent.mkdir(parents=True, exist_ok=True)
-    if _tempo_preview_is_current(source, target):
-        return target
-
-    ffmpeg = shutil.which("ffmpeg")
-    if not ffmpeg:
-        raise RuntimeError(
-            "FFmpeg est requis pour la vitesse sans changement de tonalité."
-        )
-
-    cmd = [
-        ffmpeg, "-y", "-hide_banner", "-loglevel", "error",
-        "-i", str(source),
-        "-vn", "-map_metadata", "-1",
-        "-filter:a", f"atempo={float(rate):.6f}",
-        "-codec:a", "libmp3lame", "-b:a", "64k", "-ar", "44100",
-        str(target),
-    ]
-    proc = subprocess.run(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        check=False,
-    )
-    if proc.returncode != 0 or not target.is_file():
-        raise RuntimeError(
-            f"FFmpeg atempo a échoué pour {source.name} à {rate:.2f}x:\n"
-            + (proc.stdout or "")
-        )
-    return target
-
-
-def _prepare_tempo_variants(
-    source: Path,
-    stems: dict[str, Path],
-    preview_dir: Path,
-    storage_key: str,
-) -> dict[str, dict[str, str]]:
-    """Build/cache pitch-preserving player previews with FFmpeg atempo/WSOLA."""
-    inputs: dict[str, Path] = {"original": Path(source)}
-    for name, path in stems.items():
-        if path is not None:
-            inputs[str(name)] = Path(path)
-
-    jobs: list[tuple[float, str, Path, Path]] = []
-    variants: dict[str, dict[str, str]] = {}
-
-    for rate in TEMPO_RATES:
-        if abs(rate - 1.0) < 1e-9:
-            continue
-        rkey = _tempo_key(rate)
-        variants[rkey] = {}
-        for name, path in inputs.items():
-            target = _tempo_target(path, preview_dir, rate)
-            jobs.append((rate, name, path, target))
-
-    pending = [
-        job for job in jobs
-        if not _tempo_preview_is_current(job[2], job[3])
-    ]
-
-    if pending:
-        with st.spinner(
-            "Préparation des vitesses avec tonalité conservée "
-            "(FFmpeg WSOLA, mise en cache)…"
-        ):
-            workers = min(4, max(1, len(pending)))
-            with ThreadPoolExecutor(max_workers=workers) as pool:
-                futures = {
-                    pool.submit(
-                        _make_tempo_preview,
-                        source_path,
-                        target,
-                        rate,
-                    ): (rate, name)
-                    for rate, name, source_path, target in pending
-                }
-                for future in as_completed(futures):
-                    future.result()
-
-    for rate, name, _source_path, target in jobs:
-        rkey = _tempo_key(rate)
-        variants[rkey][name] = register_media_url(
-            target,
-            coordinates=f"{storage_key}:tempo:{rkey}:{name}",
-            mimetype="audio/mpeg",
-        )
-
-    return variants
+_PREVIEW_DIR_BY_STORAGE_KEY: dict[str, Path] = {}
 
 
 def _replace_once(source: str, old: str, new: str, label: str) -> str:
@@ -344,7 +229,6 @@ _JS = _replace_once(
 """,
     """  const meterDefault = data.meter_default || {signature:"4/4", grouping:""};
   const chordDiagrams = data.chord_diagrams || {};
-  const tempoVariants = data.tempo_variants || {};
 """,
     "data chord diagrams",
 )
@@ -377,9 +261,6 @@ _JS = _replace_once(
   let playbackRate = 1.0;
   const visualDelay = 0.35;
   let showDiagrams = Boolean(data.show_diagrams_default);
-  const decodedByRate = {};
-  let rateChangeGeneration = 0;
-  let resumeAfterRateChange = false;
 """,
     "player state",
 )
@@ -754,55 +635,13 @@ _JS = (
     renderConductor(Math.max(0,currentTime()-visualDelay));
   });
 
-  rateSelect.addEventListener("change",async() => {
-    const generation=++rateChangeGeneration;
-    const requestedRate=Math.max(
+  rateSelect.addEventListener("change",() => {
+    playbackRate=Math.max(
       .75,
       Math.min(1.25,Number(rateSelect.value || 1))
     );
-
-    const t=currentTime();
-    position=t;
-
-    // Keep the user's playback intent across successive speed changes.
-    // Example: while playing, 1.00 -> 0.75 -> 1.25 must resume at 1.25,
-    // even though the second change occurs while audio sources are stopped.
-    resumeAfterRateChange = resumeAfterRateChange || playing;
-
-    if (playing) {
-      playing=false;
-      stopSources();
-    }
-
-    playbackRate=requestedRate;
-
-    try {
-      await ensureReady();
-      await loadRateBuffers(requestedRate);
-
-      // A newer user choice supersedes this asynchronous decode.
-      if (generation !== rateChangeGeneration) return;
-
-      playbackRate=requestedRate;
-      const shouldResume=resumeAfterRateChange;
-      resumeAfterRateChange=false;
-
-      if (shouldResume) startSources(position);
-      renderConductor(Math.max(0,position-visualDelay));
-    } catch (e) {
-      if (generation !== rateChangeGeneration) return;
-
-      console.error(e);
-      rateSelect.value="1.00";
-      playbackRate=1.0;
-      decoded=decodedByRate["1.00"] || decoded;
-
-      const shouldResume=resumeAfterRateChange;
-      resumeAfterRateChange=false;
-
-      if (shouldResume) startSources(position);
-      renderConductor(Math.max(0,position-visualDelay));
-    }
+    setPlaybackRateOnMedia();
+    renderConductor(Math.max(0,currentTime()-visualDelay));
   });
 
   showDiagramsInput.addEventListener("change",() => {
@@ -814,104 +653,8 @@ _JS = (
     + _JS[persist_call:]
 )
 
-_JS = _replace_once(
-    _JS,
-    """      const source=context.createBufferSource();
-      source.buffer=buffer;
 
-      // One serial Biquad EQ chain per track.
-""",
-    """      const source=context.createBufferSource();
-      source.buffer=buffer;
-      source.playbackRate.value=1.0;
-
-      // One serial Biquad EQ chain per track.
-""",
-    "buffer playbackRate",
-)
-
-# R12: keep the decoded 1.00x buffers as the reference set.
-_JS = _replace_once(
-    _JS,
-    """    seek.max=String(Math.max(.001,duration));
-    ready=true;
-""",
-    """    seek.max=String(Math.max(.001,duration));
-    decodedByRate["1.00"]=decoded;
-    ready=true;
-""",
-    "cache reference buffers",
-)
-
-# R12: lazy-decode the cached FFmpeg/WSOLA tempo variants on first use.
-_JS = _replace_once(
-    _JS,
-    """  function stopSources() {
-""",
-    """  async function loadRateBuffers(rate) {
-    const rateKey=Number(rate || 1).toFixed(2);
-
-    if (decodedByRate[rateKey]) {
-      decoded=decodedByRate[rateKey];
-      return;
-    }
-
-    const mapping=tempoVariants[rateKey] || {};
-    const buffers=[];
-
-    for (let i=0;i<defs.length;i++) {
-      const def=defs[i];
-      const url=String(mapping[String(def.name)] || "");
-      if (!url) {
-        throw new Error(
-          "Pré-écoute tempo absente pour " +
-          String(def.label || def.name) +
-          " à " + rateKey + "×"
-        );
-      }
-
-      const response=await fetch(url,{cache:"force-cache"});
-      if (!response.ok) {
-        throw new Error(
-          "HTTP média tempo " + response.status +
-          " pour " + String(def.name)
-        );
-      }
-      buffers.push(
-        await context.decodeAudioData(await response.arrayBuffer())
-      );
-    }
-
-    decodedByRate[rateKey]=buffers;
-    decoded=buffers;
-  }
-
-  function stopSources() {
-""",
-    "tempo buffer loader",
-)
-
-# The stretched preview's timebase is wall-time, so original musical time t
-# corresponds to t/rate seconds in that preview file.
-_JS = _replace_once(
-    _JS,
-    """      const safeOffset=Math.max(
-        0,
-        Math.min(Number(offset)||0,Math.max(0,buffer.duration-.001))
-      );
-""",
-    """      const processedOffset=
-        (Number(offset)||0)/Math.max(.01,playbackRate);
-      const safeOffset=Math.max(
-        0,
-        Math.min(processedOffset,Math.max(0,buffer.duration-.001))
-      );
-""",
-    "tempo preview offset",
-)
-
-# R12 visual follow delay: audio clock stays authoritative; only conductor
-# rendering is shown 350 ms behind for easier reading.
+# Visual follow delay only: audio clock remains authoritative.
 _JS = _JS.replace(
     "renderConductor(position);",
     "renderConductor(Math.max(0,position-visualDelay));",
@@ -924,6 +667,240 @@ _JS = _JS.replace(
     "renderConductor(Math.max(0,0-visualDelay));",
     "renderConductor(0);",
 )
+
+
+# Replace only the audio transport engine. Media elements provide native
+# pitch-preserving playbackRate in Chromium/Edge/Firefox while WebAudio still
+# provides the validated per-track EQ and gain graph.
+_audio_start = _JS.index(
+    "  // -------- WebAudio engine / proven 3-band crossover --------"
+)
+_audio_end = _JS.index("  tick();", _audio_start) + len("  tick();")
+
+_MEDIA_ENGINE = r"""
+  // -------- WebAudio EQ + HTMLMediaElement pitch-preserved transport --------
+  let mediaElements = [];
+  let mediaSources = [];
+  let clockMedia = null;
+  let lastDriftCheck = 0;
+
+  function setPitchPreservation(media) {
+    try { media.preservesPitch = true; } catch (_) {}
+    try { media.webkitPreservesPitch = true; } catch (_) {}
+    try { media.mozPreservesPitch = true; } catch (_) {}
+  }
+
+  function setPlaybackRateOnMedia() {
+    mediaElements.forEach(media => {
+      setPitchPreservation(media);
+      try { media.playbackRate = playbackRate; } catch (_) {}
+      try { media.defaultPlaybackRate = playbackRate; } catch (_) {}
+    });
+  }
+
+  function waitMediaReady(media) {
+    if (media.readyState >= 1 && Number.isFinite(media.duration)) {
+      return Promise.resolve();
+    }
+    return new Promise((resolve,reject) => {
+      const done=() => { cleanup(); resolve(); };
+      const fail=() => { cleanup(); reject(new Error("Média audio indisponible")); };
+      const cleanup=() => {
+        media.removeEventListener("loadedmetadata",done);
+        media.removeEventListener("canplay",done);
+        media.removeEventListener("error",fail);
+      };
+      media.addEventListener("loadedmetadata",done,{once:true});
+      media.addEventListener("canplay",done,{once:true});
+      media.addEventListener("error",fail,{once:true});
+      media.load();
+    });
+  }
+
+  async function ensureReady() {
+    if (ready) {
+      if (context && context.state==="suspended") await context.resume();
+      return;
+    }
+
+    playButton.disabled=true;
+    playButton.textContent="Chargement audio…";
+
+    context=new (window.AudioContext || window.webkitAudioContext)({
+      latencyHint:"interactive"
+    });
+    masterGain=context.createGain();
+    masterGain.gain.value=masterState;
+    masterGain.connect(context.destination);
+
+    trackNodes=[];
+    mediaElements=[];
+    mediaSources=[];
+
+    for (let i=0;i<defs.length;i++) {
+      const media=new Audio();
+      media.preload="auto";
+      media.src=String(defs[i].url || "");
+      setPitchPreservation(media);
+      await waitMediaReady(media);
+
+      const sourceNode=context.createMediaElementSource(media);
+
+      const lowEQ=context.createBiquadFilter();
+      lowEQ.type="lowshelf";
+      lowEQ.frequency.value=200;
+      lowEQ.gain.value=0;
+
+      const midEQ=context.createBiquadFilter();
+      midEQ.type="peaking";
+      midEQ.frequency.value=1000;
+      midEQ.Q.value=.9;
+      midEQ.gain.value=0;
+
+      const highEQ=context.createBiquadFilter();
+      highEQ.type="highshelf";
+      highEQ.frequency.value=5000;
+      highEQ.gain.value=0;
+
+      const trackGain=context.createGain();
+
+      sourceNode.connect(lowEQ);
+      lowEQ.connect(midEQ);
+      midEQ.connect(highEQ);
+      highEQ.connect(trackGain);
+      trackGain.connect(masterGain);
+
+      mediaElements.push(media);
+      mediaSources.push(sourceNode);
+      trackNodes.push({lowEQ,midEQ,highEQ,trackGain});
+
+      if (i===0) duration=Number(media.duration || 0);
+    }
+
+    clockMedia=mediaElements[0] || null;
+    seek.max=String(Math.max(.001,duration));
+    setPlaybackRateOnMedia();
+
+    ready=true;
+    trackState.forEach((_,i)=>applyTrackState(i,false));
+    applyMasterState(false);
+
+    playButton.disabled=false;
+    playButton.textContent="▶ Lecture";
+  }
+
+  function currentTime() {
+    if (clockMedia && Number.isFinite(clockMedia.currentTime)) {
+      return Math.max(0,Math.min(duration,Number(clockMedia.currentTime)||0));
+    }
+    return Math.max(0,Math.min(duration,Number(position)||0));
+  }
+
+  function stopSources() {
+    mediaElements.forEach(media => {
+      try { media.pause(); } catch (_) {}
+    });
+  }
+
+  function syncMediaTo(time) {
+    const t=Math.max(0,Math.min(duration,Number(time)||0));
+    mediaElements.forEach(media => {
+      try {
+        if (Math.abs((Number(media.currentTime)||0)-t) > .025) {
+          media.currentTime=t;
+        }
+      } catch (_) {}
+    });
+    position=t;
+  }
+
+  async function startSources(offset) {
+    const t=Math.max(0,Math.min(duration,Number(offset)||0));
+    syncMediaTo(t);
+    setPlaybackRateOnMedia();
+
+    const promises=mediaElements.map(media => {
+      try { return media.play(); }
+      catch (_) { return Promise.resolve(); }
+    });
+    await Promise.all(promises);
+
+    position=t;
+    playing=true;
+  }
+
+  async function playAll() {
+    await ensureReady();
+    if (context.state==="suspended") await context.resume();
+    if (playing) return;
+    if (position>=duration-.01) position=0;
+    await startSources(position);
+  }
+
+  function pauseAll() {
+    if (!playing) return;
+    position=currentTime();
+    playing=false;
+    stopSources();
+  }
+
+  function stopAll() {
+    playing=false;
+    stopSources();
+    position=0;
+    syncMediaTo(0);
+    seek.value="0";
+    renderConductor(0);
+    timeLabel.textContent="0:00 / "+fmt(duration);
+  }
+
+  function seekTo(value) {
+    position=Math.max(0,Math.min(duration,Number(value)||0));
+    syncMediaTo(position);
+    renderConductor(Math.max(0,position-visualDelay));
+  }
+
+  playButton.addEventListener("click",()=>playAll().catch(e => {
+    playButton.disabled=false;
+    playButton.textContent="▶ Lecture";
+    console.error(e);
+  }));
+  pauseButton.addEventListener("click",pauseAll);
+  stopButton.addEventListener("click",stopAll);
+  seek.addEventListener("input",()=>seekTo(Number(seek.value || 0)));
+
+  function correctStemDrift(t) {
+    if (!playing || !clockMedia) return;
+    const now=performance.now();
+    if (now-lastDriftCheck < 500) return;
+    lastDriftCheck=now;
+
+    mediaElements.forEach((media,index) => {
+      if (index===0) return;
+      const drift=(Number(media.currentTime)||0)-t;
+      if (Math.abs(drift) > .080) {
+        try { media.currentTime=t; } catch (_) {}
+      }
+    });
+  }
+
+  function tick() {
+    if (disposed) return;
+    const t=currentTime();
+    position=t;
+    correctStemDrift(t);
+    seek.value=String(t);
+    timeLabel.textContent=fmt(t)+" / "+fmt(duration);
+    renderConductor(Math.max(0,t-visualDelay));
+
+    if (playing && t>=duration-.01) stopAll();
+    raf=requestAnimationFrame(tick);
+  }
+
+  tick();
+"""
+
+_JS = _JS[:_audio_start] + _MEDIA_ENGINE + _JS[_audio_end:]
 
 
 _COMPONENT_R12C = st.components.v2.component(
@@ -992,10 +969,30 @@ def _component_with_r12c_data(*, data: dict[str, Any], **kwargs):
     payload = dict(data or {})
     storage_key = str(payload.get("storage_key", "") or "")
     audio_hash = _AUDIO_HASH_BY_STORAGE_KEY.get(storage_key, "")
-    payload["tempo_variants"] = _TEMPO_VARIANTS_BY_STORAGE_KEY.get(
-        storage_key,
-        {},
-    )
+
+    # Non-regression guard: Chœurs / vocalises are persisted independently.
+    # If the base render yields an empty lane, reconstruct it from the cached
+    # vocal-stem Whisper pass without reanalysis.
+    if not list(payload.get("backing_words", []) or []):
+        preview_dir = _PREVIEW_DIR_BY_STORAGE_KEY.get(storage_key)
+        lead_words = list(payload.get("lead_words", []) or [])
+        if preview_dir is not None and lead_words:
+            cache_path = Path(preview_dir).parent / "whisper_vocals_small.json"
+            if cache_path.is_file():
+                try:
+                    vocal_payload = json.loads(
+                        cache_path.read_text(encoding="utf-8")
+                    )
+                    merged = _base._merge_vocal_gap_words(
+                        lead_words,
+                        list(vocal_payload.get("words", []) or []),
+                    )
+                    payload["backing_words"] = _base._supplement_only_words(
+                        lead_words,
+                        merged,
+                    )
+                except Exception:
+                    pass
 
     if audio_hash:
         beats = list(payload.get("beats", []) or [])
@@ -1033,16 +1030,7 @@ def render_player(
 ) -> None:
     storage_key = str(key)
     _AUDIO_HASH_BY_STORAGE_KEY[storage_key] = preview_dir.parent.name
-    _TEMPO_VARIANTS_BY_STORAGE_KEY[storage_key] = _prepare_tempo_variants(
-        Path(source),
-        {
-            name: Path(path)
-            for name, path in stems.items()
-            if path is not None
-        },
-        Path(preview_dir),
-        storage_key,
-    )
+    _PREVIEW_DIR_BY_STORAGE_KEY[storage_key] = Path(preview_dir)
     return _base.render_player(
         source,
         stems,

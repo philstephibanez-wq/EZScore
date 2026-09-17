@@ -1,7 +1,7 @@
 """EZScore UI helpers.
 
 Integration hook for the validated unified STEM/karaoke player.
-R12c keeps the R10 audio engine and fixes only conductor presentation.
+Unified karaoke player integration.
 """
 
 def _install_karaoke_patch() -> None:
