@@ -1,0 +1,244 @@
+.ez-editor-shell{
+  border:1px solid color-mix(in srgb,var(--st-text-color) 18%,transparent);
+  border-radius:10px;
+  background:color-mix(in srgb,var(--st-text-color) 3%,transparent);
+  overflow:hidden;
+}
+
+.ez-editor-help{
+  padding:8px 12px;
+  font-size:12px;
+  opacity:.72;
+  border-bottom:1px solid color-mix(in srgb,var(--st-text-color) 10%,transparent);
+}
+
+.ez-editor-window{
+  position:relative;
+}
+
+.ez-editor-viewport{
+  width:100%;
+  overflow-x:auto;
+  overflow-y:hidden;
+  scrollbar-gutter:stable;
+  scrollbar-width:auto;
+  cursor:grab;
+}
+
+.ez-editor-viewport.dragging{
+  cursor:grabbing;
+  user-select:none;
+}
+
+.ez-editor-viewport::-webkit-scrollbar{
+  height:14px;
+}
+
+.ez-editor-viewport::-webkit-scrollbar-thumb{
+  background:color-mix(in srgb,#4da3ff 45%,#444);
+  border-radius:10px;
+  border:3px solid transparent;
+  background-clip:padding-box;
+}
+
+.ez-editor-viewport::-webkit-scrollbar-track{
+  background:color-mix(in srgb,var(--st-text-color) 6%,transparent);
+}
+
+.ez-editor-canvas{
+  position:relative;
+  min-width:100%;
+  padding-bottom:2px;
+}
+
+.ez-fixed-playhead{
+  position:absolute;
+  left:38%;
+  top:0;
+  bottom:14px;
+  width:2px;
+  z-index:50;
+  pointer-events:none;
+  background:color-mix(in srgb,#ffffff 55%,transparent);
+  box-shadow:0 0 0 1px color-mix(in srgb,#000000 20%,transparent);
+}
+
+.ez-row{
+  position:relative;
+  display:grid;
+  grid-template-columns:78px 1fr;
+  min-height:70px;
+  border-bottom:1px solid color-mix(in srgb,var(--st-text-color) 8%,transparent);
+}
+
+.ez-row:last-child{
+  border-bottom:0;
+}
+
+.ez-row-label{
+  position:sticky;
+  left:0;
+  z-index:60;
+  display:flex;
+  align-items:center;
+  padding-left:10px;
+  font-size:12px;
+  font-weight:850;
+  color:var(--st-text-color);
+  background:color-mix(in srgb,var(--st-background-color) 94%,transparent);
+  box-shadow:6px 0 8px -8px rgba(0,0,0,.8);
+}
+
+.ez-track{
+  position:relative;
+  height:70px;
+  min-width:1400px;
+}
+
+.ez-sections{
+  cursor:crosshair;
+  background:color-mix(in srgb,#4da3ff 2.5%,transparent);
+}
+
+.ez-gridline{
+  position:absolute;
+  top:0;
+  bottom:0;
+  width:1px;
+  background:color-mix(in srgb,var(--st-text-color) 6%,transparent);
+  pointer-events:none;
+}
+
+.ez-grid-label{
+  position:absolute;
+  top:3px;
+  transform:translateX(3px);
+  font-size:9px;
+  opacity:.28;
+  pointer-events:none;
+}
+
+.ez-anchor{
+  position:absolute;
+  top:21px;
+  transform:translateX(-50%);
+  border:1px solid #5ab0ff;
+  border-radius:6px;
+  background:#1f6fb2;
+  color:#fff;
+  padding:3px 7px;
+  font-size:11px;
+  font-weight:850;
+  white-space:nowrap;
+  cursor:text;
+  z-index:8;
+}
+
+.ez-anchor::after{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:100%;
+  width:2px;
+  height:23px;
+  background:#4da3ff;
+  opacity:.58;
+}
+
+.ez-anchor[contenteditable="true"]{
+  outline:2px solid #85c2ff;
+  outline-offset:1px;
+}
+
+.ez-chord{
+  position:absolute;
+  top:18px;
+  transform:translateX(-2px);
+  min-width:30px;
+  padding:4px 6px;
+  border:1px solid color-mix(in srgb,#4da3ff 30%,transparent);
+  border-radius:5px;
+  background:color-mix(in srgb,#4da3ff 14%,#15181d);
+  color:#62b6ff;
+  font-family:Consolas,"Courier New",monospace;
+  font-size:18px;
+  font-weight:900;
+  text-align:center;
+  white-space:nowrap;
+  cursor:text;
+}
+
+.ez-word{
+  position:absolute;
+  top:18px;
+  padding:2px 3px;
+  border-radius:4px;
+  white-space:nowrap;
+  font-size:20px;
+  font-weight:720;
+  cursor:text;
+}
+
+.ez-lead .ez-word{
+  color:#f4f4f4;
+}
+
+.ez-backing .ez-word{
+  color:#d49bff;
+  font-size:18px;
+}
+
+.ez-word[contenteditable="true"],
+.ez-chord[contenteditable="true"]{
+  outline:2px solid #4da3ff;
+  outline-offset:1px;
+  background:#17263a;
+}
+
+.ez-linebreak{
+  position:absolute;
+  top:43px;
+  width:14px;
+  height:22px;
+  padding:0;
+  border:0;
+  background:transparent;
+  color:color-mix(in srgb,var(--st-text-color) 18%,transparent);
+  font-family:Consolas,monospace;
+  font-size:18px;
+  line-height:20px;
+  cursor:pointer;
+  opacity:.35;
+}
+
+.ez-linebreak:hover{
+  opacity:.85;
+  color:#ffcf5a;
+}
+
+.ez-linebreak.active{
+  opacity:1;
+  color:#ffcf5a;
+  font-weight:900;
+}
+
+.ez-pending-anchor{
+  position:absolute;
+  top:17px;
+  width:118px;
+  padding:4px 6px;
+  border:1px solid #85c2ff;
+  border-radius:5px;
+  background:#17263a;
+  color:#fff;
+  font-size:12px;
+  z-index:20;
+}
+
+.ez-editor-footer{
+  display:flex;
+  justify-content:space-between;
+  padding:4px 10px 6px;
+  font-size:10px;
+  opacity:.58;
+}

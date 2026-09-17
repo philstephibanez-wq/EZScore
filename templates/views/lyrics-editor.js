@@ -1,0 +1,428 @@
+export default function(component) {
+  const root = component.parentElement;
+  const data = component.data || {};
+  const lead = Array.isArray(data.lead) ? data.lead : [];
+  const backing = Array.isArray(data.backing) ? data.backing : [];
+  const beats = Array.isArray(data.beats) ? data.beats : [];
+
+  const viewport = root.querySelector(".ez-editor-viewport");
+  const canvas = root.querySelector(".ez-editor-canvas");
+  const sectionTrack = root.querySelector(".ez-sections");
+  const chordTrack = root.querySelector(".ez-chords");
+  const leadTrack = root.querySelector(".ez-lead");
+  const backingTrack = root.querySelector(".ez-backing");
+  const positionLabel = root.querySelector(".ez-position");
+
+  const initial = data.editorial || {};
+  const stateSnapshot = String(component.state?.snapshot || "");
+  let editorial;
+
+  try {
+    editorial = stateSnapshot
+      ? JSON.parse(stateSnapshot)
+      : JSON.parse(JSON.stringify(initial));
+  } catch (_) {
+    editorial = JSON.parse(JSON.stringify(initial));
+  }
+
+  editorial.lead_overrides ||= {};
+  editorial.backing_overrides ||= {};
+  editorial.line_break_after_lead ||= [];
+  editorial.chord_overrides ||= {};
+  editorial.anchors ||= [];
+
+  const allEnds = [
+    ...lead.map(item => Number(item.end || 0)),
+    ...backing.map(item => Number(item.end || 0)),
+    ...beats.map(item => Number(item.end || item.start || 0)),
+    ...editorial.anchors.map(item => Number(item.time || 0)),
+  ].filter(Number.isFinite);
+
+  const duration = Math.max(8, ...allEnds, 0);
+  const pxPerSecond = 115;
+  const trackWidth = Math.max(1600, duration * pxPerSecond + 240);
+
+  canvas.style.width = (trackWidth + 78) + "px";
+  [sectionTrack, chordTrack, leadTrack, backingTrack].forEach(track => {
+    track.style.width = trackWidth + "px";
+  });
+
+  function xFor(time) {
+    return Math.max(0, Number(time || 0)) * pxPerSecond;
+  }
+
+  function timeForX(x) {
+    return Math.max(0, Math.min(duration, Number(x || 0) / pxPerSecond));
+  }
+
+  function fmt(seconds) {
+    const t = Math.max(0, Number(seconds || 0));
+    return Math.floor(t / 60) + ":" + String(Math.floor(t % 60)).padStart(2, "0");
+  }
+
+  function emit() {
+    component.setStateValue("snapshot", JSON.stringify(editorial));
+  }
+
+  function installGrid(track) {
+    for (let sec = 0; sec <= duration; sec += 5) {
+      const line = document.createElement("span");
+      line.className = "ez-gridline";
+      line.style.left = xFor(sec) + "px";
+      track.appendChild(line);
+
+      if (track === sectionTrack) {
+        const label = document.createElement("span");
+        label.className = "ez-grid-label";
+        label.style.left = xFor(sec) + "px";
+        label.textContent = fmt(sec);
+        track.appendChild(label);
+      }
+    }
+  }
+
+  [sectionTrack, chordTrack, leadTrack, backingTrack].forEach(installGrid);
+
+  function updatePositionLabel() {
+    const visibleWidth = Math.max(0, viewport.clientWidth - 78);
+    const playheadX = viewport.scrollLeft + visibleWidth * 0.38;
+    positionLabel.textContent = fmt(timeForX(playheadX));
+  }
+
+  viewport.addEventListener("scroll", updatePositionLabel, { passive: true });
+  updatePositionLabel();
+
+  let dragActive = false;
+  let dragOriginX = 0;
+  let dragOriginScroll = 0;
+
+  viewport.addEventListener("pointerdown", event => {
+    if (
+      event.target.closest(".ez-word") ||
+      event.target.closest(".ez-chord") ||
+      event.target.closest(".ez-anchor") ||
+      event.target.closest(".ez-linebreak") ||
+      event.target.closest(".ez-sections")
+    ) {
+      return;
+    }
+
+    dragActive = true;
+    dragOriginX = event.clientX;
+    dragOriginScroll = viewport.scrollLeft;
+    viewport.classList.add("dragging");
+    viewport.setPointerCapture(event.pointerId);
+  });
+
+  viewport.addEventListener("pointermove", event => {
+    if (!dragActive) return;
+    viewport.scrollLeft = dragOriginScroll - (event.clientX - dragOriginX);
+  });
+
+  function stopDrag(event) {
+    if (!dragActive) return;
+    dragActive = false;
+    viewport.classList.remove("dragging");
+    try {
+      viewport.releasePointerCapture(event.pointerId);
+    } catch (_) {}
+  }
+
+  viewport.addEventListener("pointerup", stopDrag);
+  viewport.addEventListener("pointercancel", stopDrag);
+
+  function startInlineEdit(node, getValue, setValue) {
+    node.addEventListener("dblclick", event => {
+      event.stopPropagation();
+      node.contentEditable = "true";
+      node.focus();
+
+      const range = document.createRange();
+      range.selectNodeContents(node);
+
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+    });
+
+    node.addEventListener("keydown", event => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        node.blur();
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        node.textContent = getValue();
+        node.contentEditable = "false";
+      }
+    });
+
+    node.addEventListener("blur", () => {
+      if (node.contentEditable !== "true") return;
+
+      const text = String(node.textContent || "").trim();
+      if (text) {
+        setValue(text);
+        node.textContent = text;
+        emit();
+      } else {
+        node.textContent = getValue();
+      }
+      node.contentEditable = "false";
+    });
+  }
+
+  beats.forEach((beat, index) => {
+    const key = String(index);
+    const node = document.createElement("span");
+    node.className = "ez-chord";
+    node.style.left = xFor(beat.start) + "px";
+
+    const current = () => String(
+      editorial.chord_overrides[key] ?? beat.chord ?? "."
+    );
+
+    node.textContent = current();
+
+    startInlineEdit(node, current, text => {
+      const detected = String(beat.chord || ".");
+      if (text === detected) {
+        delete editorial.chord_overrides[key];
+      } else {
+        editorial.chord_overrides[key] = text;
+      }
+    });
+
+    chordTrack.appendChild(node);
+  });
+
+  const breakSet = new Set(
+    (editorial.line_break_after_lead || []).map(Number)
+  );
+
+  lead.forEach((word, index) => {
+    const key = String(index);
+    const node = document.createElement("span");
+    node.className = "ez-word";
+    node.style.left = xFor(word.start) + "px";
+
+    const current = () => String(
+      editorial.lead_overrides[key] ?? word.text ?? ""
+    );
+
+    node.textContent = current();
+
+    startInlineEdit(node, current, text => {
+      if (text === String(word.text || "")) {
+        delete editorial.lead_overrides[key];
+      } else {
+        editorial.lead_overrides[key] = text;
+      }
+    });
+
+    leadTrack.appendChild(node);
+
+    if (index < lead.length - 1) {
+      const marker = document.createElement("button");
+      marker.type = "button";
+      marker.className = "ez-linebreak";
+      marker.textContent = "|";
+      marker.title = "Saut de ligne visuel après ce mot";
+      marker.style.left = (xFor(word.end) + 2) + "px";
+      marker.classList.toggle("active", breakSet.has(index));
+
+      marker.addEventListener("click", event => {
+        event.stopPropagation();
+
+        if (breakSet.has(index)) {
+          breakSet.delete(index);
+        } else {
+          breakSet.add(index);
+        }
+
+        editorial.line_break_after_lead = [...breakSet].sort((a, b) => a - b);
+        marker.classList.toggle("active", breakSet.has(index));
+        emit();
+      });
+
+      leadTrack.appendChild(marker);
+    }
+  });
+
+  backing.forEach((word, index) => {
+    const key = String(index);
+    const node = document.createElement("span");
+    node.className = "ez-word";
+    node.style.left = xFor(word.start) + "px";
+
+    const current = () => String(
+      editorial.backing_overrides[key] ?? word.text ?? ""
+    );
+
+    node.textContent = current();
+
+    startInlineEdit(node, current, text => {
+      if (text === String(word.text || "")) {
+        delete editorial.backing_overrides[key];
+      } else {
+        editorial.backing_overrides[key] = text;
+      }
+    });
+
+    backingTrack.appendChild(node);
+  });
+
+  function nearestSnap(time) {
+    let best = null;
+
+    beats.forEach((beat, index) => {
+      const snapTime = Number(beat.start || 0);
+      const distance = Math.abs(snapTime - time);
+
+      if (best === null || distance < best.distance) {
+        best = {
+          distance,
+          snap: "beat",
+          snap_index: index,
+          time: snapTime,
+        };
+      }
+    });
+
+    for (let index = 1; index < lead.length; index += 1) {
+      const boundaryTime = (
+        Number(lead[index - 1].end || 0)
+        + Number(lead[index].start || 0)
+      ) / 2;
+
+      const distance = Math.abs(boundaryTime - time);
+
+      if (best === null || distance < best.distance) {
+        best = {
+          distance,
+          snap: "word_boundary",
+          snap_index: index,
+          time: boundaryTime,
+        };
+      }
+    }
+
+    return best;
+  }
+
+  function makeAnchorNode(anchor) {
+    const node = document.createElement("span");
+    node.className = "ez-anchor";
+    node.style.left = xFor(anchor.time) + "px";
+    node.textContent = String(anchor.label || "Section");
+    node.title = "Double-clic = renommer · Suppr = supprimer";
+
+    startInlineEdit(
+      node,
+      () => String(anchor.label || ""),
+      text => {
+        anchor.label = text;
+      },
+    );
+
+    node.addEventListener("keydown", event => {
+      if (event.key === "Delete" && node.contentEditable !== "true") {
+        event.preventDefault();
+        editorial.anchors = editorial.anchors.filter(
+          item => item.id !== anchor.id
+        );
+        node.remove();
+        emit();
+      }
+    });
+
+    node.tabIndex = 0;
+    sectionTrack.appendChild(node);
+  }
+
+  editorial.anchors.forEach(makeAnchorNode);
+
+  let pendingInput = null;
+
+  sectionTrack.addEventListener("click", event => {
+    if (
+      event.target.closest(".ez-anchor") ||
+      event.target.closest(".ez-pending-anchor")
+    ) {
+      return;
+    }
+
+    if (pendingInput) {
+      pendingInput.remove();
+      pendingInput = null;
+    }
+
+    const rect = sectionTrack.getBoundingClientRect();
+    const canvasX = event.clientX - rect.left;
+    const requestedTime = timeForX(canvasX);
+    const snap = nearestSnap(requestedTime);
+
+    if (!snap) return;
+
+    const input = document.createElement("input");
+    input.className = "ez-pending-anchor";
+    input.placeholder = "Intro / Couplet 1…";
+    input.style.left = xFor(snap.time) + "px";
+    input.style.transform = "translateX(-50%)";
+    sectionTrack.appendChild(input);
+    pendingInput = input;
+    input.focus();
+
+    function cancel() {
+      if (pendingInput === input) {
+        pendingInput = null;
+      }
+      input.remove();
+    }
+
+    function commit() {
+      const label = String(input.value || "").trim();
+      if (!label) {
+        cancel();
+        return;
+      }
+
+      const anchor = {
+        id: (
+          globalThis.crypto?.randomUUID?.()
+          || String(Date.now()) + "-" + Math.random().toString(16).slice(2)
+        ),
+        label,
+        time: snap.time,
+        snap: snap.snap,
+        snap_index: snap.snap_index,
+      };
+
+      editorial.anchors.push(anchor);
+      editorial.anchors.sort(
+        (a, b) => Number(a.time || 0) - Number(b.time || 0)
+      );
+
+      cancel();
+      makeAnchorNode(anchor);
+      emit();
+    }
+
+    input.addEventListener("keydown", keyEvent => {
+      if (keyEvent.key === "Enter") {
+        keyEvent.preventDefault();
+        commit();
+      } else if (keyEvent.key === "Escape") {
+        keyEvent.preventDefault();
+        cancel();
+      }
+    });
+
+    input.addEventListener("blur", () => {
+      if (pendingInput === input) {
+        commit();
+      }
+    });
+  });
+
+  emit();
+}

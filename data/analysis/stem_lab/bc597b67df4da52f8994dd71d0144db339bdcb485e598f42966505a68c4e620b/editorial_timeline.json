@@ -1,0 +1,30 @@
+{
+  "schema_version": 3,
+  "source_fingerprint": "613f83d69e2bb020622f2ac5d99f8d517116cf9269ba88ef9ff02e4a24b9228e",
+  "lead_overrides": {},
+  "backing_overrides": {
+    "1": "li",
+    "3": "li"
+  },
+  "line_break_after_lead": [],
+  "chord_overrides": {
+    "8": "A"
+  },
+  "anchors": [
+    {
+      "id": "33d592b7-a65e-4c9d-9b94-9eb4fc106cf6",
+      "label": "Intro",
+      "time": 1.973696,
+      "snap": "beat",
+      "snap_index": 3
+    },
+    {
+      "id": "46fc364d-a1f6-4ce2-9364-924bdb23d974",
+      "label": "couplet 1",
+      "time": 3.784853,
+      "snap": "beat",
+      "snap_index": 7
+    }
+  ],
+  "updated_at": "2026-09-17T23:45:55.690185+00:00"
+}
