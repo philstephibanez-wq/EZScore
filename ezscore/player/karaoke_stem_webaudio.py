@@ -482,10 +482,26 @@ _HTML = r"""
   </div>
 
   <div class="karaoke">
-    <div class="line previous"></div>
-    <div class="chords"></div>
-    <div class="line current"></div>
-    <div class="line next"></div>
+    <div class="playhead"></div>
+    <div class="future-hint">temps courant</div>
+    <div class="timeline-row chord-row">
+      <div class="timeline-label">Accords</div>
+      <div class="timeline-viewport chord-viewport">
+        <div class="timeline-track chord-track"></div>
+      </div>
+    </div>
+    <div class="timeline-row lyric-row lead-row">
+      <div class="timeline-label">Chant</div>
+      <div class="timeline-viewport lyric-viewport">
+        <div class="timeline-track lyric-track"></div>
+      </div>
+    </div>
+    <div class="timeline-row lyric-row backing-row hidden">
+      <div class="timeline-label">Chœurs</div>
+      <div class="timeline-viewport backing-viewport">
+        <div class="timeline-track backing-track"></div>
+      </div>
+    </div>
   </div>
 
   <details class="mixer-details">
@@ -538,44 +554,113 @@ _CSS = r"""
 .meter-group { width:92px; }
 .meter-state { opacity:.68; margin-left:auto; }
 
+
 .karaoke {
-  min-height:248px; display:flex; flex-direction:column;
-  justify-content:center; overflow:hidden; border-radius:10px;
-  padding:18px 12px;
+  position:relative;
+  min-height:196px;
+  overflow:hidden;
+  border-radius:10px;
+  padding:14px 12px 12px;
   background:color-mix(in srgb, var(--st-text-color) 5%, transparent);
 }
-.line {
-  text-align:center; line-height:1.34;
-  transition:opacity 100ms linear, transform 100ms linear;
+.future-hint {
+  position:absolute;
+  left:calc(38% + 8px);
+  top:5px;
+  z-index:6;
+  font-size:9px;
+  opacity:.42;
+  pointer-events:none;
 }
-.line.previous,.line.next {
-  min-height:34px; font-size:20px; opacity:.25;
+.playhead {
+  position:absolute;
+  left:38%;
+  top:12px;
+  bottom:12px;
+  width:2px;
+  z-index:5;
+  background:color-mix(in srgb, #ffffff 58%, transparent);
+  box-shadow:0 0 0 1px color-mix(in srgb, #000000 18%, transparent);
+  pointer-events:none;
 }
-.line.current {
-  min-height:54px; font-size:31px; font-weight:760; opacity:1;
+.timeline-row {
+  display:grid;
+  grid-template-columns:64px 1fr;
+  align-items:center;
+  min-height:66px;
 }
-.word { display:inline; margin-right:.28em; opacity:.48; }
-.word.past { opacity:.82; }
-.word.active {
-  opacity:1; font-weight:900;
+.timeline-label {
+  position:relative;
+  z-index:6;
+  font-size:11px;
+  font-weight:800;
+  opacity:.78;
+  padding-right:8px;
+  color:var(--st-text-color);
+}
+.timeline-viewport {
+  position:relative;
+  overflow:hidden;
+  height:62px;
+}
+.timeline-track {
+  position:absolute;
+  left:0;
+  top:0;
+  height:100%;
+  will-change:transform;
+  transform:translate3d(0,0,0);
+}
+.chord-track {
+  white-space:nowrap;
+}
+.lyric-track,.backing-track {
+  white-space:nowrap;
+}
+.lyric-token {
+  position:absolute;
+  top:17px;
+  display:inline-block;
+  font-size:27px;
+  font-weight:760;
+  opacity:.34;
+  transition:opacity 70ms linear, transform 70ms linear;
+  transform-origin:center left;
+}
+.lyric-token.past { opacity:.62; }
+.lyric-token.current {
+  opacity:1;
+  font-weight:900;
+  transform:scale(1.05);
   text-decoration:underline;
   text-decoration-thickness:3px;
-  text-underline-offset:5px;
+  text-underline-offset:6px;
 }
-.chords {
-  position:relative; height:44px; margin:4px 0 2px;
-  font-family:Consolas,"Courier New",monospace;
-  font-size:21px; font-weight:900; white-space:nowrap;
+.backing-row .lyric-token {
+  font-size:22px;
+  color:#d49bff;
+}
+.lead-row .lyric-token {
+  color:#f4f4f4;
 }
 .chord-marker {
-  position:absolute; transform:translateX(-10%);
-  padding:2px 5px; border-radius:5px;
+  position:absolute;
+  top:13px;
+  display:inline-block;
+  font-family:Consolas,"Courier New",monospace;
+  font-size:20px;
+  font-weight:900;
+  padding:3px 6px;
+  border-radius:5px;
   background:color-mix(in srgb, #4da3ff 16%, transparent);
+  transition:background 70ms linear, transform 70ms linear;
+  transform-origin:left center;
 }
 .chord-marker.active {
-  background:color-mix(in srgb, #4da3ff 38%, transparent);
-  transform:translateX(-10%) scale(1.06);
+  background:color-mix(in srgb, #4da3ff 42%, transparent);
+  transform:scale(1.07);
 }
+.timeline-row.hidden { display:none; }
 .mixer-details { margin-top:12px; }
 .mixer-details summary { cursor:pointer; font-weight:800; }
 .tracks { margin-top:8px; display:grid; gap:5px; }
@@ -615,10 +700,14 @@ export default function(component) {
   const denInput = root.querySelector(".meter-den");
   const groupingInput = root.querySelector(".meter-group");
   const meterState = root.querySelector(".meter-state");
-  const prevLine = root.querySelector(".previous");
-  const currentLine = root.querySelector(".current");
-  const nextLine = root.querySelector(".next");
-  const chordsNode = root.querySelector(".chords");
+  const karaokeNode = root.querySelector(".karaoke");
+  const leadViewport = root.querySelector(".lyric-viewport");
+  const leadTrack = root.querySelector(".lyric-track");
+  const chordViewport = root.querySelector(".chord-viewport");
+  const chordTrack = root.querySelector(".chord-track");
+  const backingRow = root.querySelector(".backing-row");
+  const backingViewport = root.querySelector(".backing-viewport");
+  const backingTrack = root.querySelector(".backing-track");
 
   const meterParts = String(meterDefault.signature || "4/4").split("/");
   numInput.value = String(Math.max(1, Number(meterParts[0] || 4)));
@@ -647,7 +736,8 @@ export default function(component) {
   let duration = 0;
   let disposed = false;
   let raf = null;
-  let lineIndex = -1;
+  const pixelsPerSecond = 92;
+  const anchorRatio = 0.38;
 
   const trackState = tracksDef.map((x) => ({
     enabled: Boolean(x.enabled),
@@ -698,7 +788,6 @@ export default function(component) {
     meterState.textContent =
       m.n + "/" + m.d + " · " +
       (groupingInput.value.trim() || m.groups.join("+"));
-    renderConductor(currentTime(), true);
   }
 
   [numInput, denInput, groupingInput].forEach((el) => {
@@ -706,71 +795,100 @@ export default function(component) {
     el.addEventListener("input", persistMeter);
   });
 
-  function buildLines() {
-    if (!words.length) return [];
-    const lines = [];
-    let current = [];
-    let lastEnd = null;
-
-    function flush() {
-      if (!current.length) return;
-      lines.push({
-        words: current,
-        start: Number(current[0].start || 0),
-        end: Number(current[current.length-1].end || current[current.length-1].start || 0)
-      });
-      current = [];
-    }
-
-    words.forEach((w) => {
-      const text = String(w.text || "").trim();
-      if (!text) return;
-      const start = Number(w.start || 0);
-      const end = Number(w.end || start);
-      const gap = lastEnd === null ? 0 : start - lastEnd;
-      if (current.length && (gap > 1.05 || current.length >= 10)) flush();
-      current.push({...w, text, start, end});
-      lastEnd = end;
-      if (/[.!?;:]$/.test(text) && current.length >= 4) flush();
-    });
-    flush();
-    return lines;
+  function normalizedWords(input) {
+    return (Array.isArray(input) ? input : [])
+      .map((w) => ({
+        text:String(w.text || "").trim(),
+        start:Number(w.start || 0),
+        end:Number(w.end || w.start || 0),
+      }))
+      .filter((w) => w.text && Number.isFinite(w.start) && Number.isFinite(w.end))
+      .sort((a,b) => a.start - b.start || a.end - b.end);
   }
 
-  const lines = buildLines();
-  // `lines` must exist before persistMeter() triggers renderConductor().
-  persistMeter();
+  const leadWords = normalizedWords(words);
+  let wordVisualX = [];
+  let leadNodes = [];
 
-  function lineAt(time) {
-    if (!lines.length) return -1;
-    // Never show a future lyric line during a genuine instrumental/vocal gap.
-    // A recovered vocalisation line will naturally occupy this interval.
-    if (time < lines[0].start - 1.0) return -1;
-    for (let i=0;i<lines.length;i++) {
-      if (time >= lines[i].start - .15 && time <= lines[i].end + .45) return i;
-      if (time < lines[i].start) {
-        const previous = i - 1;
-        if (previous >= 0 && time <= lines[previous].end + 1.2) return previous;
-        return -1;
-      }
-    }
-    if (time <= lines[lines.length - 1].end + 1.2) return lines.length - 1;
-    return -1;
-  }
+  function layoutLyricTimeline() {
+    leadTrack.innerHTML = "";
+    wordVisualX = [];
+    leadNodes = [];
 
-  function renderLine(node, line, time, active) {
-    node.innerHTML = "";
-    if (!line) return;
-    line.words.forEach((w) => {
+    let cursor = 0;
+    leadWords.forEach((w) => {
       const span = document.createElement("span");
-      span.className = "word";
-      if (time >= w.end) span.classList.add("past");
-      if (active && time >= w.start && time < Math.max(w.end, w.start + .04)) {
-        span.classList.add("active");
-      }
+      span.className = "lyric-token";
       span.textContent = w.text;
-      node.appendChild(span);
+      span.style.left = cursor + "px";
+      leadTrack.appendChild(span);
+
+      // Once inserted, offsetWidth is authoritative. Keep a minimum readable
+      // gap; silence duration never creates a black visual canyon.
+      const width = Math.max(18, Number(span.offsetWidth || (w.text.length * 15)));
+      wordVisualX.push(cursor);
+      leadNodes.push(span);
+      cursor += width + 18;
     });
+
+    leadTrack.style.width = Math.max(1, cursor + 240) + "px";
+  }
+
+  layoutLyricTimeline();
+
+  function visualXForTime(time) {
+    if (!leadWords.length) return 0;
+    const t = Number(time || 0);
+
+    if (leadWords.length === 1) return wordVisualX[0];
+
+    const first = leadWords[0];
+    if (t <= first.start) {
+      // During a long intro, keep the first upcoming lyric visible at the
+      // right side and let it approach the playhead continuously.
+      const span = Math.max(.25, first.start);
+      const p = Math.max(0, Math.min(1, t / span));
+      const preview = Math.min(360, Math.max(180, leadViewport.clientWidth * .32));
+      return wordVisualX[0] - preview * (1 - p);
+    }
+
+    let low = 0, high = leadWords.length - 1, left = 0;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (leadWords[mid].start <= t) {
+        left = mid;
+        low = mid + 1;
+      } else high = mid - 1;
+    }
+
+    if (left >= leadWords.length - 1) {
+      const last = leadWords[leadWords.length - 1];
+      const after = Math.max(0, t - last.start);
+      return wordVisualX[wordVisualX.length - 1] + Math.min(260, after * 28);
+    }
+
+    const a = leadWords[left];
+    const b = leadWords[left + 1];
+    const ta = Number(a.start);
+    const tb = Math.max(ta + .04, Number(b.start));
+    const p = Math.max(0, Math.min(1, (t - ta) / (tb - ta)));
+    return wordVisualX[left] + (wordVisualX[left + 1] - wordVisualX[left]) * p;
+  }
+
+  function activeWordIndex(sourceWords, time) {
+    if (!sourceWords.length) return -1;
+    let low=0, high=sourceWords.length-1, answer=-1;
+    while (low <= high) {
+      const mid=(low+high)>>1;
+      if (sourceWords[mid].start <= time) {
+        answer=mid;
+        low=mid+1;
+      } else high=mid-1;
+    }
+    if (answer < 0) return -1;
+    const w=sourceWords[answer];
+    if (time <= Math.max(w.end, w.start + .06)) return answer;
+    return -1;
   }
 
   function measureNotation(measureIndex, m) {
@@ -801,57 +919,83 @@ export default function(component) {
     });
     return {
       notation,
-      start: Number(beatSlice[0].start || 0),
-      end: Number(beatSlice[beatSlice.length-1].end || beatSlice[beatSlice.length-1].start || 0),
+      start:Number(beatSlice[0].start || 0),
+      end:Number(beatSlice[beatSlice.length-1].end || beatSlice[beatSlice.length-1].start || 0),
     };
   }
 
-  function measuresForWindow(t0, t1) {
+  let renderedMeterKey = "";
+  let chordMeasures = [];
+  let chordNodes = [];
+
+  function rebuildChordTimeline() {
     const m = meter();
+    const key = m.n + "/" + m.d + "|" + m.groups.join("+");
+    if (key === renderedMeterKey && chordNodes.length) return;
+    renderedMeterKey = key;
+    chordTrack.innerHTML = "";
+    chordMeasures = [];
+    chordNodes = [];
+
     const count = Math.ceil(beats.length / m.beatsPerMeasure);
-    const out = [];
+    let maxX = 0;
     for (let i=0;i<count;i++) {
       const item = measureNotation(i, m);
       if (!item) continue;
-      if (item.end < t0 || item.start > t1) continue;
-      out.push(item);
-    }
-    return out;
-  }
+      chordMeasures.push(item);
 
-  function renderChords(line, time) {
-    chordsNode.innerHTML = "";
-    if (!line) return;
-    const t0 = line.start;
-    const t1 = Math.max(t0 + .01, line.end);
-    const measures = measuresForWindow(t0 - .4, t1 + .4);
-    measures.forEach((measure) => {
       const marker = document.createElement("span");
       marker.className = "chord-marker";
-      if (time >= measure.start && time < measure.end) marker.classList.add("active");
-      const pos = Math.max(0, Math.min(100, ((measure.start - t0) / (t1 - t0)) * 100));
-      marker.style.left = pos + "%";
-      marker.textContent = measure.notation;
-      chordsNode.appendChild(marker);
-    });
+      marker.textContent = item.notation;
+
+      // Chords use the same semantic time -> visual-position mapping as lyrics,
+      // so they remain above the relevant sung area without making long
+      // silences consume metres of empty screen.
+      const x = visualXForTime(item.start);
+      marker.style.left = x + "px";
+      chordTrack.appendChild(marker);
+      chordNodes.push(marker);
+      maxX = Math.max(maxX, x + Math.max(80, marker.offsetWidth || 80));
+    }
+    chordTrack.style.width = Math.max(maxX + 240, leadTrack.offsetWidth || 1) + "px";
+  }
+
+  function translateSemanticTimeline(track, viewport, time) {
+    if (!track || !viewport) return;
+    const anchor = viewport.clientWidth * anchorRatio;
+    const xNow = visualXForTime(time);
+    track.style.transform =
+      "translate3d(" + (anchor - xNow).toFixed(2) + "px,0,0)";
   }
 
   function renderConductor(time, force=false) {
-    const idx = lineAt(time);
-    if (idx < 0) {
-      lineIndex = -1;
-      prevLine.innerHTML = "";
-      currentLine.innerHTML = "";
-      nextLine.innerHTML = "";
-      chordsNode.innerHTML = "";
-      return;
+    rebuildChordTimeline();
+
+    translateSemanticTimeline(leadTrack, leadViewport, time);
+    translateSemanticTimeline(chordTrack, chordViewport, time);
+
+    if (!backingRow.classList.contains("hidden")) {
+      translateSemanticTimeline(backingTrack, backingViewport, time);
     }
-    if (force || idx !== lineIndex) lineIndex = idx;
-    renderLine(prevLine, lines[idx-1], time, false);
-    renderLine(currentLine, lines[idx], time, true);
-    renderLine(nextLine, lines[idx+1], time, false);
-    renderChords(lines[idx], time);
+
+    const currentWord = activeWordIndex(leadWords, time);
+    leadNodes.forEach((node, i) => {
+      const w = leadWords[i];
+      node.classList.toggle("past", time > w.end);
+      node.classList.toggle("current", i === currentWord);
+    });
+
+    chordNodes.forEach((node, i) => {
+      const m = chordMeasures[i];
+      node.classList.toggle(
+        "active",
+        Boolean(m && time >= m.start && time < m.end)
+      );
+    });
   }
+
+  persistMeter();
+  renderConductor(0, true);
 
   function applyTrack(index) {
     if (!ready || !nodes[index] || !context) return;
@@ -997,7 +1141,6 @@ export default function(component) {
     raf = requestAnimationFrame(tick);
   }
 
-  renderConductor(0, true);
   tick();
 
   return function() {
@@ -1010,7 +1153,7 @@ export default function(component) {
 """
 
 _COMPONENT = st.components.v2.component(
-    "ezscore_karaoke_stem_player",
+    "ezscore_karaoke_stem_player_r6",
     html=_HTML,
     css=_CSS,
     js=_JS,

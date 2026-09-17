@@ -1,4 +1,4 @@
-# EZScore — conducteur karaoké paroles + accords — R4
+# EZScore — conducteur karaoké paroles + accords — R6
 
 Base lue : branche `feature/stem-analysis-pipeline`, commit
 `c1fd40afa47890fadb5a8efe83745f8ca010ad65`.
@@ -79,3 +79,40 @@ La transcription originale reste autoritaire : le passage `vocals` ne remplace
 pas les mots déjà horodatés, il ajoute seulement des mots dans les intervalles
 vides. Le lecteur n'affiche plus non plus la première ligne future pendant une
 longue introduction si aucune parole n'a été détectée.
+
+
+## R5 — karaoké continu
+
+Le rendu n'est plus basé sur des pages/lignes actives qui apparaissent puis
+disparaissent. Les paroles et les accords sont maintenant placés sur une
+timeline horizontale continue en fonction de leurs timestamps absolus.
+
+- tête de lecture fixe à ~38 % de la largeur ;
+- texte passé à gauche, temps courant sous la tête de lecture, futur visible à droite ;
+- aucun écran noir entre deux groupes de mots ;
+- aucune saute de page ;
+- accord/mesure actif mis en évidence ;
+- `-` et `.` conservés dans la notation de mesure ;
+- changement N/D + groupement sans relancer Whisper ;
+- structure HTML/CSS déjà prévue pour une future seconde piste `Chœurs`,
+  volontairement masquée tant qu'une séparation lead/backing fiable n'est pas
+  intégrée.
+
+
+## R6 — suppression des grands vides visuels
+
+La R5 utilisait une échelle spatiale proportionnelle au temps. C'était une
+mauvaise abstraction pour un karaoké : une longue intro ou une pause vocale
+créait mécaniquement un grand écran vide.
+
+R6 utilise une timeline **sémantique continue** :
+
+- les mots sont disposés sans grands espaces visuels ;
+- leurs timestamps restent la seule vérité pour la synchronisation ;
+- le défilement entre deux mots est interpolé avec le temps réel ;
+- avant la première parole, la première phrase reste visible à droite et
+  approche progressivement la tête de lecture ;
+- les accords utilisent la même transformation temps -> position visuelle ;
+- aucun silence audio ne peut créer un canyon noir dans le conducteur ;
+- nouveau nom de composant Bidi `ezscore_karaoke_stem_player_r6` pour éviter
+  de réutiliser un ancien bundle frontend en cache.
