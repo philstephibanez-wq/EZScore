@@ -1,4 +1,4 @@
-# EZScore — conducteur karaoké paroles + accords — R3
+# EZScore — conducteur karaoké paroles + accords — R4
 
 Base lue : branche `feature/stem-analysis-pipeline`, commit
 `c1fd40afa47890fadb5a8efe83745f8ca010ad65`.
@@ -62,3 +62,20 @@ rendu validé, il faudra transformer ce crochet en import explicite dans
 - aucun autre changement fonctionnel : le conducteur reste immédiatement
   disponible après Whisper, avec accords dès que la timeline harmonique/rythmique
   est construite.
+
+
+## Correctifs R4 — vocalises d'introduction
+
+Le cache Whisper du morceau de test commence à 32,30 s sur `Dance`; les
+vocalises d'introduction n'étaient donc pas absentes du lecteur, elles étaient
+absentes de la transcription originale.
+
+R4 ajoute un deuxième passage Whisper-small, une seule fois, sur le stem
+`vocals`. Il sert uniquement à compléter les grands trous laissés par le
+passage sur le mix original (pré-roll, vocalises `la/na/oh/ah`, etc.).
+Le résultat est mis en cache dans `whisper_vocals_small.json`.
+
+La transcription originale reste autoritaire : le passage `vocals` ne remplace
+pas les mots déjà horodatés, il ajoute seulement des mots dans les intervalles
+vides. Le lecteur n'affiche plus non plus la première ligne future pendant une
+longue introduction si aucune parole n'a été détectée.

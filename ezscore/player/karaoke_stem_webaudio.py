@@ -132,6 +132,172 @@ def _meter_defaults(preview_dir: Path) -> dict[str, Any]:
     return {"signature": "4/4", "grouping": ""}
 
 
+
+def _vocal_whisper_cache_path(preview_dir: Path) -> Path:
+    return preview_dir.parent / "whisper_vocals_small.json"
+
+
+def _merge_vocal_gap_words(
+    original_words: list[dict[str, Any]],
+    vocal_words: list[dict[str, Any]],
+    *,
+    min_gap: float = 1.10,
+    edge_guard: float = 0.32,
+) -> list[dict[str, Any]]:
+    """Use the vocal-stem pass only inside gaps left by the original pass.
+
+    The original Whisper timeline remains authoritative. The vocal-stem pass
+    supplements pre-roll/post-roll and long omissions such as sung "la la la".
+    """
+    original = sorted(
+        [
+            {
+                "start": float(w.get("start", 0.0) or 0.0),
+                "end": float(w.get("end", w.get("start", 0.0)) or 0.0),
+                "text": str(w.get("text", "") or "").strip(),
+            }
+            for w in original_words
+            if str(w.get("text", "") or "").strip()
+        ],
+        key=lambda w: (w["start"], w["end"]),
+    )
+    vocal = sorted(
+        [
+            {
+                "start": float(w.get("start", 0.0) or 0.0),
+                "end": float(w.get("end", w.get("start", 0.0)) or 0.0),
+                "text": str(w.get("text", "") or "").strip(),
+                "confidence": float(w.get("confidence", 1.0) or 0.0),
+            }
+            for w in vocal_words
+            if str(w.get("text", "") or "").strip()
+            and float(w.get("confidence", 1.0) or 0.0) >= 0.30
+        ],
+        key=lambda w: (w["start"], w["end"]),
+    )
+
+    if not original:
+        return [
+            {"start": w["start"], "end": w["end"], "text": w["text"]}
+            for w in vocal
+        ]
+    if not vocal:
+        return original
+
+    gaps: list[tuple[float, float]] = []
+    first_start = float(original[0]["start"])
+    if first_start >= min_gap:
+        gaps.append((0.0, max(0.0, first_start - edge_guard)))
+
+    for left, right in zip(original, original[1:]):
+        gap_start = float(left["end"])
+        gap_end = float(right["start"])
+        if gap_end - gap_start >= min_gap:
+            gaps.append((gap_start + edge_guard, gap_end - edge_guard))
+
+    # The end is intentionally open; only use actual vocal words found later.
+    last_end = float(original[-1]["end"])
+    gaps.append((last_end + edge_guard, float("inf")))
+
+    additions: list[dict[str, Any]] = []
+    for word in vocal:
+        center = (word["start"] + word["end"]) / 2.0
+        if any(g0 <= center <= g1 for g0, g1 in gaps):
+            additions.append(
+                {
+                    "start": word["start"],
+                    "end": word["end"],
+                    "text": word["text"],
+                }
+            )
+
+    merged = sorted(original + additions, key=lambda w: (w["start"], w["end"]))
+    return merged
+
+
+def _ensure_vocal_whisper_supplement(
+    source: Path,
+    stems: dict[str, Path],
+    preview_dir: Path,
+    original_words: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """One-time Whisper pass on the isolated vocal stem.
+
+    This specifically repairs sung material that the original-mix pass can
+    omit (intro vocalises, repeated "la/na/oh", etc.). Results are cached.
+    """
+    vocals = stems.get("vocals")
+    if vocals is None or not Path(vocals).is_file():
+        return list(original_words)
+
+    cache_path = _vocal_whisper_cache_path(preview_dir)
+    payload: dict[str, Any] | None = None
+
+    if cache_path.is_file():
+        try:
+            payload = json.loads(cache_path.read_text(encoding="utf-8"))
+        except Exception:
+            payload = None
+
+    if payload is None:
+        import torch
+        # Reuse the exact cached Whisper-small instance already used by step 2.
+        from ezscore.ui.stem_lab_analysis import _whisper_small
+
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = _whisper_small(device)
+        result = model.transcribe(
+            str(vocals),
+            word_timestamps=True,
+            fp16=(device == "cuda"),
+            verbose=False,
+            condition_on_previous_text=False,
+            initial_prompt=(
+                "Transcribe the sung lyrics faithfully, including repeated "
+                "vocalisations such as la la la, na na na, oh and ah."
+            ),
+        )
+
+        vocal_words: list[dict[str, Any]] = []
+        for segment in result.get("segments", []) or []:
+            no_speech = float(segment.get("no_speech_prob", 0.0) or 0.0)
+            avg_logprob = float(segment.get("avg_logprob", 0.0) or 0.0)
+            if no_speech > 0.65 or avg_logprob < -1.35:
+                continue
+
+            for word in segment.get("words", []) or []:
+                text_value = str(word.get("word", "") or "").strip()
+                start = float(word.get("start", 0.0) or 0.0)
+                end = float(word.get("end", start) or start)
+                probability = float(word.get("probability", 1.0) or 0.0)
+                if text_value and end > start and probability >= 0.30:
+                    vocal_words.append(
+                        {
+                            "start": start,
+                            "end": end,
+                            "text": text_value,
+                            "confidence": probability,
+                        }
+                    )
+
+        payload = {
+            "engine": "openai-whisper",
+            "model": "small",
+            "source": "vocals",
+            "language": str(result.get("language", "") or ""),
+            "words": vocal_words,
+        }
+        cache_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    return _merge_vocal_gap_words(
+        list(original_words),
+        list(payload.get("words", []) or []),
+    )
+
+
 def _cache_is_current(
     cache_path: Path,
     source: Path,
@@ -577,11 +743,19 @@ export default function(component) {
 
   function lineAt(time) {
     if (!lines.length) return -1;
+    // Never show a future lyric line during a genuine instrumental/vocal gap.
+    // A recovered vocalisation line will naturally occupy this interval.
+    if (time < lines[0].start - 1.0) return -1;
     for (let i=0;i<lines.length;i++) {
       if (time >= lines[i].start - .15 && time <= lines[i].end + .45) return i;
-      if (time < lines[i].start) return Math.max(0, i);
+      if (time < lines[i].start) {
+        const previous = i - 1;
+        if (previous >= 0 && time <= lines[previous].end + 1.2) return previous;
+        return -1;
+      }
     }
-    return lines.length - 1;
+    if (time <= lines[lines.length - 1].end + 1.2) return lines.length - 1;
+    return -1;
   }
 
   function renderLine(node, line, time, active) {
@@ -664,7 +838,14 @@ export default function(component) {
 
   function renderConductor(time, force=false) {
     const idx = lineAt(time);
-    if (idx < 0) return;
+    if (idx < 0) {
+      lineIndex = -1;
+      prevLine.innerHTML = "";
+      currentLine.innerHTML = "";
+      nextLine.innerHTML = "";
+      chordsNode.innerHTML = "";
+      return;
+    }
     if (force || idx !== lineIndex) lineIndex = idx;
     renderLine(prevLine, lines[idx-1], time, false);
     renderLine(currentLine, lines[idx], time, true);
@@ -896,6 +1077,26 @@ def render_player(
     }
 
     if player_words:
+        try:
+            vocal_cache = _vocal_whisper_cache_path(preview_dir)
+            if vocal_cache.is_file():
+                player_words = _ensure_vocal_whisper_supplement(
+                    source, stems, preview_dir, player_words
+                )
+            else:
+                with st.spinner(
+                    "Complément paroles sur le stem voix "
+                    "(vocalises / omissions Whisper)…"
+                ):
+                    player_words = _ensure_vocal_whisper_supplement(
+                        source, stems, preview_dir, player_words
+                    )
+        except Exception as exc:
+            st.warning(
+                "Complément vocal indisponible ; la transcription originale "
+                f"reste utilisée : {exc}"
+            )
+
         try:
             with st.spinner(
                 "Préparation du conducteur paroles + accords "
