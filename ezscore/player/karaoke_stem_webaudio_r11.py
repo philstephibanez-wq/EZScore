@@ -1,0 +1,692 @@
+from __future__ import annotations
+
+"""R11 karaoke presentation layer.
+
+This module deliberately reuses the validated R10 audio/STEM/EQ implementation
+and only replaces the conductor presentation/control layer.
+"""
+
+from typing import Any
+import streamlit as st
+
+from ezscore.guitar import (
+    choices as guitar_choices,
+    get_voicing,
+    load_show_diagrams,
+    load_voicings,
+    svg as guitar_svg,
+)
+from ezscore.player import karaoke_stem_webaudio as _base
+
+
+_AUDIO_HASH_BY_STORAGE_KEY: dict[str, str] = {}
+
+
+def _replace_once(source: str, old: str, new: str, label: str) -> str:
+    if old not in source:
+        raise RuntimeError(f"EZScore R11 patch point missing: {label}")
+    return source.replace(old, new, 1)
+
+
+_HTML = _base._HTML
+
+_HTML = _replace_once(
+    _HTML,
+    """  <div class="transport">
+    <button class="play" type="button">▶ Lecture</button>
+    <button class="pause" type="button">⏸ Pause</button>
+    <button class="stop" type="button">⏹ Stop</button>
+    <span class="time">0:00 / 0:00</span>
+  </div>
+  <input class="seek" type="range" min="0" max="1" step="0.001" value="0">
+
+""",
+    "",
+    "top transport",
+)
+
+_HTML = _replace_once(
+    _HTML,
+    """  <div class="meter-box">
+    <strong>Mesure</strong>
+    <input class="meter-num" type="number" min="1" step="1" value="4">
+    <span>/</span>
+    <input class="meter-den" type="number" min="1" step="1" value="4">
+    <label>Groupement <input class="meter-group" type="text" placeholder="auto"></label>
+    <span class="meter-state"></span>
+  </div>
+
+  <div class="karaoke">
+""",
+    """  <div class="meter-box">
+    <label><strong>Mesure</strong>
+      <select class="meter-signature">
+        <option value="2/4">2/4</option>
+        <option value="3/4">3/4</option>
+        <option value="4/4">4/4</option>
+        <option value="5/4">5/4</option>
+        <option value="6/8">6/8</option>
+        <option value="7/8">7/8</option>
+        <option value="9/8">9/8</option>
+        <option value="12/8">12/8</option>
+      </select>
+    </label>
+
+    <label><strong>Vitesse</strong>
+      <select class="playback-rate">
+        <option value="0.50">0.50×</option>
+        <option value="0.75">0.75×</option>
+        <option value="1.00" selected>1.00×</option>
+        <option value="1.25">1.25×</option>
+        <option value="1.50">1.50×</option>
+      </select>
+    </label>
+
+    <label class="diagram-toggle">
+      <input class="show-diagrams" type="checkbox">
+      Diagrammes guitare
+    </label>
+
+    <span class="meter-state"></span>
+  </div>
+
+  <div class="transport transport-karaoke">
+    <button class="play" type="button">▶ Lecture</button>
+    <button class="pause" type="button">⏸ Pause</button>
+    <button class="stop" type="button">⏹ Stop</button>
+    <span class="time">0:00 / 0:00</span>
+  </div>
+  <input class="seek" type="range" min="0" max="1" step="0.001" value="0">
+
+  <div class="karaoke">
+""",
+    "meter / transport",
+)
+
+_HTML = _replace_once(
+    _HTML,
+    """    <div class="timeline-row chord-row">
+      <div class="timeline-label">Accords</div>
+""",
+    """    <div class="current-diagram-row">
+      <div class="timeline-label">Diagramme</div>
+      <div class="current-diagram"></div>
+    </div>
+
+    <div class="current-chord-row">
+      <div class="timeline-label">Accord</div>
+      <div class="current-chord">—</div>
+    </div>
+
+    <div class="timeline-row chord-row">
+      <div class="timeline-label">Accords</div>
+""",
+    "current chord rows",
+)
+
+
+_CSS = _base._CSS + r"""
+
+/* R11 presentation controls */
+.meter-box select {
+  background:color-mix(in srgb, var(--st-text-color) 5%, transparent);
+  color:var(--st-text-color);
+  border:1px solid color-mix(in srgb, var(--st-text-color) 25%, transparent);
+  border-radius:5px;
+  padding:4px 7px;
+}
+.meter-box label {
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.diagram-toggle {
+  margin-left:4px;
+  white-space:nowrap;
+}
+.transport-karaoke {
+  margin-top:4px;
+}
+.current-diagram-row,
+.current-chord-row {
+  display:grid;
+  grid-template-columns:64px 1fr;
+  align-items:center;
+}
+.current-diagram-row {
+  display:none;
+  min-height:0;
+}
+.current-diagram {
+  min-height:0;
+  display:flex;
+  align-items:center;
+}
+.current-diagram svg {
+  width:92px;
+  height:auto;
+  max-height:118px;
+  display:block;
+}
+.current-chord-row {
+  min-height:54px;
+}
+.current-chord {
+  font-family:Consolas,"Courier New",monospace;
+  font-size:32px;
+  font-weight:950;
+  line-height:1;
+  color:#f4f4f4;
+}
+"""
+
+
+_JS = _base._JS
+
+_JS = _replace_once(
+    _JS,
+    """  const meterDefault = data.meter_default || {signature:"4/4", grouping:""};
+""",
+    """  const meterDefault = data.meter_default || {signature:"4/4", grouping:""};
+  const chordDiagrams = data.chord_diagrams || {};
+""",
+    "data chord diagrams",
+)
+
+_JS = _replace_once(
+    _JS,
+    """  const numInput = root.querySelector(".meter-num");
+  const denInput = root.querySelector(".meter-den");
+  const groupingInput = root.querySelector(".meter-group");
+  const meterState = root.querySelector(".meter-state");
+""",
+    """  const meterSelect = root.querySelector(".meter-signature");
+  const rateSelect = root.querySelector(".playback-rate");
+  const showDiagramsInput = root.querySelector(".show-diagrams");
+  const meterState = root.querySelector(".meter-state");
+  const currentDiagramRow = root.querySelector(".current-diagram-row");
+  const currentDiagramNode = root.querySelector(".current-diagram");
+  const currentChordNode = root.querySelector(".current-chord");
+""",
+    "meter selectors",
+)
+
+_JS = _replace_once(
+    _JS,
+    """  let duration = 0;
+  let raf = null;
+""",
+    """  let duration = 0;
+  let raf = null;
+  let playbackRate = 1.0;
+  let showDiagrams = Boolean(data.show_diagrams_default);
+""",
+    "player state",
+)
+
+_JS = _replace_once(
+    _JS,
+    """  function currentTime() {
+    if (!playing || !context) return position;
+    return Math.max(
+      0,
+      Math.min(duration, position + (context.currentTime - startedAtContextTime))
+    );
+  }
+""",
+    """  function currentTime() {
+    if (!playing || !context) return position;
+    return Math.max(
+      0,
+      Math.min(
+        duration,
+        position + (context.currentTime - startedAtContextTime) * playbackRate
+      )
+    );
+  }
+""",
+    "rate-aware clock",
+)
+
+meter_start = _JS.index("  // -------- Meter / presentation only --------")
+lyrics_start = _JS.index("  // -------- Continuous lyrics geometry --------")
+_JS = (
+    _JS[:meter_start]
+    + r"""  // -------- Meter / presentation only --------
+  const allowedMeters = new Set([
+    "2/4","3/4","4/4","5/4","6/8","7/8","9/8","12/8"
+  ]);
+  const defaultSignature = allowedMeters.has(String(meterDefault.signature || ""))
+    ? String(meterDefault.signature)
+    : "4/4";
+  meterSelect.value = defaultSignature;
+  rateSelect.value = "1.00";
+  showDiagramsInput.checked = showDiagrams;
+
+  const storageKey = "ezscore-karaoke-meter:" + String(data.storage_key || "default");
+  try {
+    const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
+    if (saved && allowedMeters.has(String(saved.signature || ""))) {
+      meterSelect.value = String(saved.signature);
+    }
+  } catch (_) {}
+
+  function defaultGrouping(n,d) {
+    if (d >= 8 && n > 3 && n % 3 === 0) return Array(n/3).fill(3);
+    if (d >= 8 && n === 5) return [2,3];
+    if (d >= 8 && n === 7) return [2,2,3];
+    if (d === 4 && n === 5) return [3,2];
+    if (d === 4 && n === 7) return [4,3];
+    return Array(n).fill(1);
+  }
+
+  function meter() {
+    const parts = String(meterSelect.value || "4/4").split("/");
+    const n = Math.max(1, Math.floor(Number(parts[0] || 4)));
+    const d = Math.max(1, Math.floor(Number(parts[1] || 4)));
+    const groups = defaultGrouping(n,d);
+    const grouped = d >= 8 && groups.some(x => x > 1);
+    return {
+      n,d,groups,grouped,
+      beatsPerMeasure: grouped ? groups.length : n
+    };
+  }
+
+  let renderedMeterKey = "";
+  function persistMeter() {
+    const m = meter();
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({
+        signature:m.n + "/" + m.d
+      }));
+    } catch (_) {}
+    meterState.textContent = m.grouped
+      ? m.n + "/" + m.d + " · " + m.groups.join("+")
+      : m.n + "/" + m.d;
+    renderedMeterKey = "";
+  }
+
+"""
+    + _JS[lyrics_start:]
+)
+
+lyrics_start = _JS.index("  // -------- Continuous lyrics geometry --------")
+chords_start = _JS.index("  // -------- Chords / measure presentation --------")
+_JS = (
+    _JS[:lyrics_start]
+    + r"""  // -------- Shared absolute-time geometry --------
+  const beatSlotWidth = 74;
+
+  function timelineVisualXForTime(time) {
+    const t = Math.max(0, Number(time || 0));
+    if (!beats.length) return t * beatSlotWidth;
+
+    const firstStart = Number(beats[0].start || 0);
+    if (t <= firstStart) {
+      const firstEnd = Math.max(
+        firstStart + .02,
+        Number(beats[0].end || firstStart + .5)
+      );
+      return ((t - firstStart) / (firstEnd - firstStart)) * beatSlotWidth;
+    }
+
+    let low=0, high=beats.length-1, index=0;
+    while (low<=high) {
+      const mid=(low+high)>>1;
+      if (Number(beats[mid].start || 0) <= t) {
+        index=mid;
+        low=mid+1;
+      } else {
+        high=mid-1;
+      }
+    }
+
+    const beat=beats[index];
+    const start=Number(beat.start || 0);
+    const end=Math.max(start+.02,Number(beat.end || start+.5));
+    const p=Math.max(0,Math.min(1,(t-start)/(end-start)));
+    return (index+p)*beatSlotWidth;
+  }
+
+  const sharedTimelineWidth = Math.max(
+    1,
+    beats.length * beatSlotWidth + 320
+  );
+
+  function normalizedWords(input) {
+    return (Array.isArray(input) ? input : [])
+      .map(w => ({
+        text:String(w.text || "").trim(),
+        start:Number(w.start || 0),
+        end:Number(w.end || w.start || 0),
+      }))
+      .filter(w => w.text && Number.isFinite(w.start) && Number.isFinite(w.end))
+      .sort((a,b)=>a.start-b.start || a.end-b.end);
+  }
+
+  const leadWords = normalizedWords(leadInput);
+  const backingWords = normalizedWords(backingInput);
+
+  function createLane(track, sourceWords) {
+    track.innerHTML = "";
+    track.style.width = sharedTimelineWidth + "px";
+    return sourceWords.map(w => {
+      const span=document.createElement("span");
+      span.className="lyric-token";
+      span.textContent=w.text;
+      span.style.left=timelineVisualXForTime(w.start)+"px";
+      track.appendChild(span);
+      return span;
+    });
+  }
+
+  const leadNodes=createLane(leadTrack,leadWords);
+  const backingNodes=createLane(backingTrack,backingWords);
+  backingRow.style.display = backingWords.length ? "grid" : "none";
+
+  function activeWordIndex(sourceWords,time) {
+    if (!sourceWords.length) return -1;
+    let low=0, high=sourceWords.length-1, answer=-1;
+    while (low<=high) {
+      const mid=(low+high)>>1;
+      if (sourceWords[mid].start<=time) {
+        answer=mid; low=mid+1;
+      } else high=mid-1;
+    }
+    if (answer<0) return -1;
+    const w=sourceWords[answer];
+    return time <= Math.max(w.end,w.start+.06) ? answer : -1;
+  }
+
+  function translateLyricTimeline(track,viewport,time) {
+    if (!track || !viewport) return;
+    const anchor=viewport.clientWidth*anchorRatio;
+    track.style.transform =
+      "translate3d(" +
+      (anchor-timelineVisualXForTime(time)).toFixed(2) +
+      "px,0,0)";
+  }
+
+"""
+    + _JS[chords_start:]
+)
+
+chords_start = _JS.index("  // -------- Chords / measure presentation --------")
+persist_call = _JS.index("  persistMeter();", chords_start)
+_JS = (
+    _JS[:chords_start]
+    + r"""  // -------- Chords / measure presentation --------
+  function measureNotation(measureIndex,m) {
+    const startBeat=measureIndex*m.beatsPerMeasure;
+    if (startBeat>=beats.length) return null;
+    const beatSlice=beats.slice(startBeat,startBeat+m.beatsPerMeasure);
+    if (!beatSlice.length) return null;
+
+    let notation="";
+    let prevChord=null;
+    beatSlice.forEach((beat,localIndex) => {
+      const chord=String(beat.chord || ".").trim() || ".";
+      let token;
+      if (chord === ".") token=".";
+      else if (localIndex===0) token=chord;
+      else if (chord===prevChord) token="-";
+      else token=chord;
+
+      if (m.grouped) {
+        const count=Math.max(1,Number(m.groups[localIndex] || 1));
+        if (token === ".") notation += ".".repeat(count);
+        else if (token === "-") notation += "-".repeat(count);
+        else notation += token + "-".repeat(Math.max(0,count-1));
+      } else {
+        notation += token;
+      }
+      prevChord=chord;
+    });
+
+    return {
+      notation,
+      start:Number(beatSlice[0].start || 0),
+      end:Number(
+        beatSlice[beatSlice.length-1].end ||
+        beatSlice[beatSlice.length-1].start ||
+        0
+      ),
+    };
+  }
+
+  let chordMeasures=[];
+  let chordNodes=[];
+
+  function rebuildChordTimeline() {
+    const m=meter();
+    const key=m.n+"/"+m.d+"|"+m.groups.join("+");
+    if (key===renderedMeterKey && chordNodes.length) return;
+
+    renderedMeterKey=key;
+    chordTrack.innerHTML="";
+    chordMeasures=[];
+    chordNodes=[];
+
+    const count=Math.ceil(beats.length/m.beatsPerMeasure);
+    for (let i=0;i<count;i++) {
+      const item=measureNotation(i,m);
+      if (!item) continue;
+
+      const startBeat=i*m.beatsPerMeasure;
+      item.visualX=startBeat*beatSlotWidth;
+      item.visualWidth=m.beatsPerMeasure*beatSlotWidth;
+      chordMeasures.push(item);
+
+      const marker=document.createElement("span");
+      marker.className="chord-marker";
+      marker.textContent=item.notation;
+      marker.style.left=item.visualX+"px";
+      marker.style.width=Math.max(36,item.visualWidth-12)+"px";
+      marker.style.boxSizing="border-box";
+      marker.style.overflow="hidden";
+      chordTrack.appendChild(marker);
+      chordNodes.push(marker);
+    }
+
+    chordTrack.style.width=sharedTimelineWidth+"px";
+  }
+
+  function chordVisualXForTime(time) {
+    return timelineVisualXForTime(time);
+  }
+
+  function currentChordAtTime(time) {
+    if (!beats.length) return ".";
+    const t=Number(time || 0);
+    let answer=".";
+
+    for (let i=0;i<beats.length;i++) {
+      const beat=beats[i];
+      const start=Number(beat.start || 0);
+      const end=Math.max(start+.02,Number(beat.end || start+.02));
+      if (t < start) break;
+      answer=String(beat.chord || ".").trim() || ".";
+      if (t>=start && t<end) break;
+    }
+    return answer;
+  }
+
+  function renderCurrentChord(time) {
+    const chord=currentChordAtTime(time);
+    currentChordNode.textContent=chord==="." ? "—" : chord;
+
+    const svg=chordDiagrams[chord] || "";
+    const visible=showDiagrams && Boolean(svg);
+    currentDiagramRow.style.display=visible ? "grid" : "none";
+    currentDiagramNode.innerHTML=visible ? svg : "";
+  }
+
+  function renderConductor(time) {
+    rebuildChordTimeline();
+
+    const chordAnchor=chordViewport.clientWidth*anchorRatio;
+    chordTrack.style.transform =
+      "translate3d(" +
+      (chordAnchor-chordVisualXForTime(time)).toFixed(2) +
+      "px,0,0)";
+
+    translateLyricTimeline(leadTrack,leadViewport,time);
+    if (backingWords.length) {
+      translateLyricTimeline(backingTrack,backingViewport,time);
+    }
+
+    const currentLead=activeWordIndex(leadWords,time);
+    leadNodes.forEach((node,i) => {
+      node.classList.toggle("past", time>leadWords[i].end);
+      node.classList.toggle("current", i===currentLead);
+    });
+
+    const currentBacking=activeWordIndex(backingWords,time);
+    backingNodes.forEach((node,i) => {
+      node.classList.toggle("past", time>backingWords[i].end);
+      node.classList.toggle("current", i===currentBacking);
+    });
+
+    chordNodes.forEach((node,i) => {
+      const item=chordMeasures[i];
+      node.classList.toggle(
+        "active",
+        Boolean(item && time>=item.start && time<item.end)
+      );
+    });
+
+    renderCurrentChord(time);
+  }
+
+  meterSelect.addEventListener("change",() => {
+    persistMeter();
+    rebuildChordTimeline();
+    renderConductor(currentTime());
+  });
+
+  rateSelect.addEventListener("change",() => {
+    const t=currentTime();
+    playbackRate=Math.max(.5,Math.min(1.5,Number(rateSelect.value || 1)));
+    if (playing) {
+      position=t;
+      startSources(position);
+    }
+    renderConductor(t);
+  });
+
+  showDiagramsInput.addEventListener("change",() => {
+    showDiagrams=Boolean(showDiagramsInput.checked);
+    renderCurrentChord(currentTime());
+  });
+
+"""
+    + _JS[persist_call:]
+)
+
+_JS = _replace_once(
+    _JS,
+    """      const source=context.createBufferSource();
+      source.buffer=buffer;
+
+      // One serial Biquad EQ chain per track.
+""",
+    """      const source=context.createBufferSource();
+      source.buffer=buffer;
+      source.playbackRate.value=playbackRate;
+
+      // One serial Biquad EQ chain per track.
+""",
+    "buffer playbackRate",
+)
+
+
+_COMPONENT_R11 = st.components.v2.component(
+    "ezscore_karaoke_stem_player_r11",
+    html=_HTML,
+    css=_CSS,
+    js=_JS,
+    isolate_styles=True,
+)
+
+
+def _build_chord_diagrams(
+    audio_hash: str,
+    beats: list[dict[str, Any]],
+) -> dict[str, str]:
+    saved_voicings = load_voicings(audio_hash)
+    diagrams: dict[str, str] = {}
+
+    for beat in beats:
+        symbol = str(beat.get("chord", "") or "").strip()
+        if not symbol or symbol == "." or symbol in diagrams:
+            continue
+
+        available = guitar_choices(symbol)
+        if not available:
+            continue
+
+        saved_name = saved_voicings.get(symbol)
+        selected = get_voicing(
+            symbol,
+            saved_name if saved_name else available[0].name,
+        )
+        if selected is None:
+            continue
+
+        diagrams[symbol] = guitar_svg(
+            symbol,
+            selected,
+            width=92,
+            height=118,
+        )
+
+    return diagrams
+
+
+def _component_with_r11_data(*, data: dict[str, Any], **kwargs):
+    payload = dict(data or {})
+    storage_key = str(payload.get("storage_key", "") or "")
+    audio_hash = _AUDIO_HASH_BY_STORAGE_KEY.get(storage_key, "")
+
+    if audio_hash:
+        beats = list(payload.get("beats", []) or [])
+        try:
+            payload["chord_diagrams"] = _build_chord_diagrams(
+                audio_hash,
+                beats,
+            )
+        except Exception:
+            payload["chord_diagrams"] = {}
+
+        try:
+            payload["show_diagrams_default"] = bool(
+                load_show_diagrams(audio_hash)
+            )
+        except Exception:
+            payload["show_diagrams_default"] = False
+    else:
+        payload["chord_diagrams"] = {}
+        payload["show_diagrams_default"] = False
+
+    return _COMPONENT_R11(data=payload, **kwargs)
+
+
+_base._COMPONENT = _component_with_r11_data
+
+
+def render_player(
+    source,
+    stems,
+    *,
+    preview_dir,
+    key: str,
+    words=None,
+) -> None:
+    _AUDIO_HASH_BY_STORAGE_KEY[str(key)] = preview_dir.parent.name
+    return _base.render_player(
+        source,
+        stems,
+        preview_dir=preview_dir,
+        key=key,
+        words=words,
+    )
