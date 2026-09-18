@@ -34,5 +34,20 @@
   "playlist.new": "New group playlist",
   "playlist.placeholder": "E.g. Rehearsal for next concert",
   "playlist.create": "Create playlist",
-  "playlist.open_all": "Open in Playlists"
+  "playlist.open_all": "Open playlist",
+  "playlist.open": "Open playlist",
+  "playlist.other": "Other playlists",
+  "event.prepare_rehearsal": "Prepare a rehearsal",
+  "event.prepare_concert": "Prepare a concert",
+  "event.rehearsal": "Rehearsal",
+  "event.concert": "Concert",
+  "event.title": "Title",
+  "event.date": "Date",
+  "event.time": "Time",
+  "event.location": "Location",
+  "event.location_placeholder": "E.g. studio, venue, address…",
+  "event.notes": "Goal / notes",
+  "event.notes_placeholder": "E.g. Work on transitions and the ending…",
+  "event.prepare": "Create event and setlist",
+  "event.upcoming": "Rehearsals / concerts"
 }

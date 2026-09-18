@@ -40,14 +40,17 @@ from ezscore.catalog_social import (
     list_playlist_shares,
     list_playlist_songs,
     list_user_groups,
+    playlist_event,
     rating_summaries,
     remove_group_member,
     remove_song_from_playlist,
+    reorder_playlist_songs,
     set_song_rating,
     share_playlist,
     unshare_playlist,
 )
 from ezscore.i18n import current_language, set_language, t
+from ezscore.ui.playlist_order_editor import render_playlist_order_editor
 from ezscore.persistence import (
     catalog_display_name,
     catalog_letter_for_song,
@@ -783,8 +786,31 @@ def _render_share_controls(
                     st.rerun()
 
 
-def _render_playlist_cards(
-    catalog: list[dict[str, Any]],
+def _open_playlist_detail(playlist_id: int) -> None:
+    st.session_state["_ez_open_playlist_id"] = int(playlist_id)
+    st.rerun()
+
+
+def _close_playlist_detail() -> None:
+    st.session_state.pop("_ez_open_playlist_id", None)
+    st.rerun()
+
+
+def _playlist_by_id(
+    uid: int,
+    playlist_id: int,
+) -> dict[str, Any] | None:
+    return next(
+        (
+            playlist
+            for playlist in list_accessible_playlists(uid)
+            if int(playlist["playlist_id"]) == int(playlist_id)
+        ),
+        None,
+    )
+
+
+def _render_playlist_overview_cards(
     *,
     uid: int,
 ) -> None:
@@ -796,14 +822,9 @@ def _render_playlist_cards(
     groups = list_user_groups(uid)
     groups_by_id = {int(g["group_id"]): g for g in groups}
     users_by_id = _user_map()
-    visible_by_hash = {str(item["audio_hash"]): item for item in catalog}
 
     for playlist in playlists:
         pid = int(playlist["playlist_id"])
-        songs = [
-            item for item in list_playlist_songs(uid, pid)
-            if str(item["audio_hash"]) in visible_by_hash
-        ]
         owner_label, owner_class = _playlist_owner_label(
             playlist,
             groups_by_id,
@@ -815,10 +836,10 @@ def _render_playlist_cards(
                     "catalog-playlist.score",
                     {
                         "name": playlist["name"],
-                        "count": len(songs),
+                        "count": int(playlist.get("song_count", 0) or 0),
                         "count_label": (
                             t("playlist.song")
-                            if len(songs) == 1
+                            if int(playlist.get("song_count", 0) or 0) == 1
                             else t("playlist.songs")
                         ),
                         "owner_label": owner_label,
@@ -828,15 +849,26 @@ def _render_playlist_cards(
                 unsafe_allow_html=True,
             )
 
-            control_cols = st.columns([1.2, 1.2, 5])
-            with control_cols[0]:
+            open_col, share_col, delete_col, _ = st.columns([1.7, 1.1, 1.0, 4.0])
+
+            with open_col:
+                if st.button(
+                    t("playlist.open_playlist"),
+                    key=f"catalog_playlist_detail_{pid}",
+                    width="stretch",
+                    type="primary",
+                ):
+                    _open_playlist_detail(pid)
+
+            with share_col:
                 _render_share_controls(
                     uid,
                     playlist,
                     users_by_id=users_by_id,
                     key_prefix=f"playlist_{pid}",
                 )
-            with control_cols[1]:
+
+            with delete_col:
                 if playlist.get("can_manage"):
                     with st.popover("🗑 " + t("playlist.delete")):
                         st.warning(t("playlist.delete.warning"))
@@ -848,85 +880,205 @@ def _render_playlist_cards(
                             delete_user_playlist(uid, pid)
                             st.rerun()
 
-            if not songs:
-                st.caption(t("playlist.empty.content"))
-                continue
 
-            summaries = rating_summaries(
-                [song["audio_hash"] for song in songs],
-                uid,
+def _render_playlist_detail(
+    catalog: list[dict[str, Any]],
+    *,
+    uid: int,
+    playlist_id: int,
+) -> None:
+    playlist = _playlist_by_id(uid, playlist_id)
+    if playlist is None:
+        st.session_state.pop("_ez_open_playlist_id", None)
+        st.warning(t("playlist.not_found"))
+        return
+
+    pid = int(playlist["playlist_id"])
+    groups = list_user_groups(uid)
+    groups_by_id = {int(g["group_id"]): g for g in groups}
+    owner_label, owner_class = _playlist_owner_label(
+        playlist,
+        groups_by_id,
+    )
+    users_by_id = _user_map()
+
+    back_col, _ = st.columns([1.3, 5])
+    with back_col:
+        if st.button(
+            "← " + t("playlist.back"),
+            key=f"playlist_back_{pid}",
+            width="stretch",
+        ):
+            _close_playlist_detail()
+
+    songs = list_playlist_songs(uid, pid)
+    visible_by_hash = {str(item["audio_hash"]): item for item in catalog}
+    songs = [
+        item
+        for item in songs
+        if str(item["audio_hash"]) in visible_by_hash
+    ]
+
+    event = playlist_event(uid, pid)
+
+    st.markdown(
+        _render_score(
+            "catalog-playlist-detail.score",
+            {
+                "name": playlist["name"],
+                "count": len(songs),
+                "count_label": (
+                    t("playlist.song")
+                    if len(songs) == 1
+                    else t("playlist.songs")
+                ),
+                "owner_label": owner_label,
+                "owner_class": owner_class,
+                "ordered_label": t("playlist.ordered"),
+            },
+        ),
+        unsafe_allow_html=True,
+    )
+
+    if event is not None:
+        event_kind = str(event.get("event_type") or "")
+        st.markdown(
+            _render_score(
+                "catalog-event.score",
+                {
+                    "kind": (
+                        t("event.rehearsal")
+                        if event_kind == "rehearsal"
+                        else t("event.concert")
+                    ),
+                    "title": event.get("title", ""),
+                    "starts_at": event.get("starts_at", "") or t("event.date_unknown"),
+                    "location": event.get("location", "") or t("event.location_unknown"),
+                    "notes": event.get("notes", ""),
+                    "has_notes": bool(str(event.get("notes", "") or "").strip()),
+                },
+            ),
+            unsafe_allow_html=True,
+        )
+
+    controls = st.columns([1.2, 1.2, 5])
+    with controls[0]:
+        _render_share_controls(
+            uid,
+            playlist,
+            users_by_id=users_by_id,
+            key_prefix=f"playlist_detail_{pid}",
+        )
+    with controls[1]:
+        if playlist.get("can_manage"):
+            with st.popover("🗑 " + t("playlist.delete")):
+                st.warning(t("playlist.delete.warning"))
+                if st.button(
+                    t("playlist.confirm"),
+                    key=f"playlist_detail_delete_{pid}",
+                    type="primary",
+                ):
+                    delete_user_playlist(uid, pid)
+                    st.session_state.pop("_ez_open_playlist_id", None)
+                    st.rerun()
+
+    if not songs:
+        st.info(t("playlist.empty.content"))
+        return
+
+    current_order = [str(song["audio_hash"]) for song in songs]
+
+    st.markdown(f"### {t('playlist.setlist')}")
+    ordered = render_playlist_order_editor(
+        pid,
+        songs,
+        editable=bool(playlist.get("can_edit")),
+        drag_label=t("playlist.drag_help"),
+        readonly_label=t("playlist.readonly_order"),
+    )
+
+    if (
+        bool(playlist.get("can_edit"))
+        and ordered != current_order
+    ):
+        reorder_playlist_songs(uid, pid, ordered)
+        st.toast(t("playlist.order_saved"))
+        st.rerun()
+
+    st.markdown(f"### {t('playlist.songs_actions')}")
+    summaries = rating_summaries(current_order, uid)
+
+    for position, song in enumerate(songs, start=1):
+        audio_hash = str(song["audio_hash"])
+        title = str(song.get("title", "") or "").strip()
+        if not title:
+            title = (
+                Path(str(song.get("original_filename", "") or "")).stem
+                or "Sans titre"
             )
+        artist = (
+            str(song.get("artist", "") or "").strip()
+            or t("common.unknown_artist")
+        )
 
-            for position, song in enumerate(songs, start=1):
-                audio_hash = str(song["audio_hash"])
-                title = str(song.get("title", "") or "").strip()
-                if not title:
-                    title = (
-                        Path(str(song.get("original_filename", "") or "")).stem
-                        or "Sans titre"
+        pos_col, title_col, rating_col, open_col, remove_col = st.columns(
+            [0.4, 3.4, 1.25, 0.9, 0.9]
+        )
+        with pos_col:
+            st.markdown(
+                _render_score(
+                    "catalog-position.score",
+                    {"position": position},
+                ),
+                unsafe_allow_html=True,
+            )
+        with title_col:
+            st.markdown(
+                _render_score(
+                    "catalog-playlist-song.score",
+                    {"title": title, "artist": artist},
+                ),
+                unsafe_allow_html=True,
+            )
+        with rating_col:
+            st.markdown(
+                _render_score(
+                    "catalog-rating.score",
+                    _rating_context(
+                        summaries.get(
+                            audio_hash,
+                            {"average": None, "count": 0},
+                        )
+                    ),
+                ),
+                unsafe_allow_html=True,
+            )
+        with open_col:
+            if st.button(
+                t("catalog.open"),
+                key=f"playlist_detail_open_{pid}_{audio_hash}",
+                width="stretch",
+            ):
+                versions = list_analysis_versions(audio_hash)
+                if versions:
+                    _open_song(
+                        audio_hash,
+                        selected_version=int(versions[0]["version_no"]),
+                        mode="Vue",
+                        view="Paroles + accords",
                     )
-                artist = (
-                    str(song.get("artist", "") or "").strip()
-                    or t("common.unknown_artist")
-                )
+                else:
+                    _open_song(audio_hash)
+        with remove_col:
+            if playlist.get("can_edit"):
+                if st.button(
+                    t("playlist.remove"),
+                    key=f"playlist_detail_remove_{pid}_{audio_hash}",
+                    width="stretch",
+                ):
+                    remove_song_from_playlist(uid, pid, audio_hash)
+                    st.rerun()
 
-                pos_col, title_col, rating_col, open_col, remove_col = st.columns(
-                    [0.35, 3.4, 1.3, 0.9, 0.9]
-                )
-                with pos_col:
-                    st.markdown(
-                        _render_score(
-                            "catalog-position.score",
-                            {"position": position},
-                        ),
-                        unsafe_allow_html=True,
-                    )
-                with title_col:
-                    st.markdown(
-                        _render_score(
-                            "catalog-playlist-song.score",
-                            {"title": title, "artist": artist},
-                        ),
-                        unsafe_allow_html=True,
-                    )
-                with rating_col:
-                    st.markdown(
-                        _render_score(
-                            "catalog-rating.score",
-                            _rating_context(
-                                summaries.get(
-                                    audio_hash,
-                                    {"average": None, "count": 0},
-                                )
-                            ),
-                        ),
-                        unsafe_allow_html=True,
-                    )
-                with open_col:
-                    if st.button(
-                        t("catalog.open"),
-                        key=f"catalog_playlist_open_{pid}_{audio_hash}",
-                        width="stretch",
-                    ):
-                        versions = list_analysis_versions(audio_hash)
-                        if versions:
-                            _open_song(
-                                audio_hash,
-                                selected_version=int(versions[0]["version_no"]),
-                                mode="Vue",
-                                view="Paroles + accords",
-                            )
-                        else:
-                            _open_song(audio_hash)
-                with remove_col:
-                    if playlist.get("can_edit"):
-                        if st.button(
-                            t("playlist.remove"),
-                            key=f"catalog_playlist_remove_{pid}_{audio_hash}",
-                            width="stretch",
-                        ):
-                            remove_song_from_playlist(uid, pid, audio_hash)
-                            st.rerun()
 
 
 def _render_groups(uid: int) -> None:
@@ -1093,6 +1245,20 @@ def _render_playlists(
         st.info(t("playlist.login"))
         return
 
+    focused = st.session_state.get("_ez_open_playlist_id")
+    if focused not in (None, ""):
+        try:
+            playlist_id = int(focused)
+        except (TypeError, ValueError):
+            st.session_state.pop("_ez_open_playlist_id", None)
+        else:
+            _render_playlist_detail(
+                catalog,
+                uid=uid,
+                playlist_id=playlist_id,
+            )
+            return
+
     section = st.radio(
         "Playlist mode",
         [t("playlist.section.mine"), t("playlist.section.groups")],
@@ -1124,7 +1290,8 @@ def _render_playlists(
                 create_user_playlist(uid, new_name)
                 st.rerun()
 
-    _render_playlist_cards(catalog, uid=uid)
+    _render_playlist_overview_cards(uid=uid)
+
 
 
 def render_catalog_home() -> None:

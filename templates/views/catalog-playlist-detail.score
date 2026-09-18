@@ -1,0 +1,23 @@
+<style>
+.ezpl-detail{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin:.25rem 0 .7rem}
+.ezpl-title{font-size:1.35rem;font-weight:900;letter-spacing:-.02em}
+.ezpl-meta{display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.28rem}
+.ezpl-chip{font-size:.68rem;padding:.15rem .45rem;border-radius:999px;border:1px solid rgba(148,163,184,.22);background:rgba(148,163,184,.07)}
+.ezpl-chip.group{border-color:rgba(167,139,250,.35)}
+.ezpl-ordered{font-weight:800}
+.ez-event{padding:.72rem .85rem;border:1px solid rgba(92,168,255,.24);border-radius:.78rem;background:rgba(92,168,255,.045);margin:.25rem 0 .8rem}
+.ez-event-kind{font-size:.68rem;font-weight:850;text-transform:uppercase;letter-spacing:.07em;opacity:.72}
+.ez-event-title{font-size:1rem;font-weight:850;margin-top:.12rem}
+.ez-event-meta{font-size:.74rem;opacity:.72;margin-top:.22rem}
+.ez-event-notes{font-size:.76rem;margin-top:.35rem}
+</style>
+<div class="ezpl-detail">
+  <div>
+    <div class="ezpl-title">🎶 {{ name }}</div>
+    <div class="ezpl-meta">
+      <span class="ezpl-chip {{ owner_class }}">{{ owner_label }}</span>
+      <span class="ezpl-chip">{{ count }} {{ count_label }}</span>
+      <span class="ezpl-chip ezpl-ordered">{{ ordered_label }}</span>
+    </div>
+  </div>
+</div>

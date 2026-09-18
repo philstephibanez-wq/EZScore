@@ -84,5 +84,18 @@
   "status.note": "💬 {note}",
   "common.unknown_artist": "Unknown artist",
   "common.no_editor": "—",
-  "common.cancel": "Cancel"
+  "common.cancel": "Cancel",
+  "playlist.open_playlist": "Open playlist",
+  "playlist.back": "All playlists",
+  "playlist.not_found": "This playlist is no longer accessible.",
+  "playlist.ordered": "Ordered setlist",
+  "playlist.setlist": "Running order",
+  "playlist.drag_help": "Drag and drop songs to change the order. ↑ ↓ buttons are also available.",
+  "playlist.readonly_order": "Shared order is read-only.",
+  "playlist.order_saved": "Playlist order saved.",
+  "playlist.songs_actions": "Songs",
+  "event.rehearsal": "Rehearsal",
+  "event.concert": "Concert",
+  "event.date_unknown": "Date not set",
+  "event.location_unknown": "Location not set"
 }

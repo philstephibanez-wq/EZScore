@@ -34,5 +34,20 @@
   "playlist.new": "Nouvelle playlist de groupe",
   "playlist.placeholder": "Ex. Répétition prochain concert",
   "playlist.create": "Créer la playlist",
-  "playlist.open_all": "Ouvrir dans Playlists"
+  "playlist.open_all": "Ouvrir la playlist",
+  "playlist.open": "Ouvrir la playlist",
+  "playlist.other": "Autres playlists",
+  "event.prepare_rehearsal": "Préparer une répétition",
+  "event.prepare_concert": "Préparer un concert",
+  "event.rehearsal": "Répétition",
+  "event.concert": "Concert",
+  "event.title": "Titre",
+  "event.date": "Date",
+  "event.time": "Heure",
+  "event.location": "Lieu",
+  "event.location_placeholder": "Ex. Studio, salle, adresse…",
+  "event.notes": "Objectif / notes",
+  "event.notes_placeholder": "Ex. Travailler les transitions et le final…",
+  "event.prepare": "Créer l'événement et sa setlist",
+  "event.upcoming": "Répétitions / concerts"
 }

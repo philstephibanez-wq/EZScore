@@ -150,6 +150,30 @@ def _create_schema(conn: sqlite3.Connection) -> None:
 
         CREATE INDEX IF NOT EXISTS idx_playlist_shares_user
             ON playlist_shares(user_id, playlist_id);
+
+        CREATE TABLE IF NOT EXISTS group_events (
+            event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER NOT NULL,
+            playlist_id INTEGER NOT NULL UNIQUE,
+            event_type TEXT NOT NULL
+                CHECK (event_type IN ('rehearsal', 'concert')),
+            title TEXT NOT NULL,
+            starts_at TEXT NOT NULL DEFAULT '',
+            location TEXT NOT NULL DEFAULT '',
+            notes TEXT NOT NULL DEFAULT '',
+            created_by_user_id INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY (group_id)
+                REFERENCES user_groups(group_id)
+                ON DELETE CASCADE,
+            FOREIGN KEY (playlist_id)
+                REFERENCES user_playlists(playlist_id)
+                ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_group_events_group
+            ON group_events(group_id, starts_at, event_id);
         """
     )
 
@@ -1211,3 +1235,235 @@ def list_playlist_songs(
         ).fetchall()
 
     return [dict(row) for row in rows]
+
+
+EVENT_TYPE_REHEARSAL = "rehearsal"
+EVENT_TYPE_CONCERT = "concert"
+
+
+def reorder_playlist_songs(
+    user_id: Any,
+    playlist_id: Any,
+    ordered_audio_hashes: Iterable[Any],
+    *,
+    db_path: str | Path | None = None,
+) -> list[str]:
+    """Persist an exact playlist order.
+
+    The submitted order must contain exactly the current songs, once each.
+    This prevents a drag/drop UI from silently adding or dropping songs.
+    """
+    ensure_catalog_social_schema(db_path)
+    uid = _clean_user_id(user_id)
+    ordered = [_clean_audio_hash(value) for value in ordered_audio_hashes]
+
+    if len(ordered) != len(set(ordered)):
+        raise ValueError("Ordre de playlist invalide : chanson dupliquée.")
+
+    now = _now_iso()
+    with _connect(db_path) as conn:
+        access = _playlist_access(conn, uid, playlist_id)
+        if not access["can_edit"]:
+            raise PermissionError("Droit d'édition de la playlist requis.")
+
+        pid = int(access["playlist_id"])
+        rows = conn.execute(
+            """
+            SELECT audio_hash
+            FROM user_playlist_items
+            WHERE playlist_id = ?
+            ORDER BY position, created_at, audio_hash
+            """,
+            (pid,),
+        ).fetchall()
+        current = [str(row["audio_hash"]) for row in rows]
+
+        if len(current) != len(ordered) or set(current) != set(ordered):
+            raise ValueError(
+                "Ordre de playlist invalide : la liste des chansons a changé."
+            )
+
+        for position, audio_hash in enumerate(ordered, start=1):
+            conn.execute(
+                """
+                UPDATE user_playlist_items
+                SET position = ?
+                WHERE playlist_id = ? AND audio_hash = ?
+                """,
+                (position, pid, audio_hash),
+            )
+
+        conn.execute(
+            """
+            UPDATE user_playlists
+            SET updated_at = ?
+            WHERE playlist_id = ?
+            """,
+            (now, pid),
+        )
+        conn.commit()
+
+    return ordered
+
+
+def playlist_event(
+    user_id: Any,
+    playlist_id: Any,
+    *,
+    db_path: str | Path | None = None,
+) -> dict[str, Any] | None:
+    """Return the rehearsal/concert metadata attached to an accessible playlist."""
+    ensure_catalog_social_schema(db_path)
+    uid = _clean_user_id(user_id)
+
+    with _connect(db_path) as conn:
+        access = _playlist_access(conn, uid, playlist_id)
+        row = conn.execute(
+            """
+            SELECT event_id, group_id, playlist_id, event_type, title,
+                   starts_at, location, notes, created_by_user_id,
+                   created_at, updated_at
+            FROM group_events
+            WHERE playlist_id = ?
+            """,
+            (int(access["playlist_id"]),),
+        ).fetchone()
+
+    return dict(row) if row is not None else None
+
+
+def list_group_events(
+    user_id: Any,
+    group_id: Any,
+    *,
+    db_path: str | Path | None = None,
+) -> list[dict[str, Any]]:
+    """List events visible to a group member, with their ordered playlist size."""
+    ensure_catalog_social_schema(db_path)
+    uid = _clean_user_id(user_id)
+
+    with _connect(db_path) as conn:
+        membership = _group_membership(conn, uid, group_id)
+        gid = int(membership["group_id"])
+        rows = conn.execute(
+            """
+            SELECT e.event_id,
+                   e.group_id,
+                   e.playlist_id,
+                   e.event_type,
+                   e.title,
+                   e.starts_at,
+                   e.location,
+                   e.notes,
+                   e.created_by_user_id,
+                   e.created_at,
+                   e.updated_at,
+                   p.name AS playlist_name,
+                   COUNT(i.audio_hash) AS song_count
+            FROM group_events e
+            JOIN user_playlists p
+              ON p.playlist_id = e.playlist_id
+            LEFT JOIN user_playlist_items i
+              ON i.playlist_id = e.playlist_id
+            WHERE e.group_id = ?
+            GROUP BY
+                e.event_id, e.group_id, e.playlist_id, e.event_type,
+                e.title, e.starts_at, e.location, e.notes,
+                e.created_by_user_id, e.created_at, e.updated_at,
+                p.name
+            ORDER BY
+                CASE WHEN e.starts_at = '' THEN 1 ELSE 0 END,
+                e.starts_at,
+                e.event_id
+            """,
+            (gid,),
+        ).fetchall()
+
+    return [dict(row) for row in rows]
+
+
+def prepare_group_event(
+    user_id: Any,
+    group_id: Any,
+    event_type: str,
+    title: Any,
+    *,
+    starts_at: Any = "",
+    location: Any = "",
+    notes: Any = "",
+    db_path: str | Path | None = None,
+) -> dict[str, Any]:
+    """Create a rehearsal/concert and its ordered group playlist atomically."""
+    ensure_catalog_social_schema(db_path)
+    uid = _clean_user_id(user_id)
+    kind = str(event_type or "").strip().lower()
+    if kind not in (EVENT_TYPE_REHEARSAL, EVENT_TYPE_CONCERT):
+        raise ValueError("Type d'événement invalide.")
+
+    event_title = _clean_name(title, "Titre de l'événement")
+    when = str(starts_at or "").strip()
+    place = str(location or "").strip()
+    note = str(notes or "").strip()
+    now = _now_iso()
+
+    # Membership check before creating anything.
+    with _connect(db_path) as conn:
+        membership = _group_membership(conn, uid, group_id)
+        gid = int(membership["group_id"])
+
+    playlist = create_playlist(
+        uid,
+        event_title,
+        owner_type=PLAYLIST_OWNER_GROUP,
+        owner_id=gid,
+        db_path=db_path,
+    )
+    if not bool(playlist.get("created")):
+        raise ValueError(
+            "Une playlist de ce nom existe déjà dans le groupe. "
+            "Choisissez un autre titre pour la répétition ou le concert."
+        )
+
+    pid = int(playlist["playlist_id"])
+    try:
+        with _connect(db_path) as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO group_events (
+                    group_id, playlist_id, event_type, title,
+                    starts_at, location, notes,
+                    created_by_user_id, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    gid, pid, kind, event_title,
+                    when, place, note,
+                    uid, now, now,
+                ),
+            )
+            conn.commit()
+            event_id = int(cur.lastrowid)
+    except Exception:
+        # Roll back the companion playlist if the event insert failed.
+        with _connect(db_path) as conn:
+            conn.execute(
+                "DELETE FROM user_playlists WHERE playlist_id = ?",
+                (pid,),
+            )
+            conn.commit()
+        raise
+
+    return {
+        "event_id": event_id,
+        "group_id": gid,
+        "playlist_id": pid,
+        "event_type": kind,
+        "title": event_title,
+        "starts_at": when,
+        "location": place,
+        "notes": note,
+        "created_by_user_id": uid,
+        "created_at": now,
+        "updated_at": now,
+    }

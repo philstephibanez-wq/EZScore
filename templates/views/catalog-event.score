@@ -1,0 +1,8 @@
+<div class="ez-event">
+  <div class="ez-event-kind">{{ kind }}</div>
+  <div class="ez-event-title">{{ title }}</div>
+  <div class="ez-event-meta">🗓 {{ starts_at }} &nbsp; · &nbsp; 📍 {{ location }}</div>
+  [[ if: has_notes ]]
+  <div class="ez-event-notes">{{ notes }}</div>
+  [[ endif ]]
+</div>

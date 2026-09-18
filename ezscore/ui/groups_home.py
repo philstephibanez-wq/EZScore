@@ -12,6 +12,7 @@ It intentionally does not own the general catalogue, song editing, analysis,
 or the karaoke player.
 """
 
+from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any
 
@@ -30,8 +31,10 @@ from ezscore.catalog_social import (
     delete_user_group,
     ensure_catalog_social_schema,
     list_accessible_playlists,
+    list_group_events,
     list_group_members,
     list_user_groups,
+    prepare_group_event,
     remove_group_member,
     update_group_member_role,
 )
@@ -104,12 +107,11 @@ def _group_playlists(
     ]
 
 
-def _go_to_playlists() -> None:
-    """Return to the repertoire shell and select its Playlists surface."""
+def _go_to_playlist(playlist_id: int) -> None:
+    """Open one precise playlist in the Repertoire > Playlists surface."""
     st.session_state["_ez_groups_open"] = False
-    # catalog_home translates its two labels. Let it start from the Playlists
-    # intent rather than coupling this module to a literal French label.
     st.session_state["_ez_catalog_open_playlists"] = True
+    st.session_state["_ez_open_playlist_id"] = int(playlist_id)
     st.session_state["_pending_main_menu"] = "Répertoire"
     st.rerun()
 
@@ -257,39 +259,184 @@ def _render_add_member(
         st.rerun()
 
 
+def _event_form(
+    *,
+    user_id: int,
+    group_id: int,
+    event_type: str,
+) -> None:
+    is_rehearsal = event_type == "rehearsal"
+    title_key = "event.rehearsal" if is_rehearsal else "event.concert"
+    default_prefix = gt(title_key)
+
+    with st.form(
+        f"group_event_{event_type}_{group_id}",
+        clear_on_submit=True,
+    ):
+        title = st.text_input(
+            gt("event.title"),
+            placeholder=f"{default_prefix} — {datetime.now().strftime('%d/%m/%Y')}",
+        )
+        date_col, time_col = st.columns(2)
+        with date_col:
+            event_date = st.date_input(
+                gt("event.date"),
+                value=date.today(),
+            )
+        with time_col:
+            event_time = st.time_input(
+                gt("event.time"),
+                value=time(hour=19, minute=0),
+            )
+        location = st.text_input(
+            gt("event.location"),
+            placeholder=gt("event.location_placeholder"),
+        )
+        notes = st.text_area(
+            gt("event.notes"),
+            placeholder=gt("event.notes_placeholder"),
+        )
+        submitted = st.form_submit_button(
+            gt("event.prepare"),
+            type="primary",
+            width="stretch",
+        )
+
+    if submitted:
+        effective_title = str(title or "").strip()
+        if not effective_title:
+            effective_title = (
+                f"{default_prefix} — "
+                f"{event_date.strftime('%d/%m/%Y')}"
+            )
+
+        starts_at = datetime.combine(
+            event_date,
+            event_time,
+        ).isoformat(timespec="minutes")
+
+        event = prepare_group_event(
+            user_id,
+            group_id,
+            event_type,
+            effective_title,
+            starts_at=starts_at,
+            location=location,
+            notes=notes,
+        )
+        _go_to_playlist(int(event["playlist_id"]))
+
+
 def _render_playlist_list(
     *,
     user_id: int,
     group_id: int,
     group_name: str,
 ) -> None:
+    events = list_group_events(user_id, group_id)
     playlists = _group_playlists(user_id, group_id)
 
-    if not playlists:
-        st.caption(gt("playlist.empty"))
-    else:
-        for playlist in playlists:
+    prep_a, prep_b = st.columns(2)
+    with prep_a:
+        with st.expander(
+            "🎤 " + gt("event.prepare_rehearsal"),
+            expanded=False,
+        ):
+            _event_form(
+                user_id=user_id,
+                group_id=group_id,
+                event_type="rehearsal",
+            )
+    with prep_b:
+        with st.expander(
+            "🎸 " + gt("event.prepare_concert"),
+            expanded=False,
+        ):
+            _event_form(
+                user_id=user_id,
+                group_id=group_id,
+                event_type="concert",
+            )
+
+    if events:
+        st.markdown(f"**{gt('event.upcoming')}**")
+        for event in events:
+            event_type = str(event.get("event_type") or "")
             st.markdown(
                 _render_score(
-                    "group-playlist.score",
+                    "group-event.score",
                     {
-                        "name": playlist["name"],
-                        "count": int(
-                            playlist.get("song_count", 0) or 0
+                        "icon": "🎤" if event_type == "rehearsal" else "🎸",
+                        "kind": (
+                            gt("event.rehearsal")
+                            if event_type == "rehearsal"
+                            else gt("event.concert")
                         ),
+                        "title": event.get("title", ""),
+                        "starts_at": event.get("starts_at", ""),
+                        "location": event.get("location", ""),
+                        "song_count": int(event.get("song_count", 0) or 0),
                         "song_label": (
                             gt("playlist.song")
-                            if int(
-                                playlist.get("song_count", 0) or 0
-                            ) == 1
+                            if int(event.get("song_count", 0) or 0) == 1
                             else gt("playlist.songs")
                         ),
-                        "can_edit": bool(playlist.get("can_edit")),
-                        "edit_label": gt("playlist.shared_edit"),
                     },
                 ),
                 unsafe_allow_html=True,
             )
+            if st.button(
+                gt("playlist.open"),
+                key=f"group_event_open_{int(event['event_id'])}",
+            ):
+                _go_to_playlist(int(event["playlist_id"]))
+
+    event_playlist_ids = {
+        int(event["playlist_id"])
+        for event in events
+    }
+    free_playlists = [
+        playlist
+        for playlist in playlists
+        if int(playlist["playlist_id"]) not in event_playlist_ids
+    ]
+
+    if free_playlists:
+        st.markdown(f"**{gt('playlist.other')}**")
+        for playlist in free_playlists:
+            row_a, row_b = st.columns([4.2, 1.2])
+            with row_a:
+                st.markdown(
+                    _render_score(
+                        "group-playlist.score",
+                        {
+                            "name": playlist["name"],
+                            "count": int(
+                                playlist.get("song_count", 0) or 0
+                            ),
+                            "song_label": (
+                                gt("playlist.song")
+                                if int(
+                                    playlist.get("song_count", 0) or 0
+                                ) == 1
+                                else gt("playlist.songs")
+                            ),
+                            "can_edit": bool(playlist.get("can_edit")),
+                            "edit_label": gt("playlist.shared_edit"),
+                        },
+                    ),
+                    unsafe_allow_html=True,
+                )
+            with row_b:
+                if st.button(
+                    gt("playlist.open"),
+                    key=f"group_playlist_open_{int(playlist['playlist_id'])}",
+                    width="stretch",
+                ):
+                    _go_to_playlist(int(playlist["playlist_id"]))
+
+    if not events and not playlists:
+        st.caption(gt("playlist.empty"))
 
     with st.form(
         f"group_playlist_create_{group_id}",
@@ -305,25 +452,18 @@ def _render_playlist_list(
         )
         submitted = st.form_submit_button(
             gt("playlist.create"),
-            type="primary",
             width="stretch",
         )
 
     if submitted and str(playlist_name or "").strip():
-        create_playlist(
+        playlist = create_playlist(
             user_id,
             playlist_name,
             owner_type=PLAYLIST_OWNER_GROUP,
             owner_id=group_id,
         )
-        st.rerun()
+        _go_to_playlist(int(playlist["playlist_id"]))
 
-    if playlists:
-        if st.button(
-            gt("playlist.open_all"),
-            key=f"group_open_playlists_{group_id}",
-        ):
-            _go_to_playlists()
 
 
 def _render_group_card(

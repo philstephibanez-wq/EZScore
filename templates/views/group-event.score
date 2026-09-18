@@ -1,0 +1,6 @@
+<div class="ezg-playlist">
+  <div>
+    <div class="ezg-playlist-name">{{ icon }} {{ title }}</div>
+    <div class="ezg-playlist-meta">{{ kind }} · {{ starts_at }} · {{ location }} · {{ song_count }} {{ song_label }}</div>
+  </div>
+</div>

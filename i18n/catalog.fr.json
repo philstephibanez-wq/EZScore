@@ -84,5 +84,18 @@
   "status.note": "💬 {note}",
   "common.unknown_artist": "Auteur inconnu",
   "common.no_editor": "—",
-  "common.cancel": "Annuler"
+  "common.cancel": "Annuler",
+  "playlist.open_playlist": "Ouvrir la playlist",
+  "playlist.back": "Toutes les playlists",
+  "playlist.not_found": "Cette playlist n'est plus accessible.",
+  "playlist.ordered": "Setlist ordonnée",
+  "playlist.setlist": "Ordre de passage",
+  "playlist.drag_help": "Glissez-déposez les morceaux pour modifier l'ordre. Les flèches ↑ ↓ sont aussi disponibles.",
+  "playlist.readonly_order": "Ordre partagé en lecture seule.",
+  "playlist.order_saved": "Ordre de la playlist enregistré.",
+  "playlist.songs_actions": "Morceaux",
+  "event.rehearsal": "Répétition",
+  "event.concert": "Concert",
+  "event.date_unknown": "Date non définie",
+  "event.location_unknown": "Lieu non défini"
 }

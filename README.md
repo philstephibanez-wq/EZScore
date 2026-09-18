@@ -1,185 +1,168 @@
-# EZScore — GROUPS MENU R1
+# EZScore — Ordered Playlists & Events R1
 
-## Objet
+## Portée
 
-Ce lot ajoute une vraie entrée **👥 Mes groupes** dans le menu utilisateur,
-directement sous **Mon profil**, avec une page dédiée de gestion des groupes.
+Ce lot termine le **brouillon fonctionnel** de la gestion des playlists
+ordonnées avant de commencer le karaoké.
 
-Il exploite le modèle social déjà présent dans EZScore :
-
-```text
-user_groups
-user_group_members
-user_playlists(owner_type = user|group)
-user_playlist_items
-playlist_shares
-```
-
-Aucune nouvelle migration SQLite n'est nécessaire dans ce lot.
-
-## UX
-
-Menu principal utilisateur :
-
-```text
-🎵 Répertoire
-👤 Mon profil
-👥 Mes groupes
-✏️ Mes éditions
-⬆️ Importer
-```
-
-La page **Mes groupes** permet :
-
-- créer un groupe ;
-- voir tous les groupes auxquels l'utilisateur appartient ;
-- afficher rôle, nombre de membres et nombre de playlists ;
-- ajouter un utilisateur actif ;
-- choisir `Membre` ou `Admin` ;
-- modifier le rôle d'un membre ;
-- retirer un membre ;
-- créer une playlist appartenant au groupe ;
-- voir les playlists du groupe et leur nombre de chansons ;
-- retourner vers la surface Playlists ;
-- supprimer le groupe pour un admin.
-
-L'ergonomie suit le modèle mental évoqué : groupe identifiable, membres et
-playlists immédiatement accessibles, proche de WhatsApp dans l'organisation
-mais sans messagerie.
-
-## Modularité
-
-La logique de groupes reste hors du shell :
-
-```text
-ezscore/ui/groups_home.py
-```
-
-Les visuels sont externalisés dans SCORE :
-
-```text
-templates/views/groups-home.score
-templates/views/group-card.score
-templates/views/group-member.score
-templates/views/group-playlist.score
-templates/views/groups-empty.score
-```
-
-Le shell historique n'est pas modifié. `ezscore/ui/__init__.py` injecte
-temporairement le bouton au rendu puis restaure les fonctions Streamlit.
-
-Cela évite de modifier `EZScore.py` et son enum historique
-`Répertoire / Chanson / Compte / Import`.
-
-## i18n
-
-Nouveau domaine indépendant :
-
-```text
-i18n/groups.fr.json
-i18n/groups.en.json
-```
-
-Le bouton du menu et la page utilisent le service i18n déjà introduit dans
-EZScore. Aucun nouveau texte métier de cette surface n'est codé en dur dans les
-templates.
-
-## Karaoké synchronisé de groupe — exigence enregistrée
-
-Cette fonctionnalité est **spécifiée pour une phase ultérieure**, mais n'est pas
-activée dans ce lot.
-
-Le modèle cible est :
+Principes retenus :
 
 ```text
 Groupe
-  └── Playlist
-       └── KaraokeSession
-            ├── session_id
-            ├── group_id
-            ├── playlist_id
-            ├── host_user_id
-            ├── current_song_id
-            ├── state              # playing / paused / stopped
-            ├── reference_time
-            ├── position
-            ├── playback_rate
-            └── participants
+├── Playlist ordonnée
+├── Répétition
+│   └── Playlist ordonnée / setlist
+└── Concert
+    └── Playlist ordonnée / setlist
 ```
 
-Contraintes retenues :
+La playlist reste la source de vérité musicale. Une répétition ou un concert
+ajoute les métadonnées de contexte, mais utilise une playlist ordonnée normale.
 
-1. Un membre autorisé crée une session depuis une playlist de groupe.
-2. Un **hôte** contrôle Lecture / Pause / Stop / seek / morceau suivant.
-3. Les autres membres rejoignent la même session.
-4. Le serveur synchronise **l'état et une horloge commune**, pas un flux audio
-   envoyé depuis le navigateur de l'hôte.
-5. Chaque navigateur charge localement le même audio / les mêmes STEMs.
-6. Correction périodique de dérive entre clients.
-7. Les paroles, accords, sections et progression utilisent la même timeline.
-8. Chaque utilisateur conserve **son propre mix local** (volumes STEM/EQ), sans
-   casser la synchronisation commune.
-9. La session de groupe ne doit pas écraser les préférences audio personnelles
-   `user × chanson`.
-10. Ce mécanisme ne doit pas être confondu avec une répétition audio réseau où
-    les musiciens s'entendent mutuellement en direct ; ce dernier problème
-    nécessite une chaîne audio temps réel spécialisée.
+## Ouvrir la playlist
 
-Architecture cible :
+Le libellé ambigu `Ouvrir dans Playlists` est remplacé fonctionnellement par :
 
 ```text
-                  EZScore server
-               Group Karaoke Session
-             state + reference clock
-                       │
-          ┌────────────┼────────────┐
-          │            │            │
-       User A        User B       User C
-       local         local        local
-       player        player       player
-       + mix         + mix        + mix
-          │            │            │
-          └──── same canonical timeline ────
+Ouvrir la playlist
 ```
 
-Cette architecture devra réutiliser le moteur audio HTMLMediaElement/WebAudio
-validé, sans créer un troisième moteur divergent.
+Le clic transporte le `playlist_id` et ouvre directement la playlist concernée,
+pas simplement la page générale des playlists.
 
-## Impact / non-régression
+## Setlist ordonnée
 
-Fichiers modifiés :
+Chaque playlist possède déjà `user_playlist_items.position`.
+
+Ce lot l'exploite comme ordre de passage partagé.
+
+La page d'une playlist affiche :
 
 ```text
-ezscore/ui/__init__.py
+☰ 1  Aline
+☰ 2  Dance Me
+☰ 3  Tombe la neige
 ```
 
-Nouveaux fichiers :
+L'ordre est modifiable par :
+
+- drag & drop ;
+- boutons `↑` / `↓` de secours.
+
+Chaque changement valide que la liste contient exactement les mêmes morceaux,
+sans doublon ni disparition, puis réécrit les positions en transaction.
+
+Pour une playlist de groupe, tous les membres autorisés retrouvent le même ordre.
+
+## Préparer une répétition / un concert
+
+Dans **Mes groupes > Playlists**, deux actions sont ajoutées :
 
 ```text
-ezscore/ui/groups_home.py
+🎤 Préparer une répétition
+🎸 Préparer un concert
+```
+
+Le formulaire contient :
+
+- titre ;
+- date ;
+- heure ;
+- lieu ;
+- objectif / notes.
+
+La création produit :
+
+1. un événement de groupe ;
+2. sa playlist/setlist ordonnée ;
+3. l'ouverture directe de cette playlist.
+
+## Modèle ajouté
+
+```text
+group_events
+- event_id
+- group_id
+- playlist_id
+- event_type       # rehearsal / concert
+- title
+- starts_at
+- location
+- notes
+- created_by_user_id
+- created_at
+- updated_at
+```
+
+Un événement référence une playlist unique. Cela prépare directement la future
+session de karaoké sans coupler encore le player à cette couche.
+
+## Architecture du drag/drop
+
+Module Python :
+
+```text
+ezscore/ui/playlist_order_editor.py
+```
+
+Templates obligatoires :
+
+```text
+templates/views/playlist-order-editor.html
+templates/views/playlist-order-editor.css
+templates/views/playlist-order-editor.js
+```
+
+Le composant navigateur ne touche jamais SQLite. Il ne fait que retourner un
+ordre de `audio_hash`. La validation et la persistence restent dans :
+
+```text
+ezscore/catalog_social.py
+```
+
+## Templates supplémentaires
+
+```text
+templates/views/catalog-playlist-detail.score
+templates/views/catalog-event.score
+templates/views/group-event.score
+```
+
+## i18n
+
+Catalogues mis à jour :
+
+```text
+i18n/catalog.fr.json
+i18n/catalog.en.json
 i18n/groups.fr.json
 i18n/groups.en.json
-templates/views/groups-home.score
-templates/views/group-card.score
-templates/views/group-member.score
-templates/views/group-playlist.score
-templates/views/groups-empty.score
-readme.md
 ```
 
-Non modifiés :
+## Non-régression Analyse + Paroles
+
+Ce lot NE CONTIENT PAS et NE MODIFIE PAS :
 
 ```text
 EZScore.py
+ezscore/ui/__init__.py
 ezscore/ui/app_shell.py
-ezscore/catalog_social.py
+ezscore/ui/stem_lab_analysis.py
 ezscore/ui/editorial_timeline.py
 ezscore/ui/lyrics_inline_editor.py
-player R12c
+ezscore/player/karaoke_stem_webaudio*.py
 templates/views/lyrics-editor.*
-analyse STEM
-timestamps techniques
 ```
+
+Donc sont hors périmètre :
+
+- correctif Aline `beat_timeline[].time` ;
+- Paroles R5.10 ;
+- ancres ;
+- `↵` ;
+- accords éditoriaux ;
+- player Analyse/STEM ;
+- timestamps techniques.
 
 ## Installation
 
@@ -187,36 +170,36 @@ timestamps techniques
 cd H:\EZScore
 
 Expand-Archive `
-  -Path "$env:USERPROFILE\Downloads\EZScore_GROUPS_MENU_R1.zip" `
+  -Path "$env:USERPROFILE\Downloads\EZScore_ORDERED_PLAYLISTS_EVENTS_R1.zip" `
   -DestinationPath . `
   -Force
 
 python -m py_compile `
+  .\ezscore\catalog_social.py `
+  .\ezscore\ui\catalog_home.py `
   .\ezscore\ui\groups_home.py `
-  .\ezscore\ui\__init__.py
+  .\ezscore\ui\playlist_order_editor.py
+
+node --check .\templates\views\playlist-order-editor.js
 
 git diff --check
 git status --short
 ```
 
-Aucun JavaScript n'est modifié dans ce lot : `node --check` n'est donc pas
-applicable.
-
 ## Test ciblé
 
-1. Ouvrir EZScore avec un utilisateur enregistré.
-2. Vérifier `👥 Mes groupes` directement sous `👤 Mon profil`.
-3. Ouvrir Mes groupes.
-4. Créer `Blues Fiber`.
-5. Ajouter 4 autres utilisateurs.
-6. Vérifier 5 membres au total.
-7. Passer un membre en Admin puis revenir en Membre.
-8. Créer `Répétition prochain concert`.
-9. Vérifier que la playlist apparaît dans le groupe.
-10. Cliquer `Ouvrir dans Playlists`.
-11. Vérifier que la playlist reste visible dans la surface Playlists.
-12. Avec un autre membre du groupe, vérifier l'accès au groupe et à sa playlist.
+1. Ouvrir `Mes groupes`.
+2. Ouvrir Blues Fiber.
+3. Cliquer `Préparer une répétition`.
+4. Créer une répétition.
+5. Vérifier l'ouverture directe de sa playlist.
+6. Ajouter plusieurs chansons via le `＋` du Répertoire.
+7. Revenir à la playlist.
+8. Drag/drop : déplacer le morceau 3 en position 1.
+9. Recharger la page : l'ordre doit être conservé.
+10. Vérifier `↑` / `↓`.
+11. Se connecter avec un autre membre du groupe : même ordre.
+12. Préparer un concert et vérifier la setlist distincte.
 13. Ouvrir Aline > Analyse > Paroles : accords présents.
-14. Ouvrir Dance Me > Analyse > Paroles : R5.10 inchangé.
-15. Vérifier player Analyse/STEM.
-16. Vérifier Répertoire et Compte.
+14. Ouvrir Dance Me > Analyse > Paroles : R5.10 intact.
+15. Vérifier le player Analyse/STEM.

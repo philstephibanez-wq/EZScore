@@ -1,0 +1,15 @@
+.ezpo-root{width:100%;font-family:inherit}
+.ezpo-help{font-size:.75rem;opacity:.7;margin:.1rem 0 .55rem}
+.ezpo-list{display:flex;flex-direction:column;gap:.42rem}
+.ezpo-item{display:grid;grid-template-columns:2rem 2rem minmax(0,1fr) 4.7rem;align-items:center;gap:.55rem;padding:.62rem .72rem;border:1px solid rgba(148,163,184,.22);border-radius:.72rem;background:rgba(255,255,255,.025);user-select:none}
+.ezpo-item[draggable="true"]{cursor:grab}
+.ezpo-item.ezpo-dragging{opacity:.48}
+.ezpo-item.ezpo-over{outline:2px solid rgba(92,168,255,.55);outline-offset:1px}
+.ezpo-pos{width:1.65rem;height:1.65rem;display:grid;place-items:center;border-radius:50%;font-size:.72rem;font-weight:850;background:rgba(148,163,184,.09);border:1px solid rgba(148,163,184,.2)}
+.ezpo-handle{font-size:1.15rem;opacity:.72;text-align:center}
+.ezpo-title{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ezpo-artist{font-size:.7rem;opacity:.65;margin-top:.08rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ezpo-buttons{display:flex;gap:.28rem;justify-content:flex-end}
+.ezpo-buttons button{min-width:2rem;padding:.2rem .35rem;border-radius:.4rem;border:1px solid rgba(148,163,184,.25);background:rgba(148,163,184,.08);color:inherit;cursor:pointer}
+.ezpo-buttons button:disabled{opacity:.3;cursor:default}
+@media(max-width:700px){.ezpo-item{grid-template-columns:1.8rem 1.5rem minmax(0,1fr) 4.5rem;padding:.55rem}.ezpo-handle{font-size:1rem}}
