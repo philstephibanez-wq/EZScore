@@ -445,7 +445,6 @@ def _install_groups_navigation_patch() -> None:
 
 _install_karaoke_patch()
 _install_analysis_lifecycle_patch()
-_install_inline_editor_patch()
 _install_catalog_home_patch()
 _install_groups_navigation_patch()
 _install_persisted_analysis_r5_10_patch()
