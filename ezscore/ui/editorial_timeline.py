@@ -40,30 +40,161 @@ def normalize_words(words: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return result
 
 
+def _first_timing_value(
+    beat: dict[str, Any],
+    keys: tuple[str, ...],
+) -> tuple[float | None, str]:
+    """Return the first explicitly present timing value, including zero."""
+    for key in keys:
+        if key not in beat:
+            continue
+        value = beat.get(key)
+        if value is None:
+            continue
+        try:
+            return float(value), key
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError(
+                f"Timeline beat invalide : {key}={value!r}."
+            ) from exc
+    return None, ""
+
+
 def normalize_beats(beats: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    result: list[dict[str, Any]] = []
-    for index, beat in enumerate(beats or []):
-        start = float(
-            beat.get("start", beat.get("temps", beat.get("time_start", 0.0)))
+    """Normalize historical and canonical beat schemas without moving beats.
+
+    Historical EZScore beat payloads use ``start`` / ``temps`` / ``time_start``.
+    The current HQ structure pipeline stores the canonical beat point in
+    ``beat_timeline[].time``.
+
+    R5.10 originally forgot that last key. On a modern structure every beat was
+    therefore normalized to t=0 and all chord boxes stacked at the left edge.
+
+    Compatibility rule:
+    - existing historical schemas keep their exact previous normalization;
+    - only the canonical ``time`` schema receives the missing mapping;
+    - for that point-based schema, the end of a beat is the next canonical
+      beat point (last beat uses the preceding positive interval).
+
+    Private ``_legacy_*`` fields are carried only in memory so ``load()`` can
+    recognize the exact R5.10 zero-time fingerprint and preserve editorial
+    overlays already saved while the bug was active. They are never persisted.
+    """
+    source = list(beats or [])
+    staged: list[dict[str, Any]] = []
+
+    for index, beat in enumerate(source):
+        if not isinstance(beat, dict):
+            raise RuntimeError(
+                f"Timeline beat invalide à l'index {index} : objet attendu."
+            )
+
+        # Exact pre-fix R5.10 normalization, retained only for deterministic
+        # fingerprint migration.
+        legacy_start = float(
+            beat.get(
+                "start",
+                beat.get("temps", beat.get("time_start", 0.0)),
+            )
             or 0.0
         )
-        end = float(
-            beat.get("end", beat.get("fin", beat.get("time_end", start)))
-            or start
+        legacy_end = float(
+            beat.get(
+                "end",
+                beat.get("fin", beat.get("time_end", legacy_start)),
+            )
+            or legacy_start
         )
-        if end < start:
-            raise RuntimeError(f"Timeline beat invalide à l'index {index}.")
+
+        start_value, start_key = _first_timing_value(
+            beat,
+            ("start", "temps", "time_start", "time"),
+        )
+        start = float(start_value if start_value is not None else 0.0)
+
+        end_value, end_key = _first_timing_value(
+            beat,
+            ("end", "fin", "time_end"),
+        )
+
         chord = str(
             beat.get("chord", beat.get("accord", beat.get("label", "."))) or "."
         ).strip() or "."
-        result.append(
+
+        staged.append(
             {
                 "index": index,
                 "start": start,
-                "end": end,
+                "_start_key": start_key,
+                "_explicit_end": end_value,
+                "_end_key": end_key,
                 "chord": chord,
+                "_legacy_start": legacy_start,
+                "_legacy_end": legacy_end,
             }
         )
+
+    # Positive canonical-time intervals are used only for the final point of a
+    # modern ``time`` timeline. They do not alter old schemas.
+    time_starts = [
+        float(item["start"])
+        for item in staged
+        if item["_start_key"] == "time"
+    ]
+    positive_intervals = [
+        b - a
+        for a, b in zip(time_starts, time_starts[1:])
+        if b - a > 1e-9
+    ]
+    last_interval = (
+        positive_intervals[-1]
+        if positive_intervals
+        else 0.0
+    )
+
+    result: list[dict[str, Any]] = []
+    for index, item in enumerate(staged):
+        start = float(item["start"])
+        explicit_end = item["_explicit_end"]
+
+        if explicit_end is not None:
+            end = float(explicit_end)
+        elif item["_start_key"] == "time":
+            next_start = None
+            if index + 1 < len(staged):
+                candidate = float(staged[index + 1]["start"])
+                if candidate > start:
+                    next_start = candidate
+            end = (
+                next_start
+                if next_start is not None
+                else start + last_interval
+            )
+        else:
+            # Preserve R5.10 behavior for historical schemas.
+            end = start
+
+        if end < start:
+            raise RuntimeError(f"Timeline beat invalide à l'index {index}.")
+
+        normalized = {
+            "index": index,
+            "start": start,
+            "end": end,
+            "chord": str(item["chord"]),
+        }
+
+        legacy_start = float(item["_legacy_start"])
+        legacy_end = float(item["_legacy_end"])
+        if (
+            round(legacy_start, 9) != round(start, 9)
+            or round(legacy_end, 9) != round(end, 9)
+        ):
+            normalized["_legacy_start"] = legacy_start
+            normalized["_legacy_end"] = legacy_end
+
+        result.append(normalized)
+
     return result
 
 
@@ -88,6 +219,29 @@ def fingerprint(lead_words, backing_words, beats) -> str:
         separators=(",", ":"),
     ).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
+
+
+def _legacy_r5_10_fingerprint(
+    lead_words,
+    backing_words,
+    beats,
+) -> str | None:
+    """Rebuild only the exact fingerprint produced by the known time-key bug."""
+    if not any("_legacy_start" in beat for beat in beats):
+        return None
+
+    legacy_beats = []
+    for index, beat in enumerate(beats):
+        legacy_beats.append(
+            {
+                "index": index,
+                "start": float(beat.get("_legacy_start", beat["start"])),
+                "end": float(beat.get("_legacy_end", beat["end"])),
+                "chord": str(beat["chord"]),
+            }
+        )
+
+    return fingerprint(lead_words, backing_words, legacy_beats)
 
 
 def path_for(work_dir: Path) -> Path:
@@ -229,6 +383,23 @@ def load(work_dir: Path, lead_words, backing_words, beats) -> dict[str, Any]:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except Exception as exc:
         raise RuntimeError(f"Impossible de lire {path.name}: {exc}") from exc
+
+    expected = fingerprint(lead_words, backing_words, beats)
+    stored = str(payload.get("source_fingerprint", "") or "")
+
+    if stored != expected:
+        legacy = _legacy_r5_10_fingerprint(
+            lead_words,
+            backing_words,
+            beats,
+        )
+        if legacy is not None and stored == legacy:
+            # Deterministic migration of one known adapter defect only.
+            # Beat/word indices do not change, so every editorial override stays
+            # attached to the same technical item. validate() recomputes anchor
+            # time from its existing snap_index using the corrected beat time.
+            payload = dict(payload)
+            payload["source_fingerprint"] = expected
 
     return validate(payload, lead_words, backing_words, beats)
 
