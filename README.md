@@ -1,106 +1,103 @@
-# EZScore — Player Seek + Lyrics R1
+# EZScore — Editorial Fingerprint Recovery R1
 
-Base GitHub constatée avant ce correctif :
-
-```text
-240ad1f396e9405a2073a2752674c847c046c4ab
-EZScore_ANALYSIS_TIMELINE_R1
-```
-
-## 1. Déplacement dans le player STEM sans lecture préalable
-
-Le slider pouvait être réellement utilisé seulement après initialisation audio,
-car `duration` restait à zéro jusqu'au premier clic Lecture.
-
-Le composant charge désormais uniquement les métadonnées de la preview
-`original` au montage :
+Base GitHub vérifiée :
 
 ```text
-Audio(preload=metadata)
-→ duration
-→ seek.max
-→ time label
+fb5691f189d1430f73f36b4652f54d94218588f0
+EZScore_PLAYER_SEEK_LYRICS_R1
 ```
 
-Cela ne crée pas d'AudioContext et ne démarre aucun son.
+## Symptôme corrigé
 
-On peut donc :
-1. ouvrir Analyse > STEM ;
-2. déplacer immédiatement le slider à 1:30 ;
-3. inspecter accords/paroles à cette position ;
-4. appuyer Lecture seulement si on veut écouter.
-
-La future lecture démarre à la position choisie.
-
-## 2. Faux « Chœurs » issus de la seconde transcription Whisper
-
-Le code historique faisait :
+Après la correction « faux Chœurs », `Analyse > Paroles` pouvait lever :
 
 ```text
-mot absent du Whisper mix
-+ présent dans Whisper vocals
-= Chœurs
+La timeline technique a changé depuis la sauvegarde éditoriale.
+Aucun remapping automatique.
 ```
 
-Cette conclusion est sémantiquement fausse. Une omission du premier Whisper ne
-prouve pas la présence d'un choriste.
-
-Désormais :
+Le message était techniquement exact sur le fingerprint, mais dans ce cas
+précis la différence provenait surtout d'un changement de sémantique :
 
 ```text
-Whisper mix
-+ récupération Whisper stem voix
-= Chant principal complété
+avant :
+mot récupéré par le second Whisper = Chœurs
+
+maintenant :
+mot récupéré par le second Whisper = complément du Chant principal
 ```
 
-La lane Chœurs n'est plus alimentée artificiellement par les simples omissions
-Whisper.
+L'ancien `editorial_timeline.json` avait donc un fingerprint incluant les faux
+mots de Chœurs, tandis que la nouvelle timeline a une lane Chœurs vide.
 
-La détection de vrais chœurs devra reposer sur une source explicite permettant
-de distinguer plusieurs voix simultanées.
+## Migration déterministe
 
-Aucune règle par chanson, chanteur, titre ou hash.
-
-## 3. Mots qui se chevauchent dans Analyse > Paroles
-
-Le template commun :
+Le patch reconstruit exactement l'ancienne lane provisoire depuis :
 
 ```text
-templates/views/lyrics-editor.js
+whisper_vocals_small.json
 ```
 
-applique maintenant un layout anti-collision aux lanes Chant et Chœurs.
+Puis il tente de charger l'ancien fichier éditorial avec l'ancien fingerprint.
 
-Les timestamps restent inchangés. Seule la position visuelle est décalée quand
-la boîte du mot précédent empiète sur la suivante.
+La migration n'est acceptée QUE si ce fingerprint correspond exactement.
 
-Les sauts de ligne utilisent également la position visuelle réelle du mot.
+Dans ce cas sont conservés :
+
+```text
+lead_overrides
+line_break_after_lead
+chord_overrides
+anchors
+```
+
+Les anciens `backing_overrides` sont supprimés, puisque leur source était une
+lane Chœurs désormais reconnue comme incorrecte.
+
+Le fichier éditorial est ensuite sauvegardé avec le nouveau fingerprint.
+
+## Vraie modification de timeline
+
+Si le fingerprint ne correspond toujours pas (nouveaux beats, nouvelle
+transcription, réanalyse réellement différente), il n'y a TOUJOURS PAS de
+remapping automatique.
+
+Le fichier incompatible est renommé :
+
+```text
+editorial_timeline.stale-YYYYMMDDTHHMMSSZ.json
+```
+
+et la nouvelle timeline repart avec une édition vide.
+
+Donc :
+- pas de crash ;
+- pas de perte silencieuse ;
+- pas de remapping hasardeux ;
+- ancienne édition récupérable sur disque.
 
 ## Fichiers
-
-Modifiés :
-
-```text
-ezscore/player/karaoke_word_layout.py
-templates/views/lyrics-editor.js
-```
 
 Nouveau :
 
 ```text
-readme.md
+ezscore/ui/editorial_compat_patch.py
+```
+
+Modifié :
+
+```text
+ezscore/ui/__init__.py
 ```
 
 Non modifiés :
 
 ```text
-karaoke_stem_webaudio_r12c.py
-karaoke_stem_webaudio.py
-stem_lab_analysis.py
-editorial_timeline.py
-lyrics_inline_editor.py
-rhythm_intro_fusion.py
-analysis_rhythm_patch.py
+ezscore/ui/editorial_timeline.py
+ezscore/ui/lyrics_inline_editor.py
+templates/views/lyrics-editor.*
+player R12c
+analyse STEM
 ```
 
 ## Installation
@@ -109,28 +106,24 @@ analysis_rhythm_patch.py
 cd H:\EZScore
 
 Expand-Archive `
-  -Path "$env:USERPROFILE\Downloads\EZScore_PLAYER_SEEK_LYRICS_R1.zip" `
+  -Path "$env:USERPROFILE\Downloads\EZScore_EDITORIAL_FINGERPRINT_RECOVERY_R1.zip" `
   -DestinationPath . `
   -Force
 
-python -m py_compile .\ezscore\player\karaoke_word_layout.py
-
-node --check .\templates\views\lyrics-editor.js
+python -m py_compile `
+  .\ezscore\ui\editorial_compat_patch.py `
+  .\ezscore\ui\__init__.py
 
 git diff --check
 git status --short
 ```
 
-## Test
+## Test immédiat
 
 1. Redémarrer Streamlit.
-2. Ouvrir Jolene > Analyse > STEM.
-3. Sans cliquer Lecture, déplacer le slider directement vers 0:45 / 1:30.
-4. Vérifier que le conducteur se positionne immédiatement.
-5. Cliquer Lecture : le son doit démarrer depuis la position choisie.
-6. Vérifier que les mots récupérés sur le stem voix restent dans Chant et ne
-   passent plus automatiquement dans Chœurs.
-7. Analyse > Paroles : vérifier `I'm begging...` et les mots suivants sans
-   chevauchement.
-8. Vérifier édition inline et saut de ligne ↵.
-9. Recontrôler Play/Pause/Stop/seek/vitesse/EQ.
+2. Ouvrir Jolene > Analyse > Paroles.
+3. L'erreur RuntimeError ne doit plus apparaître.
+4. Si le seul changement était l'ancienne lane faux-Chœurs, une information de
+   migration s'affiche et les corrections Chant/Accords/↵/ancres restent.
+5. Si la timeline technique a réellement changé, un warning indique le nom du
+   fichier `.stale-...json` archivé et la vue Paroles reste utilisable.

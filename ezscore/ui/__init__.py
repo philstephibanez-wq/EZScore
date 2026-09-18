@@ -175,6 +175,19 @@ def _install_intro_rhythm_fusion_patch() -> None:
             pass
 
 
+def _install_editorial_recovery_patch() -> None:
+    """Recover safely from intentional editorial fingerprint changes."""
+    try:
+        from ezscore.ui.editorial_compat_patch import install
+        install()
+    except Exception as exc:
+        try:
+            import streamlit as st
+            st.error("Compatibilité éditoriale indisponible : " + str(exc))
+        except Exception:
+            pass
+
+
 def _install_inline_editor_patch() -> None:
     try:
         from ezscore.ui import stem_lab_analysis as _stem_lab
@@ -472,6 +485,7 @@ _install_karaoke_patch()
 _install_karaoke_word_layout_patch()
 _install_intro_rhythm_fusion_patch()
 _install_analysis_lifecycle_patch()
+_install_editorial_recovery_patch()
 _install_inline_editor_patch()
 _install_catalog_home_patch()
 _install_groups_navigation_patch()
