@@ -244,10 +244,50 @@ def _supplement_only_words(
         center = (start + end) / 2.0
 
         matched = False
+        normalized_text = "".join(
+            char
+            for char in text_value.casefold()
+            if char.isalnum()
+        )
+
         for ref in original:
-            # A supplemental token that lands inside/very near an original word
-            # is not a distinct backing-vocal event.
+            # Historical rule: a supplemental token whose CENTER lands
+            # inside/very near an original word is not a distinct event.
             if ref["start"] - 0.18 <= center <= ref["end"] + 0.18:
+                matched = True
+                break
+
+            # R2.5: Whisper on the isolated vocal stem may stretch a token far
+            # to the left/right while still representing exactly the same sung
+            # word. Aline is a concrete case:
+            #   original "Sur" 20.02-20.72
+            #   vocals  "sur" 17.40-20.74
+            # Center-only matching falsely classified it as backing vocals.
+            #
+            # If normalized text is identical AND the two intervals cover at
+            # least 60% of the shorter token, treat them as the same lead event.
+            ref_text = "".join(
+                char
+                for char in str(ref["text"]).casefold()
+                if char.isalnum()
+            )
+            overlap = max(
+                0.0,
+                min(end, float(ref["end"]))
+                - max(start, float(ref["start"])),
+            )
+            shorter = max(
+                0.001,
+                min(
+                    max(0.0, end - start),
+                    max(0.0, float(ref["end"]) - float(ref["start"])),
+                ),
+            )
+            if (
+                normalized_text
+                and normalized_text == ref_text
+                and overlap / shorter >= 0.60
+            ):
                 matched = True
                 break
 
