@@ -357,6 +357,20 @@ def _install_persisted_analysis_r5_10_patch() -> None:
 
 
 
+
+def _install_canonical_runtime_r3() -> None:
+    """One UI architecture, independent of the current song."""
+    try:
+        from ezscore.ui import app_shell as _shell
+        from ezscore.ui.canonical_runtime import install
+        install(_shell)
+    except Exception as exc:
+        try:
+            import streamlit as st
+            st.error("Runtime canonique EZScore indisponible : " + str(exc))
+        except Exception:
+            pass
+
 def _install_groups_navigation_patch() -> None:
     """Expose a dedicated Groups surface without changing EZScore.py/app_shell.
 
@@ -502,4 +516,4 @@ _install_analysis_lifecycle_patch()
 _install_analysis_reanalysis_controls()
 _install_catalog_home_patch()
 _install_groups_navigation_patch()
-_install_persisted_analysis_r5_10_patch()
+_install_canonical_runtime_r3()

@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-"""Read persisted technical truth produced by Analyse.
+"""Read-only view of the technical truth produced by Analyse.
 
-This module contains no analysis engine and performs no mutation.
-It is the single read model consumed by presentation components such as
-the STEM player.
+No engine is executed here.
 
-Source priority:
-1. canonical structure_analysis.json / beat_timeline;
-2. canonical Whisper payload supplied by Analyse;
-3. optional explicit backing_vocals_analysis.json.
+Persisted sources:
+- whisper_original_small.json
+- structure_analysis.json
+- chord_analysis_lv_chordia.json
+- optional backing_vocals_analysis.json
 
-Legacy karaoke-conductor caches are intentionally ignored: they are derived
-player artifacts, not the technical source of truth.
+If structure_analysis.json contains beat timestamps but old/empty chord fields,
+the already persisted chord segments are projected onto those beats in memory.
+That is a read-only projection, not a re-analysis.
 """
 
 from pathlib import Path
@@ -43,9 +43,50 @@ def meter_default(work_dir: Path) -> dict[str, Any]:
     }
 
 
+def _valid_chord(value: Any) -> bool:
+    chord = str(value or "").strip()
+    return chord not in {"", ".", "N", "NC", "N.C.", "no_chord"}
+
+
+def _segment_for_interval(
+    segments: list[dict[str, Any]],
+    start: float,
+    end: float,
+) -> tuple[str, str, float]:
+    t0 = float(start)
+    t1 = max(t0 + 1e-6, float(end))
+
+    best = None
+    best_overlap = 0.0
+
+    for segment in segments:
+        try:
+            s0 = float(segment.get("start", 0.0) or 0.0)
+            s1 = float(segment.get("end", s0) or s0)
+        except (TypeError, ValueError):
+            continue
+
+        overlap = max(0.0, min(t1, s1) - max(t0, s0))
+        if overlap > best_overlap:
+            best_overlap = overlap
+            best = segment
+
+    if best is None:
+        return ".", "", 0.0
+
+    chord = str(best.get("chord", ".") or ".").strip() or "."
+    if chord in {"N", "NC", "N.C.", "no_chord"}:
+        chord = "."
+
+    raw = str(best.get("raw_chord", best.get("chord", "")) or "")
+    ratio = best_overlap / max(1e-6, t1 - t0)
+    return chord, raw, max(0.0, min(1.0, float(ratio)))
+
+
 def beats(work_dir: Path) -> list[dict[str, Any]]:
-    """Project canonical beat_timeline to the player schema without analysis."""
-    structure = _read_json(Path(work_dir) / "structure_analysis.json") or {}
+    """Project persisted Analyse artifacts to the player schema."""
+    work_dir = Path(work_dir)
+    structure = _read_json(work_dir / "structure_analysis.json") or {}
     source = list(structure.get("beat_timeline", []) or [])
     if not source:
         return []
@@ -64,15 +105,21 @@ def beats(work_dir: Path) -> list[dict[str, Any]]:
             start = float(raw_time)
         except (TypeError, ValueError):
             continue
-        if start < 0:
-            continue
-        staged.append((start, item))
+        if start >= 0:
+            staged.append((start, item))
 
     staged.sort(key=lambda row: row[0])
     if not staged:
         return []
 
+    chord_payload = _read_json(work_dir / "chord_analysis_lv_chordia.json") or {}
+    chord_segments = [
+        item for item in list(chord_payload.get("segments", []) or [])
+        if isinstance(item, dict)
+    ]
+
     result: list[dict[str, Any]] = []
+
     for index, (start, item) in enumerate(staged):
         end = (
             staged[index + 1][0]
@@ -81,7 +128,27 @@ def beats(work_dir: Path) -> list[dict[str, Any]]:
         )
 
         chord = str(item.get("chord", ".") or ".").strip() or "."
-        if chord.upper() in {"N", "NC", "N.C.", "NO_CHORD"}:
+        raw_chord = str(
+            item.get("chord_raw")
+            or item.get("raw_chord")
+            or ""
+        )
+        overlap = float(
+            item.get("chord_overlap")
+            or item.get("overlap")
+            or 0.0
+        )
+
+        # Compatibility for earlier STEM_LAB structure files:
+        # reuse persisted lv-chordia segments, never run lv-chordia here.
+        if not _valid_chord(chord) and chord_segments:
+            chord, raw_chord, overlap = _segment_for_interval(
+                chord_segments,
+                start,
+                end,
+            )
+
+        if chord in {"", "N", "NC", "N.C.", "no_chord"}:
             chord = "."
 
         result.append(
@@ -90,16 +157,8 @@ def beats(work_dir: Path) -> list[dict[str, Any]]:
                 "start": round(start, 6),
                 "end": round(float(end), 6),
                 "chord": chord,
-                "raw_chord": str(
-                    item.get("chord_raw")
-                    or item.get("raw_chord")
-                    or ""
-                ),
-                "overlap": float(
-                    item.get("chord_overlap")
-                    or item.get("overlap")
-                    or 0.0
-                ),
+                "raw_chord": raw_chord,
+                "overlap": overlap,
             }
         )
 
@@ -107,30 +166,29 @@ def beats(work_dir: Path) -> list[dict[str, Any]]:
 
 
 def explicit_backing_words(work_dir: Path) -> list[dict[str, Any]]:
-    """Return only backing vocals produced by a dedicated technical detector."""
     payload = _read_json(Path(work_dir) / "backing_vocals_analysis.json") or {}
     return list(payload.get("words", []) or [])
 
 
 def status(work_dir: Path) -> dict[str, Any]:
-    """Expose deterministic persisted-analysis readiness."""
     work_dir = Path(work_dir)
     speech = _read_json(work_dir / "whisper_original_small.json") or {}
     structure = _read_json(work_dir / "structure_analysis.json") or {}
+    projected_beats = beats(work_dir)
 
     words = list(speech.get("words", []) or [])
-    timeline = list(structure.get("beat_timeline", []) or [])
     chord_count = sum(
         1
-        for item in timeline
-        if str((item or {}).get("chord", ".") or ".").strip()
-        not in {"", ".", "N", "NC", "N.C."}
+        for item in projected_beats
+        if _valid_chord(item.get("chord"))
     )
 
     return {
         "lyrics_ready": bool(words),
         "word_count": len(words),
-        "structure_ready": bool(timeline),
-        "beat_count": len(timeline),
+        "structure_ready": bool(
+            list(structure.get("beat_timeline", []) or [])
+        ),
+        "beat_count": len(projected_beats),
         "chord_count": chord_count,
     }

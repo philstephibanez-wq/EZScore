@@ -1,113 +1,122 @@
-# EZScore — Architecture Boundaries R2
+# EZScore — CANONICAL_RUNTIME_R3
 
-R2 corrige les deux régressions constatées après R1 sans réintroduire le mélange
-de responsabilités.
+Ce lot traite la cause racine des comportements différents entre chansons.
 
-## Régression R1 constatée
+## Diagnostic confirmé dans le code
 
-R1 a correctement retiré l'analyse du player, mais a retiré avec elle deux
-capacités utilisateur qui devaient être **déplacées**, pas supprimées :
+EZScore possédait simultanément :
 
 ```text
-- les commandes Ré-analyser paroles / accords / tout ;
-- l'alimentation en accords du player quand le snapshot technique est prêt.
+ez_work_mode_<audio_hash>
 ```
 
-## Architecture R2
+Donc le mode de travail était mémorisé par chanson.
+
+Ensuite `load_latest_persisted_analysis()` faisait :
 
 ```text
-ANALYSE
-  ├─ calcule Whisper
-  ├─ calcule beats + accords
-  ├─ persiste structure_analysis.json
-  └─ expose les commandes de réanalyse
-
-TECHNICAL SNAPSHOT
-  └─ lecture seule des artefacts persistés
-
-PLAYER STEM
-  └─ lit uniquement le snapshot
-
-PAROLES + ACCORDS
-  └─ édition / présentation seulement
+ancienne analyse persistée en premier
+STEM_LAB seulement si aucune ancienne analyse
 ```
 
-## Commandes de réanalyse
-
-Les trois commandes sont restaurées, mais **dans Analyse**, hors du player :
+Enfin deux surfaces Analyse coexistaient :
 
 ```text
-↻ Ré-analyser paroles
-↻ Ré-analyser accords
-↻ Ré-analyser tout
+ancien Analyse monolithique EZScore.py
+nouvel Analyse STEM_LAB
 ```
 
-`Ré-analyser tout` signifie ici :
+Le résultat était exactement celui observé :
 
 ```text
-paroles + rythme + harmonie
-à partir de l'audio/STEMs existants
+La Bohème -> ancien affichage Analyse
+Jolene    -> autre chemin / player sans accords
 ```
 
-Ce n'est pas la `Réanalyse complète`, qui reste l'action de purge totale.
+Ce n'est pas la chanson qui doit choisir l'architecture.
 
-## Accords du player
-
-Le player lit désormais les accords exclusivement depuis :
+## R3
 
 ```text
-structure_analysis.json
-  -> beat_timeline[]
-  -> chord
+UN EZScore
+UN MODE DE TRAVAIL DE SESSION
+UNE SOURCE TECHNIQUE : STEM_LAB
+UNE SURFACE ANALYSE : stem_lab_analysis
 ```
 
-via :
+### Mode de travail
+
+Source canonique :
 
 ```text
-ezscore/analysis/technical_snapshot.py
+ez_work_mode
 ```
 
-Aucun `karaoke_conductor.json` n'est utilisé comme source de vérité.
-
-Donc :
+Les anciennes clés :
 
 ```text
-Analyse accords terminée
-→ structure_analysis.json persiste les accords
-→ player les affiche
-
-Structure absente
-→ player n'invente rien
-→ Ré-analyser accords / tout se fait dans Analyse
+ez_work_mode_<audio_hash>
 ```
+
+ne sont plus que des miroirs de compatibilité.
+
+### Analyse
+
+Le vieux bloc Analyse ne peut plus reprendre la main.
+
+Quand le mode vaut Analyse :
+
+```text
+stem_lab_analysis.render_stem_lab_fresh_analysis(audio_hash)
+```
+
+est toujours rendu, puis l'ancien bloc est stoppé.
+
+### Édition / Player
+
+Ils consomment STEM_LAB. Une ancienne analyse SQLite ne remplace plus
+silencieusement la vérité STEM_LAB parce qu'un morceau est ancien.
+
+### Accords Jolene
+
+Le player reste read-only.
+
+Il lit :
+
+```text
+structure_analysis.json / beat_timeline
+```
+
+et, pour les caches STEM_LAB plus anciens dont les beats n'avaient pas encore
+le champ chord exploitable, il projette EN LECTURE SEULE :
+
+```text
+chord_analysis_lv_chordia.json / segments
+```
+
+sur les timestamps de beats déjà persistés.
+
+Aucun moteur d'accord n'est lancé par le player.
 
 ## Fichiers
 
-Nouveaux :
+Nouveau :
+
+```text
+ezscore/ui/canonical_runtime.py
+```
+
+Cumul R2 inclus et modifié :
 
 ```text
 ezscore/analysis/technical_snapshot.py
-ezscore/ui/analysis_reanalysis_controls.py
-```
-
-Modifiés :
-
-```text
 ezscore/player/analysis_truth_player.py
+ezscore/ui/analysis_reanalysis_controls.py
 ezscore/ui/architecture_contract.py
 ezscore/ui/__init__.py
 ```
 
-Non modifiés :
-
-```text
-ezscore/ui/stem_lab_analysis.py
-ezscore/player/karaoke_stem_webaudio.py
-ezscore/player/karaoke_stem_webaudio_r12c.py
-ezscore/ui/lyrics_inline_editor.py
-ezscore/ui/editorial_timeline.py
-templates/views/lyrics-editor.*
-```
+Aucun code spécifique à La Bohème, Jolene ou à un hash audio.
 
 ## Installation
 
@@ -115,7 +124,7 @@ templates/views/lyrics-editor.*
 cd H:\EZScore
 
 Expand-Archive `
-  -Path "$env:USERPROFILE\Downloads\EZScore_ARCH_BOUNDARIES_R2.zip" `
+  -Path "$env:USERPROFILE\Downloads\EZScore_CANONICAL_RUNTIME_R3.zip" `
   -DestinationPath . `
   -Force
 
@@ -124,6 +133,7 @@ python -m py_compile `
   .\ezscore\player\analysis_truth_player.py `
   .\ezscore\ui\analysis_reanalysis_controls.py `
   .\ezscore\ui\architecture_contract.py `
+  .\ezscore\ui\canonical_runtime.py `
   .\ezscore\ui\__init__.py
 
 python -c "from pathlib import Path; from ezscore.ui.architecture_contract import assert_repository_contract; assert_repository_contract(Path('.')); print('ARCH CONTRACT OK')"
@@ -132,16 +142,16 @@ git diff --check
 git status --short
 ```
 
-## Test ciblé La Bohême
+## Test avant tout push
 
 1. Redémarrer Streamlit.
-2. Ouvrir `Analyse`.
-3. Les trois boutons de réanalyse doivent être visibles sur la page Analyse,
-   pas dans le player.
-4. Cliquer `Ré-analyser tout`.
-5. Après rerun :
-   - état technique : mots > 0, beats > 0, accords > 0 ;
-   - player STEM : paroles + accords présents ;
-   - aucun moteur d'analyse ne se déclenche quand on utilise Play / Seek.
-6. Ouvrir `Paroles + accords` :
-   - aucun Whisper / beat / accord ne doit être lancé.
+2. Ouvrir La Bohème.
+3. Choisir Analyse.
+4. Vérifier : même écran STEM / Paroles / Blocs-structure / MIDI.
+5. Ouvrir Jolene.
+6. Vérifier : exactement la même architecture.
+7. Player Jolene : accords visibles si les segments lv-chordia sont déjà persistés.
+8. Si aucun cache d'accord n'existe réellement, utiliser Ré-analyser accords dans Analyse.
+9. Passer d'une chanson à l'autre : le choix Analyse / Édition / Player ne doit plus muter par chanson.
+
+Si La Bohème revient encore sur le vieux "Déroulé harmonique", R3 est KO et le rollback est justifié.

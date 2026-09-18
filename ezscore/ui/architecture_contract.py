@@ -61,6 +61,7 @@ def audit_repository(app_dir: Path) -> dict[str, list[str]]:
 
 def assert_repository_contract(app_dir: Path) -> None:
     audit_analysis_actions_location(app_dir)
+    assert_canonical_runtime(app_dir)
     failures = audit_repository(app_dir)
     if failures:
         details = "; ".join(
@@ -91,4 +92,30 @@ def audit_analysis_actions_location(app_dir: Path) -> None:
         raise RuntimeError(
             "Les commandes de réanalyse ont été remises dans le player : "
             + ", ".join(found)
+        )
+
+
+def assert_canonical_runtime(app_dir: Path) -> None:
+    path = Path(app_dir) / "ezscore" / "ui" / "canonical_runtime.py"
+    if not path.is_file():
+        raise RuntimeError("canonical_runtime.py absent")
+
+    text = path.read_text(encoding="utf-8")
+
+    required = (
+        'GLOBAL_WORK_MODE_KEY = "ez_work_mode"',
+        'mode == "Analyse"',
+        '"ez-view-analytic-heading"',
+        "st.stop()",
+        "return canonical_bridge(active_hash)",
+    )
+    missing = [token for token in required if token not in text]
+    if missing:
+        raise RuntimeError(
+            "Runtime canonique incomplet : " + ", ".join(missing)
+        )
+
+    if 'return f"ez_work_mode_{active_hash[:12]}"' in text:
+        raise RuntimeError(
+            "Le mode de travail redevient spécifique à la chanson."
         )

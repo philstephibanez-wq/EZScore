@@ -1,0 +1,1019 @@
+{
+  "engine": "openai-whisper",
+  "model": "small",
+  "source": "original",
+  "language": "en",
+  "text": "I'm begging of you please don't take my man Jolene, Jolene, Jolene, Jolene, Jolene, Jolene, please don't take him just because you can Your beauty is beyond compare with flaming locks of open hair with ivory skin and eyes of emerald green Your smile is like a breath of spring, your voice is soft like summer rain and I cannot compete with you, Jolene He talks about you in his sleep and there's nothing I can do to keep from crying when he calls your name Jolene And I can easily understand how you could easily take my man but you don't know what he means to me Jolene Jolene, Jolene, Jolene, Jolene, I'm begging of you please don't take my man Jolene, Jolene, Jolene, Jolene, please don't take him just because you can You could have your choice of man that I could never love again, he's the only one for me Jolene I had to help to start with you, my happiness depends on you and whatever you decide to do Jolene Jolene, Jolene, Jolene, Jolene, I'm begging of you please don't take my man Jolene, Jolene, Jolene, Jolene, please don't take him even though you can Jolene, Jolene, Jolene",
+  "words": [
+    {
+      "start": 14.520000000000001,
+      "end": 15.24,
+      "text": "I'm"
+    },
+    {
+      "start": 15.24,
+      "end": 15.66,
+      "text": "begging"
+    },
+    {
+      "start": 15.66,
+      "end": 15.98,
+      "text": "of"
+    },
+    {
+      "start": 15.98,
+      "end": 16.14,
+      "text": "you"
+    },
+    {
+      "start": 16.14,
+      "end": 16.48,
+      "text": "please"
+    },
+    {
+      "start": 16.48,
+      "end": 16.94,
+      "text": "don't"
+    },
+    {
+      "start": 16.94,
+      "end": 17.26,
+      "text": "take"
+    },
+    {
+      "start": 17.26,
+      "end": 17.64,
+      "text": "my"
+    },
+    {
+      "start": 17.64,
+      "end": 19.04,
+      "text": "man"
+    },
+    {
+      "start": 21.8,
+      "end": 22.52,
+      "text": "Jolene,"
+    },
+    {
+      "start": 22.52,
+      "end": 23.24,
+      "text": "Jolene,"
+    },
+    {
+      "start": 23.24,
+      "end": 24.34,
+      "text": "Jolene,"
+    },
+    {
+      "start": 24.34,
+      "end": 25.62,
+      "text": "Jolene,"
+    },
+    {
+      "start": 25.72,
+      "end": 25.86,
+      "text": "Jolene,"
+    },
+    {
+      "start": 26.84,
+      "end": 27.04,
+      "text": "Jolene,"
+    },
+    {
+      "start": 27.04,
+      "end": 27.32,
+      "text": "please"
+    },
+    {
+      "start": 27.32,
+      "end": 27.76,
+      "text": "don't"
+    },
+    {
+      "start": 27.76,
+      "end": 28.06,
+      "text": "take"
+    },
+    {
+      "start": 28.06,
+      "end": 28.24,
+      "text": "him"
+    },
+    {
+      "start": 28.24,
+      "end": 28.54,
+      "text": "just"
+    },
+    {
+      "start": 28.54,
+      "end": 28.84,
+      "text": "because"
+    },
+    {
+      "start": 28.84,
+      "end": 29.46,
+      "text": "you"
+    },
+    {
+      "start": 29.46,
+      "end": 29.92,
+      "text": "can"
+    },
+    {
+      "start": 32.84,
+      "end": 33.6,
+      "text": "Your"
+    },
+    {
+      "start": 33.6,
+      "end": 34.06,
+      "text": "beauty"
+    },
+    {
+      "start": 34.06,
+      "end": 34.52,
+      "text": "is"
+    },
+    {
+      "start": 34.52,
+      "end": 34.96,
+      "text": "beyond"
+    },
+    {
+      "start": 34.96,
+      "end": 35.54,
+      "text": "compare"
+    },
+    {
+      "start": 35.54,
+      "end": 35.82,
+      "text": "with"
+    },
+    {
+      "start": 35.82,
+      "end": 36.2,
+      "text": "flaming"
+    },
+    {
+      "start": 36.2,
+      "end": 36.68,
+      "text": "locks"
+    },
+    {
+      "start": 36.68,
+      "end": 36.9,
+      "text": "of"
+    },
+    {
+      "start": 36.9,
+      "end": 37.3,
+      "text": "open"
+    },
+    {
+      "start": 37.3,
+      "end": 37.74,
+      "text": "hair"
+    },
+    {
+      "start": 37.74,
+      "end": 38.0,
+      "text": "with"
+    },
+    {
+      "start": 38.0,
+      "end": 38.34,
+      "text": "ivory"
+    },
+    {
+      "start": 38.34,
+      "end": 38.86,
+      "text": "skin"
+    },
+    {
+      "start": 38.86,
+      "end": 39.26,
+      "text": "and"
+    },
+    {
+      "start": 39.26,
+      "end": 39.64,
+      "text": "eyes"
+    },
+    {
+      "start": 39.64,
+      "end": 39.94,
+      "text": "of"
+    },
+    {
+      "start": 39.94,
+      "end": 40.34,
+      "text": "emerald"
+    },
+    {
+      "start": 40.34,
+      "end": 40.94,
+      "text": "green"
+    },
+    {
+      "start": 43.7,
+      "end": 44.46,
+      "text": "Your"
+    },
+    {
+      "start": 44.46,
+      "end": 44.78,
+      "text": "smile"
+    },
+    {
+      "start": 44.78,
+      "end": 45.16,
+      "text": "is"
+    },
+    {
+      "start": 45.16,
+      "end": 45.46,
+      "text": "like"
+    },
+    {
+      "start": 45.46,
+      "end": 45.64,
+      "text": "a"
+    },
+    {
+      "start": 45.64,
+      "end": 45.78,
+      "text": "breath"
+    },
+    {
+      "start": 45.78,
+      "end": 45.98,
+      "text": "of"
+    },
+    {
+      "start": 45.98,
+      "end": 46.32,
+      "text": "spring,"
+    },
+    {
+      "start": 46.32,
+      "end": 46.72,
+      "text": "your"
+    },
+    {
+      "start": 46.72,
+      "end": 47.06,
+      "text": "voice"
+    },
+    {
+      "start": 47.06,
+      "end": 47.24,
+      "text": "is"
+    },
+    {
+      "start": 47.24,
+      "end": 47.64,
+      "text": "soft"
+    },
+    {
+      "start": 47.64,
+      "end": 47.92,
+      "text": "like"
+    },
+    {
+      "start": 47.92,
+      "end": 48.22,
+      "text": "summer"
+    },
+    {
+      "start": 48.22,
+      "end": 48.76,
+      "text": "rain"
+    },
+    {
+      "start": 48.76,
+      "end": 48.92,
+      "text": "and"
+    },
+    {
+      "start": 48.92,
+      "end": 49.22,
+      "text": "I"
+    },
+    {
+      "start": 49.22,
+      "end": 49.56,
+      "text": "cannot"
+    },
+    {
+      "start": 49.56,
+      "end": 50.32,
+      "text": "compete"
+    },
+    {
+      "start": 50.32,
+      "end": 50.58,
+      "text": "with"
+    },
+    {
+      "start": 50.58,
+      "end": 50.96,
+      "text": "you,"
+    },
+    {
+      "start": 51.2,
+      "end": 52.06,
+      "text": "Jolene"
+    },
+    {
+      "start": 54.82,
+      "end": 55.42,
+      "text": "He"
+    },
+    {
+      "start": 55.42,
+      "end": 55.84,
+      "text": "talks"
+    },
+    {
+      "start": 55.84,
+      "end": 56.26,
+      "text": "about"
+    },
+    {
+      "start": 56.26,
+      "end": 56.58,
+      "text": "you"
+    },
+    {
+      "start": 56.58,
+      "end": 56.78,
+      "text": "in"
+    },
+    {
+      "start": 56.78,
+      "end": 56.92,
+      "text": "his"
+    },
+    {
+      "start": 56.92,
+      "end": 57.24,
+      "text": "sleep"
+    },
+    {
+      "start": 57.24,
+      "end": 57.48,
+      "text": "and"
+    },
+    {
+      "start": 57.48,
+      "end": 57.72,
+      "text": "there's"
+    },
+    {
+      "start": 57.72,
+      "end": 58.04,
+      "text": "nothing"
+    },
+    {
+      "start": 58.04,
+      "end": 58.46,
+      "text": "I"
+    },
+    {
+      "start": 58.46,
+      "end": 58.76,
+      "text": "can"
+    },
+    {
+      "start": 58.76,
+      "end": 59.08,
+      "text": "do"
+    },
+    {
+      "start": 59.08,
+      "end": 59.24,
+      "text": "to"
+    },
+    {
+      "start": 59.24,
+      "end": 59.5,
+      "text": "keep"
+    },
+    {
+      "start": 59.5,
+      "end": 59.78,
+      "text": "from"
+    },
+    {
+      "start": 59.78,
+      "end": 60.28,
+      "text": "crying"
+    },
+    {
+      "start": 60.28,
+      "end": 60.82,
+      "text": "when"
+    },
+    {
+      "start": 60.82,
+      "end": 61.0,
+      "text": "he"
+    },
+    {
+      "start": 61.0,
+      "end": 61.36,
+      "text": "calls"
+    },
+    {
+      "start": 61.36,
+      "end": 61.64,
+      "text": "your"
+    },
+    {
+      "start": 61.64,
+      "end": 61.98,
+      "text": "name"
+    },
+    {
+      "start": 61.98,
+      "end": 62.84,
+      "text": "Jolene"
+    },
+    {
+      "start": 65.84,
+      "end": 66.44,
+      "text": "And"
+    },
+    {
+      "start": 66.44,
+      "end": 66.7,
+      "text": "I"
+    },
+    {
+      "start": 66.7,
+      "end": 66.92,
+      "text": "can"
+    },
+    {
+      "start": 66.92,
+      "end": 67.38,
+      "text": "easily"
+    },
+    {
+      "start": 67.38,
+      "end": 68.06,
+      "text": "understand"
+    },
+    {
+      "start": 68.06,
+      "end": 68.58,
+      "text": "how"
+    },
+    {
+      "start": 68.58,
+      "end": 68.84,
+      "text": "you"
+    },
+    {
+      "start": 68.84,
+      "end": 69.08,
+      "text": "could"
+    },
+    {
+      "start": 69.08,
+      "end": 69.5,
+      "text": "easily"
+    },
+    {
+      "start": 69.5,
+      "end": 69.84,
+      "text": "take"
+    },
+    {
+      "start": 69.84,
+      "end": 70.1,
+      "text": "my"
+    },
+    {
+      "start": 70.1,
+      "end": 70.5,
+      "text": "man"
+    },
+    {
+      "start": 70.5,
+      "end": 70.66,
+      "text": "but"
+    },
+    {
+      "start": 70.66,
+      "end": 70.84,
+      "text": "you"
+    },
+    {
+      "start": 70.84,
+      "end": 71.08,
+      "text": "don't"
+    },
+    {
+      "start": 71.08,
+      "end": 71.32,
+      "text": "know"
+    },
+    {
+      "start": 71.32,
+      "end": 71.54,
+      "text": "what"
+    },
+    {
+      "start": 71.54,
+      "end": 71.74,
+      "text": "he"
+    },
+    {
+      "start": 71.74,
+      "end": 72.1,
+      "text": "means"
+    },
+    {
+      "start": 72.1,
+      "end": 72.32,
+      "text": "to"
+    },
+    {
+      "start": 72.32,
+      "end": 72.54,
+      "text": "me"
+    },
+    {
+      "start": 72.54,
+      "end": 74.28,
+      "text": "Jolene"
+    },
+    {
+      "start": 77.18,
+      "end": 78.0,
+      "text": "Jolene,"
+    },
+    {
+      "start": 78.0,
+      "end": 78.82,
+      "text": "Jolene,"
+    },
+    {
+      "start": 78.96,
+      "end": 80.02,
+      "text": "Jolene,"
+    },
+    {
+      "start": 80.02,
+      "end": 81.46,
+      "text": "Jolene,"
+    },
+    {
+      "start": 82.62,
+      "end": 82.78,
+      "text": "I'm"
+    },
+    {
+      "start": 82.78,
+      "end": 83.18,
+      "text": "begging"
+    },
+    {
+      "start": 83.18,
+      "end": 83.52,
+      "text": "of"
+    },
+    {
+      "start": 83.52,
+      "end": 83.68,
+      "text": "you"
+    },
+    {
+      "start": 83.68,
+      "end": 84.0,
+      "text": "please"
+    },
+    {
+      "start": 84.0,
+      "end": 84.56,
+      "text": "don't"
+    },
+    {
+      "start": 84.56,
+      "end": 84.84,
+      "text": "take"
+    },
+    {
+      "start": 84.84,
+      "end": 85.26,
+      "text": "my"
+    },
+    {
+      "start": 85.26,
+      "end": 86.28,
+      "text": "man"
+    },
+    {
+      "start": 89.12,
+      "end": 89.94,
+      "text": "Jolene,"
+    },
+    {
+      "start": 89.94,
+      "end": 90.76,
+      "text": "Jolene,"
+    },
+    {
+      "start": 90.98,
+      "end": 91.88,
+      "text": "Jolene,"
+    },
+    {
+      "start": 92.04,
+      "end": 93.14,
+      "text": "Jolene,"
+    },
+    {
+      "start": 94.52,
+      "end": 94.9,
+      "text": "please"
+    },
+    {
+      "start": 94.9,
+      "end": 95.36,
+      "text": "don't"
+    },
+    {
+      "start": 95.36,
+      "end": 95.66,
+      "text": "take"
+    },
+    {
+      "start": 95.66,
+      "end": 95.84,
+      "text": "him"
+    },
+    {
+      "start": 95.84,
+      "end": 96.12,
+      "text": "just"
+    },
+    {
+      "start": 96.12,
+      "end": 96.46,
+      "text": "because"
+    },
+    {
+      "start": 96.46,
+      "end": 97.08,
+      "text": "you"
+    },
+    {
+      "start": 97.08,
+      "end": 97.88,
+      "text": "can"
+    },
+    {
+      "start": 100.86,
+      "end": 101.48,
+      "text": "You"
+    },
+    {
+      "start": 101.48,
+      "end": 101.7,
+      "text": "could"
+    },
+    {
+      "start": 101.7,
+      "end": 102.0,
+      "text": "have"
+    },
+    {
+      "start": 102.0,
+      "end": 102.22,
+      "text": "your"
+    },
+    {
+      "start": 102.22,
+      "end": 102.56,
+      "text": "choice"
+    },
+    {
+      "start": 102.56,
+      "end": 102.84,
+      "text": "of"
+    },
+    {
+      "start": 102.84,
+      "end": 103.2,
+      "text": "man"
+    },
+    {
+      "start": 103.2,
+      "end": 103.46,
+      "text": "that"
+    },
+    {
+      "start": 103.46,
+      "end": 103.68,
+      "text": "I"
+    },
+    {
+      "start": 103.68,
+      "end": 103.9,
+      "text": "could"
+    },
+    {
+      "start": 103.9,
+      "end": 104.28,
+      "text": "never"
+    },
+    {
+      "start": 104.28,
+      "end": 104.8,
+      "text": "love"
+    },
+    {
+      "start": 104.8,
+      "end": 105.28,
+      "text": "again,"
+    },
+    {
+      "start": 105.3,
+      "end": 105.98,
+      "text": "he's"
+    },
+    {
+      "start": 105.98,
+      "end": 106.14,
+      "text": "the"
+    },
+    {
+      "start": 106.14,
+      "end": 106.56,
+      "text": "only"
+    },
+    {
+      "start": 106.56,
+      "end": 106.96,
+      "text": "one"
+    },
+    {
+      "start": 106.96,
+      "end": 107.24,
+      "text": "for"
+    },
+    {
+      "start": 107.24,
+      "end": 107.56,
+      "text": "me"
+    },
+    {
+      "start": 107.56,
+      "end": 108.54,
+      "text": "Jolene"
+    },
+    {
+      "start": 111.56,
+      "end": 112.18,
+      "text": "I"
+    },
+    {
+      "start": 112.18,
+      "end": 112.52,
+      "text": "had"
+    },
+    {
+      "start": 112.52,
+      "end": 112.74,
+      "text": "to"
+    },
+    {
+      "start": 112.74,
+      "end": 112.96,
+      "text": "help"
+    },
+    {
+      "start": 112.96,
+      "end": 113.18,
+      "text": "to"
+    },
+    {
+      "start": 113.18,
+      "end": 113.38,
+      "text": "start"
+    },
+    {
+      "start": 113.38,
+      "end": 113.74,
+      "text": "with"
+    },
+    {
+      "start": 113.74,
+      "end": 114.04,
+      "text": "you,"
+    },
+    {
+      "start": 114.08,
+      "end": 114.32,
+      "text": "my"
+    },
+    {
+      "start": 114.32,
+      "end": 114.92,
+      "text": "happiness"
+    },
+    {
+      "start": 114.92,
+      "end": 115.5,
+      "text": "depends"
+    },
+    {
+      "start": 115.5,
+      "end": 115.96,
+      "text": "on"
+    },
+    {
+      "start": 115.96,
+      "end": 116.24,
+      "text": "you"
+    },
+    {
+      "start": 116.24,
+      "end": 116.38,
+      "text": "and"
+    },
+    {
+      "start": 116.38,
+      "end": 116.72,
+      "text": "whatever"
+    },
+    {
+      "start": 116.72,
+      "end": 117.46,
+      "text": "you"
+    },
+    {
+      "start": 117.46,
+      "end": 117.94,
+      "text": "decide"
+    },
+    {
+      "start": 117.94,
+      "end": 118.18,
+      "text": "to"
+    },
+    {
+      "start": 118.18,
+      "end": 118.46,
+      "text": "do"
+    },
+    {
+      "start": 118.46,
+      "end": 119.88,
+      "text": "Jolene"
+    },
+    {
+      "start": 122.63999999999999,
+      "end": 123.52,
+      "text": "Jolene,"
+    },
+    {
+      "start": 123.84,
+      "end": 124.72,
+      "text": "Jolene,"
+    },
+    {
+      "start": 124.88,
+      "end": 125.76,
+      "text": "Jolene,"
+    },
+    {
+      "start": 125.76,
+      "end": 127.32,
+      "text": "Jolene,"
+    },
+    {
+      "start": 128.5,
+      "end": 128.66,
+      "text": "I'm"
+    },
+    {
+      "start": 128.66,
+      "end": 129.0,
+      "text": "begging"
+    },
+    {
+      "start": 129.0,
+      "end": 129.34,
+      "text": "of"
+    },
+    {
+      "start": 129.34,
+      "end": 129.54,
+      "text": "you"
+    },
+    {
+      "start": 129.54,
+      "end": 129.88,
+      "text": "please"
+    },
+    {
+      "start": 129.88,
+      "end": 130.4,
+      "text": "don't"
+    },
+    {
+      "start": 130.4,
+      "end": 130.68,
+      "text": "take"
+    },
+    {
+      "start": 130.68,
+      "end": 131.14,
+      "text": "my"
+    },
+    {
+      "start": 131.14,
+      "end": 132.02,
+      "text": "man"
+    },
+    {
+      "start": 134.66,
+      "end": 135.54,
+      "text": "Jolene,"
+    },
+    {
+      "start": 135.72,
+      "end": 136.6,
+      "text": "Jolene,"
+    },
+    {
+      "start": 136.8,
+      "end": 137.7,
+      "text": "Jolene,"
+    },
+    {
+      "start": 137.78,
+      "end": 139.08,
+      "text": "Jolene,"
+    },
+    {
+      "start": 140.32,
+      "end": 140.72,
+      "text": "please"
+    },
+    {
+      "start": 140.72,
+      "end": 141.16,
+      "text": "don't"
+    },
+    {
+      "start": 141.16,
+      "end": 141.5,
+      "text": "take"
+    },
+    {
+      "start": 141.5,
+      "end": 141.68,
+      "text": "him"
+    },
+    {
+      "start": 141.68,
+      "end": 141.98,
+      "text": "even"
+    },
+    {
+      "start": 141.98,
+      "end": 142.46,
+      "text": "though"
+    },
+    {
+      "start": 142.46,
+      "end": 142.9,
+      "text": "you"
+    },
+    {
+      "start": 142.9,
+      "end": 143.54,
+      "text": "can"
+    },
+    {
+      "start": 147.45999999999998,
+      "end": 148.85999999999999,
+      "text": "Jolene,"
+    },
+    {
+      "start": 148.85999999999999,
+      "end": 150.26,
+      "text": "Jolene,"
+    },
+    {
+      "start": 150.26,
+      "end": 152.54,
+      "text": "Jolene"
+    }
+  ]
+}
