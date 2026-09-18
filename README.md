@@ -1,43 +1,52 @@
-# EZScore — R5.4 sauts de ligne manipulables
+# EZScore — R5.5 interactions souris + scrollbar persistante
 
-Patch ergonomique limité aux templates de l'éditeur silencieux.
+Patch limité aux templates de l'éditeur silencieux.
 
-## Nouveau comportement des sauts de ligne
+## 1. Déplacement sans clic droit
 
-Les anciens petits traits/potentiels marqueurs après chaque mot disparaissent.
+Le navigateur interceptait le clic droit.
 
-Désormais :
+R5.5 utilise désormais le bouton gauche :
 
-- aucun marqueur n'est affiché s'il n'existe pas réellement ;
-- clic dans la lane `Chant` à l'endroit souhaité :
-  création d'un saut de ligne `↵` ;
-- le saut se cale après le mot le plus proche ;
-- clic droit maintenu + glisser sur `↵` :
-  déplacement du saut ;
-- au relâchement :
-  snap après le mot valide le plus proche ;
-- pendant le déplacement :
-  affichage `↵ après <mot>` ;
-- clic simple sur `↵` :
-  sélection ;
-- touche `Suppr` :
-  suppression du saut.
+- clic gauche court sur une ancre : sélection normale ;
+- double-clic sur une ancre : renommage ;
+- clic gauche maintenu + déplacement > 5 px : drag de l'ancre ;
+- même logique pour le marqueur `↵`.
 
-Le saut reste stocké uniquement comme :
+Le seuil de 5 px évite qu'un simple clic soit interprété comme un déplacement.
 
-```text
-line_break_after_lead = [index_mot, ...]
-```
+## 2. Insertion explicite d'un saut de ligne
 
-Aucun timestamp n'est modifié.
+La création n'est plus cachée dans un clic sur une zone vide.
 
-## Cohérence avec les ancres
+- cliquer sur `+ ↵` dans le label `Chant` ;
+- la lane passe en mode insertion ;
+- cliquer près du mot cible ;
+- le `↵` est créé après le mot le plus proche ;
+- le mode insertion se désactive automatiquement.
 
-Même convention :
-- édition directe dans la timeline ;
-- clic droit + glisser = déplacement ;
-- snap à une cible valide ;
-- persistance uniquement après `Enregistrer`.
+Suppression :
+- clic sur `↵` ;
+- touche `Suppr`.
+
+Déplacement :
+- clic gauche maintenu + glisser ;
+- snap après le mot le plus proche.
+
+## 3. Scrollbar toujours visible
+
+La timeline utilise maintenant `overflow-x: scroll` et réserve en permanence
+l'espace de la scrollbar.
+
+Pour Chrome/Edge :
+- track visible en permanence ;
+- thumb visible en permanence ;
+- contraste renforcé ;
+- hauteur 22 px ;
+- poignée minimale 90 px.
+
+Pour Firefox :
+- `scrollbar-color` est défini.
 
 ## Portée
 
@@ -48,13 +57,9 @@ Uniquement :
 - `templates/views/lyrics-editor.js`
 
 Aucun Python.
-Aucune persistance modifiée.
-Aucun player audio.
+Aucune donnée/persistance.
+Aucun player.
 Aucun template `.score`.
-
-## Contrôles
-
-`node --check templates/views/lyrics-editor.js` : requis avant test.
 
 ## Installation
 
@@ -62,7 +67,7 @@ Aucun template `.score`.
 cd H:\EZScore
 
 Expand-Archive `
-  -Path "$env:USERPROFILE\Downloads\EZScore_INLINE_TIMELINE_R5_4.zip" `
+  -Path "$env:USERPROFILE\Downloads\EZScore_INLINE_TIMELINE_R5_5.zip" `
   -DestinationPath . `
   -Force
 
@@ -74,14 +79,13 @@ git status --short
 ## Test ciblé
 
 1. Ouvrir `Analyse > Paroles`.
-2. Vérifier qu'il n'y a plus de `|` gris après chaque mot.
-3. Cliquer dans la lane Chant entre deux zones de texte.
-4. Vérifier l'apparition d'un `↵` jaune après le mot le plus proche.
-5. Clic droit maintenu + glisser sur `↵`.
-6. Vérifier le changement de cible pendant le drag.
-7. Relâcher : le `↵` doit rester après le nouveau mot.
-8. Sélectionner `↵`, touche `Suppr` : disparition.
-9. Créer plusieurs sauts.
-10. `Enregistrer`.
-11. Changer d'onglet / revenir : persistance.
-12. Revalider le déplacement des ancres et la scrollbar R5.2.
+2. Vérifier que la scrollbar reste visible sans survol.
+3. Cliquer `+ ↵`.
+4. Cliquer après/près de `dove`.
+5. Vérifier qu'un `↵` apparaît après `dove`.
+6. Clic gauche maintenu sur `↵`, déplacer de plus de 5 px, relâcher.
+7. Vérifier le snap après le nouveau mot.
+8. Clic sur `↵`, touche `Suppr`.
+9. Clic gauche maintenu sur une ancre, déplacer, relâcher.
+10. Double-clic sur une ancre : renommage.
+11. Enregistrer, changer d'onglet, revenir : persistance.

@@ -12,6 +12,7 @@ export default function(component) {
   const leadTrack = root.querySelector(".ez-lead");
   const backingTrack = root.querySelector(".ez-backing");
   const positionLabel = root.querySelector(".ez-position");
+  const addLineBreakButton = root.querySelector(".ez-add-linebreak");
 
   const initial = data.editorial || {};
   const stateSnapshot = String(component.state?.snapshot || "");
@@ -276,7 +277,7 @@ export default function(component) {
     marker.className = "ez-linebreak";
     marker.textContent = "↵";
     marker.title = (
-      "Saut de ligne visuel · clic droit + glisser = déplacer · "
+      "Saut de ligne visuel · clic gauche maintenu + glisser = déplacer · "
       + "Suppr = supprimer"
     );
     marker.dataset.linebreakIndex = String(index);
@@ -301,31 +302,22 @@ export default function(component) {
       emit();
     });
 
-    marker.addEventListener("contextmenu", event => {
-      event.preventDefault();
-    });
-
+    const BREAK_DRAG_THRESHOLD_PX = 5;
     let breakDrag = null;
 
     marker.addEventListener("pointerdown", event => {
-      if (event.button !== 2) return;
+      if (event.button !== 0) return;
 
-      event.preventDefault();
       event.stopPropagation();
 
       breakDrag = {
         pointerId: event.pointerId,
+        startClientX: event.clientX,
         originalIndex: Number(marker.dataset.linebreakIndex),
         candidateIndex: Number(marker.dataset.linebreakIndex),
+        moved: false,
+        label: null,
       };
-
-      marker.classList.add("dragging");
-
-      const dragLabel = document.createElement("span");
-      dragLabel.className = "ez-linebreak-drag-label";
-      dragLabel.textContent = `↵ après ${lead[breakDrag.originalIndex].text}`;
-      marker.appendChild(dragLabel);
-      breakDrag.label = dragLabel;
 
       marker.setPointerCapture(event.pointerId);
     });
@@ -333,8 +325,25 @@ export default function(component) {
     marker.addEventListener("pointermove", event => {
       if (!breakDrag || event.pointerId !== breakDrag.pointerId) return;
 
+      const delta = event.clientX - breakDrag.startClientX;
+
+      if (!breakDrag.moved && Math.abs(delta) < BREAK_DRAG_THRESHOLD_PX) {
+        return;
+      }
+
       event.preventDefault();
       event.stopPropagation();
+
+      if (!breakDrag.moved) {
+        breakDrag.moved = true;
+        marker.classList.add("dragging");
+
+        const dragLabel = document.createElement("span");
+        dragLabel.className = "ez-linebreak-drag-label";
+        dragLabel.textContent = `↵ après ${lead[breakDrag.originalIndex].text}`;
+        marker.appendChild(dragLabel);
+        breakDrag.label = dragLabel;
+      }
 
       const rect = leadTrack.getBoundingClientRect();
       const rawX = Math.max(
@@ -353,11 +362,29 @@ export default function(component) {
     function finishBreakDrag(event) {
       if (!breakDrag || event.pointerId !== breakDrag.pointerId) return;
 
-      event.preventDefault();
-      event.stopPropagation();
-
+      const wasMoved = breakDrag.moved;
       const originalIndex = breakDrag.originalIndex;
       const candidateIndex = breakDrag.candidateIndex;
+
+      if (wasMoved) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (candidateIndex !== originalIndex) {
+          if (breakSet.has(candidateIndex)) {
+            marker.style.left = wordRenderedEndX(originalIndex) + "px";
+          } else {
+            breakSet.delete(originalIndex);
+            breakSet.add(candidateIndex);
+            marker.dataset.linebreakIndex = String(candidateIndex);
+            marker.style.left = wordRenderedEndX(candidateIndex) + "px";
+            syncBreakSet();
+            emit();
+          }
+        } else {
+          marker.style.left = wordRenderedEndX(originalIndex) + "px";
+        }
+      }
 
       try {
         marker.releasePointerCapture(event.pointerId);
@@ -365,22 +392,6 @@ export default function(component) {
 
       breakDrag.label?.remove();
       marker.classList.remove("dragging");
-
-      if (candidateIndex !== originalIndex) {
-        if (breakSet.has(candidateIndex)) {
-          marker.style.left = wordRenderedEndX(originalIndex) + "px";
-        } else {
-          breakSet.delete(originalIndex);
-          breakSet.add(candidateIndex);
-          marker.dataset.linebreakIndex = String(candidateIndex);
-          marker.style.left = wordRenderedEndX(candidateIndex) + "px";
-          syncBreakSet();
-          emit();
-        }
-      } else {
-        marker.style.left = wordRenderedEndX(originalIndex) + "px";
-      }
-
       breakDrag = null;
     }
 
@@ -392,11 +403,24 @@ export default function(component) {
 
   breakSet.forEach(makeLineBreakNode);
 
+  let lineBreakInsertArmed = false;
+
+  function setLineBreakInsertMode(enabled) {
+    lineBreakInsertArmed = Boolean(enabled);
+    addLineBreakButton?.classList.toggle("armed", lineBreakInsertArmed);
+    leadTrack.classList.toggle("insert-linebreak-mode", lineBreakInsertArmed);
+  }
+
+  addLineBreakButton?.addEventListener("click", event => {
+    event.preventDefault();
+    event.stopPropagation();
+    setLineBreakInsertMode(!lineBreakInsertArmed);
+  });
+
   leadTrack.addEventListener("click", event => {
-    if (
-      event.target.closest(".ez-word")
-      || event.target.closest(".ez-linebreak")
-    ) {
+    if (!lineBreakInsertArmed) return;
+
+    if (event.target.closest(".ez-linebreak")) {
       return;
     }
 
@@ -407,12 +431,19 @@ export default function(component) {
     );
     const index = nearestLeadWordByX(rawX);
 
-    if (index < 0 || breakSet.has(index)) return;
+    if (index < 0) {
+      setLineBreakInsertMode(false);
+      return;
+    }
 
-    breakSet.add(index);
-    syncBreakSet();
-    makeLineBreakNode(index);
-    emit();
+    if (!breakSet.has(index)) {
+      breakSet.add(index);
+      syncBreakSet();
+      makeLineBreakNode(index);
+      emit();
+    }
+
+    setLineBreakInsertMode(false);
   });
 
   backing.forEach((word, index) => {
@@ -487,7 +518,7 @@ export default function(component) {
     node.className = "ez-anchor";
     node.style.left = xFor(anchor.time) + "px";
     node.textContent = String(anchor.label || "Section");
-    node.title = "Double-clic = renommer · clic droit + glisser = déplacer · Suppr = supprimer";
+    node.title = "Double-clic = renommer · clic gauche maintenu + glisser = déplacer · Suppr = supprimer";
 
     startInlineEdit(
       node,
@@ -497,34 +528,22 @@ export default function(component) {
       },
     );
 
-    node.addEventListener("contextmenu", event => {
-      event.preventDefault();
-    });
-
+    const DRAG_THRESHOLD_PX = 5;
     let anchorDrag = null;
 
     node.addEventListener("pointerdown", event => {
-      if (event.button !== 2 || node.contentEditable === "true") return;
+      if (event.button !== 0 || node.contentEditable === "true") return;
 
-      event.preventDefault();
       event.stopPropagation();
 
-      const rect = sectionTrack.getBoundingClientRect();
-      const startX = event.clientX - rect.left;
       anchorDrag = {
         pointerId: event.pointerId,
         startClientX: event.clientX,
         initialLeft: parseFloat(node.style.left) || xFor(anchor.time),
-        trackRect: rect,
+        moved: false,
+        snap: null,
+        label: null,
       };
-
-      node.classList.add("dragging");
-
-      const dragLabel = document.createElement("span");
-      dragLabel.className = "ez-anchor-drag-label";
-      dragLabel.textContent = `${anchor.label} · ${fmt(anchor.time)}`;
-      node.appendChild(dragLabel);
-      anchorDrag.label = dragLabel;
 
       node.setPointerCapture(event.pointerId);
     });
@@ -532,10 +551,26 @@ export default function(component) {
     node.addEventListener("pointermove", event => {
       if (!anchorDrag || event.pointerId !== anchorDrag.pointerId) return;
 
+      const delta = event.clientX - anchorDrag.startClientX;
+
+      if (!anchorDrag.moved && Math.abs(delta) < DRAG_THRESHOLD_PX) {
+        return;
+      }
+
       event.preventDefault();
       event.stopPropagation();
 
-      const delta = event.clientX - anchorDrag.startClientX;
+      if (!anchorDrag.moved) {
+        anchorDrag.moved = true;
+        node.classList.add("dragging");
+
+        const dragLabel = document.createElement("span");
+        dragLabel.className = "ez-anchor-drag-label";
+        dragLabel.textContent = `${anchor.label} · ${fmt(anchor.time)}`;
+        node.appendChild(dragLabel);
+        anchorDrag.label = dragLabel;
+      }
+
       const rawX = Math.max(
         0,
         Math.min(trackWidth, anchorDrag.initialLeft + delta)
@@ -555,18 +590,22 @@ export default function(component) {
     function finishAnchorDrag(event) {
       if (!anchorDrag || event.pointerId !== anchorDrag.pointerId) return;
 
-      event.preventDefault();
-      event.stopPropagation();
+      const wasMoved = anchorDrag.moved;
 
-      if (anchorDrag.snap) {
-        updateAnchorFromSnap(anchor, anchorDrag.snap);
-        node.style.left = xFor(anchor.time) + "px";
-        editorial.anchors.sort(
-          (a, b) => Number(a.time || 0) - Number(b.time || 0)
-        );
-        emit();
-      } else {
-        node.style.left = xFor(anchor.time) + "px";
+      if (wasMoved) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (anchorDrag.snap) {
+          updateAnchorFromSnap(anchor, anchorDrag.snap);
+          node.style.left = xFor(anchor.time) + "px";
+          editorial.anchors.sort(
+            (a, b) => Number(a.time || 0) - Number(b.time || 0)
+          );
+          emit();
+        } else {
+          node.style.left = xFor(anchor.time) + "px";
+        }
       }
 
       try {
@@ -574,8 +613,8 @@ export default function(component) {
       } catch (_) {}
 
       anchorDrag.label?.remove();
-      anchorDrag = null;
       node.classList.remove("dragging");
+      anchorDrag = null;
     }
 
     node.addEventListener("pointerup", finishAnchorDrag);
