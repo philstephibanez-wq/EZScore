@@ -187,16 +187,89 @@ def _patch_js(js: str) -> str:
         raise RuntimeError(
             f"Bloc géométrie R12c inattendu : {count} occurrence(s), attendu 1."
         )
-    return js.replace(old, new, 1)
+    js = js.replace(old, new, 1)
+
+    # The transport slider must work before the first Play click. Loading
+    # metadata from the original preview is sufficient; no AudioContext and
+    # no playback are started.
+    state_marker = """  let duration = 0;
+  let raf = null;
+"""
+    state_replacement = """  let duration = 0;
+  let raf = null;
+  let metadataMedia = null;
+"""
+    if js.count(state_marker) != 1:
+        raise RuntimeError("État duration R12c introuvable.")
+    js = js.replace(state_marker, state_replacement, 1)
+
+    fmt_marker = """  function fmt(seconds) {
+    const t = Math.max(0, Number(seconds) || 0);
+    const m = Math.floor(t / 60);
+    return m + ":" + String(Math.floor(t % 60)).padStart(2,"0");
+  }
+"""
+    fmt_replacement = fmt_marker + r"""
+  function primeSeekMetadata() {
+    const original = defs.find(item => item.name === "original") || defs[0];
+    const url = String(original?.url || "");
+    if (!url) return;
+
+    metadataMedia = new Audio();
+    metadataMedia.preload = "metadata";
+    metadataMedia.src = url;
+
+    const accept = () => {
+      const value = Number(metadataMedia?.duration || 0);
+      if (!Number.isFinite(value) || value <= 0) return;
+
+      duration = value;
+      seek.max = String(Math.max(.001, duration));
+      seek.value = String(Math.max(0, Math.min(duration, position)));
+      timeLabel.textContent = fmt(position) + " / " + fmt(duration);
+    };
+
+    metadataMedia.addEventListener("loadedmetadata", accept, {once:true});
+    metadataMedia.addEventListener("durationchange", accept);
+    try { metadataMedia.load(); } catch (_) {}
+  }
+
+  primeSeekMetadata();
+"""
+    if js.count(fmt_marker) != 1:
+        raise RuntimeError("Fonction fmt R12c introuvable.")
+    js = js.replace(fmt_marker, fmt_replacement, 1)
+
+    return js
 
 
 def install() -> None:
+    from ezscore.player import karaoke_stem_webaudio as base
     from ezscore.player import karaoke_stem_webaudio_r12c as r12c
 
     if getattr(r12c, "_EZ_WORD_LAYOUT_PATCH", False):
         return
 
+    # A second Whisper pass on the isolated vocals can recover words omitted
+    # by the mix transcription. That does NOT prove they are backing vocals.
+    # Keep those recovered words in the lead lane; true backing-vocal
+    # detection must come from an explicit source, not from a transcription gap.
+    base._supplement_only_words = lambda original_words, merged_words: []
+
     patched_js = _patch_js(str(r12c._JS))
+
+    lead_marker = (
+        '  const leadInput = Array.isArray(data.lead_words) '
+        '? data.lead_words : words;'
+    )
+    if patched_js.count(lead_marker) != 1:
+        raise RuntimeError("Sélection leadInput R12c introuvable.")
+    patched_js = patched_js.replace(
+        lead_marker,
+        '  const leadInput = words.length ? words : '
+        '(Array.isArray(data.lead_words) ? data.lead_words : []);',
+        1,
+    )
     r12c._COMPONENT_R12C = st.components.v2.component(
         _PATCHED_COMPONENT_NAME,
         html=r12c._HTML,

@@ -331,6 +331,7 @@ export default function(component) {
   );
 
   const leadNodes = [];
+  let leadVisualRight = Number.NEGATIVE_INFINITY;
 
   lead.forEach((word, index) => {
     const key = String(index);
@@ -425,6 +426,16 @@ export default function(component) {
     });
 
     leadTrack.appendChild(node);
+
+    // Presentation only: preserve the word timestamp but prevent labels from
+    // occupying the same pixels. Snapping/editing still uses original times.
+    const rawLeft = xFor(word.start);
+    const width = Math.max(12, node.getBoundingClientRect().width);
+    const visualLeft = Math.max(rawLeft, leadVisualRight + 8);
+    node.style.left = visualLeft + "px";
+    node.dataset.timelineLeft = String(rawLeft);
+    leadVisualRight = visualLeft + width;
+
     leadNodes.push(node);
   });
 
@@ -434,7 +445,7 @@ export default function(component) {
     if (!word || !node) return 0;
 
     return (
-      xFor(word.start)
+      (parseFloat(node.style.left) || xFor(word.start))
       + node.getBoundingClientRect().width
       + 6
     );
@@ -606,6 +617,8 @@ export default function(component) {
   breakSet.forEach(makeLineBreakNode);
 
 
+  let backingVisualRight = Number.NEGATIVE_INFINITY;
+
   backing.forEach((word, index) => {
     const key = String(index);
     const node = document.createElement("span");
@@ -627,6 +640,13 @@ export default function(component) {
     });
 
     backingTrack.appendChild(node);
+
+    const rawLeft = xFor(word.start);
+    const width = Math.max(12, node.getBoundingClientRect().width);
+    const visualLeft = Math.max(rawLeft, backingVisualRight + 8);
+    node.style.left = visualLeft + "px";
+    node.dataset.timelineLeft = String(rawLeft);
+    backingVisualRight = visualLeft + width;
   });
 
   function nearestSnap(time) {
