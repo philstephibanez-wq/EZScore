@@ -2345,3 +2345,7 @@
 {"ts":"2026-09-18T01:02:08.808602+00:00","event":"ui.download_button","section":"Chanson","audio_hash":"bc597b67df4d","view":"Analyse","mode":"Vue","duration_ms":9.373,"status":"ok"}
 {"ts":"2026-09-18T01:02:09.218977+00:00","event":"ui.download_button","section":"Chanson","audio_hash":"bc597b67df4d","view":"Analyse","mode":"Vue","duration_ms":11.712,"status":"ok"}
 {"ts":"2026-09-18T01:02:09.656984+00:00","event":"ui.dataframe","section":"Chanson","audio_hash":"bc597b67df4d","view":"Analyse","mode":"Vue","duration_ms":16.324,"status":"ok","rows":258}
+{"ts":"2026-09-18T08:06:31.137763+00:00","event":"rerun.start"}
+{"ts":"2026-09-18T08:06:31.458464+00:00","event":"persistence.list_song_catalog","section":"Répertoire","audio_hash":"bc597b67df4d","duration_ms":20.528,"status":"ok","result_len":9}
+{"ts":"2026-09-18T08:06:41.149906+00:00","event":"rerun.start","section":"Répertoire","audio_hash":"bc597b67df4d"}
+{"ts":"2026-09-18T08:06:41.316123+00:00","event":"persistence.list_song_catalog","section":"Répertoire","audio_hash":"bc597b67df4d","duration_ms":8.551,"status":"ok","result_len":9}

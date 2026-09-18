@@ -1,0 +1,4 @@
+<div class="ez-rating">
+  <div class="ez-rating-stars">{{ stars }}</div>
+  <div class="ez-rating-meta">{{ average }} · {{ votes }}</div>
+</div>

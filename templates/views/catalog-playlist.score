@@ -1,0 +1,4 @@
+<div class="ez-playlist-title">
+  <strong>🎶 {{ name }}</strong>
+  <span class="ez-playlist-count">{{ count }} {{ count_label }}</span>
+</div>
