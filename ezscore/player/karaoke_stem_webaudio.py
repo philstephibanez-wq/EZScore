@@ -1637,7 +1637,7 @@ def render_player(
     # Re-analysis works from the persisted source audio; no MP3 re-import.
     if player_words:
         audio_hash = preview_dir.parent.name
-        controls = st.columns(3)
+        controls = st.columns(2)
 
         with controls[0]:
             if st.button(
@@ -1671,33 +1671,6 @@ def render_player(
                     if cache.is_file():
                         cache.unlink()
                 with st.spinner("Ré-analyse rythme + accords sur les fichiers existants…"):
-                    _build_conductor_timeline(source, stems, preview_dir)
-                st.rerun()
-
-        with controls[2]:
-            if st.button(
-                "↻ Ré-analyser tout",
-                type="primary",
-                width="stretch",
-                key=f"{key}_reanalyze_all",
-                help="Relance paroles + complément vocal + rythme + accords sans réimporter l'audio.",
-            ):
-                for cache in (
-                    preview_dir.parent / "whisper_original_small.json",
-                    _vocal_whisper_cache_path(preview_dir),
-                    _conductor_cache_path(preview_dir),
-                    preview_dir.parent / "chord_analysis_lv_chordia.json",
-                ):
-                    if cache.is_file():
-                        cache.unlink()
-
-                from ezscore.ui.stem_lab_analysis import _transcribe_original
-                with st.spinner("Ré-analyse complète depuis l'audio déjà enregistré…"):
-                    speech = _transcribe_original(source, audio_hash)
-                    refreshed_words = list(speech.get("words", []) or [])
-                    _ensure_vocal_whisper_supplement(
-                        source, stems, preview_dir, refreshed_words
-                    )
                     _build_conductor_timeline(source, stems, preview_dir)
                 st.rerun()
 

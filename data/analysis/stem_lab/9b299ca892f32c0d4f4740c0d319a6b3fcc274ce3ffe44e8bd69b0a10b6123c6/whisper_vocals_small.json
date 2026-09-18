@@ -5,142 +5,64 @@
   "language": "fr",
   "words": [
     {
-      "start": 4.94,
-      "end": 6.0,
-      "text": "oh,",
-      "confidence": 0.9608666300773621
+      "start": 4.42,
+      "end": 5.48,
+      "text": "oh.",
+      "confidence": 0.7403626441955566
     },
     {
-      "start": 6.0,
-      "end": 6.96,
-      "text": "oh,",
-      "confidence": 0.9270881414413452
-    },
-    {
-      "start": 6.96,
-      "end": 7.98,
-      "text": "oh,",
-      "confidence": 0.9063823819160461
-    },
-    {
-      "start": 7.98,
-      "end": 8.32,
-      "text": "oh,",
-      "confidence": 0.9034354090690613
-    },
-    {
-      "start": 8.32,
-      "end": 8.5,
-      "text": "oh,",
-      "confidence": 0.9088937640190125
-    },
-    {
-      "start": 8.5,
-      "end": 10.08,
-      "text": "oh,",
-      "confidence": 0.928906261920929
-    },
-    {
-      "start": 10.08,
-      "end": 11.04,
-      "text": "oh,",
-      "confidence": 0.939698338508606
-    },
-    {
-      "start": 11.04,
-      "end": 11.6,
-      "text": "oh,",
-      "confidence": 0.9503103494644165
-    },
-    {
-      "start": 11.6,
-      "end": 12.76,
-      "text": "oh,",
-      "confidence": 0.9547553062438965
-    },
-    {
-      "start": 12.76,
-      "end": 12.98,
-      "text": "oh,",
-      "confidence": 0.9660436511039734
-    },
-    {
-      "start": 12.98,
-      "end": 13.74,
-      "text": "oh,",
-      "confidence": 0.9653580188751221
-    },
-    {
-      "start": 13.74,
-      "end": 14.4,
-      "text": "oh,",
-      "confidence": 0.9659475088119507
-    },
-    {
-      "start": 14.52,
-      "end": 14.56,
-      "text": "oh,",
-      "confidence": 0.9658305048942566
-    },
-    {
-      "start": 14.56,
-      "end": 14.8,
-      "text": "oh,",
-      "confidence": 0.9695958495140076
-    },
-    {
-      "start": 15.42,
-      "end": 15.66,
+      "start": 15.04,
+      "end": 15.62,
       "text": "J",
-      "confidence": 0.5445813536643982
+      "confidence": 0.5101372599601746
     },
     {
-      "start": 15.66,
+      "start": 15.62,
       "end": 16.04,
       "text": "'avais",
-      "confidence": 0.9983973503112793
+      "confidence": 0.9969890713691711
     },
     {
       "start": 16.04,
-      "end": 17.46,
+      "end": 17.6,
       "text": "dessiné",
-      "confidence": 0.9911158482233683
+      "confidence": 0.9906521240870158
     },
     {
-      "start": 17.46,
+      "start": 17.6,
       "end": 20.74,
       "text": "sur",
-      "confidence": 0.6156136393547058
+      "confidence": 0.5039198994636536
     },
     {
       "start": 20.74,
       "end": 21.04,
       "text": "le",
-      "confidence": 0.9971691966056824
+      "confidence": 0.9973336458206177
     },
     {
       "start": 21.04,
       "end": 21.74,
       "text": "sable",
-      "confidence": 0.992047131061554
+      "confidence": 0.9934538900852203
     },
     {
       "start": 21.74,
       "end": 24.26,
       "text": "son",
-      "confidence": 0.9546430706977844
+      "confidence": 0.9088910222053528
     },
     {
       "start": 24.26,
       "end": 24.82,
       "text": "doux",
-      "confidence": 0.9767327308654785
+      "confidence": 0.979954719543457
     },
     {
       "start": 24.82,
       "end": 26.76,
       "text": "visageux",
-      "confidence": 0.9005216360092163
+      "confidence": 0.8573945363362631
     },
     {
       "start": 104.68,
