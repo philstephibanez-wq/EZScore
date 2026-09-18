@@ -3776,3 +3776,12 @@
 {"ts":"2026-09-18T14:03:08.693520+00:00","event":"rerun.start","section":"Compte"}
 {"ts":"2026-09-18T14:03:08.800672+00:00","event":"ui.download_button","section":"Compte","duration_ms":4.038,"status":"ok"}
 {"ts":"2026-09-18T14:03:10.734941+00:00","event":"ui.image","section":"Compte","duration_ms":0.681,"status":"ok"}
+{"ts":"2026-09-18T14:32:49.579794+00:00","event":"probe.install.complete","log_file":"H:\\EZScore\\data\\logs\\ezscore_perf.log"}
+{"ts":"2026-09-18T14:32:49.585880+00:00","event":"midi.symbol.exported","exported":true}
+{"ts":"2026-09-18T14:32:49.593540+00:00","event":"rerun.start"}
+{"ts":"2026-09-18T14:32:50.778817+00:00","event":"persistence.list_song_catalog","section":"Répertoire","duration_ms":3.808,"status":"ok","result_len":9}
+{"ts":"2026-09-18T14:32:55.525859+00:00","event":"rerun.start","section":"Répertoire"}
+{"ts":"2026-09-18T14:32:55.706145+00:00","event":"ui.download_button","section":"Répertoire","duration_ms":5.869,"status":"ok"}
+{"ts":"2026-09-18T14:32:55.843311+00:00","event":"persistence.list_song_catalog","section":"Répertoire","duration_ms":2.803,"status":"ok","result_len":9}
+{"ts":"2026-09-18T14:32:57.178532+00:00","event":"ui.image","section":"Répertoire","duration_ms":161.711,"status":"ok"}
+{"ts":"2026-09-18T14:32:57.592161+00:00","event":"ui.image","section":"Répertoire","duration_ms":14.954,"status":"ok"}
