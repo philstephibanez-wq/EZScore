@@ -330,7 +330,20 @@ def _install_groups_navigation_patch() -> None:
             return
 
         def render_profile_sidebar_with_groups() -> None:
-            original_button = st.button
+            # IMPORTANT: never capture st.button from the module attribute.
+            # A previous hot reload may have left our temporary wrapper there,
+            # which causes the compact Groups/Playlists buttons to be injected
+            # twice and produces StreamlitDuplicateElementKey.
+            main_dg = getattr(st, "_main", None)
+            if main_dg is None:
+                raise RuntimeError("DeltaGenerator principal Streamlit introuvable.")
+            main_button_descriptor = getattr(type(main_dg), "button", None)
+            if main_button_descriptor is None:
+                raise RuntimeError("Méthode native Streamlit button introuvable.")
+            original_button = main_button_descriptor.__get__(
+                main_dg,
+                type(main_dg),
+            )
 
             # IMPORTANT: never capture st.sidebar.button from the instance.
             # Previous reruns/hot reloads may have left our temporary wrapper
