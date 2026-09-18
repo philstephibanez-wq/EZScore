@@ -7,6 +7,7 @@ and edits the shared visual timeline.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -65,11 +66,85 @@ def _load_backing_words(
     return normalize_words(supplement)
 
 
-def _load_beats(
+def _coerce_time_signature(value: Any) -> str:
+    if value is None:
+        return ""
+
+    if isinstance(value, str):
+        match = re.search(r"\b([1-9][0-9]?)/(1|2|4|8|16|32)\b", value)
+        return f"{match.group(1)}/{match.group(2)}" if match else ""
+
+    if isinstance(value, (list, tuple)) and len(value) >= 2:
+        try:
+            numerator = int(value[0])
+            denominator = int(value[1])
+        except (TypeError, ValueError):
+            return ""
+        if 1 <= numerator <= 99 and denominator in {1, 2, 4, 8, 16, 32}:
+            return f"{numerator}/{denominator}"
+        return ""
+
+    if isinstance(value, dict):
+        numerator = (
+            value.get("numerator")
+            or value.get("beats_per_bar")
+            or value.get("beats_per_measure")
+            or value.get("beats")
+        )
+        denominator = (
+            value.get("denominator")
+            or value.get("beat_unit")
+            or value.get("unit")
+        )
+        if numerator is not None and denominator is not None:
+            return _coerce_time_signature([numerator, denominator])
+
+    return ""
+
+
+def _find_time_signature(payload: Any) -> str:
+    if not isinstance(payload, dict):
+        return ""
+
+    priority_keys = (
+        "time_signature",
+        "timeSignature",
+        "detected_time_signature",
+        "detectedTimeSignature",
+        "meter",
+        "metre",
+        "signature",
+    )
+
+    for key in priority_keys:
+        if key in payload:
+            meter = _coerce_time_signature(payload.get(key))
+            if meter:
+                return meter
+
+    beats_per_bar = payload.get("beats_per_bar", payload.get("beats_per_measure"))
+    beat_unit = payload.get("beat_unit", payload.get("denominator"))
+    if beats_per_bar is not None and beat_unit is not None:
+        meter = _coerce_time_signature([beats_per_bar, beat_unit])
+        if meter:
+            return meter
+
+    for value in payload.values():
+        if isinstance(value, dict):
+            meter = _find_time_signature(value)
+            if meter:
+                return meter
+
+    return ""
+
+
+def _load_timing(
     stem_module,
     audio_hash: str,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], str, str]:
     structure = stem_module._load_structure(audio_hash)
+    detected_meter = _find_time_signature(structure)
+    meter_source = "detected" if detected_meter else ""
 
     if structure:
         source = (
@@ -77,7 +152,11 @@ def _load_beats(
             or list(structure.get("beats", []) or [])
         )
         if source:
-            return normalize_beats(source)
+            return (
+                normalize_beats(source),
+                detected_meter or "4/4",
+                meter_source or "default",
+            )
 
     conductor_path = (
         stem_module._work_dir(audio_hash)
@@ -94,11 +173,19 @@ def _load_beats(
                 f"Impossible de lire {conductor_path.name}: {exc}"
             ) from exc
 
+        if not detected_meter:
+            detected_meter = _find_time_signature(conductor)
+            meter_source = "detected" if detected_meter else ""
+
         source = list(conductor.get("beats", []) or [])
         if source:
-            return normalize_beats(source)
+            return (
+                normalize_beats(source),
+                detected_meter or "4/4",
+                meter_source or "default",
+            )
 
-    return []
+    return [], detected_meter or "4/4", meter_source or "default"
 
 
 def _render_editor(
@@ -121,7 +208,7 @@ def _render_editor(
         audio_hash,
         lead_raw,
     )
-    beats = _load_beats(stem_module, audio_hash)
+    beats, detected_meter, meter_source = _load_timing(stem_module, audio_hash)
 
     if not beats:
         st.error(
@@ -143,6 +230,8 @@ def _render_editor(
             "lead": lead,
             "backing": backing,
             "beats": beats,
+            "detected_meter": detected_meter,
+            "meter_source": meter_source,
             "editorial": persisted,
         },
         default={
@@ -167,6 +256,7 @@ def _render_editor(
         "backing_overrides",
         "line_break_after_lead",
         "chord_overrides",
+        "time_signature_override",
         "anchors",
     )
 

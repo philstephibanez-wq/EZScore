@@ -6,10 +6,59 @@
 }
 
 .ez-editor-help{
-  padding:8px 12px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:7px 12px;
   font-size:12px;
-  opacity:.72;
+  opacity:.82;
   border-bottom:1px solid color-mix(in srgb,var(--st-text-color) 10%,transparent);
+}
+
+.ez-meter-control{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  flex:0 0 auto;
+  font-size:11px;
+  font-weight:750;
+}
+
+.ez-meter-input{
+  width:44px;
+  height:24px;
+  box-sizing:border-box;
+  border:1px solid color-mix(in srgb,#4da3ff 40%,transparent);
+  border-radius:5px;
+  background:#151a21;
+  color:#b9dcff;
+  font-family:Consolas,"Courier New",monospace;
+  font-size:12px;
+  font-weight:850;
+  text-align:center;
+  outline:none;
+}
+
+.ez-meter-input:focus{
+  border-color:#85c2ff;
+  box-shadow:0 0 0 2px color-mix(in srgb,#4da3ff 14%,transparent);
+}
+
+.ez-meter-input.invalid{
+  border-color:#ff7373;
+  color:#ffb0b0;
+}
+
+.ez-meter-input.overridden{
+  color:#ffcf5a;
+  border-color:color-mix(in srgb,#ffcf5a 55%,transparent);
+}
+
+.ez-meter-source{
+  min-width:42px;
+  font-size:9px;
+  opacity:.58;
 }
 
 .ez-editor-window{
@@ -192,31 +241,73 @@
   pointer-events:none;
 }
 
-.ez-chord{
+.ez-measure{
   position:absolute;
-  top:18px;
-  transform:translateX(-2px);
-  min-width:30px;
-  padding:4px 6px;
-  border:1px solid color-mix(in srgb,#4da3ff 30%,transparent);
+  top:16px;
+  display:inline-flex;
+  align-items:stretch;
+  min-height:32px;
+  border:1px solid color-mix(in srgb,#4da3ff 24%,transparent);
   border-radius:5px;
-  background:color-mix(in srgb,#4da3ff 14%,#15181d);
+  background:color-mix(in srgb,#4da3ff 8%,#15181d);
+  overflow:visible;
+  white-space:nowrap;
+}
+
+.ez-measure::before{
+  content:"";
+  position:absolute;
+  left:-1px;
+  top:-13px;
+  width:1px;
+  height:10px;
+  background:color-mix(in srgb,#4da3ff 30%,transparent);
+}
+
+.ez-beat-token{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:10px;
+  height:30px;
+  padding:0;
+  border:0;
+  border-right:1px solid transparent;
+  background:transparent;
   color:#62b6ff;
   font-family:Consolas,"Courier New",monospace;
   font-size:18px;
   font-weight:900;
-  text-align:center;
-  white-space:nowrap;
+  line-height:30px;
   cursor:text;
+  outline:none;
+}
+
+.ez-beat-token:first-child{
+  padding-left:4px;
+}
+
+.ez-beat-token:last-child{
+  padding-right:4px;
+}
+
+.ez-beat-token:hover{
+  background:color-mix(in srgb,#4da3ff 10%,transparent);
+}
+
+.ez-beat-token[contenteditable="true"]{
+  min-width:18px;
+  background:#17263a;
+  box-shadow:inset 0 0 0 1px #4da3ff;
 }
 
 .ez-word{
   position:absolute;
   top:18px;
-  padding:2px 3px;
+  padding:2px 2px;
   border-radius:4px;
   white-space:nowrap;
-  font-size:20px;
+  font-size:19px;
   font-weight:720;
   cursor:text;
 }
@@ -227,11 +318,10 @@
 
 .ez-backing .ez-word{
   color:#d49bff;
-  font-size:18px;
+  font-size:17px;
 }
 
-.ez-word[contenteditable="true"],
-.ez-chord[contenteditable="true"]{
+.ez-word[contenteditable="true"]{
   outline:2px solid #4da3ff;
   outline-offset:1px;
   background:#17263a;

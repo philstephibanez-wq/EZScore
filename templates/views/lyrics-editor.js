@@ -12,6 +12,8 @@ export default function(component) {
   const leadTrack = root.querySelector(".ez-lead");
   const backingTrack = root.querySelector(".ez-backing");
   const positionLabel = root.querySelector(".ez-position");
+  const meterInput = root.querySelector(".ez-meter-input");
+  const meterSourceLabel = root.querySelector(".ez-meter-source");
 
   const initial = data.editorial || {};
   const stateSnapshot = String(component.state?.snapshot || "");
@@ -29,6 +31,7 @@ export default function(component) {
   editorial.backing_overrides ||= {};
   editorial.line_break_after_lead ||= [];
   editorial.chord_overrides ||= {};
+  editorial.time_signature_override ||= "";
   editorial.anchors ||= [];
 
   const allEnds = [
@@ -39,7 +42,7 @@ export default function(component) {
   ].filter(Number.isFinite);
 
   const duration = Math.max(8, ...allEnds, 0);
-  const pxPerSecond = 115;
+  const pxPerSecond = 100;
   const trackWidth = Math.max(1600, duration * pxPerSecond + 240);
 
   canvas.style.width = (trackWidth + 78) + "px";
@@ -58,6 +61,55 @@ export default function(component) {
   function fmt(seconds) {
     const t = Math.max(0, Number(seconds || 0));
     return Math.floor(t / 60) + ":" + String(Math.floor(t % 60)).padStart(2, "0");
+  }
+
+  const detectedMeter = String(data.detected_meter || "4/4");
+  const meterSource = String(data.meter_source || "default");
+
+  function parseMeter(value) {
+    const match = String(value || "").trim().match(
+      /^([1-9][0-9]?)\/(1|2|4|8|16|32)$/
+    );
+    if (!match) return null;
+
+    return {
+      text: `${Number(match[1])}/${Number(match[2])}`,
+      numerator: Number(match[1]),
+      denominator: Number(match[2]),
+    };
+  }
+
+  function currentMeter() {
+    return (
+      parseMeter(editorial.time_signature_override)
+      || parseMeter(detectedMeter)
+      || { text: "4/4", numerator: 4, denominator: 4 }
+    );
+  }
+
+  function refreshMeterControl() {
+    const meter = currentMeter();
+    if (meterInput) {
+      meterInput.value = meter.text;
+      meterInput.classList.remove("invalid");
+      meterInput.classList.toggle(
+        "overridden",
+        Boolean(editorial.time_signature_override),
+      );
+      meterInput.title = editorial.time_signature_override
+        ? `Signature éditoriale · source détectée : ${detectedMeter}`
+        : (
+            meterSource === "detected"
+              ? `Signature détectée : ${detectedMeter}`
+              : `Signature par défaut : ${detectedMeter}`
+          );
+    }
+
+    if (meterSourceLabel) {
+      meterSourceLabel.textContent = editorial.time_signature_override
+        ? "modifiée"
+        : (meterSource === "detected" ? "détectée" : "défaut");
+    }
   }
 
   function emit() {
@@ -99,7 +151,8 @@ export default function(component) {
   viewport.addEventListener("pointerdown", event => {
     if (
       event.target.closest(".ez-word") ||
-      event.target.closest(".ez-chord") ||
+      event.target.closest(".ez-beat-token") ||
+      event.target.closest(".ez-measure") ||
       event.target.closest(".ez-anchor") ||
       event.target.closest(".ez-linebreak") ||
       event.target.closest(".ez-sections")
@@ -171,29 +224,130 @@ export default function(component) {
     });
   }
 
-  beats.forEach((beat, index) => {
+  function rawBeatValue(index) {
     const key = String(index);
-    const node = document.createElement("span");
-    node.className = "ez-chord";
-    node.style.left = xFor(beat.start) + "px";
+    if (Object.prototype.hasOwnProperty.call(editorial.chord_overrides, key)) {
+      return String(editorial.chord_overrides[key] || ".").trim() || ".";
+    }
+    return String(beats[index]?.chord || ".").trim() || ".";
+  }
 
-    const current = () => String(
-      editorial.chord_overrides[key] ?? beat.chord ?? "."
+  function detectedBeatValue(index) {
+    return String(beats[index]?.chord || ".").trim() || ".";
+  }
+
+  function baselineBeatToken(index, numerator) {
+    const current = detectedBeatValue(index);
+    const position = index % numerator;
+
+    if (current === "." || current.toLowerCase() === "n") {
+      return ".";
+    }
+
+    if (position === 0 || index === 0) {
+      return current;
+    }
+
+    const previous = detectedBeatValue(index - 1);
+    if (previous === current) {
+      return "-";
+    }
+
+    return current;
+  }
+
+  function displayBeatToken(index, numerator) {
+    const key = String(index);
+    if (Object.prototype.hasOwnProperty.call(editorial.chord_overrides, key)) {
+      return String(editorial.chord_overrides[key] || ".").trim() || ".";
+    }
+    return baselineBeatToken(index, numerator);
+  }
+
+  function setBeatToken(index, text, numerator) {
+    const key = String(index);
+    const clean = String(text || "").trim() || ".";
+    const baseline = baselineBeatToken(index, numerator);
+
+    if (clean === baseline) {
+      delete editorial.chord_overrides[key];
+    } else {
+      editorial.chord_overrides[key] = clean;
+    }
+  }
+
+  function renderChordMeasures() {
+    chordTrack.querySelectorAll(".ez-measure").forEach(node => node.remove());
+
+    const meter = currentMeter();
+    const numerator = meter.numerator;
+
+    for (let measureStart = 0; measureStart < beats.length; measureStart += numerator) {
+      const measureEnd = Math.min(beats.length, measureStart + numerator);
+      const firstBeat = beats[measureStart];
+      if (!firstBeat) continue;
+
+      const measure = document.createElement("span");
+      measure.className = "ez-measure";
+      measure.dataset.measureStart = String(measureStart);
+      measure.style.left = xFor(firstBeat.start) + "px";
+      measure.title = `${meter.text} · beats ${measureStart + 1}-${measureEnd}`;
+
+      for (let index = measureStart; index < measureEnd; index += 1) {
+        const token = document.createElement("span");
+        token.className = "ez-beat-token";
+        token.dataset.beatIndex = String(index);
+
+        const current = () => displayBeatToken(index, numerator);
+        token.textContent = current();
+        token.title = `Beat ${index - measureStart + 1}/${numerator} · double-clic = modifier`;
+
+        startInlineEdit(token, current, text => {
+          setBeatToken(index, text, numerator);
+        });
+
+        measure.appendChild(token);
+      }
+
+      chordTrack.appendChild(measure);
+    }
+  }
+
+  function commitMeterInput() {
+    if (!meterInput) return;
+
+    const parsed = parseMeter(meterInput.value);
+    if (!parsed) {
+      meterInput.classList.add("invalid");
+      return;
+    }
+
+    const detected = parseMeter(detectedMeter)?.text || "4/4";
+    editorial.time_signature_override = (
+      parsed.text === detected ? "" : parsed.text
     );
 
-    node.textContent = current();
+    refreshMeterControl();
+    renderChordMeasures();
+    emit();
+  }
 
-    startInlineEdit(node, current, text => {
-      const detected = String(beat.chord || ".");
-      if (text === detected) {
-        delete editorial.chord_overrides[key];
-      } else {
-        editorial.chord_overrides[key] = text;
-      }
-    });
-
-    chordTrack.appendChild(node);
+  meterInput?.addEventListener("keydown", event => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      meterInput.blur();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      refreshMeterControl();
+      meterInput.blur();
+    }
   });
+
+  meterInput?.addEventListener("blur", commitMeterInput);
+
+  refreshMeterControl();
+  renderChordMeasures();
+
 
   const breakSet = new Set(
     (editorial.line_break_after_lead || []).map(Number)
