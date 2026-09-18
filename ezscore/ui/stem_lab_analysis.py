@@ -53,7 +53,7 @@ from ezscore.analysis.stem_midi import (
 )
 
 from ezscore.midi.stem_sync_player import render_stem_midi_sync_player
-from ezscore.ui.chords_lyrics_view import render_chords_lyrics_view
+from ezscore.ui.chords_lyrics_editor import render_chords_lyrics_editor
 from ezscore.player.stem_webaudio import (
     ffmpeg_available as _stem_ffmpeg_available,
     make_browser_preview as _make_browser_preview,
@@ -973,10 +973,12 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
             )
             tab_text, tab_words = st.tabs(["Paroles + accords", "Mots horodatés"])
             with tab_text:
-                render_chords_lyrics_view(
+                render_chords_lyrics_editor(
+                    stem_module=__import__(
+                        "ezscore.ui.stem_lab_analysis",
+                        fromlist=["*"],
+                    ),
                     audio_hash=audio_hash,
-                    speech=speech,
-                    work_dir=_work_dir(audio_hash),
                 )
             with tab_words:
                 st.dataframe(
