@@ -8,7 +8,7 @@ def _install_karaoke_patch() -> None:
         import shutil
         import subprocess
 
-        from ezscore.player.karaoke_stem_webaudio_r12c import (
+        from ezscore.player.analysis_truth_player import (
             render_player as _karaoke_player,
         )
 
@@ -197,6 +197,20 @@ def _install_inline_editor_patch() -> None:
         try:
             import streamlit as st
             st.error(f"Éditeur timeline indisponible : {exc}")
+        except Exception:
+            pass
+
+
+def _install_analysis_reanalysis_controls() -> None:
+    """Keep all re-analysis actions on the Analyse surface."""
+    try:
+        from ezscore.ui import stem_lab_analysis as _stem_lab
+        from ezscore.ui.analysis_reanalysis_controls import install
+        install(_stem_lab)
+    except Exception as exc:
+        try:
+            import streamlit as st
+            st.error("Commandes de réanalyse indisponibles : " + str(exc))
         except Exception:
             pass
 
@@ -485,8 +499,7 @@ _install_karaoke_patch()
 _install_karaoke_word_layout_patch()
 _install_intro_rhythm_fusion_patch()
 _install_analysis_lifecycle_patch()
-_install_editorial_recovery_patch()
-_install_inline_editor_patch()
+_install_analysis_reanalysis_controls()
 _install_catalog_home_patch()
 _install_groups_navigation_patch()
 _install_persisted_analysis_r5_10_patch()
