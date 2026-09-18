@@ -20,10 +20,12 @@ from ezscore.guitar import (
     svg as guitar_svg,
 )
 from ezscore.player import karaoke_stem_webaudio as _base
+from ezscore.player.media_metadata import duration_seconds
 
 
 _AUDIO_HASH_BY_STORAGE_KEY: dict[str, str] = {}
 _PREVIEW_DIR_BY_STORAGE_KEY: dict[str, Path] = {}
+_MEDIA_DURATION_BY_STORAGE_KEY: dict[str, float] = {}
 
 
 def _replace_once(source: str, old: str, new: str, label: str) -> str:
@@ -925,7 +927,24 @@ _JS = _replace_once(
     _JS,
     """  async function ensureReady() {
 """,
-    r"""  function primeSeekMetadata() {
+    r"""  function applySeekDuration(value) {
+    const parsed = Number(value || 0);
+    if (!Number.isFinite(parsed) || parsed <= 0) return false;
+
+    duration = parsed;
+    seek.max = String(Math.max(.001, duration));
+    seek.value = String(Math.max(0, Math.min(duration, position)));
+    timeLabel.textContent = fmt(position) + " / " + fmt(duration);
+    return true;
+  }
+
+  function primeSeekMetadata() {
+    // Primary source: duration measured server-side with ffprobe.
+    // This avoids browser/network metadata differences (notably Edge online).
+    const serverDuration = Number(data.media_duration || 0);
+    applySeekDuration(serverDuration);
+
+    // Browser metadata remains a secondary refinement/fallback.
     const original = defs.find(item => item.name === "original") || defs[0];
     const url = String(original?.url || "");
     if (!url) return;
@@ -935,13 +954,7 @@ _JS = _replace_once(
     metadataMedia.src = url;
 
     const accept = () => {
-      const value = Number(metadataMedia?.duration || 0);
-      if (!Number.isFinite(value) || value <= 0) return;
-
-      duration = value;
-      seek.max = String(Math.max(.001, duration));
-      seek.value = String(Math.max(0, Math.min(duration, position)));
-      timeLabel.textContent = fmt(position) + " / " + fmt(duration);
+      applySeekDuration(Number(metadataMedia?.duration || 0));
     };
 
     metadataMedia.addEventListener("loadedmetadata", accept, {once:true});
@@ -1023,6 +1036,9 @@ def _component_with_r12c_data(*, data: dict[str, Any], **kwargs):
     payload = dict(data or {})
     storage_key = str(payload.get("storage_key", "") or "")
     audio_hash = _AUDIO_HASH_BY_STORAGE_KEY.get(storage_key, "")
+    payload["media_duration"] = float(
+        _MEDIA_DURATION_BY_STORAGE_KEY.get(storage_key, 0.0) or 0.0
+    )
 
     # Non-regression guard: Chœurs / vocalises are persisted independently.
     # If the base render yields an empty lane, reconstruct it from the cached
@@ -1085,6 +1101,7 @@ def render_player(
     storage_key = str(key)
     _AUDIO_HASH_BY_STORAGE_KEY[storage_key] = preview_dir.parent.name
     _PREVIEW_DIR_BY_STORAGE_KEY[storage_key] = Path(preview_dir)
+    _MEDIA_DURATION_BY_STORAGE_KEY[storage_key] = duration_seconds(Path(source))
     return _base.render_player(
         source,
         stems,
