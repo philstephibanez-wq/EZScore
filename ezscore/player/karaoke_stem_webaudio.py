@@ -1277,6 +1277,10 @@ export default function(component) {
     return {wrap,slider,renderValue};
   }
 
+  // Streamlit Components v2 can re-run this JS against the same DOM node
+  // after st.rerun(). Clear dynamic mixer rows before rebuilding them.
+  tracksNode.innerHTML="";
+
   const rowControls=[];
   defs.forEach((def,index) => {
     const row=document.createElement("div");
