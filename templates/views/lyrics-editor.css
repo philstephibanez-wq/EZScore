@@ -235,32 +235,52 @@
 
 .ez-linebreak{
   position:absolute;
-  top:42px;
-  width:16px;
-  height:24px;
-  padding:0;
-  border:0;
-  border-radius:3px;
-  background:transparent;
-  color:color-mix(in srgb,var(--st-text-color) 32%,transparent);
-  font-family:Consolas,monospace;
-  font-size:19px;
-  font-weight:800;
+  top:40px;
+  transform:translateX(-1px);
+  min-width:25px;
+  height:26px;
+  padding:0 5px 1px;
+  border:1px solid color-mix(in srgb,#ffcf5a 52%,transparent);
+  border-radius:6px;
+  background:color-mix(in srgb,#ffcf5a 11%,#171a20);
+  color:#ffcf5a;
+  font-family:Arial,sans-serif;
+  font-size:18px;
+  font-weight:900;
   line-height:22px;
-  cursor:pointer;
-  opacity:.62;
+  cursor:grab;
+  opacity:.94;
+  z-index:12;
+  user-select:none;
 }
 
 .ez-linebreak:hover{
   opacity:1;
-  color:#ffcf5a;
-  background:color-mix(in srgb,#ffcf5a 8%,transparent);
+  border-color:#ffe08a;
+  background:color-mix(in srgb,#ffcf5a 18%,#171a20);
+  box-shadow:0 0 0 1px color-mix(in srgb,#ffcf5a 18%,transparent);
 }
 
-.ez-linebreak.active{
-  opacity:1;
-  color:#ffcf5a;
-  background:color-mix(in srgb,#ffcf5a 10%,transparent);
+.ez-linebreak.dragging{
+  cursor:grabbing;
+  border-color:#fff0b2;
+  background:color-mix(in srgb,#ffcf5a 28%,#171a20);
+  z-index:30;
+}
+
+.ez-linebreak-drag-label{
+  position:absolute;
+  left:50%;
+  top:-21px;
+  transform:translateX(-50%);
+  padding:1px 5px;
+  border-radius:4px;
+  background:#19170d;
+  color:#ffe08a;
+  font-size:9px;
+  font-weight:700;
+  white-space:nowrap;
+  pointer-events:none;
 }
 
 .ez-pending-anchor{

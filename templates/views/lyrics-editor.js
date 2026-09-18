@@ -199,6 +199,8 @@ export default function(component) {
     (editorial.line_break_after_lead || []).map(Number)
   );
 
+  const leadNodes = [];
+
   lead.forEach((word, index) => {
     const key = String(index);
     const node = document.createElement("span");
@@ -220,32 +222,197 @@ export default function(component) {
     });
 
     leadTrack.appendChild(node);
+    leadNodes.push(node);
+  });
 
-    if (index < lead.length - 1) {
-      const marker = document.createElement("button");
-      marker.type = "button";
-      marker.className = "ez-linebreak";
-      marker.textContent = "|";
-      marker.title = "Saut de ligne visuel après ce mot";
-      marker.style.left = (xFor(word.end) + 2) + "px";
-      marker.classList.toggle("active", breakSet.has(index));
+  function wordRenderedEndX(index) {
+    const word = lead[index];
+    const node = leadNodes[index];
+    if (!word || !node) return 0;
 
-      marker.addEventListener("click", event => {
-        event.stopPropagation();
+    return (
+      xFor(word.start)
+      + node.getBoundingClientRect().width
+      + 6
+    );
+  }
 
-        if (breakSet.has(index)) {
-          breakSet.delete(index);
-        } else {
-          breakSet.add(index);
-        }
+  function nearestLeadWordByX(rawX) {
+    if (!lead.length) return -1;
 
-        editorial.line_break_after_lead = [...breakSet].sort((a, b) => a - b);
-        marker.classList.toggle("active", breakSet.has(index));
-        emit();
-      });
+    let bestIndex = 0;
+    let bestDistance = Infinity;
 
-      leadTrack.appendChild(marker);
+    lead.forEach((word, index) => {
+      if (index >= lead.length - 1) return;
+
+      const targetX = wordRenderedEndX(index);
+      const distance = Math.abs(targetX - rawX);
+
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestIndex = index;
+      }
+    });
+
+    return bestIndex;
+  }
+
+  function syncBreakSet() {
+    editorial.line_break_after_lead = [...breakSet].sort((a, b) => a - b);
+  }
+
+  function makeLineBreakNode(index) {
+    if (
+      index < 0
+      || index >= lead.length - 1
+      || leadTrack.querySelector(`[data-linebreak-index="${index}"]`)
+    ) {
+      return;
     }
+
+    const marker = document.createElement("button");
+    marker.type = "button";
+    marker.className = "ez-linebreak";
+    marker.textContent = "↵";
+    marker.title = (
+      "Saut de ligne visuel · clic droit + glisser = déplacer · "
+      + "Suppr = supprimer"
+    );
+    marker.dataset.linebreakIndex = String(index);
+    marker.style.left = wordRenderedEndX(index) + "px";
+    marker.tabIndex = 0;
+
+    marker.addEventListener("click", event => {
+      event.stopPropagation();
+      marker.focus();
+    });
+
+    marker.addEventListener("keydown", event => {
+      if (event.key !== "Delete") return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const currentIndex = Number(marker.dataset.linebreakIndex);
+      breakSet.delete(currentIndex);
+      syncBreakSet();
+      marker.remove();
+      emit();
+    });
+
+    marker.addEventListener("contextmenu", event => {
+      event.preventDefault();
+    });
+
+    let breakDrag = null;
+
+    marker.addEventListener("pointerdown", event => {
+      if (event.button !== 2) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      breakDrag = {
+        pointerId: event.pointerId,
+        originalIndex: Number(marker.dataset.linebreakIndex),
+        candidateIndex: Number(marker.dataset.linebreakIndex),
+      };
+
+      marker.classList.add("dragging");
+
+      const dragLabel = document.createElement("span");
+      dragLabel.className = "ez-linebreak-drag-label";
+      dragLabel.textContent = `↵ après ${lead[breakDrag.originalIndex].text}`;
+      marker.appendChild(dragLabel);
+      breakDrag.label = dragLabel;
+
+      marker.setPointerCapture(event.pointerId);
+    });
+
+    marker.addEventListener("pointermove", event => {
+      if (!breakDrag || event.pointerId !== breakDrag.pointerId) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const rect = leadTrack.getBoundingClientRect();
+      const rawX = Math.max(
+        0,
+        Math.min(trackWidth, event.clientX - rect.left)
+      );
+      const candidateIndex = nearestLeadWordByX(rawX);
+
+      if (candidateIndex < 0) return;
+
+      breakDrag.candidateIndex = candidateIndex;
+      marker.style.left = wordRenderedEndX(candidateIndex) + "px";
+      breakDrag.label.textContent = `↵ après ${lead[candidateIndex].text}`;
+    });
+
+    function finishBreakDrag(event) {
+      if (!breakDrag || event.pointerId !== breakDrag.pointerId) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const originalIndex = breakDrag.originalIndex;
+      const candidateIndex = breakDrag.candidateIndex;
+
+      try {
+        marker.releasePointerCapture(event.pointerId);
+      } catch (_) {}
+
+      breakDrag.label?.remove();
+      marker.classList.remove("dragging");
+
+      if (candidateIndex !== originalIndex) {
+        if (breakSet.has(candidateIndex)) {
+          marker.style.left = wordRenderedEndX(originalIndex) + "px";
+        } else {
+          breakSet.delete(originalIndex);
+          breakSet.add(candidateIndex);
+          marker.dataset.linebreakIndex = String(candidateIndex);
+          marker.style.left = wordRenderedEndX(candidateIndex) + "px";
+          syncBreakSet();
+          emit();
+        }
+      } else {
+        marker.style.left = wordRenderedEndX(originalIndex) + "px";
+      }
+
+      breakDrag = null;
+    }
+
+    marker.addEventListener("pointerup", finishBreakDrag);
+    marker.addEventListener("pointercancel", finishBreakDrag);
+
+    leadTrack.appendChild(marker);
+  }
+
+  breakSet.forEach(makeLineBreakNode);
+
+  leadTrack.addEventListener("click", event => {
+    if (
+      event.target.closest(".ez-word")
+      || event.target.closest(".ez-linebreak")
+    ) {
+      return;
+    }
+
+    const rect = leadTrack.getBoundingClientRect();
+    const rawX = Math.max(
+      0,
+      Math.min(trackWidth, event.clientX - rect.left)
+    );
+    const index = nearestLeadWordByX(rawX);
+
+    if (index < 0 || breakSet.has(index)) return;
+
+    breakSet.add(index);
+    syncBreakSet();
+    makeLineBreakNode(index);
+    emit();
   });
 
   backing.forEach((word, index) => {
