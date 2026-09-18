@@ -12,8 +12,6 @@ export default function(component) {
   const leadTrack = root.querySelector(".ez-lead");
   const backingTrack = root.querySelector(".ez-backing");
   const positionLabel = root.querySelector(".ez-position");
-  const meterInput = root.querySelector(".ez-meter-input");
-  const meterSourceLabel = root.querySelector(".ez-meter-source");
 
   const initial = data.editorial || {};
   const stateSnapshot = String(component.state?.snapshot || "");
@@ -31,7 +29,6 @@ export default function(component) {
   editorial.backing_overrides ||= {};
   editorial.line_break_after_lead ||= [];
   editorial.chord_overrides ||= {};
-  editorial.time_signature_override ||= "";
   editorial.anchors ||= [];
 
   const allEnds = [
@@ -64,7 +61,9 @@ export default function(component) {
   }
 
   const detectedMeter = String(data.detected_meter || "4/4");
-  const meterSource = String(data.meter_source || "default");
+  const analysisMeterStorageKey = String(
+    data.analysis_meter_storage_key || ""
+  );
 
   function parseMeter(value) {
     const match = String(value || "").trim().match(
@@ -79,38 +78,27 @@ export default function(component) {
     };
   }
 
+  function playerAnalyseMeter() {
+    if (!analysisMeterStorageKey) return null;
+
+    try {
+      const saved = JSON.parse(
+        localStorage.getItem(analysisMeterStorageKey) || "null"
+      );
+      return parseMeter(saved?.signature);
+    } catch (_) {
+      return null;
+    }
+  }
+
   function currentMeter() {
     return (
-      parseMeter(editorial.time_signature_override)
+      playerAnalyseMeter()
       || parseMeter(detectedMeter)
       || { text: "4/4", numerator: 4, denominator: 4 }
     );
   }
 
-  function refreshMeterControl() {
-    const meter = currentMeter();
-    if (meterInput) {
-      meterInput.value = meter.text;
-      meterInput.classList.remove("invalid");
-      meterInput.classList.toggle(
-        "overridden",
-        Boolean(editorial.time_signature_override),
-      );
-      meterInput.title = editorial.time_signature_override
-        ? `Signature éditoriale · source détectée : ${detectedMeter}`
-        : (
-            meterSource === "detected"
-              ? `Signature détectée : ${detectedMeter}`
-              : `Signature par défaut : ${detectedMeter}`
-          );
-    }
-
-    if (meterSourceLabel) {
-      meterSourceLabel.textContent = editorial.time_signature_override
-        ? "modifiée"
-        : (meterSource === "detected" ? "détectée" : "défaut");
-    }
-  }
 
   function emit() {
     component.setStateValue("snapshot", JSON.stringify(editorial));
@@ -313,41 +301,30 @@ export default function(component) {
     }
   }
 
-  function commitMeterInput() {
-    if (!meterInput) return;
+  renderChordMeasures();
 
-    const parsed = parseMeter(meterInput.value);
-    if (!parsed) {
-      meterInput.classList.add("invalid");
+  // Le player Analyse et Paroles restent montés simultanément dans les onglets.
+  // La signature du player peut donc changer sans rerender automatique ici.
+  // On relit sa valeur et on recalcule uniquement la représentation des accords.
+  let effectiveMeterText = currentMeter().text;
+
+  if (root.__ezscoreMeterPoll) {
+    clearInterval(root.__ezscoreMeterPoll);
+  }
+
+  root.__ezscoreMeterPoll = setInterval(() => {
+    if (!root.isConnected) {
+      clearInterval(root.__ezscoreMeterPoll);
+      root.__ezscoreMeterPoll = null;
       return;
     }
 
-    const detected = parseMeter(detectedMeter)?.text || "4/4";
-    editorial.time_signature_override = (
-      parsed.text === detected ? "" : parsed.text
-    );
+    const nextMeterText = currentMeter().text;
+    if (nextMeterText === effectiveMeterText) return;
 
-    refreshMeterControl();
+    effectiveMeterText = nextMeterText;
     renderChordMeasures();
-    emit();
-  }
-
-  meterInput?.addEventListener("keydown", event => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      meterInput.blur();
-    } else if (event.key === "Escape") {
-      event.preventDefault();
-      refreshMeterControl();
-      meterInput.blur();
-    }
-  });
-
-  meterInput?.addEventListener("blur", commitMeterInput);
-
-  refreshMeterControl();
-  renderChordMeasures();
-
+  }, 250);
 
   const breakSet = new Set(
     (editorial.line_break_after_lead || []).map(Number)

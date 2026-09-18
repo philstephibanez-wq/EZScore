@@ -232,6 +232,10 @@ def _render_editor(
             "beats": beats,
             "detected_meter": detected_meter,
             "meter_source": meter_source,
+            "analysis_meter_storage_key": (
+                "ezscore-karaoke-meter:"
+                f"ezstem_player_{audio_hash[:12]}_{len(lead_raw)}"
+            ),
             "editorial": persisted,
         },
         default={
@@ -256,7 +260,6 @@ def _render_editor(
         "backing_overrides",
         "line_break_after_lead",
         "chord_overrides",
-        "time_signature_override",
         "anchors",
     )
 

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -103,7 +102,6 @@ def empty_payload(lead_words, backing_words, beats) -> dict[str, Any]:
         "backing_overrides": {},
         "line_break_after_lead": [],
         "chord_overrides": {},
-        "time_signature_override": "",
         "anchors": [],
         "updated_at": "",
     }
@@ -157,20 +155,6 @@ def validate(payload, lead_words, backing_words, beats) -> dict[str, Any]:
         payload.get("chord_overrides", {}),
         len(beats),
     )
-
-    time_signature_override = str(
-        payload.get("time_signature_override", "") or ""
-    ).strip()
-    if time_signature_override:
-        match = re.fullmatch(
-            r"([1-9][0-9]?)/(1|2|4|8|16|32)",
-            time_signature_override,
-        )
-        if not match:
-            raise RuntimeError(
-                "time_signature_override: signature invalide "
-                "(exemples : 2/4, 3/4, 4/4, 6/8)."
-            )
 
     line_breaks = sorted(
         set(int(value) for value in payload.get("line_break_after_lead", []))
@@ -231,7 +215,6 @@ def validate(payload, lead_words, backing_words, beats) -> dict[str, Any]:
         "backing_overrides": backing_overrides,
         "line_break_after_lead": line_breaks,
         "chord_overrides": chord_overrides,
-        "time_signature_override": time_signature_override,
         "anchors": anchors,
         "updated_at": str(payload.get("updated_at", "") or ""),
     }

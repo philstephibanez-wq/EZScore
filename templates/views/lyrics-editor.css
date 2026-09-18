@@ -6,59 +6,10 @@
 }
 
 .ez-editor-help{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
   padding:7px 12px;
   font-size:12px;
   opacity:.82;
   border-bottom:1px solid color-mix(in srgb,var(--st-text-color) 10%,transparent);
-}
-
-.ez-meter-control{
-  display:inline-flex;
-  align-items:center;
-  gap:5px;
-  flex:0 0 auto;
-  font-size:11px;
-  font-weight:750;
-}
-
-.ez-meter-input{
-  width:44px;
-  height:24px;
-  box-sizing:border-box;
-  border:1px solid color-mix(in srgb,#4da3ff 40%,transparent);
-  border-radius:5px;
-  background:#151a21;
-  color:#b9dcff;
-  font-family:Consolas,"Courier New",monospace;
-  font-size:12px;
-  font-weight:850;
-  text-align:center;
-  outline:none;
-}
-
-.ez-meter-input:focus{
-  border-color:#85c2ff;
-  box-shadow:0 0 0 2px color-mix(in srgb,#4da3ff 14%,transparent);
-}
-
-.ez-meter-input.invalid{
-  border-color:#ff7373;
-  color:#ffb0b0;
-}
-
-.ez-meter-input.overridden{
-  color:#ffcf5a;
-  border-color:color-mix(in srgb,#ffcf5a 55%,transparent);
-}
-
-.ez-meter-source{
-  min-width:42px;
-  font-size:9px;
-  opacity:.58;
 }
 
 .ez-editor-window{
