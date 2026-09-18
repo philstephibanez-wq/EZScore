@@ -1,0 +1,434 @@
+{
+  "engine": "openai-whisper",
+  "model": "small",
+  "source": "vocals",
+  "language": "fr",
+  "words": [
+    {
+      "start": 15.28,
+      "end": 15.36,
+      "text": "vous",
+      "confidence": 0.9460875988006592
+    },
+    {
+      "start": 15.36,
+      "end": 15.68,
+      "text": "parle",
+      "confidence": 0.851618230342865
+    },
+    {
+      "start": 15.68,
+      "end": 15.92,
+      "text": "d",
+      "confidence": 0.9976898431777954
+    },
+    {
+      "start": 15.92,
+      "end": 16.08,
+      "text": "'un",
+      "confidence": 0.9870292544364929
+    },
+    {
+      "start": 16.08,
+      "end": 16.52,
+      "text": "temps",
+      "confidence": 0.8038761615753174
+    },
+    {
+      "start": 16.52,
+      "end": 16.92,
+      "text": "que",
+      "confidence": 0.8692167401313782
+    },
+    {
+      "start": 16.92,
+      "end": 17.04,
+      "text": "les",
+      "confidence": 0.9939340949058533
+    },
+    {
+      "start": 17.04,
+      "end": 17.24,
+      "text": "moins",
+      "confidence": 0.5313990116119385
+    },
+    {
+      "start": 17.24,
+      "end": 17.54,
+      "text": "de",
+      "confidence": 0.8751596212387085
+    },
+    {
+      "start": 17.54,
+      "end": 17.84,
+      "text": "20",
+      "confidence": 0.6398789286613464
+    },
+    {
+      "start": 17.84,
+      "end": 18.16,
+      "text": "ans",
+      "confidence": 0.9959456324577332
+    },
+    {
+      "start": 18.16,
+      "end": 18.44,
+      "text": "ne",
+      "confidence": 0.9765376448631287
+    },
+    {
+      "start": 18.44,
+      "end": 18.58,
+      "text": "peuvent",
+      "confidence": 0.997197151184082
+    },
+    {
+      "start": 18.58,
+      "end": 19.08,
+      "text": "pas",
+      "confidence": 0.9982417821884155
+    },
+    {
+      "start": 19.08,
+      "end": 19.84,
+      "text": "connaître.",
+      "confidence": 0.9635016024112701
+    },
+    {
+      "start": 20.98,
+      "end": 21.62,
+      "text": "Mon",
+      "confidence": 0.9403762817382812
+    },
+    {
+      "start": 21.62,
+      "end": 21.96,
+      "text": "marge",
+      "confidence": 0.30765989422798157
+    },
+    {
+      "start": 21.96,
+      "end": 22.16,
+      "text": "trans",
+      "confidence": 0.6056710481643677
+    },
+    {
+      "start": 22.62,
+      "end": 23.18,
+      "text": "là,",
+      "confidence": 0.36838415265083313
+    },
+    {
+      "start": 24.36,
+      "end": 25.12,
+      "text": "accroché",
+      "confidence": 0.8578250209490458
+    },
+    {
+      "start": 25.12,
+      "end": 25.32,
+      "text": "des",
+      "confidence": 0.9356921315193176
+    },
+    {
+      "start": 25.32,
+      "end": 25.92,
+      "text": "lillages,",
+      "confidence": 0.6397304236888885
+    },
+    {
+      "start": 52.64,
+      "end": 54.0,
+      "text": "brève,",
+      "confidence": 0.47872985899448395
+    },
+    {
+      "start": 55.16,
+      "end": 56.06,
+      "text": "la",
+      "confidence": 0.6557519435882568
+    },
+    {
+      "start": 56.06,
+      "end": 56.86,
+      "text": "brève,",
+      "confidence": 0.9971000850200653
+    },
+    {
+      "start": 57.9,
+      "end": 58.28,
+      "text": "nous",
+      "confidence": 0.8709205985069275
+    },
+    {
+      "start": 58.28,
+      "end": 58.76,
+      "text": "deux",
+      "confidence": 0.6008787155151367
+    },
+    {
+      "start": 58.76,
+      "end": 60.04,
+      "text": "mangeons",
+      "confidence": 0.5463524907827377
+    },
+    {
+      "start": 60.04,
+      "end": 60.76,
+      "text": "qu",
+      "confidence": 0.8870266079902649
+    },
+    {
+      "start": 60.76,
+      "end": 61.04,
+      "text": "'un",
+      "confidence": 0.990972101688385
+    },
+    {
+      "start": 61.04,
+      "end": 61.54,
+      "text": "jour",
+      "confidence": 0.9927002787590027
+    },
+    {
+      "start": 61.54,
+      "end": 62.38,
+      "text": "sur",
+      "confidence": 0.9567132592201233
+    },
+    {
+      "start": 62.38,
+      "end": 62.9,
+      "text": "deux.",
+      "confidence": 0.9896738529205322
+    },
+    {
+      "start": 65.6,
+      "end": 66.52,
+      "text": "Dans",
+      "confidence": 0.9559482932090759
+    },
+    {
+      "start": 66.52,
+      "end": 66.64,
+      "text": "les",
+      "confidence": 0.9579938650131226
+    },
+    {
+      "start": 66.64,
+      "end": 66.88,
+      "text": "cafés",
+      "confidence": 0.938596099615097
+    },
+    {
+      "start": 66.88,
+      "end": 67.38,
+      "text": "voisins,",
+      "confidence": 0.9945822656154633
+    },
+    {
+      "start": 67.74,
+      "end": 67.92,
+      "text": "nous",
+      "confidence": 0.9930216670036316
+    },
+    {
+      "start": 67.92,
+      "end": 68.26,
+      "text": "étions",
+      "confidence": 0.990689605474472
+    },
+    {
+      "start": 68.26,
+      "end": 68.8,
+      "text": "quelques",
+      "confidence": 0.9620572328567505
+    },
+    {
+      "start": 68.8,
+      "end": 69.22,
+      "text": "-uns",
+      "confidence": 0.9253032505512238
+    },
+    {
+      "start": 69.22,
+      "end": 69.48,
+      "text": "qui",
+      "confidence": 0.9577854871749878
+    },
+    {
+      "start": 69.48,
+      "end": 70.02,
+      "text": "attendions",
+      "confidence": 0.9876451790332794
+    },
+    {
+      "start": 70.02,
+      "end": 70.2,
+      "text": "la",
+      "confidence": 0.9785779714584351
+    },
+    {
+      "start": 70.2,
+      "end": 70.66,
+      "text": "gloire,",
+      "confidence": 0.9893963038921356
+    },
+    {
+      "start": 71.78,
+      "end": 72.44,
+      "text": "et",
+      "confidence": 0.7668046951293945
+    },
+    {
+      "start": 72.44,
+      "end": 72.76,
+      "text": "bien",
+      "confidence": 0.989011287689209
+    },
+    {
+      "start": 72.76,
+      "end": 72.98,
+      "text": "que",
+      "confidence": 0.9635787010192871
+    },
+    {
+      "start": 72.98,
+      "end": 74.88,
+      "text": "miséreux.",
+      "confidence": 0.9092520028352737
+    },
+    {
+      "start": 75.04,
+      "end": 75.58,
+      "text": "Avec",
+      "confidence": 0.9869193434715271
+    },
+    {
+      "start": 75.58,
+      "end": 75.84,
+      "text": "le",
+      "confidence": 0.9636649489402771
+    },
+    {
+      "start": 75.84,
+      "end": 76.28,
+      "text": "ventre",
+      "confidence": 0.9486396014690399
+    },
+    {
+      "start": 76.28,
+      "end": 76.74,
+      "text": "creux,",
+      "confidence": 0.595526248216629
+    },
+    {
+      "start": 76.9,
+      "end": 76.96,
+      "text": "une",
+      "confidence": 0.45095208287239075
+    },
+    {
+      "start": 76.96,
+      "end": 77.34,
+      "text": "session",
+      "confidence": 0.9143744111061096
+    },
+    {
+      "start": 77.56,
+      "end": 78.44,
+      "text": "'hydroirée,",
+      "confidence": 0.7305667877197266
+    },
+    {
+      "start": 78.64,
+      "end": 78.8,
+      "text": "quand",
+      "confidence": 0.5744619369506836
+    },
+    {
+      "start": 78.8,
+      "end": 79.12,
+      "text": "quelques",
+      "confidence": 0.8101761341094971
+    },
+    {
+      "start": 79.12,
+      "end": 79.66,
+      "text": "bistros",
+      "confidence": 0.6690117716789246
+    },
+    {
+      "start": 79.66,
+      "end": 80.2,
+      "text": "contre",
+      "confidence": 0.7256527543067932
+    },
+    {
+      "start": 80.2,
+      "end": 80.38,
+      "text": "un",
+      "confidence": 0.9416402578353882
+    },
+    {
+      "start": 80.38,
+      "end": 80.5,
+      "text": "mort",
+      "confidence": 0.9044682383537292
+    },
+    {
+      "start": 80.5,
+      "end": 80.64,
+      "text": "au",
+      "confidence": 0.4933597147464752
+    },
+    {
+      "start": 80.64,
+      "end": 80.92,
+      "text": "bâcho,",
+      "confidence": 0.6351605753103892
+    },
+    {
+      "start": 207.82,
+      "end": 210.04,
+      "text": "Ça",
+      "confidence": 0.46863698959350586
+    },
+    {
+      "start": 210.04,
+      "end": 210.18,
+      "text": "ne",
+      "confidence": 0.8979443907737732
+    },
+    {
+      "start": 210.18,
+      "end": 210.26,
+      "text": "veut",
+      "confidence": 0.955670952796936
+    },
+    {
+      "start": 210.26,
+      "end": 210.96,
+      "text": "plus",
+      "confidence": 0.9831548929214478
+    },
+    {
+      "start": 210.96,
+      "end": 212.46,
+      "text": "réunir",
+      "confidence": 0.5126392891009649
+    },
+    {
+      "start": 212.46,
+      "end": 213.58,
+      "text": "du",
+      "confidence": 0.9442935585975647
+    },
+    {
+      "start": 213.58,
+      "end": 213.94,
+      "text": "tout.",
+      "confidence": 0.9985085129737854
+    }
+  ]
+}

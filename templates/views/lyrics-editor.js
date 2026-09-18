@@ -744,8 +744,16 @@ export default function(component) {
     scheduleWordReflow();
   });
 
-  root.__ezscoreWordResizeObserver.observe(root);
+  // In Streamlit Bidi components `root` can be a ShadowRoot/DocumentFragment,
+  // not necessarily an Element. ResizeObserver.observe() only accepts Element.
+  // The viewport is always the concrete layout element we need to watch.
   root.__ezscoreWordResizeObserver.observe(viewport);
+
+  // If the component root is a ShadowRoot, its host is an Element and can be
+  // observed safely as an additional visibility/size trigger.
+  if (root?.host instanceof Element) {
+    root.__ezscoreWordResizeObserver.observe(root.host);
+  }
 
   // Inline text edits change the measured word width.
   const wordMutationObserver = new MutationObserver(() => {
