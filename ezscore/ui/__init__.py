@@ -4,10 +4,95 @@
 def _install_karaoke_patch() -> None:
     try:
         from ezscore.ui import stem_lab_analysis as _stem_lab
+        from pathlib import Path
+        import shutil
+        import subprocess
+
         from ezscore.player.karaoke_stem_webaudio_r12c import (
             render_player as _karaoke_player,
         )
-        _stem_lab._render_stem_player = _karaoke_player
+
+        _preview_probe_cache = {}
+
+        def _preview_signature(path: Path):
+            try:
+                stat = path.stat()
+                return (str(path), int(stat.st_size), int(stat.st_mtime_ns))
+            except OSError:
+                return None
+
+        def _preview_is_valid(path: Path) -> bool:
+            signature = _preview_signature(path)
+            if signature is None:
+                return False
+            if signature in _preview_probe_cache:
+                return bool(_preview_probe_cache[signature])
+
+            ffprobe = shutil.which("ffprobe")
+            if not ffprobe:
+                # No new hard dependency: let the already validated player run.
+                _preview_probe_cache[signature] = True
+                return True
+
+            result = subprocess.run(
+                [
+                    ffprobe,
+                    "-v", "error",
+                    "-show_entries", "format=duration",
+                    "-of", "default=noprint_wrappers=1:nokey=1",
+                    str(path),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
+                timeout=8,
+            )
+            try:
+                duration = float((result.stdout or "").strip())
+            except (TypeError, ValueError):
+                duration = 0.0
+
+            valid = result.returncode == 0 and duration > 0.05
+            _preview_probe_cache[signature] = valid
+            return valid
+
+        def _karaoke_player_guarded(
+            source,
+            stems,
+            *,
+            preview_dir,
+            key,
+            words=None,
+        ):
+            preview_path = Path(preview_dir)
+            repaired = []
+
+            if preview_path.is_dir():
+                for preview in preview_path.glob("*.browser64.mp3"):
+                    try:
+                        if preview.is_file() and not _preview_is_valid(preview):
+                            repaired.append(preview.name)
+                            preview.unlink()
+                    except (OSError, subprocess.SubprocessError):
+                        # Never break the validated player for a diagnostic probe.
+                        pass
+
+            if repaired:
+                st.warning(
+                    "Pré-écoute navigateur invalide détectée et reconstruite : "
+                    + ", ".join(repaired)
+                )
+
+            return _karaoke_player(
+                source,
+                stems,
+                preview_dir=preview_dir,
+                key=key,
+                words=words,
+            )
+
+        _stem_lab._render_stem_player = _karaoke_player_guarded
     except Exception as exc:
         try:
             import streamlit as st
@@ -204,6 +289,7 @@ def _install_groups_navigation_patch() -> None:
                 can_back as nav_can_back,
                 current_state as nav_current_state,
                 open_groups as nav_open_groups,
+                open_playlists as nav_open_playlists,
                 open_repertoire as nav_open_repertoire,
                 previous_route as nav_previous_route,
             )
@@ -232,6 +318,15 @@ def _install_groups_navigation_patch() -> None:
                         width="stretch",
                     ):
                         open_groups()
+                    if original_sidebar_button(
+                        t(
+                            "nav.playlists",
+                            domain="catalog",
+                        ),
+                        key="shell_playlists",
+                        width="stretch",
+                    ):
+                        nav_open_playlists()
                 return clicked
 
             def patched_button(*args, **kwargs):
@@ -251,6 +346,15 @@ def _install_groups_navigation_patch() -> None:
                         width="stretch",
                     ):
                         open_groups()
+                    if original_button(
+                        t(
+                            "nav.playlists",
+                            domain="catalog",
+                        ),
+                        key="shell_playlists_compact",
+                        width="stretch",
+                    ):
+                        nav_open_playlists()
                 return clicked
 
             st.sidebar.button = patched_sidebar_button

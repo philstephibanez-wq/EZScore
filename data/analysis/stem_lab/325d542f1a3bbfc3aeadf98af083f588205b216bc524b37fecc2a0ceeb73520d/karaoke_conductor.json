@@ -1,0 +1,2548 @@
+{
+  "version": 1,
+  "tempo": 123.046875,
+  "beats": [
+    {
+      "index": 0,
+      "start": 25.56517,
+      "end": 26.052789,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 1,
+      "start": 26.052789,
+      "end": 26.540408,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 2,
+      "start": 26.540408,
+      "end": 27.004807,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.699414
+    },
+    {
+      "index": 3,
+      "start": 27.004807,
+      "end": 27.492426,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.912993
+    },
+    {
+      "index": 4,
+      "start": 27.492426,
+      "end": 27.980045,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 5,
+      "start": 27.980045,
+      "end": 28.444444,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 6,
+      "start": 28.444444,
+      "end": 28.932063,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 7,
+      "start": 28.932063,
+      "end": 29.419683,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 8,
+      "start": 29.419683,
+      "end": 29.907302,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 9,
+      "start": 29.907302,
+      "end": 30.371701,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 10,
+      "start": 30.371701,
+      "end": 30.85932,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 11,
+      "start": 30.85932,
+      "end": 31.346939,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 12,
+      "start": 31.346939,
+      "end": 31.834558,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 13,
+      "start": 31.834558,
+      "end": 32.298957,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 14,
+      "start": 32.298957,
+      "end": 32.786576,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.956845
+    },
+    {
+      "index": 15,
+      "start": 32.786576,
+      "end": 33.274195,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.950381
+    },
+    {
+      "index": 16,
+      "start": 33.274195,
+      "end": 33.761814,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 17,
+      "start": 33.761814,
+      "end": 34.226213,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 18,
+      "start": 34.226213,
+      "end": 34.713832,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 19,
+      "start": 34.713832,
+      "end": 35.201451,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 20,
+      "start": 35.201451,
+      "end": 35.66585,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 21,
+      "start": 35.66585,
+      "end": 36.153469,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 0.992885
+    },
+    {
+      "index": 22,
+      "start": 36.153469,
+      "end": 36.641088,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 23,
+      "start": 36.641088,
+      "end": 37.128707,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 24,
+      "start": 37.128707,
+      "end": 37.593107,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 25,
+      "start": 37.593107,
+      "end": 38.080726,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 26,
+      "start": 38.080726,
+      "end": 38.568345,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 27,
+      "start": 38.568345,
+      "end": 39.032744,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 28,
+      "start": 39.032744,
+      "end": 39.520363,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 29,
+      "start": 39.520363,
+      "end": 39.984762,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 30,
+      "start": 39.984762,
+      "end": 40.472381,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.907227
+    },
+    {
+      "index": 31,
+      "start": 40.472381,
+      "end": 40.96,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.81543
+    },
+    {
+      "index": 32,
+      "start": 40.96,
+      "end": 41.447619,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 33,
+      "start": 41.447619,
+      "end": 41.912018,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 34,
+      "start": 41.912018,
+      "end": 42.399637,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 35,
+      "start": 42.399637,
+      "end": 42.887256,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 36,
+      "start": 42.887256,
+      "end": 43.374875,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 37,
+      "start": 43.374875,
+      "end": 43.839274,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 38,
+      "start": 43.839274,
+      "end": 44.326893,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 39,
+      "start": 44.326893,
+      "end": 44.814512,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 40,
+      "start": 44.814512,
+      "end": 45.302132,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 41,
+      "start": 45.302132,
+      "end": 45.789751,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 0.959496
+    },
+    {
+      "index": 42,
+      "start": 45.789751,
+      "end": 46.30059,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 43,
+      "start": 46.30059,
+      "end": 46.764989,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.860059
+    },
+    {
+      "index": 44,
+      "start": 46.764989,
+      "end": 47.252608,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 45,
+      "start": 47.252608,
+      "end": 47.717007,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 46,
+      "start": 47.717007,
+      "end": 48.204626,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.850307
+    },
+    {
+      "index": 47,
+      "start": 48.204626,
+      "end": 48.669025,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 48,
+      "start": 48.669025,
+      "end": 49.179864,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 49,
+      "start": 49.179864,
+      "end": 49.644263,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 50,
+      "start": 49.644263,
+      "end": 50.108662,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 51,
+      "start": 50.108662,
+      "end": 50.573061,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 52,
+      "start": 50.573061,
+      "end": 51.0839,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 53,
+      "start": 51.0839,
+      "end": 51.548299,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 54,
+      "start": 51.548299,
+      "end": 52.035918,
+      "chord": "A",
+      "raw_chord": "A:maj",
+      "overlap": 0.996512
+    },
+    {
+      "index": 55,
+      "start": 52.035918,
+      "end": 52.500317,
+      "chord": "A",
+      "raw_chord": "A:maj",
+      "overlap": 0.89165
+    },
+    {
+      "index": 56,
+      "start": 52.500317,
+      "end": 52.987937,
+      "chord": "Em",
+      "raw_chord": "E:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 57,
+      "start": 52.987937,
+      "end": 53.475556,
+      "chord": "Em",
+      "raw_chord": "E:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 58,
+      "start": 53.475556,
+      "end": 53.963175,
+      "chord": "Em",
+      "raw_chord": "E:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 59,
+      "start": 53.963175,
+      "end": 54.427574,
+      "chord": "Em",
+      "raw_chord": "E:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 60,
+      "start": 54.427574,
+      "end": 54.915193,
+      "chord": "Em",
+      "raw_chord": "E:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 61,
+      "start": 54.915193,
+      "end": 55.402812,
+      "chord": "Em",
+      "raw_chord": "E:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 62,
+      "start": 55.402812,
+      "end": 55.890431,
+      "chord": "Em",
+      "raw_chord": "E:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 63,
+      "start": 55.890431,
+      "end": 56.40127,
+      "chord": "Em",
+      "raw_chord": "E:min",
+      "overlap": 0.899636
+    },
+    {
+      "index": 64,
+      "start": 56.40127,
+      "end": 56.865669,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 65,
+      "start": 56.865669,
+      "end": 57.376508,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 66,
+      "start": 57.376508,
+      "end": 57.840907,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 67,
+      "start": 57.840907,
+      "end": 58.328526,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 68,
+      "start": 58.328526,
+      "end": 58.816145,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 69,
+      "start": 58.816145,
+      "end": 59.303764,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 70,
+      "start": 59.303764,
+      "end": 59.768163,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.900439
+    },
+    {
+      "index": 71,
+      "start": 59.768163,
+      "end": 60.255782,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.90611
+    },
+    {
+      "index": 72,
+      "start": 60.255782,
+      "end": 60.696961,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 73,
+      "start": 60.696961,
+      "end": 61.18458,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 0.949591
+    },
+    {
+      "index": 74,
+      "start": 61.18458,
+      "end": 61.718639,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 75,
+      "start": 61.718639,
+      "end": 62.206259,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.905134
+    },
+    {
+      "index": 76,
+      "start": 62.206259,
+      "end": 62.670658,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 77,
+      "start": 62.670658,
+      "end": 63.181497,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 78,
+      "start": 63.181497,
+      "end": 63.669116,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.859515
+    },
+    {
+      "index": 79,
+      "start": 63.669116,
+      "end": 64.156735,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.904157
+    },
+    {
+      "index": 80,
+      "start": 64.156735,
+      "end": 64.621134,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 81,
+      "start": 64.621134,
+      "end": 65.108753,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 82,
+      "start": 65.108753,
+      "end": 65.596372,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 83,
+      "start": 65.596372,
+      "end": 66.083991,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 84,
+      "start": 66.083991,
+      "end": 66.54839,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 85,
+      "start": 66.54839,
+      "end": 67.036009,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 86,
+      "start": 67.036009,
+      "end": 67.523628,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 0.520136
+    },
+    {
+      "index": 87,
+      "start": 67.523628,
+      "end": 68.011247,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 88,
+      "start": 68.011247,
+      "end": 68.498866,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 89,
+      "start": 68.498866,
+      "end": 68.963265,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 90,
+      "start": 68.963265,
+      "end": 69.450884,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 91,
+      "start": 69.450884,
+      "end": 69.938503,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 92,
+      "start": 69.938503,
+      "end": 70.426122,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 93,
+      "start": 70.426122,
+      "end": 70.890522,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 0.998877
+    },
+    {
+      "index": 94,
+      "start": 70.890522,
+      "end": 71.378141,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 95,
+      "start": 71.378141,
+      "end": 71.86576,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.865141
+    },
+    {
+      "index": 96,
+      "start": 71.86576,
+      "end": 72.353379,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 97,
+      "start": 72.353379,
+      "end": 72.840998,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 98,
+      "start": 72.840998,
+      "end": 73.328617,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 99,
+      "start": 73.328617,
+      "end": 73.816236,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 100,
+      "start": 73.816236,
+      "end": 74.280635,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 101,
+      "start": 74.280635,
+      "end": 74.768254,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 102,
+      "start": 74.768254,
+      "end": 75.255873,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 103,
+      "start": 75.255873,
+      "end": 75.743492,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 104,
+      "start": 75.743492,
+      "end": 76.254331,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 105,
+      "start": 76.254331,
+      "end": 76.71873,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 106,
+      "start": 76.71873,
+      "end": 77.206349,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 107,
+      "start": 77.206349,
+      "end": 77.717188,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 108,
+      "start": 77.717188,
+      "end": 78.158367,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 109,
+      "start": 78.158367,
+      "end": 78.669206,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 110,
+      "start": 78.669206,
+      "end": 79.156825,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.854818
+    },
+    {
+      "index": 111,
+      "start": 79.156825,
+      "end": 79.644444,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 112,
+      "start": 79.644444,
+      "end": 80.132063,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 113,
+      "start": 80.132063,
+      "end": 80.619683,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 114,
+      "start": 80.619683,
+      "end": 81.107302,
+      "chord": "A",
+      "raw_chord": "A:maj",
+      "overlap": 0.958333
+    },
+    {
+      "index": 115,
+      "start": 81.107302,
+      "end": 81.594921,
+      "chord": "A",
+      "raw_chord": "A:maj",
+      "overlap": 0.907878
+    },
+    {
+      "index": 116,
+      "start": 81.594921,
+      "end": 82.08254,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 117,
+      "start": 82.08254,
+      "end": 82.546939,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.941992
+    },
+    {
+      "index": 118,
+      "start": 82.546939,
+      "end": 83.011338,
+      "chord": "A",
+      "raw_chord": "A:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 119,
+      "start": 83.011338,
+      "end": 83.498957,
+      "chord": "A",
+      "raw_chord": "A:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 120,
+      "start": 83.498957,
+      "end": 83.986576,
+      "chord": "A",
+      "raw_chord": "A:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 121,
+      "start": 83.986576,
+      "end": 84.474195,
+      "chord": "A",
+      "raw_chord": "A:maj",
+      "overlap": 0.847842
+    },
+    {
+      "index": 122,
+      "start": 84.474195,
+      "end": 84.961814,
+      "chord": ".",
+      "raw_chord": "N",
+      "overlap": 1.0
+    },
+    {
+      "index": 123,
+      "start": 84.961814,
+      "end": 85.426213,
+      "chord": ".",
+      "raw_chord": "N",
+      "overlap": 1.0
+    },
+    {
+      "index": 124,
+      "start": 85.426213,
+      "end": 85.937052,
+      "chord": ".",
+      "raw_chord": "N",
+      "overlap": 1.0
+    },
+    {
+      "index": 125,
+      "start": 85.937052,
+      "end": 86.424671,
+      "chord": ".",
+      "raw_chord": "N",
+      "overlap": 1.0
+    },
+    {
+      "index": 126,
+      "start": 86.424671,
+      "end": 86.91229,
+      "chord": ".",
+      "raw_chord": "N",
+      "overlap": 1.0
+    },
+    {
+      "index": 127,
+      "start": 86.91229,
+      "end": 87.399909,
+      "chord": ".",
+      "raw_chord": "N",
+      "overlap": 0.754092
+    },
+    {
+      "index": 128,
+      "start": 87.399909,
+      "end": 87.864308,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 129,
+      "start": 87.864308,
+      "end": 88.375147,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 130,
+      "start": 88.375147,
+      "end": 88.839546,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 131,
+      "start": 88.839546,
+      "end": 89.327166,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 132,
+      "start": 89.327166,
+      "end": 89.814785,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 133,
+      "start": 89.814785,
+      "end": 90.302404,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 134,
+      "start": 90.302404,
+      "end": 90.766803,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 135,
+      "start": 90.766803,
+      "end": 91.254422,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 136,
+      "start": 91.254422,
+      "end": 91.718821,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 137,
+      "start": 91.718821,
+      "end": 92.20644,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 138,
+      "start": 92.20644,
+      "end": 92.694059,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 139,
+      "start": 92.694059,
+      "end": 93.158458,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 140,
+      "start": 93.158458,
+      "end": 93.646077,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 141,
+      "start": 93.646077,
+      "end": 94.133696,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 142,
+      "start": 94.133696,
+      "end": 94.621315,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 143,
+      "start": 94.621315,
+      "end": 95.108934,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 0.899647
+    },
+    {
+      "index": 144,
+      "start": 95.108934,
+      "end": 95.573333,
+      "chord": "F",
+      "raw_chord": "F:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 145,
+      "start": 95.573333,
+      "end": 96.037732,
+      "chord": "F",
+      "raw_chord": "F:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 146,
+      "start": 96.037732,
+      "end": 96.525351,
+      "chord": "F",
+      "raw_chord": "F:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 147,
+      "start": 96.525351,
+      "end": 97.012971,
+      "chord": "F",
+      "raw_chord": "F:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 148,
+      "start": 97.012971,
+      "end": 97.47737,
+      "chord": "F",
+      "raw_chord": "F:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 149,
+      "start": 97.47737,
+      "end": 97.964989,
+      "chord": "F",
+      "raw_chord": "F:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 150,
+      "start": 97.964989,
+      "end": 98.452608,
+      "chord": "F",
+      "raw_chord": "F:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 151,
+      "start": 98.452608,
+      "end": 98.940227,
+      "chord": "F",
+      "raw_chord": "F:maj",
+      "overlap": 0.896996
+    },
+    {
+      "index": 152,
+      "start": 98.940227,
+      "end": 99.404626,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 153,
+      "start": 99.404626,
+      "end": 99.915465,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 154,
+      "start": 99.915465,
+      "end": 100.379864,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 155,
+      "start": 100.379864,
+      "end": 100.867483,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 156,
+      "start": 100.867483,
+      "end": 101.331882,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 157,
+      "start": 101.331882,
+      "end": 101.842721,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 158,
+      "start": 101.842721,
+      "end": 102.30712,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 159,
+      "start": 102.30712,
+      "end": 102.794739,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 160,
+      "start": 102.794739,
+      "end": 103.282358,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 161,
+      "start": 103.282358,
+      "end": 103.769977,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 162,
+      "start": 103.769977,
+      "end": 104.257596,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 163,
+      "start": 104.257596,
+      "end": 104.745215,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 164,
+      "start": 104.745215,
+      "end": 105.232834,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 165,
+      "start": 105.232834,
+      "end": 105.720454,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 166,
+      "start": 105.720454,
+      "end": 106.208073,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 167,
+      "start": 106.208073,
+      "end": 106.695692,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 168,
+      "start": 106.695692,
+      "end": 107.183311,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 169,
+      "start": 107.183311,
+      "end": 107.64771,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 170,
+      "start": 107.64771,
+      "end": 108.158549,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 171,
+      "start": 108.158549,
+      "end": 108.646168,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 172,
+      "start": 108.646168,
+      "end": 109.110567,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 173,
+      "start": 109.110567,
+      "end": 109.621406,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 174,
+      "start": 109.621406,
+      "end": 110.085805,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 175,
+      "start": 110.085805,
+      "end": 110.596644,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 0.86954
+    },
+    {
+      "index": 176,
+      "start": 110.596644,
+      "end": 111.061043,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 177,
+      "start": 111.061043,
+      "end": 111.548662,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 178,
+      "start": 111.548662,
+      "end": 112.013061,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 179,
+      "start": 112.013061,
+      "end": 112.50068,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 180,
+      "start": 112.50068,
+      "end": 112.965079,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 181,
+      "start": 112.965079,
+      "end": 113.499138,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 182,
+      "start": 113.499138,
+      "end": 113.963537,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 183,
+      "start": 113.963537,
+      "end": 114.451156,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 0.854074
+    },
+    {
+      "index": 184,
+      "start": 114.451156,
+      "end": 114.938776,
+      "chord": "Am",
+      "raw_chord": "A:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 185,
+      "start": 114.938776,
+      "end": 115.426395,
+      "chord": "Am",
+      "raw_chord": "A:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 186,
+      "start": 115.426395,
+      "end": 115.914014,
+      "chord": "Am",
+      "raw_chord": "A:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 187,
+      "start": 115.914014,
+      "end": 116.378413,
+      "chord": "Am",
+      "raw_chord": "A:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 188,
+      "start": 116.378413,
+      "end": 116.889252,
+      "chord": "Am",
+      "raw_chord": "A:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 189,
+      "start": 116.889252,
+      "end": 117.376871,
+      "chord": "Am",
+      "raw_chord": "A:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 190,
+      "start": 117.376871,
+      "end": 117.86449,
+      "chord": "Am",
+      "raw_chord": "A:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 191,
+      "start": 117.86449,
+      "end": 118.352109,
+      "chord": "Am",
+      "raw_chord": "A:min",
+      "overlap": 0.852121
+    },
+    {
+      "index": 192,
+      "start": 118.352109,
+      "end": 118.839728,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 193,
+      "start": 118.839728,
+      "end": 119.304127,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 194,
+      "start": 119.304127,
+      "end": 119.814966,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 195,
+      "start": 119.814966,
+      "end": 120.302585,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 196,
+      "start": 120.302585,
+      "end": 120.790204,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 197,
+      "start": 120.790204,
+      "end": 121.254603,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 198,
+      "start": 121.254603,
+      "end": 121.742222,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.947917
+    },
+    {
+      "index": 199,
+      "start": 121.742222,
+      "end": 122.253061,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.856978
+    },
+    {
+      "index": 200,
+      "start": 122.253061,
+      "end": 122.71746,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 201,
+      "start": 122.71746,
+      "end": 123.205079,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 202,
+      "start": 123.205079,
+      "end": 123.692698,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.866862
+    },
+    {
+      "index": 203,
+      "start": 123.692698,
+      "end": 124.180317,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.89681
+    },
+    {
+      "index": 204,
+      "start": 124.180317,
+      "end": 124.667937,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 205,
+      "start": 124.667937,
+      "end": 125.155556,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 0.947591
+    },
+    {
+      "index": 206,
+      "start": 125.155556,
+      "end": 125.643175,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 207,
+      "start": 125.643175,
+      "end": 126.130794,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 208,
+      "start": 126.130794,
+      "end": 126.618413,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 0.858073
+    },
+    {
+      "index": 209,
+      "start": 126.618413,
+      "end": 127.106032,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 210,
+      "start": 127.106032,
+      "end": 127.593651,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 211,
+      "start": 127.593651,
+      "end": 128.08127,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 212,
+      "start": 128.08127,
+      "end": 128.545669,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 213,
+      "start": 128.545669,
+      "end": 129.033288,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 214,
+      "start": 129.033288,
+      "end": 129.520907,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 215,
+      "start": 129.520907,
+      "end": 130.031746,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 0.820401
+    },
+    {
+      "index": 216,
+      "start": 130.031746,
+      "end": 130.496145,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 217,
+      "start": 130.496145,
+      "end": 131.006984,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 218,
+      "start": 131.006984,
+      "end": 131.471383,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.950439
+    },
+    {
+      "index": 219,
+      "start": 131.471383,
+      "end": 131.959002,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.858491
+    },
+    {
+      "index": 220,
+      "start": 131.959002,
+      "end": 132.446621,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 221,
+      "start": 132.446621,
+      "end": 132.91102,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 0.997803
+    },
+    {
+      "index": 222,
+      "start": 132.91102,
+      "end": 133.421859,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 223,
+      "start": 133.421859,
+      "end": 133.909478,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.857515
+    },
+    {
+      "index": 224,
+      "start": 133.909478,
+      "end": 134.420317,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 225,
+      "start": 134.420317,
+      "end": 134.907937,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 226,
+      "start": 134.907937,
+      "end": 135.395556,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 227,
+      "start": 135.395556,
+      "end": 135.883175,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 228,
+      "start": 135.883175,
+      "end": 136.347574,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 229,
+      "start": 136.347574,
+      "end": 136.858413,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 230,
+      "start": 136.858413,
+      "end": 137.346032,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 231,
+      "start": 137.346032,
+      "end": 137.833651,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 232,
+      "start": 137.833651,
+      "end": 138.29805,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 233,
+      "start": 138.29805,
+      "end": 138.808889,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 234,
+      "start": 138.808889,
+      "end": 139.273288,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 235,
+      "start": 139.273288,
+      "end": 139.784127,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 236,
+      "start": 139.784127,
+      "end": 140.271746,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 237,
+      "start": 140.271746,
+      "end": 140.782585,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 0.99494
+    },
+    {
+      "index": 238,
+      "start": 140.782585,
+      "end": 141.246984,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 239,
+      "start": 141.246984,
+      "end": 141.734603,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 240,
+      "start": 141.734603,
+      "end": 142.199002,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 241,
+      "start": 142.199002,
+      "end": 142.686621,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 242,
+      "start": 142.686621,
+      "end": 143.17424,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 243,
+      "start": 143.17424,
+      "end": 143.661859,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 244,
+      "start": 143.661859,
+      "end": 144.172698,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 245,
+      "start": 144.172698,
+      "end": 144.660317,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 246,
+      "start": 144.660317,
+      "end": 145.124717,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 247,
+      "start": 145.124717,
+      "end": 145.612336,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.913179
+    },
+    {
+      "index": 248,
+      "start": 145.612336,
+      "end": 146.099955,
+      "chord": "Em",
+      "raw_chord": "E:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 249,
+      "start": 146.099955,
+      "end": 146.587574,
+      "chord": "Em",
+      "raw_chord": "E:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 250,
+      "start": 146.587574,
+      "end": 147.051973,
+      "chord": "Em",
+      "raw_chord": "E:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 251,
+      "start": 147.051973,
+      "end": 147.539592,
+      "chord": "Em",
+      "raw_chord": "E:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 252,
+      "start": 147.539592,
+      "end": 148.027211,
+      "chord": "Em",
+      "raw_chord": "E:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 253,
+      "start": 148.027211,
+      "end": 148.53805,
+      "chord": "Em",
+      "raw_chord": "E:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 254,
+      "start": 148.53805,
+      "end": 149.025669,
+      "chord": "Em",
+      "raw_chord": "E:min",
+      "overlap": 1.0
+    },
+    {
+      "index": 255,
+      "start": 149.025669,
+      "end": 149.513288,
+      "chord": "Em",
+      "raw_chord": "E:min",
+      "overlap": 0.993257
+    },
+    {
+      "index": 256,
+      "start": 149.513288,
+      "end": 149.977687,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 257,
+      "start": 149.977687,
+      "end": 150.488526,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 258,
+      "start": 150.488526,
+      "end": 150.976145,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 259,
+      "start": 150.976145,
+      "end": 151.486984,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 260,
+      "start": 151.486984,
+      "end": 151.951383,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 261,
+      "start": 151.951383,
+      "end": 152.462222,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 262,
+      "start": 152.462222,
+      "end": 152.926621,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 263,
+      "start": 152.926621,
+      "end": 153.41424,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 264,
+      "start": 153.41424,
+      "end": 153.925079,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 265,
+      "start": 153.925079,
+      "end": 154.389478,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 266,
+      "start": 154.389478,
+      "end": 154.877098,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.855376
+    },
+    {
+      "index": 267,
+      "start": 154.877098,
+      "end": 155.364717,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.949312
+    },
+    {
+      "index": 268,
+      "start": 155.364717,
+      "end": 155.829116,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 269,
+      "start": 155.829116,
+      "end": 156.339955,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 270,
+      "start": 156.339955,
+      "end": 156.827574,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.999907
+    },
+    {
+      "index": 271,
+      "start": 156.827574,
+      "end": 157.338413,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.963956
+    },
+    {
+      "index": 272,
+      "start": 157.338413,
+      "end": 157.802812,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 273,
+      "start": 157.802812,
+      "end": 158.290431,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 274,
+      "start": 158.290431,
+      "end": 158.77805,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 275,
+      "start": 158.77805,
+      "end": 159.265669,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 276,
+      "start": 159.265669,
+      "end": 159.753288,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 277,
+      "start": 159.753288,
+      "end": 160.240907,
+      "chord": "C",
+      "raw_chord": "C:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 278,
+      "start": 160.240907,
+      "end": 160.728526,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 0.899321
+    },
+    {
+      "index": 279,
+      "start": 160.728526,
+      "end": 161.192925,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 280,
+      "start": 161.192925,
+      "end": 161.703764,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 281,
+      "start": 161.703764,
+      "end": 162.191383,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 282,
+      "start": 162.191383,
+      "end": 162.679002,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 283,
+      "start": 162.679002,
+      "end": 163.166621,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 284,
+      "start": 163.166621,
+      "end": 163.63102,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 285,
+      "start": 163.63102,
+      "end": 164.141859,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 286,
+      "start": 164.141859,
+      "end": 164.629478,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.94229
+    },
+    {
+      "index": 287,
+      "start": 164.629478,
+      "end": 165.140317,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.862349
+    },
+    {
+      "index": 288,
+      "start": 165.140317,
+      "end": 165.627937,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 289,
+      "start": 165.627937,
+      "end": 166.092336,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 290,
+      "start": 166.092336,
+      "end": 166.579955,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 291,
+      "start": 166.579955,
+      "end": 167.067574,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 292,
+      "start": 167.067574,
+      "end": 167.578413,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 293,
+      "start": 167.578413,
+      "end": 168.042812,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 294,
+      "start": 168.042812,
+      "end": 168.530431,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 295,
+      "start": 168.530431,
+      "end": 169.01805,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 296,
+      "start": 169.01805,
+      "end": 169.505669,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 297,
+      "start": 169.505669,
+      "end": 169.993288,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 298,
+      "start": 169.993288,
+      "end": 170.480907,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.863188
+    },
+    {
+      "index": 299,
+      "start": 170.480907,
+      "end": 170.991746,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.859553
+    },
+    {
+      "index": 300,
+      "start": 170.991746,
+      "end": 171.479365,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 301,
+      "start": 171.479365,
+      "end": 171.966984,
+      "chord": "G",
+      "raw_chord": "G:maj",
+      "overlap": 0.944661
+    },
+    {
+      "index": 302,
+      "start": 171.966984,
+      "end": 172.454603,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 303,
+      "start": 172.454603,
+      "end": 172.942222,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 304,
+      "start": 172.942222,
+      "end": 173.429841,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 305,
+      "start": 173.429841,
+      "end": 173.91746,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 306,
+      "start": 173.91746,
+      "end": 174.405079,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 307,
+      "start": 174.405079,
+      "end": 174.915918,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 308,
+      "start": 174.915918,
+      "end": 175.380317,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 309,
+      "start": 175.380317,
+      "end": 175.891156,
+      "chord": "D",
+      "raw_chord": "D:maj",
+      "overlap": 0.958585
+    },
+    {
+      "index": 310,
+      "start": 175.891156,
+      "end": 176.355556,
+      "chord": "A",
+      "raw_chord": "A:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 311,
+      "start": 176.355556,
+      "end": 176.843175,
+      "chord": "A",
+      "raw_chord": "A:maj",
+      "overlap": 0.952474
+    },
+    {
+      "index": 312,
+      "start": 176.843175,
+      "end": 177.330794,
+      "chord": "E",
+      "raw_chord": "E:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 313,
+      "start": 177.330794,
+      "end": 177.795193,
+      "chord": "E",
+      "raw_chord": "E:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 314,
+      "start": 177.795193,
+      "end": 178.306032,
+      "chord": "E",
+      "raw_chord": "E:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 315,
+      "start": 178.306032,
+      "end": 178.793651,
+      "chord": "E",
+      "raw_chord": "E:maj",
+      "overlap": 1.0
+    },
+    {
+      "index": 316,
+      "start": 178.793651,
+      "end": 179.28127,
+      "chord": "E",
+      "raw_chord": "E:maj",
+      "overlap": 0.853841
+    }
+  ],
+  "rhythm_engine": "librosa-preview-fallback",
+  "harmony_engine": "lv-chordia",
+  "meter_default": {
+    "signature": "4/4",
+    "grouping": ""
+  }
+}

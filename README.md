@@ -1,74 +1,85 @@
-# EZScore — ACL + EFSM R1
+# EZScore — Playlists navigation + audio guard R1
 
-Ce lot ajoute une couche ACL centralisée et corrige le bug majeur où un morceau
-ouvert depuis **Répertoire général** pouvait être redirigé vers un ancien état
-Groupe / Playlist.
+## 1. Mes playlists dans le menu principal
 
-Architecture :
+Le menu utilisateur affiche désormais directement :
 
 ```text
-UI
-↓
-EFSM event
-↓
-ACL guard
-↓
-transition
-↓
-service / persistence
+🎵 Répertoire
+👤 Profil
+👥 Mes groupes
+🎶 Mes playlists
 ```
 
-## Correction Répertoire
-
-Deux chemins sont désormais explicites :
+`Mes playlists` ouvre l'état EFSM :
 
 ```text
-open_song_from_repertoire(...)
-open_song_from_playlist(...)
+playlists.list
 ```
 
-Depuis le Répertoire général, l'EFSM force d'abord :
+La liste est celle de `list_accessible_playlists`, donc elle regroupe :
 
 ```text
-repertoire.list
+- playlists personnelles ;
+- playlists appartenant à un groupe dont je suis membre ;
+- playlists partagées directement avec moi.
 ```
 
-et efface l'historique Groupe/Playlist avant d'ouvrir la chanson.
+Le rattachement ou non à un groupe ne change donc pas leur accessibilité depuis
+**Mes playlists**.
 
-Depuis une playlist, le parent playlist est conservé pour permettre le retour.
+## 2. Dirty Old Town / Chargement audio bloqué
 
-Le radio **Répertoire général** force également `repertoire.list` depuis tout
-état imbriqué, y compris `group.detail` et `playlist.detail`.
-
-## ACL
-
-Nouveaux modules :
+Symptôme observé :
 
 ```text
-ezscore/acl/actions.py
-ezscore/acl/policy.py
-ezscore/acl/resolver.py
-ezscore/acl/guards.py
+Chargement audio…
+0:00 / 0:00
 ```
 
-Actions préparées :
+Le lecteur R12c lui-même n'est pas modifié.
+
+Un garde très limité est installé autour de son appel. Avant le rendu, les
+fichiers déjà présents dans :
 
 ```text
-group.*
-playlist.*
-event.*
-song.*
-karaoke.join
-karaoke.host
-karaoke.transport
+browser_preview/*.browser64.mp3
 ```
 
-Les transitions EFSM sensibles `OPEN_GROUP`, `OPEN_PLAYLIST` et `OPEN_SONG`
-passent désormais par l'ACL.
+sont contrôlés avec `ffprobe`, quand `ffprobe` est disponible.
 
-La persistence existante continue aussi de vérifier les droits au niveau métier.
+Si une pré-écoute existante est non décodable ou de durée nulle :
 
-## Non-régression Analyse + Paroles
+```text
+- elle est supprimée ;
+- le moteur existant la recrée normalement via FFmpeg ;
+- un warning visible indique quel fichier a été réparé.
+```
+
+Aucun STEM, audio original, cache Whisper, accords, paroles ou timeline n'est
+supprimé.
+
+Si `ffprobe` n'est pas disponible, le contrôle est ignoré et le comportement
+R12c reste strictement celui d'avant.
+
+Le résultat des probes est mémorisé en RAM par `(path, size, mtime)` afin de ne
+pas relancer `ffprobe` à chaque rerun.
+
+## 3. Warnings LF / CRLF
+
+Les messages Git :
+
+```text
+LF will be replaced by CRLF the next time Git touches it
+```
+
+sont des avertissements de normalisation de fins de ligne sous Windows. Ce ne
+sont ni des erreurs Python, ni des erreurs Git, ni une corruption des fichiers.
+
+Ce lot ne modifie ni `.gitignore` ni `.gitattributes` pour éviter une
+normalisation massive et parasite du dépôt.
+
+## Non-régression
 
 Non modifiés / non livrés :
 
@@ -78,12 +89,14 @@ ezscore/ui/app_shell.py
 ezscore/ui/stem_lab_analysis.py
 ezscore/ui/editorial_timeline.py
 ezscore/ui/lyrics_inline_editor.py
-ezscore/player/karaoke_stem_webaudio*.py
+ezscore/player/karaoke_stem_webaudio.py
+ezscore/player/karaoke_stem_webaudio_r12c.py
 templates/views/lyrics-editor.*
 ezscore/catalog_social.py
 ```
 
-Le hook R5.10 reste présent dans `ezscore/ui/__init__.py`.
+Le wrapper R12c reste le lecteur validé. La seule intervention audio est le
+contrôle des MP3 de pré-écoute déjà générés avant de lui passer la main.
 
 ## Installation
 
@@ -91,31 +104,25 @@ Le hook R5.10 reste présent dans `ezscore/ui/__init__.py`.
 cd H:\EZScore
 
 Expand-Archive `
-  -Path "$env:USERPROFILE\Downloads\EZScore_ACL_EFSM_R1.zip" `
+  -Path "$env:USERPROFILE\Downloads\EZScore_PLAYLIST_NAV_AUDIO_GUARD_R1.zip" `
   -DestinationPath . `
   -Force
 
-python -m py_compile `
-  .\ezscore\acl\actions.py `
-  .\ezscore\acl\policy.py `
-  .\ezscore\acl\resolver.py `
-  .\ezscore\acl\guards.py `
-  .\ezscore\navigation\session_adapter.py `
-  .\ezscore\ui\catalog_home.py `
-  .\ezscore\ui\__init__.py
+python -m py_compile .\ezscore\ui\__init__.py
 
 git diff --check
 git status --short
 ```
 
-## Test prioritaire
+## Tests prioritaires
 
-1. Cliquer Répertoire.
-2. Ouvrir Aline depuis Répertoire général.
-3. Vérifier qu'elle s'ouvre et qu'aucun Groupe/Playlist ne reprend la main.
-4. Revenir Répertoire.
-5. Blues Fiber → Concert avril → Aline.
-6. Vérifier ouverture directe Analyse.
-7. Retour → Concert avril.
-8. Vérifier ordre setlist.
-9. Vérifier Aline et Dance Me dans Analyse > Paroles.
+1. Vérifier `🎶 Mes playlists` dans le menu.
+2. L'ouvrir depuis Répertoire.
+3. Vérifier les playlists personnelles ET les playlists de groupe.
+4. Ouvrir Dirty Old Town > Analyse > STEM.
+5. Cliquer Lecture.
+6. Si une preview était corrompue, vérifier le message de reconstruction.
+7. Vérifier que la durée devient non nulle et que la lecture démarre.
+8. Vérifier Aline > Analyse > Paroles.
+9. Vérifier Dance Me > Analyse > Paroles.
+10. Vérifier retour Groupe -> Playlist -> chanson -> Playlist.

@@ -98,5 +98,6 @@
   "event.concert": "Concert",
   "event.date_unknown": "Date not set",
   "event.location_unknown": "Location not set",
-  "playlist.open_song": "Open song"
+  "playlist.open_song": "Open song",
+  "nav.playlists": "🎶 My playlists"
 }
