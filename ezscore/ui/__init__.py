@@ -150,6 +150,31 @@ def _install_analysis_lifecycle_patch() -> None:
             pass
 
 
+def _install_karaoke_word_layout_patch() -> None:
+    try:
+        from ezscore.player.karaoke_word_layout import install
+        install()
+    except Exception as exc:
+        try:
+            import streamlit as st
+            st.error("Layout paroles du player indisponible : " + str(exc))
+        except Exception:
+            pass
+
+
+def _install_intro_rhythm_fusion_patch() -> None:
+    try:
+        from ezscore.ui import stem_lab_analysis as _stem_lab
+        from ezscore.ui.analysis_rhythm_patch import install
+        install(_stem_lab)
+    except Exception as exc:
+        try:
+            import streamlit as st
+            st.error("Fusion rythmique d'intro indisponible : " + str(exc))
+        except Exception:
+            pass
+
+
 def _install_inline_editor_patch() -> None:
     try:
         from ezscore.ui import stem_lab_analysis as _stem_lab
@@ -444,6 +469,8 @@ def _install_groups_navigation_patch() -> None:
 
 
 _install_karaoke_patch()
+_install_karaoke_word_layout_patch()
+_install_intro_rhythm_fusion_patch()
 _install_analysis_lifecycle_patch()
 _install_inline_editor_patch()
 _install_catalog_home_patch()

@@ -1,109 +1,53 @@
-# EZScore — Full Reanalysis R1
+# EZScore — Analysis Timeline R1
 
-Base GitHub : `a6176525896c76cf73b7614b0755847689c4011f`.
+Base GitHub vérifiée : `12f8a99ccdd2c3c4fd11873651d500a1e2e8d428` (`Jolene`).
 
-## Sémantique figée
+## Correctif 1 — mots superposés dans le player STEM
 
-### Réanalyse complète
+Correction d'affichage uniquement. Les timestamps Whisper, l'audio, les beats,
+les accords et le transport ne sont pas modifiés.
 
-Une réanalyse complète repart réellement de zéro sur tout le contenu
-musical/éditorial :
+Le player R12c conserve le même HTML/CSS et les mêmes données. La géométrie des
+labels devient anti-collision et l'interpolation visuelle continue à utiliser
+les timestamps originaux.
 
-```text
-STEMs
-browser previews
-Whisper
-accords
-structure
-MIDI
-analyses SQLite
-versions d'analyse
-workflow
-préférences d'analyse/capo
-blocs et corrections
-overlays éditoriaux
-```
+Aucune réanalyse nécessaire pour ce correctif.
 
-Les caches `data/analysis/stem_lab/<audio_hash>/` sont supprimés physiquement.
+## Correctif 2 — accords / beats d'intro
 
-Sont volontairement conservés parce que la chanson garde son identité dans le
-catalogue :
+Batterie = source primaire.
 
-```text
-audio original
-songs (titre/artiste/catalogue)
-pochette
-affectation éditeur
-user_playlist_items (playlist + ordre de setlist)
-song_ratings
-```
+Le mix original ne complète que le préfixe absent, et uniquement si :
+- les stems montrent une présence instrumentale réelle ;
+- au moins 3 beats mix forment une séquence régulière ;
+- le tempo est compatible avec la batterie ;
+- la séquence rejoint naturellement le premier beat batterie.
 
-Après purge, EZScore revient sur `Analyse` avec une analyse vierge ; le workflow
-STEM -> Paroles -> Structure -> MIDI repart donc comme après un nouvel import.
+Aucun beat n'est extrapolé ou inventé.
 
-### Suppression définitive
+Si le morceau commence par chant solo, les paroles restent horodatées mais la
+zone reste non métrique jusqu'à la première pulsation instrumentale fiable.
 
-`Supprimer définitivement la chanson` supprimait déjà :
+Une réanalyse de structure est nécessaire pour corriger une ancienne
+`structure_analysis.json`.
 
-```text
-audio original
-pochette
-toutes les lignes SQLite possédant audio_hash
-songs
-```
+## Fichiers
 
-Il manquait le cache physique d'analyse.
+Nouveaux :
+- `ezscore/player/karaoke_word_layout.py`
+- `ezscore/analysis/rhythm_intro_fusion.py`
+- `ezscore/ui/analysis_rhythm_patch.py`
 
-Ce lot enveloppe la suppression existante et supprime aussi :
+Modifié :
+- `ezscore/ui/__init__.py`
 
-```text
-data/analysis/stem_lab/<audio_hash>/
-```
-
-Ainsi une suppression suivie du réimport du même fichier ne peut plus récupérer
-un ancien Whisper/STEM/accord/MIDI par le même SHA-256.
-
-## Modularité
-
-Nouveaux modules :
-
-```text
-ezscore/analysis_lifecycle.py
-ezscore/ui/analysis_lifecycle.py
-```
-
-Template :
-
-```text
-templates/views/analysis-lifecycle.score
-```
-
-Intégration minimale :
-
-```text
-ezscore/ui/__init__.py
-```
-
-Aucune modification dans :
-
-```text
-ezscore/persistence.py
-ezscore/ui/stem_lab_analysis.py
-ezscore/ui/editorial_timeline.py
-ezscore/ui/lyrics_inline_editor.py
-players R12c
-templates/views/lyrics-editor.*
-```
-
-## Sécurité
-
-La purge DB de réanalyse est transactionnelle.
-
-Le cache est supprimé AVANT la DB. Si Windows verrouille un fichier STEM ou
-preview, la réanalyse s'arrête avant de toucher aux données SQLite.
-
-La sélection des tables à purger est générique : toute table possédant une
-colonne `audio_hash` est purgée sauf la liste blanche catalogue/social explicite.
+Non modifiés :
+- `ezscore/ui/stem_lab_analysis.py`
+- `ezscore/player/karaoke_stem_webaudio_r12c.py`
+- `ezscore/ui/editorial_timeline.py`
+- `ezscore/ui/lyrics_inline_editor.py`
+- `ezscore/analysis/rhythm_quality.py`
+- `templates/views/lyrics-editor.*`
 
 ## Installation
 
@@ -111,13 +55,14 @@ colonne `audio_hash` est purgée sauf la liste blanche catalogue/social explicit
 cd H:\EZScore
 
 Expand-Archive `
-  -Path "$env:USERPROFILE\Downloads\EZScore_FULL_REANALYSIS_R1.zip" `
+  -Path "$env:USERPROFILE\Downloads\EZScore_ANALYSIS_TIMELINE_R1.zip" `
   -DestinationPath . `
   -Force
 
 python -m py_compile `
-  .\ezscore\analysis_lifecycle.py `
-  .\ezscore\ui\analysis_lifecycle.py `
+  .\ezscore\player\karaoke_word_layout.py `
+  .\ezscore\analysis\rhythm_intro_fusion.py `
+  .\ezscore\ui\analysis_rhythm_patch.py `
   .\ezscore\ui\__init__.py
 
 git diff --check
@@ -126,14 +71,10 @@ git status --short
 
 ## Test
 
-1. Prendre une chanson analysée et présente dans une playlist.
-2. Noter sa position dans la setlist.
-3. Ouvrir Chanson > Analyse.
-4. Déplier `Réanalyse complète`.
-5. Confirmer puis lancer.
-6. Vérifier que l'analyse repart sans STEM/Paroles/Structure/MIDI.
-7. Vérifier que la chanson reste dans le Répertoire.
-8. Vérifier qu'elle reste dans la playlist à la même position.
-9. Vérifier que les anciennes corrections éditoriales ne réapparaissent pas.
-10. Tester ensuite une suppression définitive + réimport du même fichier :
-    aucun ancien cache ne doit réapparaître.
+1. Redémarrer Streamlit.
+2. Jolene > Analyse > STEM : vérifier que les mots ne se chevauchent plus.
+3. Vérifier Play/Pause/Stop/seek/vitesse/EQ.
+4. Pour l'intro : refaire la structure ou utiliser Réanalyse complète.
+5. Vérifier accords d'intro si une pulsation instrumentale fiable existe.
+6. Tester un début chant solo : pas de fausse grille avant l'accompagnement.
+7. Recontrôler Aline / Dance Me.
