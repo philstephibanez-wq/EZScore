@@ -6175,3 +6175,23 @@
 {"ts":"2026-09-18T22:05:43.234865+00:00","event":"ui.download_button","duration_ms":94.628,"status":"ok"}
 {"ts":"2026-09-18T22:05:44.301465+00:00","event":"rerun.start","section":"Répertoire"}
 {"ts":"2026-09-18T22:05:44.606208+00:00","event":"ui.download_button","section":"Répertoire","duration_ms":2.179,"status":"ok"}
+{"ts":"2026-09-18T22:09:52.488320+00:00","event":"probe.install.complete","log_file":"H:\\EZScore\\data\\logs\\ezscore_perf.log"}
+{"ts":"2026-09-18T22:09:52.491832+00:00","event":"midi.symbol.exported","exported":true}
+{"ts":"2026-09-18T22:09:52.497113+00:00","event":"rerun.start"}
+{"ts":"2026-09-18T22:09:52.902509+00:00","event":"persistence.list_song_catalog","section":"Répertoire","duration_ms":1.834,"status":"ok","result_len":9}
+{"ts":"2026-09-18T22:09:55.884818+00:00","event":"rerun.start","section":"Répertoire"}
+{"ts":"2026-09-18T22:09:56.108405+00:00","event":"persistence.list_song_catalog","section":"Répertoire","duration_ms":4.382,"status":"ok","result_len":9}
+{"ts":"2026-09-18T22:09:56.937061+00:00","event":"ui.image","section":"Répertoire","duration_ms":59.22,"status":"ok"}
+{"ts":"2026-09-18T22:09:57.148882+00:00","event":"ui.image","section":"Répertoire","duration_ms":9.818,"status":"ok"}
+{"ts":"2026-09-18T22:10:01.269400+00:00","event":"probe.install.complete","log_file":"H:\\EZScore\\data\\logs\\ezscore_perf.log"}
+{"ts":"2026-09-18T22:10:01.272655+00:00","event":"midi.symbol.exported","exported":true}
+{"ts":"2026-09-18T22:10:01.277210+00:00","event":"rerun.start"}
+{"ts":"2026-09-18T22:10:01.698726+00:00","event":"ui.download_button","duration_ms":1.497,"status":"ok"}
+{"ts":"2026-09-18T22:10:01.754634+00:00","event":"persistence.list_song_catalog","section":"Répertoire","duration_ms":3.462,"status":"ok","result_len":9}
+{"ts":"2026-09-18T22:10:02.220243+00:00","event":"ui.image","section":"Répertoire","duration_ms":46.17,"status":"ok"}
+{"ts":"2026-09-18T22:10:02.381133+00:00","event":"ui.image","section":"Répertoire","duration_ms":5.581,"status":"ok"}
+{"ts":"2026-09-18T22:10:10.240498+00:00","event":"rerun.start","section":"Répertoire"}
+{"ts":"2026-09-18T22:10:10.363170+00:00","event":"ui.download_button","section":"Répertoire","duration_ms":1.284,"status":"ok"}
+{"ts":"2026-09-18T22:10:10.394433+00:00","event":"persistence.list_song_catalog","section":"Répertoire","duration_ms":1.116,"status":"ok","result_len":9}
+{"ts":"2026-09-18T22:10:10.650013+00:00","event":"rerun.start","section":"Chanson","audio_hash":"9b299ca892f3","view":"Paroles + accords","mode":"Vue"}
+{"ts":"2026-09-18T22:10:10.755754+00:00","event":"ui.download_button","section":"Chanson","audio_hash":"9b299ca892f3","view":"Paroles + accords","mode":"Vue","duration_ms":1.075,"status":"ok"}

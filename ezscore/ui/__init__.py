@@ -331,7 +331,21 @@ def _install_groups_navigation_patch() -> None:
 
         def render_profile_sidebar_with_groups() -> None:
             original_button = st.button
-            original_sidebar_button = st.sidebar.button
+
+            # IMPORTANT: never capture st.sidebar.button from the instance.
+            # Previous reruns/hot reloads may have left our temporary wrapper
+            # installed as an instance attribute, which makes the wrapper call
+            # itself recursively. Resolve the native DeltaGenerator method
+            # directly from the class instead.
+            sidebar_button_descriptor = getattr(type(st.sidebar), "button", None)
+            if sidebar_button_descriptor is None:
+                raise RuntimeError(
+                    "Méthode native Streamlit sidebar.button introuvable."
+                )
+            original_sidebar_button = sidebar_button_descriptor.__get__(
+                st.sidebar,
+                type(st.sidebar),
+            )
 
             from ezscore.navigation.session_adapter import (
                 back as nav_back,
