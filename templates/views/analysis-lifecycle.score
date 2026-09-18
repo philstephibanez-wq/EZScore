@@ -1,0 +1,24 @@
+<style>
+.ezal-reset{
+  padding:.78rem .9rem;
+  border:1px solid rgba(245,158,11,.28);
+  background:rgba(245,158,11,.055);
+  border-radius:.78rem;
+  margin:.2rem 0 .65rem;
+}
+.ezal-reset strong{font-weight:900}
+.ezal-reset p{margin:.28rem 0 0;font-size:.78rem;opacity:.82;line-height:1.45}
+.ezal-keep{margin-top:.42rem;font-size:.72rem;opacity:.68}
+</style>
+<div class="ezal-reset">
+  <strong>Réanalyse réellement complète</strong>
+  <p>
+    Supprime STEMs, previews, Whisper, accords, structure, MIDI, versions
+    d’analyse, workflow et corrections éditoriales avant de repartir de l’audio
+    original.
+  </p>
+  <div class="ezal-keep">
+    Conservés : chanson dans le répertoire, titre/artiste, pochette,
+    éditeur affecté, playlists/setlists et notes collectives.
+  </div>
+</div>

@@ -1,102 +1,109 @@
-# EZScore — Playlists navigation + audio guard R1
+# EZScore — Full Reanalysis R1
 
-## 1. Mes playlists dans le menu principal
+Base GitHub : `a6176525896c76cf73b7614b0755847689c4011f`.
 
-Le menu utilisateur affiche désormais directement :
+## Sémantique figée
+
+### Réanalyse complète
+
+Une réanalyse complète repart réellement de zéro sur tout le contenu
+musical/éditorial :
 
 ```text
-🎵 Répertoire
-👤 Profil
-👥 Mes groupes
-🎶 Mes playlists
+STEMs
+browser previews
+Whisper
+accords
+structure
+MIDI
+analyses SQLite
+versions d'analyse
+workflow
+préférences d'analyse/capo
+blocs et corrections
+overlays éditoriaux
 ```
 
-`Mes playlists` ouvre l'état EFSM :
+Les caches `data/analysis/stem_lab/<audio_hash>/` sont supprimés physiquement.
+
+Sont volontairement conservés parce que la chanson garde son identité dans le
+catalogue :
 
 ```text
-playlists.list
+audio original
+songs (titre/artiste/catalogue)
+pochette
+affectation éditeur
+user_playlist_items (playlist + ordre de setlist)
+song_ratings
 ```
 
-La liste est celle de `list_accessible_playlists`, donc elle regroupe :
+Après purge, EZScore revient sur `Analyse` avec une analyse vierge ; le workflow
+STEM -> Paroles -> Structure -> MIDI repart donc comme après un nouvel import.
+
+### Suppression définitive
+
+`Supprimer définitivement la chanson` supprimait déjà :
 
 ```text
-- playlists personnelles ;
-- playlists appartenant à un groupe dont je suis membre ;
-- playlists partagées directement avec moi.
+audio original
+pochette
+toutes les lignes SQLite possédant audio_hash
+songs
 ```
 
-Le rattachement ou non à un groupe ne change donc pas leur accessibilité depuis
-**Mes playlists**.
+Il manquait le cache physique d'analyse.
 
-## 2. Dirty Old Town / Chargement audio bloqué
-
-Symptôme observé :
+Ce lot enveloppe la suppression existante et supprime aussi :
 
 ```text
-Chargement audio…
-0:00 / 0:00
+data/analysis/stem_lab/<audio_hash>/
 ```
 
-Le lecteur R12c lui-même n'est pas modifié.
+Ainsi une suppression suivie du réimport du même fichier ne peut plus récupérer
+un ancien Whisper/STEM/accord/MIDI par le même SHA-256.
 
-Un garde très limité est installé autour de son appel. Avant le rendu, les
-fichiers déjà présents dans :
+## Modularité
+
+Nouveaux modules :
 
 ```text
-browser_preview/*.browser64.mp3
+ezscore/analysis_lifecycle.py
+ezscore/ui/analysis_lifecycle.py
 ```
 
-sont contrôlés avec `ffprobe`, quand `ffprobe` est disponible.
-
-Si une pré-écoute existante est non décodable ou de durée nulle :
+Template :
 
 ```text
-- elle est supprimée ;
-- le moteur existant la recrée normalement via FFmpeg ;
-- un warning visible indique quel fichier a été réparé.
+templates/views/analysis-lifecycle.score
 ```
 
-Aucun STEM, audio original, cache Whisper, accords, paroles ou timeline n'est
-supprimé.
-
-Si `ffprobe` n'est pas disponible, le contrôle est ignoré et le comportement
-R12c reste strictement celui d'avant.
-
-Le résultat des probes est mémorisé en RAM par `(path, size, mtime)` afin de ne
-pas relancer `ffprobe` à chaque rerun.
-
-## 3. Warnings LF / CRLF
-
-Les messages Git :
+Intégration minimale :
 
 ```text
-LF will be replaced by CRLF the next time Git touches it
+ezscore/ui/__init__.py
 ```
 
-sont des avertissements de normalisation de fins de ligne sous Windows. Ce ne
-sont ni des erreurs Python, ni des erreurs Git, ni une corruption des fichiers.
-
-Ce lot ne modifie ni `.gitignore` ni `.gitattributes` pour éviter une
-normalisation massive et parasite du dépôt.
-
-## Non-régression
-
-Non modifiés / non livrés :
+Aucune modification dans :
 
 ```text
-EZScore.py
-ezscore/ui/app_shell.py
+ezscore/persistence.py
 ezscore/ui/stem_lab_analysis.py
 ezscore/ui/editorial_timeline.py
 ezscore/ui/lyrics_inline_editor.py
-ezscore/player/karaoke_stem_webaudio.py
-ezscore/player/karaoke_stem_webaudio_r12c.py
+players R12c
 templates/views/lyrics-editor.*
-ezscore/catalog_social.py
 ```
 
-Le wrapper R12c reste le lecteur validé. La seule intervention audio est le
-contrôle des MP3 de pré-écoute déjà générés avant de lui passer la main.
+## Sécurité
+
+La purge DB de réanalyse est transactionnelle.
+
+Le cache est supprimé AVANT la DB. Si Windows verrouille un fichier STEM ou
+preview, la réanalyse s'arrête avant de toucher aux données SQLite.
+
+La sélection des tables à purger est générique : toute table possédant une
+colonne `audio_hash` est purgée sauf la liste blanche catalogue/social explicite.
 
 ## Installation
 
@@ -104,25 +111,29 @@ contrôle des MP3 de pré-écoute déjà générés avant de lui passer la main.
 cd H:\EZScore
 
 Expand-Archive `
-  -Path "$env:USERPROFILE\Downloads\EZScore_PLAYLIST_NAV_AUDIO_GUARD_R1.zip" `
+  -Path "$env:USERPROFILE\Downloads\EZScore_FULL_REANALYSIS_R1.zip" `
   -DestinationPath . `
   -Force
 
-python -m py_compile .\ezscore\ui\__init__.py
+python -m py_compile `
+  .\ezscore\analysis_lifecycle.py `
+  .\ezscore\ui\analysis_lifecycle.py `
+  .\ezscore\ui\__init__.py
 
 git diff --check
 git status --short
 ```
 
-## Tests prioritaires
+## Test
 
-1. Vérifier `🎶 Mes playlists` dans le menu.
-2. L'ouvrir depuis Répertoire.
-3. Vérifier les playlists personnelles ET les playlists de groupe.
-4. Ouvrir Dirty Old Town > Analyse > STEM.
-5. Cliquer Lecture.
-6. Si une preview était corrompue, vérifier le message de reconstruction.
-7. Vérifier que la durée devient non nulle et que la lecture démarre.
-8. Vérifier Aline > Analyse > Paroles.
-9. Vérifier Dance Me > Analyse > Paroles.
-10. Vérifier retour Groupe -> Playlist -> chanson -> Playlist.
+1. Prendre une chanson analysée et présente dans une playlist.
+2. Noter sa position dans la setlist.
+3. Ouvrir Chanson > Analyse.
+4. Déplier `Réanalyse complète`.
+5. Confirmer puis lancer.
+6. Vérifier que l'analyse repart sans STEM/Paroles/Structure/MIDI.
+7. Vérifier que la chanson reste dans le Répertoire.
+8. Vérifier qu'elle reste dans la playlist à la même position.
+9. Vérifier que les anciennes corrections éditoriales ne réapparaissent pas.
+10. Tester ensuite une suppression définitive + réimport du même fichier :
+    aucun ancien cache ne doit réapparaître.

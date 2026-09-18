@@ -101,6 +101,55 @@ def _install_karaoke_patch() -> None:
             pass
 
 
+def _install_analysis_lifecycle_patch() -> None:
+    """Add complete analysis reset and make full song deletion really total."""
+    try:
+        from ezscore import persistence as _persistence
+        from ezscore.analysis_lifecycle import purge_analysis_cache
+        from ezscore.ui import stem_lab_analysis as _stem_lab
+        from ezscore.ui.analysis_lifecycle import render_full_reanalysis_control
+
+        # --------------------------------------------------------------
+        # Full delete: current persistence already removes audio, covers
+        # and every DB row keyed by audio_hash. Add the missing technical
+        # cache purge without changing persistence.py.
+        # --------------------------------------------------------------
+        original_delete = _persistence.delete_song_completely
+        if not getattr(original_delete, "_ezscore_total_delete_patch", False):
+            def delete_song_completely_total(audio_hash):
+                purge_analysis_cache(
+                    _persistence.APP_DIR,
+                    audio_hash,
+                )
+                return original_delete(audio_hash)
+
+            delete_song_completely_total._ezscore_total_delete_patch = True
+            _persistence.delete_song_completely = delete_song_completely_total
+
+        # --------------------------------------------------------------
+        # Analyse UI: wrap the validated surface; do not alter its STEM /
+        # Paroles / Structure / MIDI implementation.
+        # --------------------------------------------------------------
+        original_render = _stem_lab.render_stem_lab_fresh_analysis
+        if not getattr(original_render, "_ezscore_full_reanalysis_patch", False):
+            def render_with_full_reanalysis(audio_hash: str) -> None:
+                render_full_reanalysis_control(
+                    audio_hash=audio_hash,
+                    db_path=_persistence.DB_PATH,
+                )
+                original_render(audio_hash)
+
+            render_with_full_reanalysis._ezscore_full_reanalysis_patch = True
+            _stem_lab.render_stem_lab_fresh_analysis = render_with_full_reanalysis
+
+    except Exception as exc:
+        try:
+            import streamlit as st
+            st.error("Cycle de réanalyse complète indisponible : " + str(exc))
+        except Exception:
+            pass
+
+
 def _install_inline_editor_patch() -> None:
     try:
         from ezscore.ui import stem_lab_analysis as _stem_lab
@@ -395,6 +444,7 @@ def _install_groups_navigation_patch() -> None:
 
 
 _install_karaoke_patch()
+_install_analysis_lifecycle_patch()
 _install_inline_editor_patch()
 _install_catalog_home_patch()
 _install_groups_navigation_patch()
