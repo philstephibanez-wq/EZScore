@@ -2081,10 +2081,10 @@ def _ezscore_info(*args, **kwargs):
                 st.session_state.get("active_song_hash", "") or ""
             ).strip()
             if active_hash:
-                from ezscore.ui.stem_lab_analysis import (
-                    render_stem_lab_fresh_analysis,
+                from ezscore.ui.analysis_surface import (
+                    render_analysis_surface,
                 )
-                render_stem_lab_fresh_analysis(active_hash)
+                render_analysis_surface(active_hash)
                 return None
     return _ORIGINAL_ST_INFO(*args, **kwargs)
 

@@ -236,7 +236,7 @@ def _install_persisted_analysis_r5_10_patch() -> None:
     try:
         import streamlit as st
         from ezscore.ui import app_shell as _shell
-        from ezscore.ui import stem_lab_analysis as _stem_lab
+        from ezscore.ui.analysis_surface import render_analysis_surface
 
         original_markdown = st.markdown
 
@@ -279,7 +279,7 @@ def _install_persisted_analysis_r5_10_patch() -> None:
                 ):
                     rendering = True
                     try:
-                        _stem_lab.render_stem_lab_fresh_analysis(active_hash)
+                        render_analysis_surface(active_hash)
                     finally:
                         rendering = False
 
