@@ -1,0 +1,11 @@
+<div class="ezg-card-head">
+  <div class="ezg-avatar">{{ initial }}</div>
+  <div>
+    <div class="ezg-card-name">{{ name }}</div>
+    <span class="ezg-card-role">{{ role }}</span>
+  </div>
+  <div class="ezg-card-stats">
+    <span class="ezg-stat">{{ member_count }} {{ member_label }}</span>
+    <span class="ezg-stat">{{ playlist_count }} {{ playlist_label }}</span>
+  </div>
+</div>

@@ -1,0 +1,9 @@
+<div class="ezg-playlist">
+  <div>
+    <div class="ezg-playlist-name">🎶 {{ name }}</div>
+    <div class="ezg-playlist-meta">{{ count }} {{ song_label }}</div>
+  </div>
+  [[ if: can_edit ]]
+  <div class="ezg-playlist-badge">{{ edit_label }}</div>
+  [[ endif ]]
+</div>

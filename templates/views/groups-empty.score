@@ -1,0 +1,4 @@
+<div class="ezg-empty">
+  <strong>{{ title }}</strong>
+  <span>{{ body }}</span>
+</div>

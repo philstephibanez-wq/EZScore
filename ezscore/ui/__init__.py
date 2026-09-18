@@ -52,13 +52,30 @@ def _install_catalog_home_patch() -> None:
                 return
 
             try:
-                from ezscore.ui.catalog_home import render_catalog_home
-                render_catalog_home()
+                if bool(st.session_state.get("_ez_groups_open", False)):
+                    from ezscore.ui.groups_home import render_groups_home
+                    render_groups_home()
+                else:
+                    from ezscore.ui.catalog_home import render_catalog_home
+
+                    if bool(
+                        st.session_state.pop(
+                            "_ez_catalog_open_playlists",
+                            False,
+                        )
+                    ):
+                        from ezscore.i18n import t
+                        st.session_state["catalog_home_mode"] = t(
+                            "home.playlists",
+                            domain="catalog",
+                        )
+
+                    render_catalog_home()
             except Exception as exc:
-                st.error(f"Répertoire enrichi indisponible : {exc}")
+                st.error(f"Surface Répertoire/Groupes indisponible : {exc}")
                 return
 
-            # Le Répertoire complet vient d'être rendu. Ne pas exécuter ensuite
+            # La surface modulaire vient d'être rendue. Ne pas exécuter ensuite
             # l'ancien bloc monolithique de EZScore.py.
             st.stop()
 
@@ -154,7 +171,115 @@ def _install_persisted_analysis_r5_10_patch() -> None:
             pass
 
 
+
+
+def _install_groups_navigation_patch() -> None:
+    """Expose a dedicated Groups surface without changing EZScore.py/app_shell.
+
+    EZScore.py currently knows only Répertoire / Chanson / Compte / Import.
+    We therefore keep the shell's stable main-menu contract and route Groups
+    as a dedicated sub-surface of Répertoire, selected by a private session
+    flag. The sidebar button is injected immediately after Profile.
+
+    This avoids widening the legacy global navigation enum and keeps the patch
+    modular until the shell itself is migrated to the i18n navigation model.
+    """
+    try:
+        import streamlit as st
+        from ezscore.ui import app_shell as _shell
+        from ezscore.i18n import t
+
+        original_render = _shell.render_profile_sidebar
+        if getattr(
+            original_render,
+            "_ezscore_groups_navigation_patch",
+            False,
+        ):
+            return
+
+        def render_profile_sidebar_with_groups() -> None:
+            original_button = st.button
+            original_sidebar_button = st.sidebar.button
+
+            def open_groups() -> None:
+                st.session_state["_ez_groups_open"] = True
+                st.session_state["_pending_main_menu"] = "Répertoire"
+                st.rerun()
+
+            def clear_groups_if_navigation(key, clicked) -> None:
+                if (
+                    clicked
+                    and key
+                    in {
+                        "shell_repertoire",
+                        "shell_profile",
+                        "shell_login",
+                        "shell_edits",
+                        "shell_import",
+                        "shell_admin_users",
+                        "shell_logout",
+                    }
+                ):
+                    st.session_state["_ez_groups_open"] = False
+
+            def patched_sidebar_button(*args, **kwargs):
+                key = kwargs.get("key")
+                clicked = original_sidebar_button(*args, **kwargs)
+                clear_groups_if_navigation(key, clicked)
+
+                # Full sidebar: requested placement is directly below Profile.
+                if key == "shell_profile":
+                    if original_sidebar_button(
+                        t(
+                            "nav.groups",
+                            domain="groups",
+                        ),
+                        key="shell_groups",
+                        width="stretch",
+                    ):
+                        open_groups()
+                return clicked
+
+            def patched_button(*args, **kwargs):
+                key = kwargs.get("key")
+                clicked = original_button(*args, **kwargs)
+                clear_groups_if_navigation(key, clicked)
+
+                # Compact song/import sidebar: Profile lives in a column, so
+                # keep Groups immediately underneath it in that same quick area.
+                if key == "shell_profile":
+                    if original_button(
+                        t(
+                            "nav.groups",
+                            domain="groups",
+                        ),
+                        key="shell_groups_compact",
+                        width="stretch",
+                    ):
+                        open_groups()
+                return clicked
+
+            st.sidebar.button = patched_sidebar_button
+            st.button = patched_button
+            try:
+                original_render()
+            finally:
+                st.sidebar.button = original_sidebar_button
+                st.button = original_button
+
+        render_profile_sidebar_with_groups._ezscore_groups_navigation_patch = True
+        _shell.render_profile_sidebar = render_profile_sidebar_with_groups
+
+    except Exception as exc:
+        try:
+            import streamlit as st
+            st.error(f"Navigation groupes indisponible : {exc}")
+        except Exception:
+            pass
+
+
 _install_karaoke_patch()
 _install_inline_editor_patch()
 _install_catalog_home_patch()
+_install_groups_navigation_patch()
 _install_persisted_analysis_r5_10_patch()

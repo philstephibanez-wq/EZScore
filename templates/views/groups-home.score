@@ -1,0 +1,38 @@
+<style>
+:root{
+  --ezg-border:rgba(148,163,184,.19);
+  --ezg-soft:rgba(148,163,184,.08);
+  --ezg-text-soft:rgba(226,232,240,.68);
+  --ezg-accent:#8b7cff;
+  --ezg-accent-soft:rgba(139,124,255,.12);
+}
+.ezg-home{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:.1rem 0 1rem}
+.ezg-home-main{display:flex;align-items:center;gap:.8rem}
+.ezg-home-icon{width:2.7rem;height:2.7rem;display:grid;place-items:center;border-radius:.9rem;background:linear-gradient(145deg,rgba(139,124,255,.25),rgba(139,124,255,.06));border:1px solid rgba(139,124,255,.32);font-size:1.2rem}
+.ezg-home-title{font-size:1.55rem;font-weight:900;letter-spacing:-.025em}
+.ezg-home-subtitle{margin-top:.15rem;color:var(--ezg-text-soft);font-size:.82rem}
+.ezg-count{padding:.28rem .55rem;border:1px solid var(--ezg-border);background:var(--ezg-soft);border-radius:999px;font-size:.72rem;font-weight:800}
+.ezg-card-head{display:flex;align-items:center;gap:.8rem;margin-bottom:.55rem}
+.ezg-avatar{width:3rem;height:3rem;display:grid;place-items:center;flex:0 0 3rem;border-radius:50%;background:linear-gradient(145deg,rgba(139,124,255,.25),rgba(75,85,99,.12));border:1px solid rgba(139,124,255,.36);font-weight:900;font-size:1.15rem}
+.ezg-card-name{font-size:1.12rem;font-weight:900;letter-spacing:-.015em}
+.ezg-card-role{display:inline-block;margin-top:.15rem;padding:.1rem .38rem;border-radius:999px;font-size:.65rem;font-weight:800;background:var(--ezg-accent-soft);border:1px solid rgba(139,124,255,.26)}
+.ezg-card-stats{margin-left:auto;display:flex;gap:.45rem;flex-wrap:wrap}
+.ezg-stat{padding:.18rem .45rem;border-radius:999px;font-size:.67rem;color:var(--ezg-text-soft);border:1px solid var(--ezg-border);background:var(--ezg-soft)}
+.ezg-member-avatar{width:2rem;height:2rem;display:grid;place-items:center;border-radius:50%;font-weight:850;background:var(--ezg-soft);border:1px solid var(--ezg-border)}
+.ezg-playlist{display:flex;align-items:center;justify-content:space-between;gap:.8rem;padding:.58rem .72rem;margin:.35rem 0;border:1px solid var(--ezg-border);background:rgba(255,255,255,.018);border-radius:.7rem}
+.ezg-playlist-name{font-weight:800}
+.ezg-playlist-meta{font-size:.7rem;color:var(--ezg-text-soft);margin-top:.08rem}
+.ezg-playlist-badge{white-space:nowrap;font-size:.64rem;font-weight:800;padding:.12rem .38rem;border-radius:999px;background:var(--ezg-accent-soft);border:1px solid rgba(139,124,255,.24)}
+.ezg-empty{text-align:center;padding:2.4rem 1rem;border:1px dashed var(--ezg-border);border-radius:1rem;color:var(--ezg-text-soft)}
+.ezg-empty strong{display:block;color:inherit;font-size:1rem;margin-bottom:.35rem}
+</style>
+<div class="ezg-home">
+  <div class="ezg-home-main">
+    <div class="ezg-home-icon">👥</div>
+    <div>
+      <div class="ezg-home-title">{{ title }}</div>
+      <div class="ezg-home-subtitle">{{ subtitle }}</div>
+    </div>
+  </div>
+  <div class="ezg-count">{{ group_count }} {{ group_label }}</div>
+</div>
