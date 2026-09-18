@@ -12,7 +12,6 @@ export default function(component) {
   const leadTrack = root.querySelector(".ez-lead");
   const backingTrack = root.querySelector(".ez-backing");
   const positionLabel = root.querySelector(".ez-position");
-  const addLineBreakButton = root.querySelector(".ez-add-linebreak");
 
   const initial = data.editorial || {};
   const stateSnapshot = String(component.state?.snapshot || "");
@@ -222,6 +221,78 @@ export default function(component) {
       }
     });
 
+    const LONG_PRESS_MS = 475;
+    const LONG_PRESS_MOVE_PX = 4;
+    let longPressTimer = null;
+    let longPressPointerId = null;
+    let longPressStartX = 0;
+    let longPressStartY = 0;
+    let longPressTriggered = false;
+
+    function cancelLongPress() {
+      if (longPressTimer !== null) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+    }
+
+    node.addEventListener("pointerdown", event => {
+      if (event.button !== 0 || node.contentEditable === "true") return;
+
+      longPressTriggered = false;
+      longPressPointerId = event.pointerId;
+      longPressStartX = event.clientX;
+      longPressStartY = event.clientY;
+
+      cancelLongPress();
+      longPressTimer = setTimeout(() => {
+        longPressTimer = null;
+
+        if (node.contentEditable === "true") return;
+        if (index >= lead.length - 1) return;
+        if (breakSet.has(index)) return;
+
+        breakSet.add(index);
+        syncBreakSet();
+        makeLineBreakNode(index);
+        emit();
+
+        longPressTriggered = true;
+        node.classList.add("longpress-feedback");
+        setTimeout(() => node.classList.remove("longpress-feedback"), 220);
+      }, LONG_PRESS_MS);
+    });
+
+    node.addEventListener("pointermove", event => {
+      if (event.pointerId !== longPressPointerId) return;
+
+      const moved = Math.hypot(
+        event.clientX - longPressStartX,
+        event.clientY - longPressStartY,
+      );
+
+      if (moved > LONG_PRESS_MOVE_PX) {
+        cancelLongPress();
+      }
+    });
+
+    node.addEventListener("pointerup", event => {
+      if (event.pointerId !== longPressPointerId) return;
+      cancelLongPress();
+
+      if (longPressTriggered) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+
+      longPressPointerId = null;
+    });
+
+    node.addEventListener("pointercancel", () => {
+      cancelLongPress();
+      longPressPointerId = null;
+    });
+
     leadTrack.appendChild(node);
     leadNodes.push(node);
   });
@@ -403,48 +474,6 @@ export default function(component) {
 
   breakSet.forEach(makeLineBreakNode);
 
-  let lineBreakInsertArmed = false;
-
-  function setLineBreakInsertMode(enabled) {
-    lineBreakInsertArmed = Boolean(enabled);
-    addLineBreakButton?.classList.toggle("armed", lineBreakInsertArmed);
-    leadTrack.classList.toggle("insert-linebreak-mode", lineBreakInsertArmed);
-  }
-
-  addLineBreakButton?.addEventListener("click", event => {
-    event.preventDefault();
-    event.stopPropagation();
-    setLineBreakInsertMode(!lineBreakInsertArmed);
-  });
-
-  leadTrack.addEventListener("click", event => {
-    if (!lineBreakInsertArmed) return;
-
-    if (event.target.closest(".ez-linebreak")) {
-      return;
-    }
-
-    const rect = leadTrack.getBoundingClientRect();
-    const rawX = Math.max(
-      0,
-      Math.min(trackWidth, event.clientX - rect.left)
-    );
-    const index = nearestLeadWordByX(rawX);
-
-    if (index < 0) {
-      setLineBreakInsertMode(false);
-      return;
-    }
-
-    if (!breakSet.has(index)) {
-      breakSet.add(index);
-      syncBreakSet();
-      makeLineBreakNode(index);
-      emit();
-    }
-
-    setLineBreakInsertMode(false);
-  });
 
   backing.forEach((word, index) => {
     const key = String(index);

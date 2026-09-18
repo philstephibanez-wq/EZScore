@@ -309,40 +309,10 @@
 }
 
 
-.ez-row-label-lead{
-  gap:7px;
-}
 
-.ez-add-linebreak{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  min-width:34px;
-  height:24px;
-  padding:0 6px;
-  border:1px solid color-mix(in srgb,#ffcf5a 55%,transparent);
-  border-radius:6px;
-  background:color-mix(in srgb,#ffcf5a 10%,#171a20);
-  color:#ffcf5a;
-  font-size:13px;
-  font-weight:900;
-  line-height:1;
-  cursor:pointer;
-}
 
-.ez-add-linebreak:hover{
-  background:color-mix(in srgb,#ffcf5a 18%,#171a20);
-  border-color:#ffe08a;
-}
-
-.ez-add-linebreak.armed{
-  background:#6d5718;
-  border-color:#ffe08a;
-  color:#fff1b8;
-  box-shadow:0 0 0 2px color-mix(in srgb,#ffcf5a 20%,transparent);
-}
-
-.ez-lead.insert-linebreak-mode{
-  cursor:crosshair;
-  background:color-mix(in srgb,#ffcf5a 3%,transparent);
+.ez-lead .ez-word.longpress-feedback{
+  outline:2px solid #ffcf5a;
+  outline-offset:2px;
+  background:color-mix(in srgb,#ffcf5a 12%,transparent);
 }

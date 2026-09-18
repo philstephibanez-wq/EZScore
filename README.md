@@ -1,52 +1,38 @@
-# EZScore — R5.5 interactions souris + scrollbar persistante
+# EZScore — R5.6 insertion de saut par clic long
 
 Patch limité aux templates de l'éditeur silencieux.
 
-## 1. Déplacement sans clic droit
+## Comportement retenu
 
-Le navigateur interceptait le clic droit.
+Le bouton `+ ↵` est supprimé.
 
-R5.5 utilise désormais le bouton gauche :
+Dans la lane `Chant` :
 
-- clic gauche court sur une ancre : sélection normale ;
-- double-clic sur une ancre : renommage ;
-- clic gauche maintenu + déplacement > 5 px : drag de l'ancre ;
-- même logique pour le marqueur `↵`.
+- clic court sur un mot : comportement normal ;
+- double-clic : édition du texte ;
+- clic long (~475 ms) sans déplacement notable :
+  insertion d'un saut `↵` après ce mot ;
+- déplacement > 4 px avant le délai :
+  annule l'insertion ;
+- si un saut existe déjà après ce mot :
+  aucun doublon n'est créé.
 
-Le seuil de 5 px évite qu'un simple clic soit interprété comme un déplacement.
+Pour un `↵` existant :
 
-## 2. Insertion explicite d'un saut de ligne
+- clic court : sélection ;
+- clic gauche maintenu + glisser :
+  déplacement avec snap après le mot le plus proche ;
+- `Suppr` :
+  suppression.
 
-La création n'est plus cachée dans un clic sur une zone vide.
+Pour les ancres :
 
-- cliquer sur `+ ↵` dans le label `Chant` ;
-- la lane passe en mode insertion ;
-- cliquer près du mot cible ;
-- le `↵` est créé après le mot le plus proche ;
-- le mode insertion se désactive automatiquement.
+- clic gauche maintenu + glisser :
+  déplacement ;
+- double-clic :
+  renommage.
 
-Suppression :
-- clic sur `↵` ;
-- touche `Suppr`.
-
-Déplacement :
-- clic gauche maintenu + glisser ;
-- snap après le mot le plus proche.
-
-## 3. Scrollbar toujours visible
-
-La timeline utilise maintenant `overflow-x: scroll` et réserve en permanence
-l'espace de la scrollbar.
-
-Pour Chrome/Edge :
-- track visible en permanence ;
-- thumb visible en permanence ;
-- contraste renforcé ;
-- hauteur 22 px ;
-- poignée minimale 90 px.
-
-Pour Firefox :
-- `scrollbar-color` est défini.
+La scrollbar R5.5 reste visible en permanence.
 
 ## Portée
 
@@ -60,6 +46,7 @@ Aucun Python.
 Aucune donnée/persistance.
 Aucun player.
 Aucun template `.score`.
+Aucun changement des timestamps techniques.
 
 ## Installation
 
@@ -67,7 +54,7 @@ Aucun template `.score`.
 cd H:\EZScore
 
 Expand-Archive `
-  -Path "$env:USERPROFILE\Downloads\EZScore_INLINE_TIMELINE_R5_5.zip" `
+  -Path "$env:USERPROFILE\Downloads\EZScore_INLINE_TIMELINE_R5_6.zip" `
   -DestinationPath . `
   -Force
 
@@ -79,13 +66,13 @@ git status --short
 ## Test ciblé
 
 1. Ouvrir `Analyse > Paroles`.
-2. Vérifier que la scrollbar reste visible sans survol.
-3. Cliquer `+ ↵`.
-4. Cliquer après/près de `dove`.
-5. Vérifier qu'un `↵` apparaît après `dove`.
-6. Clic gauche maintenu sur `↵`, déplacer de plus de 5 px, relâcher.
-7. Vérifier le snap après le nouveau mot.
-8. Clic sur `↵`, touche `Suppr`.
-9. Clic gauche maintenu sur une ancre, déplacer, relâcher.
-10. Double-clic sur une ancre : renommage.
+2. Vérifier qu'il n'y a plus de bouton `+ ↵`.
+3. Maintenir le clic gauche ~0,5 s sur un mot.
+4. Vérifier l'apparition de `↵` après ce mot.
+5. Refaire un clic long sur le même mot : aucun doublon.
+6. Déplacer `↵` au clic gauche maintenu.
+7. Sélectionner `↵`, puis `Suppr`.
+8. Double-cliquer un mot : édition toujours fonctionnelle.
+9. Déplacer une ancre : fonctionnement R5.5 conservé.
+10. Vérifier que la scrollbar reste visible.
 11. Enregistrer, changer d'onglet, revenir : persistance.
