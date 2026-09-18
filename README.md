@@ -1,104 +1,71 @@
-# EZScore — Editorial Fingerprint Recovery R1
+# EZScore — Lyrics Reflow R1
 
 Base GitHub vérifiée :
 
 ```text
-fb5691f189d1430f73f36b4652f54d94218588f0
-EZScore_PLAYER_SEEK_LYRICS_R1
+dc842bd1bb15147f26c726360ec932c3035c8cde
+EZScore_EDITORIAL_FINGERPRINT_RECOVERY_R1
 ```
 
-## Symptôme corrigé
-
-Après la correction « faux Chœurs », `Analyse > Paroles` pouvait lever :
+Le fichier de départ `templates/views/lyrics-editor.js` correspond exactement
+au blob GitHub :
 
 ```text
-La timeline technique a changé depuis la sauvegarde éditoriale.
-Aucun remapping automatique.
+9ead98d9b0c93377ff47ddca221c203af3133436
 ```
 
-Le message était techniquement exact sur le fingerprint, mais dans ce cas
-précis la différence provenait surtout d'un changement de sémantique :
+## Problème
+
+L'analyse et les timestamps sont corrects, mais certains mots restent
+visuellement superposés dans `Analyse > Paroles`.
+
+La cause est le moment de la mesure de largeur :
 
 ```text
-avant :
-mot récupéré par le second Whisper = Chœurs
-
-maintenant :
-mot récupéré par le second Whisper = complément du Chant principal
+onglet Streamlit monté mais caché
+→ getBoundingClientRect().width incorrect / trop faible
+→ anti-collision calculé une seule fois
+→ l'onglet devient visible
+→ police et vraie largeur apparaissent
+→ les mots se recouvrent
 ```
 
-L'ancien `editorial_timeline.json` avait donc un fingerprint incluant les faux
-mots de Chœurs, tandis que la nouvelle timeline a une lane Chœurs vide.
+## Correction
 
-## Migration déterministe
+Aucune donnée d'analyse n'est modifiée.
 
-Le patch reconstruit exactement l'ancienne lane provisoire depuis :
+Le layout des mots est maintenant recalculable :
 
 ```text
-whisper_vocals_small.json
+timestamp
+→ X temporel brut
+→ mesure de largeur réelle après rendu
+→ X visuel = max(X temporel, fin mot précédent + 10 px)
 ```
 
-Puis il tente de charger l'ancien fichier éditorial avec l'ancien fingerprint.
-
-La migration n'est acceptée QUE si ce fingerprint correspond exactement.
-
-Dans ce cas sont conservés :
+Le reflow est déclenché :
 
 ```text
-lead_overrides
-line_break_after_lead
-chord_overrides
-anchors
+- après le premier paint ;
+- après le chargement des polices ;
+- quand le composant / viewport change de taille ;
+- quand l'onglet caché devient effectivement mesurable ;
+- après une modification inline d'un mot ;
+- au retour de visibilité du document.
 ```
 
-Les anciens `backing_overrides` sont supprimés, puisque leur source était une
-lane Chœurs désormais reconnue comme incorrecte.
+Les timestamps, beats, accords, anchors et données éditoriales ne changent pas.
 
-Le fichier éditorial est ensuite sauvegardé avec le nouveau fingerprint.
+Les marqueurs `↵` sont repositionnés après chaque reflow pour rester attachés
+au bon mot.
 
-## Vraie modification de timeline
-
-Si le fingerprint ne correspond toujours pas (nouveaux beats, nouvelle
-transcription, réanalyse réellement différente), il n'y a TOUJOURS PAS de
-remapping automatique.
-
-Le fichier incompatible est renommé :
+## Fichier modifié
 
 ```text
-editorial_timeline.stale-YYYYMMDDTHHMMSSZ.json
+templates/views/lyrics-editor.js
 ```
 
-et la nouvelle timeline repart avec une édition vide.
-
-Donc :
-- pas de crash ;
-- pas de perte silencieuse ;
-- pas de remapping hasardeux ;
-- ancienne édition récupérable sur disque.
-
-## Fichiers
-
-Nouveau :
-
-```text
-ezscore/ui/editorial_compat_patch.py
-```
-
-Modifié :
-
-```text
-ezscore/ui/__init__.py
-```
-
-Non modifiés :
-
-```text
-ezscore/ui/editorial_timeline.py
-ezscore/ui/lyrics_inline_editor.py
-templates/views/lyrics-editor.*
-player R12c
-analyse STEM
-```
+Aucun Python n'est modifié.
 
 ## Installation
 
@@ -106,24 +73,21 @@ analyse STEM
 cd H:\EZScore
 
 Expand-Archive `
-  -Path "$env:USERPROFILE\Downloads\EZScore_EDITORIAL_FINGERPRINT_RECOVERY_R1.zip" `
+  -Path "$env:USERPROFILE\Downloads\EZScore_LYRICS_REFLOW_R1.zip" `
   -DestinationPath . `
   -Force
 
-python -m py_compile `
-  .\ezscore\ui\editorial_compat_patch.py `
-  .\ezscore\ui\__init__.py
+node --check .\templates\views\lyrics-editor.js
 
 git diff --check
 git status --short
 ```
 
-## Test immédiat
+## Test
 
 1. Redémarrer Streamlit.
-2. Ouvrir Jolene > Analyse > Paroles.
-3. L'erreur RuntimeError ne doit plus apparaître.
-4. Si le seul changement était l'ancienne lane faux-Chœurs, une information de
-   migration s'affiche et les corrections Chant/Accords/↵/ancres restent.
-5. Si la timeline technique a réellement changé, un warning indique le nom du
-   fichier `.stale-...json` archivé et la vue Paroles reste utilisable.
+2. Ouvrir directement un autre onglet puis revenir sur `Analyse > Paroles`.
+3. Vérifier la zone dense autour de `Jolene / I'm begging...`.
+4. Modifier un mot en double-clic : le layout doit se recalculer.
+5. Vérifier les marqueurs `↵`.
+6. Aucun besoin de réanalyse.

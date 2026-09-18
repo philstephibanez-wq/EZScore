@@ -331,7 +331,6 @@ export default function(component) {
   );
 
   const leadNodes = [];
-  let leadVisualRight = Number.NEGATIVE_INFINITY;
 
   lead.forEach((word, index) => {
     const key = String(index);
@@ -427,14 +426,11 @@ export default function(component) {
 
     leadTrack.appendChild(node);
 
-    // Presentation only: preserve the word timestamp but prevent labels from
-    // occupying the same pixels. Snapping/editing still uses original times.
+    // Initial placement stays strictly temporal. A deferred reflow below
+    // measures the real rendered width once the tab/font is actually visible.
     const rawLeft = xFor(word.start);
-    const width = Math.max(12, node.getBoundingClientRect().width);
-    const visualLeft = Math.max(rawLeft, leadVisualRight + 8);
-    node.style.left = visualLeft + "px";
+    node.style.left = rawLeft + "px";
     node.dataset.timelineLeft = String(rawLeft);
-    leadVisualRight = visualLeft + width;
 
     leadNodes.push(node);
   });
@@ -617,8 +613,6 @@ export default function(component) {
   breakSet.forEach(makeLineBreakNode);
 
 
-  let backingVisualRight = Number.NEGATIVE_INFINITY;
-
   backing.forEach((word, index) => {
     const key = String(index);
     const node = document.createElement("span");
@@ -642,11 +636,135 @@ export default function(component) {
     backingTrack.appendChild(node);
 
     const rawLeft = xFor(word.start);
-    const width = Math.max(12, node.getBoundingClientRect().width);
-    const visualLeft = Math.max(rawLeft, backingVisualRight + 8);
-    node.style.left = visualLeft + "px";
+    node.style.left = rawLeft + "px";
     node.dataset.timelineLeft = String(rawLeft);
-    backingVisualRight = visualLeft + width;
+  });
+
+  // -----------------------------------------------------------------
+  // Deferred word layout
+  // -----------------------------------------------------------------
+  // Streamlit keeps Analyse tabs mounted while some of them are hidden.
+  // Measuring .ez-word during that hidden phase can return an unusable width.
+  // Reflow is therefore repeatable and triggered again when the component,
+  // viewport or fonts become measurable.
+  let wordReflowRaf = 0;
+
+  function reflowWordLane(track, words, nodes, gapPx) {
+    if (!track || !nodes.length) return true;
+
+    let previousRight = Number.NEGATIVE_INFINITY;
+
+    for (let index = 0; index < nodes.length; index += 1) {
+      const node = nodes[index];
+      const word = words[index];
+      if (!node || !word) continue;
+
+      const rawLeft = xFor(word.start);
+      const rect = node.getBoundingClientRect();
+      const width = Number(rect.width || node.offsetWidth || 0);
+
+      // Hidden/unlaid-out tab: wait for ResizeObserver / next animation frame.
+      if (!Number.isFinite(width) || width < 2) {
+        return false;
+      }
+
+      const visualLeft = Math.max(rawLeft, previousRight + gapPx);
+      node.style.left = visualLeft + "px";
+      node.dataset.timelineLeft = String(rawLeft);
+      previousRight = visualLeft + width;
+    }
+
+    return true;
+  }
+
+  function reflowLineBreakMarkers() {
+    leadTrack.querySelectorAll(".ez-linebreak").forEach(marker => {
+      const index = Number(marker.dataset.linebreakIndex);
+      if (!Number.isInteger(index)) return;
+      marker.style.left = wordRenderedEndX(index) + "px";
+    });
+  }
+
+  function reflowWordsNow() {
+    wordReflowRaf = 0;
+
+    const leadReady = reflowWordLane(
+      leadTrack,
+      lead,
+      leadNodes,
+      10,
+    );
+
+    const backingNodes = [...backingTrack.querySelectorAll(".ez-word")];
+    const backingReady = reflowWordLane(
+      backingTrack,
+      backing,
+      backingNodes,
+      10,
+    );
+
+    if (leadReady) {
+      reflowLineBreakMarkers();
+    }
+
+    return leadReady && backingReady;
+  }
+
+  function scheduleWordReflow() {
+    if (wordReflowRaf) return;
+
+    wordReflowRaf = requestAnimationFrame(() => {
+      const ready = reflowWordsNow();
+
+      // A second frame catches tabs that became visible during the first one.
+      if (!ready && root.isConnected) {
+        wordReflowRaf = requestAnimationFrame(() => {
+          wordReflowRaf = 0;
+          reflowWordsNow();
+        });
+      }
+    });
+  }
+
+  // Initial layout after the browser has painted the mounted component.
+  scheduleWordReflow();
+  requestAnimationFrame(scheduleWordReflow);
+
+  // Font metrics can arrive after the component DOM is already mounted.
+  if (document.fonts?.ready) {
+    document.fonts.ready.then(scheduleWordReflow).catch(() => {});
+  }
+
+  // Most important trigger for Streamlit tabs: hidden -> visible / resized.
+  if (root.__ezscoreWordResizeObserver) {
+    root.__ezscoreWordResizeObserver.disconnect();
+  }
+
+  root.__ezscoreWordResizeObserver = new ResizeObserver(() => {
+    scheduleWordReflow();
+  });
+
+  root.__ezscoreWordResizeObserver.observe(root);
+  root.__ezscoreWordResizeObserver.observe(viewport);
+
+  // Inline text edits change the measured word width.
+  const wordMutationObserver = new MutationObserver(() => {
+    scheduleWordReflow();
+  });
+
+  wordMutationObserver.observe(leadTrack, {
+    subtree: true,
+    childList: true,
+    characterData: true,
+  });
+  wordMutationObserver.observe(backingTrack, {
+    subtree: true,
+    childList: true,
+    characterData: true,
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) scheduleWordReflow();
   });
 
   function nearestSnap(time) {
