@@ -903,6 +903,60 @@ _MEDIA_ENGINE = r"""
 _JS = _JS[:_audio_start] + _MEDIA_ENGINE + _JS[_audio_end:]
 
 
+# Seeker fix: initialize duration from original preview metadata at mount time.
+# This starts neither playback nor an AudioContext.
+_JS = _replace_once(
+    _JS,
+    """  let mediaElements = [];
+  let mediaSources = [];
+  let clockMedia = null;
+  let lastDriftCheck = 0;
+""",
+    """  let mediaElements = [];
+  let mediaSources = [];
+  let clockMedia = null;
+  let lastDriftCheck = 0;
+  let metadataMedia = null;
+""",
+    "seek metadata state",
+)
+
+_JS = _replace_once(
+    _JS,
+    """  async function ensureReady() {
+""",
+    r"""  function primeSeekMetadata() {
+    const original = defs.find(item => item.name === "original") || defs[0];
+    const url = String(original?.url || "");
+    if (!url) return;
+
+    metadataMedia = new Audio();
+    metadataMedia.preload = "metadata";
+    metadataMedia.src = url;
+
+    const accept = () => {
+      const value = Number(metadataMedia?.duration || 0);
+      if (!Number.isFinite(value) || value <= 0) return;
+
+      duration = value;
+      seek.max = String(Math.max(.001, duration));
+      seek.value = String(Math.max(0, Math.min(duration, position)));
+      timeLabel.textContent = fmt(position) + " / " + fmt(duration);
+    };
+
+    metadataMedia.addEventListener("loadedmetadata", accept, {once:true});
+    metadataMedia.addEventListener("durationchange", accept);
+    try { metadataMedia.load(); } catch (_) {}
+  }
+
+  primeSeekMetadata();
+
+  async function ensureReady() {
+""",
+    "seek metadata preload",
+)
+
+
 _COMPONENT_R12C = st.components.v2.component(
     "ezscore_karaoke_stem_player_r12c",
     html=_HTML,
