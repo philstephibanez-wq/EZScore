@@ -1,169 +1,87 @@
-# EZScore — Répertoire général, playlists et notation collective
+# EZScore — restauration Analyse > Paroles R5.10
 
-Ce livrable part de la baseline fonctionnelle R5.10 de l'éditeur Paroles et
-n'altère aucun fichier du player ni aucun template de la timeline R5.10.
+## Cause identifiée
 
-## Fonctionnalités
+La gestion R5.10 n'avait pas été supprimée : ses fichiers et templates sont
+toujours présents.
 
-L'accueil Répertoire possède maintenant deux vues :
+Le problème est le routage :
 
-- **Répertoire général**
-- **Playlists**
+- R5.10 est branché sur `render_stem_lab_fresh_analysis()`;
+- cette surface était injectée lorsqu'un morceau était encore considéré comme
+  "fresh song";
+- après réouverture depuis le Répertoire, EZScore retombait sur la branche
+  Analyse historique de `EZScore.py`;
+- on voyait alors les anciennes vues Analyse / Édition / Player au lieu de
+  l'onglet Paroles validé.
 
-### Répertoire général
+## Correction
 
-Chaque chanson conserve les fonctions existantes principales :
-
-- tri titre / auteur ;
-- recherche ;
-- index alphabétique ;
-- pochette ;
-- état éditorial ;
-- choix de version ;
-- éditeur ;
-- Voir / Modifier / Supprimer.
-
-S'ajoutent :
-
-- note collective moyenne sur 5 ;
-- nombre de votes ;
-- vote 1 à 5 étoiles pour chaque utilisateur enregistré ;
-- bouton `＋` pour ajouter la chanson à une playlist existante ;
-- création d'une nouvelle playlist directement depuis ce bouton.
-
-Une note utilisateur remplace sa note précédente. La note affichée est :
+Le correctif est volontairement limité à :
 
 ```text
-AVG(song_ratings.rating)
+ezscore/ui/__init__.py
 ```
 
-sur l'ensemble des utilisateurs ayant voté.
+Quand un morceau persisté est ouvert avec la vue `Analyse`, le hook attend le
+point exact où la branche Analyse historique commence (`ez-view-analytic-heading`).
 
-### Playlists
+À cet instant :
 
-Chaque utilisateur enregistré ne voit que ses propres playlists.
+1. les contrôles latéraux du morceau sont déjà rendus ;
+2. la surface validée `STEM / Paroles / Blocs / MIDI` est affichée ;
+3. l'éditeur Paroles R5.10 déjà installé est utilisé ;
+4. la branche Analyse historique est arrêtée pour ce rerun.
 
-Fonctions :
+Aucun fichier du player, aucune timeline technique, aucun template Paroles et
+aucune donnée éditoriale ne sont modifiés.
 
-- créer une playlist ;
-- supprimer une playlist ;
-- ajouter une chanson depuis `＋` dans le Répertoire ;
-- retirer une chanson ;
-- ouvrir une chanson ;
-- conserver l'ordre d'ajout grâce à `position`.
+## R5.10 préservé
 
-Supprimer une playlist ou retirer une chanson ne supprime jamais la chanson du
-Répertoire général.
+La vue `Analyse > Paroles` doit retrouver :
 
-## Modèle SQLite
-
-Tables ajoutées automatiquement :
-
-```text
-song_ratings
-- user_id
-- audio_hash
-- rating (1..5)
-- created_at
-- updated_at
-PRIMARY KEY(user_id, audio_hash)
-
-user_playlists
-- playlist_id
-- user_id
-- name
-- created_at
-- updated_at
-UNIQUE(user_id, name)
-
-user_playlist_items
-- playlist_id
-- audio_hash
-- position
-- created_at
-PRIMARY KEY(playlist_id, audio_hash)
-```
-
-## Templates SCORE
-
-L'UI visuelle est volontairement externalisée :
-
-- `templates/views/catalog-home.score`
-- `templates/views/catalog-song.score`
-- `templates/views/catalog-rating.score`
-- `templates/views/catalog-playlist.score`
-- `templates/views/catalog-playlist-song.score`
-
-La logique interactive reste dans Python ; styles, structure HTML et présentation
-peuvent ainsi évoluer sans réécrire le stockage.
-
-## Modularisation
-
-Nouveaux modules :
-
-- `ezscore/catalog_social.py` : persistence notation / playlists ;
-- `ezscore/ui/catalog_home.py` : surface Streamlit.
-
-`ezscore/ui/__init__.py` installe la surface Répertoire comme les hooks déjà
-utilisés pour le player R12c et l'éditeur timeline. Le bloc historique du
-Répertoire dans `EZScore.py` n'est pas modifié : une fois la nouvelle surface
-rendue, `st.stop()` empêche simplement son double affichage.
+- quatre lanes synchronisées Sections / Accords / Chant / Chœurs ;
+- édition mot au double-clic ;
+- accords éditables beat par beat ;
+- ancres éditoriales ;
+- `↵` par clic long puis déplacement/suppression ;
+- scrollbar horizontale commune persistante ;
+- accords regroupés selon la signature choisie dans le player Analyse ;
+- aucune signature affichée dans Paroles ;
+- aucune modification des timestamps techniques.
 
 ## Installation
 
-Décompresser directement dans `H:\EZScore` :
-
 ```powershell
 cd H:\EZScore
-
-Expand-Archive `
-  -Path "$env:USERPROFILE\Downloads\EZScore_CATALOG_PLAYLISTS_R1.zip" `
-  -DestinationPath . `
-  -Force
-```
-
-Contrôles :
-
-```powershell
-python -m py_compile `
-  .\ezscore\catalog_social.py `
-  .\ezscore\ui\catalog_home.py `
-  .\ezscore\ui\__init__.py
-
+Expand-Archive -Path "$env:USERPROFILE\Downloads\EZScore_RESTORE_LYRICS_R5_10_R1.zip" -DestinationPath . -Force
+python -m py_compile .\ezscore\ui\__init__.py
 git diff --check
 git status --short
 ```
 
-Lancer ensuite :
-
-```powershell
-python -m streamlit run EZScore.py `
-  --server.address 127.0.0.1 `
-  --server.port 8501 `
-  --server.headless true
-```
+Puis relancer Streamlit.
 
 ## Test ciblé
 
-1. Ouvrir **Répertoire**.
-2. Vérifier les deux vues `Répertoire général / Playlists`.
-3. Noter une chanson 5★ avec un utilisateur.
-4. Avec un second utilisateur, noter la même chanson 3★.
-5. Vérifier la moyenne `4,0` et `2 votes`.
-6. Modifier la première note à 1★ : vérifier `2,0` et toujours `2 votes`.
-7. Cliquer `＋`, créer une playlist et ajouter la chanson.
-8. Vérifier que le second ajout dans la même playlist est bloqué.
-9. Ouvrir Playlists, retirer la chanson : elle doit rester au Répertoire.
-10. Supprimer la playlist : aucune chanson ne doit être supprimée.
+1. Ouvrir une chanson déjà persistée depuis le Répertoire.
+2. Choisir `Analyse`.
+3. Vérifier les onglets `1 · STEM`, `2 · Paroles`, `3 · Blocs / structure`,
+   `4 · MIDI`.
+4. Dans `2 · Paroles`, vérifier l'éditeur timeline R5.10.
+5. Vérifier qu'un mot peut encore être modifié au double-clic.
+6. Vérifier `↵`, ancres, scrollbar et édition d'accord.
+7. Changer la signature dans le player Analyse et vérifier que seule la
+   représentation des accords change dans Paroles.
 
-## Non-régression
+## Portée
 
 Ce lot ne modifie pas :
 
-- le player Analyse / STEM ;
-- la synchronisation audio ;
-- la signature rythmique ;
-- `Analyse > Paroles` R5.10 ;
-- les ancres / `↵` ;
-- les accords éditoriaux ;
-- les fichiers audio / STEM.
+- `EZScore.py`;
+- le player R12c;
+- les templates `lyrics-editor.*`;
+- `editorial_timeline.py`;
+- la base SQLite;
+- le Répertoire social R2;
+- i18n.

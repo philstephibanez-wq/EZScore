@@ -1,0 +1,512 @@
+{
+  "engine": "openai-whisper",
+  "model": "small",
+  "source": "vocals",
+  "language": "fr",
+  "words": [
+    {
+      "start": 4.94,
+      "end": 5.32,
+      "text": "oh",
+      "confidence": 0.7393195629119873
+    },
+    {
+      "start": 5.32,
+      "end": 6.36,
+      "text": "oh",
+      "confidence": 0.47956621646881104
+    },
+    {
+      "start": 6.36,
+      "end": 6.82,
+      "text": "oh",
+      "confidence": 0.44965967535972595
+    },
+    {
+      "start": 6.82,
+      "end": 7.54,
+      "text": "oh",
+      "confidence": 0.4842562973499298
+    },
+    {
+      "start": 7.54,
+      "end": 7.66,
+      "text": "oh",
+      "confidence": 0.4525633752346039
+    },
+    {
+      "start": 7.66,
+      "end": 8.06,
+      "text": "oh",
+      "confidence": 0.43145066499710083
+    },
+    {
+      "start": 8.06,
+      "end": 8.92,
+      "text": "oh",
+      "confidence": 0.9346838593482971
+    },
+    {
+      "start": 8.92,
+      "end": 10.08,
+      "text": "oh",
+      "confidence": 0.9392033219337463
+    },
+    {
+      "start": 10.08,
+      "end": 10.68,
+      "text": "oh",
+      "confidence": 0.894202470779419
+    },
+    {
+      "start": 10.68,
+      "end": 11.56,
+      "text": "oh",
+      "confidence": 0.763613760471344
+    },
+    {
+      "start": 11.56,
+      "end": 12.04,
+      "text": "oh.",
+      "confidence": 0.5796772241592407
+    },
+    {
+      "start": 15.08,
+      "end": 15.66,
+      "text": "J",
+      "confidence": 0.7380977869033813
+    },
+    {
+      "start": 15.66,
+      "end": 16.02,
+      "text": "'avais",
+      "confidence": 0.9975317716598511
+    },
+    {
+      "start": 16.02,
+      "end": 17.46,
+      "text": "dessiné",
+      "confidence": 0.9905966718991598
+    },
+    {
+      "start": 17.46,
+      "end": 20.74,
+      "text": "sur",
+      "confidence": 0.5396387577056885
+    },
+    {
+      "start": 20.74,
+      "end": 21.04,
+      "text": "le",
+      "confidence": 0.9972333312034607
+    },
+    {
+      "start": 21.04,
+      "end": 21.74,
+      "text": "sable",
+      "confidence": 0.9931647479534149
+    },
+    {
+      "start": 21.74,
+      "end": 24.26,
+      "text": "son",
+      "confidence": 0.9280575513839722
+    },
+    {
+      "start": 24.26,
+      "end": 24.82,
+      "text": "doux",
+      "confidence": 0.9781113862991333
+    },
+    {
+      "start": 24.82,
+      "end": 25.56,
+      "text": "visage,",
+      "confidence": 0.9832093417644501
+    },
+    {
+      "start": 58.88,
+      "end": 59.94,
+      "text": "Pleuré,",
+      "confidence": 0.5239869182308515
+    },
+    {
+      "start": 60.24,
+      "end": 60.9,
+      "text": "oh",
+      "confidence": 0.7845783233642578
+    },
+    {
+      "start": 60.9,
+      "end": 61.3,
+      "text": "j",
+      "confidence": 0.5560001730918884
+    },
+    {
+      "start": 61.3,
+      "end": 61.7,
+      "text": "'avais",
+      "confidence": 0.9962950646877289
+    },
+    {
+      "start": 61.7,
+      "end": 62.68,
+      "text": "trop",
+      "confidence": 0.9286233186721802
+    },
+    {
+      "start": 62.68,
+      "end": 63.0,
+      "text": "de",
+      "confidence": 0.9954867959022522
+    },
+    {
+      "start": 63.0,
+      "end": 63.28,
+      "text": "paix",
+      "confidence": 0.9815109074115753
+    },
+    {
+      "start": 63.28,
+      "end": 64.08,
+      "text": "Je",
+      "confidence": 0.39228546619415283
+    },
+    {
+      "start": 64.08,
+      "end": 64.38,
+      "text": "me",
+      "confidence": 0.9987378716468811
+    },
+    {
+      "start": 64.38,
+      "end": 64.78,
+      "text": "suis",
+      "confidence": 0.999705970287323
+    },
+    {
+      "start": 64.78,
+      "end": 65.58,
+      "text": "assis",
+      "confidence": 0.9796281158924103
+    },
+    {
+      "start": 68.0,
+      "end": 68.54,
+      "text": "Auprès",
+      "confidence": 0.827318529287974
+    },
+    {
+      "start": 68.54,
+      "end": 68.9,
+      "text": "de",
+      "confidence": 0.9954385161399841
+    },
+    {
+      "start": 68.9,
+      "end": 69.16,
+      "text": "son",
+      "confidence": 0.9722582101821899
+    },
+    {
+      "start": 69.16,
+      "end": 69.98,
+      "text": "âme",
+      "confidence": 0.9813220202922821
+    },
+    {
+      "start": 71.72,
+      "end": 72.26,
+      "text": "Mais",
+      "confidence": 0.8512434959411621
+    },
+    {
+      "start": 72.26,
+      "end": 72.56,
+      "text": "la",
+      "confidence": 0.9220001101493835
+    },
+    {
+      "start": 72.56,
+      "end": 73.04,
+      "text": "belle",
+      "confidence": 0.9773451089859009
+    },
+    {
+      "start": 73.04,
+      "end": 73.84,
+      "text": "dame",
+      "confidence": 0.9450374245643616
+    },
+    {
+      "start": 75.96000000000001,
+      "end": 76.5,
+      "text": "C",
+      "confidence": 0.7202831506729126
+    },
+    {
+      "start": 76.5,
+      "end": 76.8,
+      "text": "'était",
+      "confidence": 0.9225626587867737
+    },
+    {
+      "start": 76.8,
+      "end": 77.4,
+      "text": "un",
+      "confidence": 0.9131742119789124
+    },
+    {
+      "start": 77.4,
+      "end": 77.78,
+      "text": "fuit",
+      "confidence": 0.5542987063527107
+    },
+    {
+      "start": 80.0,
+      "end": 80.54,
+      "text": "Je",
+      "confidence": 0.9045422077178955
+    },
+    {
+      "start": 80.54,
+      "end": 80.86,
+      "text": "l",
+      "confidence": 0.9709165096282959
+    },
+    {
+      "start": 80.86,
+      "end": 80.98,
+      "text": "'ai",
+      "confidence": 0.9944484233856201
+    },
+    {
+      "start": 80.98,
+      "end": 82.1,
+      "text": "cherché",
+      "confidence": 0.9397487044334412
+    },
+    {
+      "start": 83.96000000000001,
+      "end": 84.5,
+      "text": "Sans",
+      "confidence": 0.8142227530479431
+    },
+    {
+      "start": 84.5,
+      "end": 85.26,
+      "text": "plus",
+      "confidence": 0.9790374040603638
+    },
+    {
+      "start": 85.26,
+      "end": 85.5,
+      "text": "y",
+      "confidence": 0.902336835861206
+    },
+    {
+      "start": 85.5,
+      "end": 86.94,
+      "text": "croire",
+      "confidence": 0.9916891157627106
+    },
+    {
+      "start": 141.16,
+      "end": 141.44,
+      "text": "j",
+      "confidence": 0.31370487809181213
+    },
+    {
+      "start": 141.44,
+      "end": 141.72,
+      "text": "'avais",
+      "confidence": 0.8677681684494019
+    },
+    {
+      "start": 141.72,
+      "end": 142.66,
+      "text": "trop",
+      "confidence": 0.9716529250144958
+    },
+    {
+      "start": 142.66,
+      "end": 142.96,
+      "text": "de",
+      "confidence": 0.9953016042709351
+    },
+    {
+      "start": 142.96,
+      "end": 143.3,
+      "text": "paix",
+      "confidence": 0.8706328272819519
+    },
+    {
+      "start": 143.3,
+      "end": 144.36,
+      "text": "et",
+      "confidence": 0.7079065442085266
+    },
+    {
+      "start": 144.36,
+      "end": 144.54,
+      "text": "j",
+      "confidence": 0.987623929977417
+    },
+    {
+      "start": 144.54,
+      "end": 144.68,
+      "text": "'ai",
+      "confidence": 0.9870733916759491
+    },
+    {
+      "start": 144.68,
+      "end": 145.44,
+      "text": "crié,",
+      "confidence": 0.9409416317939758
+    },
+    {
+      "start": 145.78,
+      "end": 147.6,
+      "text": "crié",
+      "confidence": 0.9662580490112305
+    },
+    {
+      "start": 147.6,
+      "end": 148.82,
+      "text": "à",
+      "confidence": 0.36746951937675476
+    },
+    {
+      "start": 148.82,
+      "end": 149.0,
+      "text": "l",
+      "confidence": 0.7848555445671082
+    },
+    {
+      "start": 149.0,
+      "end": 149.35,
+      "text": "'île",
+      "confidence": 0.7784050206343333
+    },
+    {
+      "start": 150.16,
+      "end": 150.48,
+      "text": "elle",
+      "confidence": 0.9660443067550659
+    },
+    {
+      "start": 150.48,
+      "end": 151.06,
+      "text": "revient",
+      "confidence": 0.970461517572403
+    },
+    {
+      "start": 151.06,
+      "end": 152.1,
+      "text": "et",
+      "confidence": 0.9285971522331238
+    },
+    {
+      "start": 152.1,
+      "end": 152.3,
+      "text": "j",
+      "confidence": 0.9923080205917358
+    },
+    {
+      "start": 152.3,
+      "end": 152.42,
+      "text": "'ai",
+      "confidence": 0.9901183843612671
+    },
+    {
+      "start": 152.42,
+      "end": 153.36,
+      "text": "pleuré,",
+      "confidence": 0.9888455073038737
+    },
+    {
+      "start": 153.36,
+      "end": 155.4,
+      "text": "pleuré",
+      "confidence": 0.9894845088322958
+    },
+    {
+      "start": 156.6,
+      "end": 156.94,
+      "text": "j",
+      "confidence": 0.9969779253005981
+    },
+    {
+      "start": 156.94,
+      "end": 157.26,
+      "text": "'avais",
+      "confidence": 0.9942145943641663
+    },
+    {
+      "start": 157.26,
+      "end": 158.24,
+      "text": "trop",
+      "confidence": 0.9986686706542969
+    },
+    {
+      "start": 158.24,
+      "end": 158.46,
+      "text": "de",
+      "confidence": 0.9980233907699585
+    },
+    {
+      "start": 158.46,
+      "end": 159.0,
+      "text": "paix",
+      "confidence": 0.99076247215271
+    },
+    {
+      "start": 159.0,
+      "end": 159.92,
+      "text": "et",
+      "confidence": 0.9714744687080383
+    },
+    {
+      "start": 159.92,
+      "end": 160.1,
+      "text": "j",
+      "confidence": 0.9954208731651306
+    },
+    {
+      "start": 160.1,
+      "end": 160.24,
+      "text": "'ai",
+      "confidence": 0.9992893040180206
+    },
+    {
+      "start": 160.24,
+      "end": 161.14,
+      "text": "crié,",
+      "confidence": 0.9933093190193176
+    },
+    {
+      "start": 161.16,
+      "end": 163.14,
+      "text": "crié",
+      "confidence": 0.9918495118618011
+    },
+    {
+      "start": 163.14,
+      "end": 164.12,
+      "text": "à",
+      "confidence": 0.9722684621810913
+    },
+    {
+      "start": 164.12,
+      "end": 164.32,
+      "text": "l",
+      "confidence": 0.9988229870796204
+    },
+    {
+      "start": 164.32,
+      "end": 164.54,
+      "text": "'île",
+      "confidence": 0.9983134667078654
+    }
+  ]
+}

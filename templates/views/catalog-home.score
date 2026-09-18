@@ -1,22 +1,48 @@
 <style>
-.ez-catalog-home-title{display:flex;align-items:center;gap:.55rem;margin:.15rem 0 .55rem 0}
-.ez-catalog-home-title h2{margin:0;font-size:1.45rem}
-.ez-catalog-letter{margin:.95rem 0 .35rem 0;padding:.2rem .45rem;border-bottom:1px solid rgba(128,128,128,.22);font-size:1.1rem;font-weight:800}
-.ez-catalog-song-title{font-weight:800;line-height:1.15}
-.ez-catalog-status{display:inline-block;margin-top:.2rem;padding:.08rem .38rem;border-radius:.45rem;font-size:.72rem;border:1px solid rgba(128,128,128,.25)}
-.ez-catalog-status.published{border-color:rgba(54,179,126,.48)}
-.ez-catalog-status.validated{border-color:rgba(81,144,255,.48)}
-.ez-catalog-status.working{border-color:rgba(255,183,77,.45)}
-.ez-catalog-status.pending{opacity:.72}
-.ez-catalog-meta{margin-top:.18rem;font-size:.73rem;opacity:.72}
-.ez-catalog-note{margin-top:.1rem;font-size:.73rem;opacity:.82}
+:root{
+  --ez-panel:rgba(255,255,255,.035);
+  --ez-border:rgba(148,163,184,.20);
+  --ez-soft:rgba(148,163,184,.09);
+  --ez-text-soft:rgba(226,232,240,.68);
+  --ez-accent:#5ca8ff;
+  --ez-gold:#d6ad2f;
+  --ez-gold-soft:#f4d76f;
+}
+.ez-catalog-home-title{display:flex;align-items:center;gap:.65rem;margin:.15rem 0 .7rem 0}
+.ez-catalog-home-title .mark{width:2.25rem;height:2.25rem;display:grid;place-items:center;border-radius:.72rem;background:linear-gradient(145deg,rgba(92,168,255,.22),rgba(92,168,255,.06));border:1px solid rgba(92,168,255,.28);font-size:1.1rem}
+.ez-catalog-home-title h2{margin:0;font-size:1.5rem;letter-spacing:-.02em}
+.ez-catalog-letter{display:flex;align-items:center;gap:.55rem;margin:1.1rem 0 .42rem 0;color:var(--ez-accent);font-size:.86rem;font-weight:850;letter-spacing:.10em;text-transform:uppercase}
+.ez-catalog-letter:after{content:"";height:1px;flex:1;background:linear-gradient(90deg,rgba(92,168,255,.34),transparent)}
+.ez-catalog-song-title{font-weight:850;font-size:1.03rem;line-height:1.12;letter-spacing:-.01em}
+.ez-catalog-status{display:inline-flex;align-items:center;margin-top:.28rem;padding:.18rem .48rem;border-radius:999px;font-size:.69rem;font-weight:720;border:1px solid var(--ez-border);background:var(--ez-soft)}
+.ez-catalog-status.published{border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.08)}
+.ez-catalog-status.validated{border-color:rgba(92,168,255,.40);background:rgba(92,168,255,.08)}
+.ez-catalog-status.working{border-color:rgba(251,191,36,.32);background:rgba(251,191,36,.07)}
+.ez-catalog-status.pending{opacity:.70}
+.ez-catalog-meta,.ez-catalog-note{margin-top:.2rem;font-size:.72rem;color:var(--ez-text-soft)}
+.ez-cover-empty{width:64px;height:64px;border-radius:13px;display:grid;place-items:center;border:1px solid var(--ez-border);background:linear-gradient(145deg,rgba(92,168,255,.10),rgba(148,163,184,.04));font-size:1.45rem;color:var(--ez-accent)}
 .ez-rating{white-space:nowrap;line-height:1.05}
-.ez-rating-stars{letter-spacing:.02rem;font-size:.94rem}
-.ez-rating-meta{font-size:.68rem;opacity:.72;margin-top:.08rem}
-.ez-playlist-title{display:flex;align-items:baseline;gap:.5rem;margin:.85rem 0 .2rem 0}
-.ez-playlist-title strong{font-size:1.08rem}
-.ez-playlist-count{font-size:.73rem;opacity:.68}
-.ez-playlist-song-title{font-weight:750;line-height:1.05}
-.ez-playlist-song-artist{font-size:.72rem;opacity:.7;margin-top:.08rem}
+.ez-rating-stars{letter-spacing:.045rem;font-size:1.08rem;font-weight:900;color:var(--ez-gold);text-shadow:0 0 12px rgba(214,173,47,.18)}
+.ez-rating-meta{font-size:.68rem;color:var(--ez-text-soft);margin-top:.12rem}
+.ez-playlist-title{display:flex;align-items:center;gap:.62rem;margin:.05rem 0 .35rem 0}
+.ez-playlist-title strong{font-size:1.12rem;letter-spacing:-.015em}
+.ez-playlist-count{font-size:.7rem;color:var(--ez-text-soft)}
+.ez-owner-badge{padding:.12rem .42rem;border-radius:999px;font-size:.65rem;font-weight:800;border:1px solid var(--ez-border);background:var(--ez-soft)}
+.ez-owner-badge.group{border-color:rgba(167,139,250,.35);background:rgba(167,139,250,.08)}
+.ez-owner-badge.shared{border-color:rgba(45,212,191,.34);background:rgba(45,212,191,.07)}
+.ez-playlist-song-title{font-weight:780;line-height:1.05}
+.ez-playlist-song-artist{font-size:.72rem;color:var(--ez-text-soft);margin-top:.1rem}
+.ez-position{display:grid;place-items:center;width:1.65rem;height:1.65rem;border-radius:50%;font-size:.72rem;font-weight:850;background:var(--ez-soft);border:1px solid var(--ez-border)}
+.ez-group-head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
+.ez-group-name{font-size:1.16rem;font-weight:850;letter-spacing:-.018em}
+.ez-group-meta{display:flex;gap:.45rem;flex-wrap:wrap;margin-top:.28rem}
+.ez-group-chip{padding:.14rem .43rem;border-radius:999px;font-size:.66rem;border:1px solid var(--ez-border);color:var(--ez-text-soft)}
+.ez-group-role{font-size:.68rem;font-weight:800;color:var(--ez-accent)}
+.ez-section-head{display:flex;align-items:center;gap:.55rem}
+.ez-section-head strong{font-size:1.05rem}
+@media (max-width:780px){
+  .ez-catalog-song-title{font-size:.98rem}
+  .ez-rating-stars{font-size:1rem}
+}
 </style>
-<div class="ez-catalog-home-title"><span>🎵</span><h2>{{ title }}</h2></div>
+<div class="ez-catalog-home-title"><span class="mark">♫</span><h2>{{ title }}</h2></div>

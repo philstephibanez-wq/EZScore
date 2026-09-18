@@ -1,0 +1,10 @@
+<div class="ez-group-head">
+  <div>
+    <div class="ez-group-name">👥 {{ name }}</div>
+    <div class="ez-group-meta">
+      <span class="ez-group-chip">{{ member_count }} {{ member_label }}</span>
+      <span class="ez-group-chip">{{ playlist_count }} {{ playlist_label }}</span>
+    </div>
+  </div>
+  <div class="ez-group-role">{{ role }}</div>
+</div>

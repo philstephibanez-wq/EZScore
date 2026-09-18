@@ -72,6 +72,89 @@ def _install_catalog_home_patch() -> None:
             pass
 
 
+def _install_persisted_analysis_r5_10_patch() -> None:
+    """Restore the validated R5.10 Analyse > Paroles surface for saved songs.
+
+    R5.10 is implemented inside stem_lab_analysis and its inline editor hook.
+    Historically this surface was injected only when EZScore displayed the
+    fresh-song message. Once the same song was reopened from the catalogue,
+    EZScore.py fell back to its legacy Analyse branch.
+
+    We intercept the exact legacy Analyse heading at render time, after the
+    song sidebar controls already exist, render the validated STEM/Paroles/
+    Structure/MIDI surface, then stop the legacy branch for this rerun only.
+    """
+    try:
+        import streamlit as st
+        from ezscore.ui import app_shell as _shell
+        from ezscore.ui import stem_lab_analysis as _stem_lab
+
+        original_markdown = st.markdown
+
+        if getattr(
+            original_markdown,
+            "_ezscore_persisted_analysis_r5_10_patch",
+            False,
+        ):
+            return
+
+        rendering = False
+
+        def markdown_with_persisted_analysis(*args, **kwargs):
+            nonlocal rendering
+
+            if (
+                not rendering
+                and args
+                and _shell.current_section() == "Chanson"
+            ):
+                value = str(args[0] or "")
+                active_hash = str(
+                    st.session_state.get("active_song_hash", "") or ""
+                ).strip()
+                current_view = (
+                    str(
+                        st.session_state.get(
+                            f"song_view_{active_hash[:12]}",
+                            "",
+                        )
+                    )
+                    if active_hash
+                    else ""
+                )
+
+                if (
+                    active_hash
+                    and current_view == "Analyse"
+                    and "ez-view-analytic-heading" in value
+                ):
+                    rendering = True
+                    try:
+                        _stem_lab.render_stem_lab_fresh_analysis(active_hash)
+                    finally:
+                        rendering = False
+
+                    # The validated Analyse surface has been rendered. Do not
+                    # continue into the obsolete Analyse implementation below.
+                    st.stop()
+
+            return original_markdown(*args, **kwargs)
+
+        markdown_with_persisted_analysis._ezscore_persisted_analysis_r5_10_patch = True
+        st.markdown = markdown_with_persisted_analysis
+
+    except Exception as exc:
+        try:
+            import streamlit as st
+            st.error(
+                "Restauration Analyse > Paroles R5.10 indisponible : "
+                + str(exc)
+            )
+        except Exception:
+            pass
+
+
 _install_karaoke_patch()
 _install_inline_editor_patch()
 _install_catalog_home_patch()
+_install_persisted_analysis_r5_10_patch()

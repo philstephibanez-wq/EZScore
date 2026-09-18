@@ -1,6 +1,6 @@
 <div class="ez-catalog-song-title">{{ primary }}</div>
 <div class="ez-catalog-status {{ status_class }}">{{ status }}</div>
-<div class="ez-catalog-meta">🕒 {{ modified }}</div>
+<div class="ez-catalog-meta">{{ modified }}</div>
 [[ if: has_note ]]
-<div class="ez-catalog-note">💬 {{ note }}</div>
+<div class="ez-catalog-note">{{ note }}</div>
 [[ endif ]]
