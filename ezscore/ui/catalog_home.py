@@ -19,6 +19,8 @@ from EZScoreTemplate import ScoreTemplateRenderer
 from ezscore.auth import allowed as auth_allowed
 from ezscore.auth import current_user as auth_current_user
 from ezscore.auth import require as auth_require
+from ezscore.acl import actions as acl_actions
+from ezscore.acl import allowed as acl_allowed
 from ezscore.auth.storage import list_users as auth_list_users
 from ezscore.catalog_social import (
     GROUP_ROLE_ADMIN,
@@ -51,6 +53,23 @@ from ezscore.catalog_social import (
 )
 from ezscore.i18n import current_language, set_language, t
 from ezscore.ui.playlist_order_editor import render_playlist_order_editor
+from ezscore.ui.navigation_view import render_navigation_path
+from ezscore.navigation.session_adapter import (
+    back as nav_back,
+    current_route as nav_current_route,
+    current_state as nav_current_state,
+    open_playlist as nav_open_playlist,
+    open_playlists as nav_open_playlists,
+    open_repertoire as nav_open_repertoire,
+    open_song as nav_open_song,
+    open_song_from_playlist as nav_open_song_from_playlist,
+    open_song_from_repertoire as nav_open_song_from_repertoire,
+)
+from ezscore.navigation.states import (
+    REPERTOIRE_LIST,
+    PLAYLISTS_LIST,
+    PLAYLIST_DETAIL,
+)
 from ezscore.persistence import (
     catalog_display_name,
     catalog_letter_for_song,
@@ -301,20 +320,19 @@ def _open_song(
     selected_version: int | None = None,
     mode: str = "Vue",
     view: str = "Paroles + accords",
+    source: str = "repertoire",
 ) -> None:
-    st.session_state["active_song_hash"] = audio_hash
-    set_app_state("last_song_hash", audio_hash)
-    prepare_song_preferences_for_open(audio_hash)
-
-    if selected_version is None:
-        st.session_state.pop("active_analysis_version_no", None)
-    else:
-        prepare_analysis_version_for_open(audio_hash, selected_version)
-        st.session_state[f"song_view_{audio_hash[:12]}"] = view
-        st.session_state[f"song_mode_{audio_hash[:12]}"] = mode
-
-    st.session_state["_pending_main_menu"] = "Chanson"
-    st.rerun()
+    opener = (
+        nav_open_song_from_playlist
+        if source == "playlist"
+        else nav_open_song_from_repertoire
+    )
+    opener(
+        audio_hash,
+        selected_version=selected_version,
+        mode=mode,
+        view=view,
+    )
 
 
 def _catalog_choices(
@@ -717,7 +735,7 @@ def _render_share_controls(
     users_by_id: dict[int, dict[str, Any]],
     key_prefix: str,
 ) -> None:
-    if not playlist.get("can_manage"):
+    if not acl_allowed(uid, acl_actions.PLAYLIST_MANAGE, playlist_id=int(playlist["playlist_id"])):
         return
 
     with st.popover("↗ " + t("playlist.share")):
@@ -787,13 +805,11 @@ def _render_share_controls(
 
 
 def _open_playlist_detail(playlist_id: int) -> None:
-    st.session_state["_ez_open_playlist_id"] = int(playlist_id)
-    st.rerun()
+    nav_open_playlist(int(playlist_id))
 
 
 def _close_playlist_detail() -> None:
-    st.session_state.pop("_ez_open_playlist_id", None)
-    st.rerun()
+    nav_back()
 
 
 def _playlist_by_id(
@@ -889,8 +905,12 @@ def _render_playlist_detail(
 ) -> None:
     playlist = _playlist_by_id(uid, playlist_id)
     if playlist is None:
-        st.session_state.pop("_ez_open_playlist_id", None)
         st.warning(t("playlist.not_found"))
+        if st.button(
+            "← " + t("playlist.back"),
+            key="playlist_missing_back",
+        ):
+            nav_back()
         return
 
     pid = int(playlist["playlist_id"])
@@ -901,6 +921,17 @@ def _render_playlist_detail(
         groups_by_id,
     )
     users_by_id = _user_map()
+
+    group_name = ""
+    if str(playlist.get("owner_type", "")) == PLAYLIST_OWNER_GROUP:
+        owner_group = groups_by_id.get(int(playlist.get("owner_id", -1)))
+        if owner_group is not None:
+            group_name = str(owner_group.get("name") or "")
+
+    render_navigation_path(
+        group_name=group_name,
+        playlist_name=str(playlist.get("name") or ""),
+    )
 
     back_col, _ = st.columns([1.3, 5])
     with back_col:
@@ -970,7 +1001,7 @@ def _render_playlist_detail(
             key_prefix=f"playlist_detail_{pid}",
         )
     with controls[1]:
-        if playlist.get("can_manage"):
+        if acl_allowed(uid, acl_actions.PLAYLIST_DELETE, playlist_id=pid):
             with st.popover("🗑 " + t("playlist.delete")):
                 st.warning(t("playlist.delete.warning"))
                 if st.button(
@@ -979,8 +1010,7 @@ def _render_playlist_detail(
                     type="primary",
                 ):
                     delete_user_playlist(uid, pid)
-                    st.session_state.pop("_ez_open_playlist_id", None)
-                    st.rerun()
+                    nav_back()
 
     if not songs:
         st.info(t("playlist.empty.content"))
@@ -992,13 +1022,13 @@ def _render_playlist_detail(
     ordered = render_playlist_order_editor(
         pid,
         songs,
-        editable=bool(playlist.get("can_edit")),
+        editable=acl_allowed(uid, acl_actions.PLAYLIST_REORDER, playlist_id=pid),
         drag_label=t("playlist.drag_help"),
         readonly_label=t("playlist.readonly_order"),
     )
 
     if (
-        bool(playlist.get("can_edit"))
+        acl_allowed(uid, acl_actions.PLAYLIST_REORDER, playlist_id=pid)
         and ordered != current_order
     ):
         reorder_playlist_songs(uid, pid, ordered)
@@ -1055,7 +1085,7 @@ def _render_playlist_detail(
             )
         with open_col:
             if st.button(
-                t("catalog.open"),
+                t("playlist.open_song"),
                 key=f"playlist_detail_open_{pid}_{audio_hash}",
                 width="stretch",
             ):
@@ -1065,12 +1095,18 @@ def _render_playlist_detail(
                         audio_hash,
                         selected_version=int(versions[0]["version_no"]),
                         mode="Vue",
-                        view="Paroles + accords",
+                        view="Analyse",
+                        source="playlist",
                     )
                 else:
-                    _open_song(audio_hash)
+                    _open_song(
+                        audio_hash,
+                        mode="Vue",
+                        view="Analyse",
+                        source="playlist",
+                    )
         with remove_col:
-            if playlist.get("can_edit"):
+            if acl_allowed(uid, acl_actions.PLAYLIST_EDIT, playlist_id=pid):
                 if st.button(
                     t("playlist.remove"),
                     key=f"playlist_detail_remove_{pid}_{audio_hash}",
@@ -1245,19 +1281,15 @@ def _render_playlists(
         st.info(t("playlist.login"))
         return
 
-    focused = st.session_state.get("_ez_open_playlist_id")
-    if focused not in (None, ""):
-        try:
-            playlist_id = int(focused)
-        except (TypeError, ValueError):
-            st.session_state.pop("_ez_open_playlist_id", None)
-        else:
-            _render_playlist_detail(
-                catalog,
-                uid=uid,
-                playlist_id=playlist_id,
-            )
-            return
+    route = nav_current_route()
+    if route["state"] == PLAYLIST_DETAIL:
+        playlist_id = int(route["context"]["playlist_id"])
+        _render_playlist_detail(
+            catalog,
+            uid=uid,
+            playlist_id=playlist_id,
+        )
+        return
 
     section = st.radio(
         "Playlist mode",
@@ -1314,6 +1346,10 @@ def render_catalog_home() -> None:
             set_language(selected)
             st.rerun()
 
+    route = nav_current_route()
+    if route["state"] != PLAYLIST_DETAIL:
+        render_navigation_path()
+
     st.markdown(
         _render_score(
             "catalog-home.score",
@@ -1322,6 +1358,14 @@ def render_catalog_home() -> None:
         unsafe_allow_html=True,
     )
 
+    desired_mode = (
+        t("home.playlists")
+        if route["state"] in {PLAYLISTS_LIST, PLAYLIST_DETAIL}
+        else t("home.general")
+    )
+    if st.session_state.get("catalog_home_mode") != desired_mode:
+        st.session_state["catalog_home_mode"] = desired_mode
+
     mode = st.radio(
         "Catalog home",
         [t("home.general"), t("home.playlists")],
@@ -1329,6 +1373,15 @@ def render_catalog_home() -> None:
         key="catalog_home_mode",
         label_visibility="collapsed",
     )
+
+    if mode == t("home.playlists"):
+        if nav_current_state() == REPERTOIRE_LIST:
+            nav_open_playlists(rerun=False)
+    elif mode == t("home.general"):
+        if nav_current_state() != REPERTOIRE_LIST:
+            # Répertoire général est une racine EFSM. Ne jamais laisser
+            # group.detail/playlist.detail reprendre la main au rerun.
+            nav_open_repertoire(rerun=False)
 
     catalog = list_song_catalog(sort_by="title")
     if not auth_allowed("song.read_private"):

@@ -1,0 +1,18 @@
+"""Named navigation states for EZScore."""
+
+REPERTOIRE_LIST = "repertoire.list"
+PLAYLISTS_LIST = "playlists.list"
+GROUPS_LIST = "groups.list"
+GROUP_DETAIL = "group.detail"
+PLAYLIST_DETAIL = "playlist.detail"
+SONG_DETAIL = "song.detail"
+SONG_ANALYSIS = "song.analysis"
+
+ALL_STATES = frozenset({
+    REPERTOIRE_LIST, PLAYLISTS_LIST, GROUPS_LIST, GROUP_DETAIL,
+    PLAYLIST_DETAIL, SONG_DETAIL, SONG_ANALYSIS,
+})
+REPERTOIRE_STATES = frozenset({
+    REPERTOIRE_LIST, PLAYLISTS_LIST, GROUPS_LIST, GROUP_DETAIL, PLAYLIST_DETAIL,
+})
+SONG_STATES = frozenset({SONG_DETAIL, SONG_ANALYSIS})

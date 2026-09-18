@@ -49,5 +49,8 @@
   "event.notes": "Goal / notes",
   "event.notes_placeholder": "E.g. Work on transitions and the ending…",
   "event.prepare": "Create event and setlist",
-  "event.upcoming": "Rehearsals / concerts"
+  "event.upcoming": "Rehearsals / concerts",
+  "group.open": "Open group",
+  "group.back": "My groups",
+  "group.not_found": "This group is no longer accessible."
 }

@@ -39,6 +39,15 @@ from ezscore.catalog_social import (
     update_group_member_role,
 )
 from ezscore.i18n import t
+from ezscore.ui.navigation_view import render_navigation_path
+from ezscore.navigation.session_adapter import (
+    back as nav_back,
+    current_route as nav_current_route,
+    open_group as nav_open_group,
+    open_groups as nav_open_groups,
+    open_playlist as nav_open_playlist,
+)
+from ezscore.navigation.states import GROUPS_LIST, GROUP_DETAIL
 
 
 APP_DIR = Path(__file__).resolve().parents[2]
@@ -107,13 +116,16 @@ def _group_playlists(
     ]
 
 
-def _go_to_playlist(playlist_id: int) -> None:
-    """Open one precise playlist in the Repertoire > Playlists surface."""
-    st.session_state["_ez_groups_open"] = False
-    st.session_state["_ez_catalog_open_playlists"] = True
-    st.session_state["_ez_open_playlist_id"] = int(playlist_id)
-    st.session_state["_pending_main_menu"] = "Répertoire"
-    st.rerun()
+def _go_to_playlist(
+    playlist_id: int,
+    *,
+    group_id: int | None = None,
+) -> None:
+    """Open one precise playlist through the navigation EFSM."""
+    nav_open_playlist(
+        int(playlist_id),
+        group_id=group_id,
+    )
 
 
 def _render_member(
@@ -324,7 +336,7 @@ def _event_form(
             location=location,
             notes=notes,
         )
-        _go_to_playlist(int(event["playlist_id"]))
+        _go_to_playlist(int(event["playlist_id"]), group_id=group_id)
 
 
 def _render_playlist_list(
@@ -389,7 +401,7 @@ def _render_playlist_list(
                 gt("playlist.open"),
                 key=f"group_event_open_{int(event['event_id'])}",
             ):
-                _go_to_playlist(int(event["playlist_id"]))
+                _go_to_playlist(int(event["playlist_id"]), group_id=group_id)
 
     event_playlist_ids = {
         int(event["playlist_id"])
@@ -433,7 +445,7 @@ def _render_playlist_list(
                     key=f"group_playlist_open_{int(playlist['playlist_id'])}",
                     width="stretch",
                 ):
-                    _go_to_playlist(int(playlist["playlist_id"]))
+                    _go_to_playlist(int(playlist["playlist_id"]), group_id=group_id)
 
     if not events and not playlists:
         st.caption(gt("playlist.empty"))
@@ -462,8 +474,46 @@ def _render_playlist_list(
             owner_type=PLAYLIST_OWNER_GROUP,
             owner_id=group_id,
         )
-        _go_to_playlist(int(playlist["playlist_id"]))
+        _go_to_playlist(int(playlist["playlist_id"]), group_id=group_id)
 
+
+
+
+def _render_group_summary(
+    *,
+    group: dict[str, Any],
+) -> None:
+    group_id = int(group["group_id"])
+    name = str(group.get("name") or gt("group.untitled"))
+    role = str(group.get("role") or GROUP_ROLE_MEMBER)
+
+    st.markdown(
+        _render_score(
+            "group-card.score",
+            {
+                "initial": _initial(name),
+                "name": name,
+                "role": (
+                    gt("role.admin")
+                    if role == GROUP_ROLE_ADMIN
+                    else gt("role.member")
+                ),
+                "member_count": int(group.get("member_count", 0) or 0),
+                "member_label": gt("group.members"),
+                "playlist_count": int(group.get("playlist_count", 0) or 0),
+                "playlist_label": gt("group.playlists"),
+            },
+        ),
+        unsafe_allow_html=True,
+    )
+
+    if st.button(
+        gt("group.open"),
+        key=f"group_open_{group_id}",
+        type="primary",
+        width="stretch",
+    ):
+        nav_open_group(group_id)
 
 
 def _render_group_card(
@@ -550,11 +600,11 @@ def _render_group_card(
                 width="stretch",
             ):
                 delete_user_group(user_id, group_id)
-                st.rerun()
+                nav_open_groups()
 
 
 def render_groups_home() -> None:
-    """Render the dedicated 'Mes groupes' page."""
+    """Render Groups from the explicit navigation EFSM."""
     ensure_catalog_social_schema()
     user_id = _current_user_id()
 
@@ -564,6 +614,48 @@ def render_groups_home() -> None:
 
     users = _user_map()
     groups = list_user_groups(user_id)
+    route = nav_current_route()
+
+    if route["state"] not in {GROUPS_LIST, GROUP_DETAIL}:
+        nav_open_groups(rerun=False)
+        route = nav_current_route()
+
+    if route["state"] == GROUP_DETAIL:
+        group_id = int(route["context"]["group_id"])
+        group = next(
+            (
+                item
+                for item in groups
+                if int(item["group_id"]) == group_id
+            ),
+            None,
+        )
+
+        if group is None:
+            st.warning(gt("group.not_found"))
+            if st.button("← " + gt("group.back"), key="group_missing_back"):
+                nav_back()
+            return
+
+        render_navigation_path(
+            group_name=str(group.get("name") or gt("group.untitled")),
+        )
+
+        if st.button(
+            "← " + gt("group.back"),
+            key=f"group_back_{group_id}",
+        ):
+            nav_back()
+
+        with st.container(border=True):
+            _render_group_card(
+                user_id=user_id,
+                group=group,
+                users=users,
+            )
+        return
+
+    render_navigation_path()
 
     st.markdown(
         _render_score(
@@ -597,8 +689,8 @@ def render_groups_home() -> None:
             )
 
         if submitted and str(name or "").strip():
-            create_user_group(user_id, name)
-            st.rerun()
+            created = create_user_group(user_id, name)
+            nav_open_group(int(created["group_id"]))
 
     if not groups:
         st.markdown(
@@ -617,8 +709,5 @@ def render_groups_home() -> None:
 
     for group in groups:
         with st.container(border=True):
-            _render_group_card(
-                user_id=user_id,
-                group=group,
-                users=users,
-            )
+            _render_group_summary(group=group)
+

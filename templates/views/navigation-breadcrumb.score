@@ -1,0 +1,7 @@
+<style>
+.eznav-path{display:flex;align-items:center;gap:.38rem;flex-wrap:wrap;margin:.1rem 0 .75rem;color:rgba(226,232,240,.64);font-size:.72rem}
+.eznav-item{padding:.16rem .38rem;border-radius:.45rem;border:1px solid transparent}
+.eznav-item.active{color:rgba(245,247,250,.96);font-weight:850;background:rgba(92,168,255,.09);border-color:rgba(92,168,255,.22)}
+.eznav-sep{opacity:.42}
+</style>
+<div class="eznav-path">{{ items_html }}</div>

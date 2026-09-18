@@ -97,5 +97,6 @@
   "event.rehearsal": "Répétition",
   "event.concert": "Concert",
   "event.date_unknown": "Date non définie",
-  "event.location_unknown": "Lieu non défini"
+  "event.location_unknown": "Lieu non défini",
+  "playlist.open_song": "Ouvrir la chanson"
 }

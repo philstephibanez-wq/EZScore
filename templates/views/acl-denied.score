@@ -1,0 +1,9 @@
+<style>
+.ezacl-denied{padding:.72rem .85rem;border:1px solid rgba(239,68,68,.28);border-radius:.72rem;background:rgba(239,68,68,.06);margin:.35rem 0 .8rem}
+.ezacl-denied-title{font-weight:850}
+.ezacl-denied-detail{font-size:.72rem;opacity:.72;margin-top:.18rem}
+</style>
+<div class="ezacl-denied">
+  <div class="ezacl-denied-title">⛔ {{ title }}</div>
+  <div class="ezacl-denied-detail">{{ detail }}</div>
+</div>

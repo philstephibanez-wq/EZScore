@@ -52,24 +52,22 @@ def _install_catalog_home_patch() -> None:
                 return
 
             try:
-                if bool(st.session_state.get("_ez_groups_open", False)):
+                from ezscore.navigation.session_adapter import (
+                    bootstrap_from_legacy,
+                    current_state,
+                )
+                from ezscore.navigation.states import (
+                    GROUPS_LIST,
+                    GROUP_DETAIL,
+                )
+
+                bootstrap_from_legacy()
+
+                if current_state() in {GROUPS_LIST, GROUP_DETAIL}:
                     from ezscore.ui.groups_home import render_groups_home
                     render_groups_home()
                 else:
                     from ezscore.ui.catalog_home import render_catalog_home
-
-                    if bool(
-                        st.session_state.pop(
-                            "_ez_catalog_open_playlists",
-                            False,
-                        )
-                    ):
-                        from ezscore.i18n import t
-                        st.session_state["catalog_home_mode"] = t(
-                            "home.playlists",
-                            domain="catalog",
-                        )
-
                     render_catalog_home()
             except Exception as exc:
                 st.error(f"Surface Répertoire/Groupes indisponible : {exc}")
@@ -201,26 +199,22 @@ def _install_groups_navigation_patch() -> None:
             original_button = st.button
             original_sidebar_button = st.sidebar.button
 
+            from ezscore.navigation.session_adapter import (
+                back as nav_back,
+                can_back as nav_can_back,
+                current_state as nav_current_state,
+                open_groups as nav_open_groups,
+                open_repertoire as nav_open_repertoire,
+                previous_route as nav_previous_route,
+            )
+            from ezscore.navigation.states import SONG_DETAIL, SONG_ANALYSIS
+
             def open_groups() -> None:
-                st.session_state["_ez_groups_open"] = True
-                st.session_state["_pending_main_menu"] = "Répertoire"
-                st.rerun()
+                nav_open_groups()
 
             def clear_groups_if_navigation(key, clicked) -> None:
-                if (
-                    clicked
-                    and key
-                    in {
-                        "shell_repertoire",
-                        "shell_profile",
-                        "shell_login",
-                        "shell_edits",
-                        "shell_import",
-                        "shell_admin_users",
-                        "shell_logout",
-                    }
-                ):
-                    st.session_state["_ez_groups_open"] = False
+                if clicked and key == "shell_repertoire":
+                    nav_open_repertoire(rerun=False)
 
             def patched_sidebar_button(*args, **kwargs):
                 key = kwargs.get("key")
@@ -263,6 +257,24 @@ def _install_groups_navigation_patch() -> None:
             st.button = patched_button
             try:
                 original_render()
+
+                if (
+                    nav_current_state() in {SONG_DETAIL, SONG_ANALYSIS}
+                    and nav_can_back()
+                ):
+                    previous = nav_previous_route() or {}
+                    previous_state = str(previous.get("state") or "")
+                    label = (
+                        "← Retour à la playlist"
+                        if previous_state == "playlist.detail"
+                        else "← Retour"
+                    )
+                    if original_sidebar_button(
+                        label,
+                        key="shell_efsm_back",
+                        width="stretch",
+                    ):
+                        nav_back()
             finally:
                 st.sidebar.button = original_sidebar_button
                 st.button = original_button

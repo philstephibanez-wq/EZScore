@@ -49,5 +49,8 @@
   "event.notes": "Objectif / notes",
   "event.notes_placeholder": "Ex. Travailler les transitions et le final…",
   "event.prepare": "Créer l'événement et sa setlist",
-  "event.upcoming": "Répétitions / concerts"
+  "event.upcoming": "Répétitions / concerts",
+  "group.open": "Ouvrir le groupe",
+  "group.back": "Mes groupes",
+  "group.not_found": "Ce groupe n'est plus accessible."
 }
