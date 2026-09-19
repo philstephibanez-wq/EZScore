@@ -425,6 +425,22 @@ export default function(component) {
     });
 
     leadTrack.appendChild(node);
+
+    // Purely visual compaction of Whisper contractions.
+    // Keep timing/index/editability untouched, but glue tokens such as
+    // "J" + "'avais", "l" + "'amour", "qu" + "'elle".
+    if (
+      index > 0
+      && /^[\'’]/.test(String(current() || "").trim())
+      && !breakSet.has(index - 1)
+    ) {
+      const previous = leadNodes[index - 1];
+      if (previous) {
+        const previousLeft = Number.parseFloat(previous.style.left || "0");
+        node.style.left = (previousLeft + previous.offsetWidth + 1) + "px";
+      }
+    }
+
     leadNodes.push(node);
   });
 
@@ -627,6 +643,17 @@ export default function(component) {
     });
 
     backingTrack.appendChild(node);
+
+    if (
+      index > 0
+      && /^[\'’]/.test(String(current() || "").trim())
+    ) {
+      const previous = backingTrack.querySelectorAll(".ez-word")[index - 1];
+      if (previous) {
+        const previousLeft = Number.parseFloat(previous.style.left || "0");
+        node.style.left = (previousLeft + previous.offsetWidth + 1) + "px";
+      }
+    }
   });
 
   function nearestSnap(time) {

@@ -427,17 +427,40 @@ _JS = (
   let leadNodes=[];
   let backingNodes=[];
 
+  function isContractionSuffix(text) {
+    return /^[\'’]/.test(String(text || "").trim());
+  }
+
   function createLane(track, sourceWords) {
     track.innerHTML="";
     track.style.width=sharedTimelineWidth()+"px";
-    return sourceWords.map(w => {
+
+    const nodes=[];
+    sourceWords.forEach((w,index) => {
       const span=document.createElement("span");
       span.className="lyric-token";
       span.textContent=w.text;
-      span.style.left=timelineVisualXForTime(w.start)+"px";
+
+      let left=timelineVisualXForTime(w.start);
+
+      // Typographic compaction only: Whisper may split contractions such as
+      // "J" + "'avais" or "l" + "'amour" into separate timestamped tokens.
+      // Keep both timestamps intact but visually glue the apostrophe suffix
+      // to the previous token so lyrics remain readable.
+      if (index > 0 && isContractionSuffix(w.text)) {
+        const previous=nodes[index-1];
+        if (previous) {
+          const previousLeft=Number.parseFloat(previous.style.left || "0");
+          left=previousLeft+previous.offsetWidth+1;
+        }
+      }
+
+      span.style.left=left+"px";
       track.appendChild(span);
-      return span;
+      nodes.push(span);
     });
+
+    return nodes;
   }
 
   function rebuildLyricGeometry() {
