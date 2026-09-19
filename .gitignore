@@ -11,4 +11,6 @@ __pycache__/
 #data/covers/
 #data/logs/
 
-
+# Generated analysis artifacts: keep local, never push
+data/analysis/stems/
+data/analysis/stem_lab/
