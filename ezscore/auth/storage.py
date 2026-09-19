@@ -220,6 +220,20 @@ def user_count() -> int:
     return int(row[0] if row else 0)
 
 
+def active_admin_count() -> int:
+    """Return the number of active persistent administrators."""
+    ensure_auth_schema()
+    with sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM app_users
+            WHERE role = 'admin' AND active = 1
+            """
+        ).fetchone()
+    return int(row[0] if row else 0)
+
+
 def create_user(
     *,
     email: str,
@@ -282,6 +296,67 @@ def register_reader(
         display_name=display_name,
         role=Role.READER,
     )
+
+
+def create_initial_admin(
+    *,
+    email: str,
+    password: str,
+    display_name: str,
+) -> dict:
+    """Create the first administrator from the interactive setup screen.
+
+    This entry point is intentionally allowed only while the account database
+    is empty. Normal EZScore operations protect the last active administrator,
+    so a non-empty database without an admin is a recovery situation that must
+    still be handled server-side.
+    """
+    ensure_auth_schema()
+
+    normalized_email = _email(email)
+    display = _display_name(display_name)
+
+    if "@" not in normalized_email:
+        raise ValueError("Adresse e-mail invalide.")
+    if len(str(password)) < 8:
+        raise ValueError("Le mot de passe doit contenir au moins 8 caractères.")
+    if not display:
+        raise ValueError("Le nom affiché / login est obligatoire.")
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        count_row = conn.execute(
+            "SELECT COUNT(*) FROM app_users"
+        ).fetchone()
+        if int(count_row[0] if count_row else 0) != 0:
+            conn.rollback()
+            raise RuntimeError(
+                "L'initialisation interactive de l'administrateur est réservée "
+                "à une base de comptes vide."
+            )
+
+        _assert_unique_display_name(conn, display)
+        now = _now()
+        cur = conn.execute(
+            """
+            INSERT INTO app_users (
+                email, display_name, password_hash, role, active,
+                auth_provider, created_at, updated_at
+            )
+            VALUES (?, ?, ?, 'admin', 1, 'local', ?, ?)
+            """,
+            (
+                normalized_email,
+                display,
+                _hash_password(password),
+                now,
+                now,
+            ),
+        )
+        user_id = int(cur.lastrowid)
+        conn.commit()
+
+    return get_user_by_id(user_id)
 
 
 def bootstrap_admin_from_env() -> bool:

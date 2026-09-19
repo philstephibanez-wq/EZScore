@@ -17,7 +17,9 @@ from .session import (
     register_and_login,
 )
 from .storage import (
+    active_admin_count,
     avatar_value,
+    create_initial_admin,
     create_user,
     delete_user,
     list_identities,
@@ -189,6 +191,63 @@ def _render_registration_panel() -> None:
             st.rerun()
         except Exception as exc:
             st.error(str(exc))
+
+
+def _render_initial_admin_setup() -> None:
+    st.subheader("Initialisation d'EZScore")
+    st.info(
+        "Aucun administrateur n'existe dans cette nouvelle base. "
+        "Créez le premier compte administrateur."
+    )
+
+    with st.form("auth_initial_admin_form", clear_on_submit=False):
+        display_name = st.text_input(
+            "Nom affiché / login",
+            value="",
+            help="Nom unique utilisé également pour la connexion locale.",
+        )
+        email = st.text_input(
+            "E-mail administrateur",
+            value="",
+        )
+        password = st.text_input(
+            "Mot de passe",
+            type="password",
+            help="Au moins 8 caractères.",
+        )
+        confirm = st.text_input(
+            "Confirmer le mot de passe",
+            type="password",
+        )
+        submitted = st.form_submit_button(
+            "Créer l'administrateur",
+            type="primary",
+            width="stretch",
+        )
+
+    if not submitted:
+        return
+
+    if password != confirm:
+        st.error("Les deux mots de passe sont différents.")
+        return
+
+    try:
+        create_initial_admin(
+            email=email,
+            password=password,
+            display_name=display_name,
+        )
+        if not login(email, password, remember=True):
+            raise RuntimeError(
+                "Le compte administrateur a été créé mais la connexion "
+                "automatique a échoué."
+            )
+        st.session_state["_pending_main_menu"] = "Répertoire"
+        st.success("Administrateur créé.")
+        st.rerun()
+    except Exception as exc:
+        st.error(str(exc))
 
 
 def _render_profile(user: dict) -> None:
@@ -454,6 +513,13 @@ def render_account_page() -> None:
         render_admin_users()
         return
 
+    users = user_count()
+    admins = active_admin_count()
+
+    if users == 0 and admins == 0:
+        _render_initial_admin_setup()
+        return
+
     left, right = st.columns([1.05, 1.0])
 
     with left:
@@ -480,8 +546,9 @@ def render_account_page() -> None:
         with register_tab:
             _render_registration_panel()
 
-        if user_count() == 0:
-            st.warning(
-                "Aucun administrateur n'est configuré. "
-                "Le premier admin doit être initialisé côté serveur."
+        if admins == 0:
+            st.error(
+                "La base contient déjà des comptes mais aucun administrateur "
+                "actif. Par sécurité, la récupération doit être faite côté "
+                "serveur."
             )
