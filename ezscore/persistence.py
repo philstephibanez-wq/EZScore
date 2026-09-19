@@ -3624,9 +3624,40 @@ def _decaler_paroles_sous_accords(
     Si un accord tombe au milieu d'un mot et qu'on ne possède pas de
     timestamps syllabiques, le mot entier est ancré au plus près sans
     introduire de "_" dans son orthographe.
+
+    R1 compaction typographique:
+      Whisper peut découper une contraction en plusieurs tokens horodatés,
+      par exemple ``J`` + ``'avais`` ou ``qu`` + ``'elle``.
+      Pour le rendu uniquement, ces fragments sont regroupés en un seul mot
+      visuel avec l'enveloppe temporelle complète. Les données Whisper restent
+      strictement inchangées.
     """
     if not words:
         return ""
+
+    visual_words = []
+    for raw in words:
+        current = dict(raw)
+        text_value = str(current.get("text", "") or "").strip()
+        if (
+            visual_words
+            and text_value.startswith(("'", "’"))
+        ):
+            previous = visual_words[-1]
+            previous["text"] = (
+                str(previous.get("text", "") or "").rstrip()
+                + text_value
+            )
+            previous["end"] = max(
+                float(previous.get("end", previous.get("start", 0.0)) or 0.0),
+                float(current.get("end", current.get("start", 0.0)) or 0.0),
+            )
+            continue
+
+        current["text"] = text_value
+        visual_words.append(current)
+
+    words = visual_words
 
     anchors_by_word = {i: [] for i in range(len(words))}
 
