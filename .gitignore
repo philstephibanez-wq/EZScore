@@ -7,8 +7,10 @@ __pycache__/
 
 # Local/runtime EZScore data
 #data/EZScore.sqlite3
-#data/audio/
-#data/covers/
+data/audio/
+data/covers/
+data/analysis/stems/
+data/analysis/stem_lab/
 #data/logs/
 
 
