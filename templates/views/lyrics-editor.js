@@ -425,23 +425,21 @@ export default function(component) {
     });
 
     leadTrack.appendChild(node);
-
-    // Purely visual compaction of Whisper contractions.
-    // Keep timing/index/editability untouched, but glue tokens such as
-    // "J" + "'avais", "l" + "'amour", "qu" + "'elle".
-    if (
-      index > 0
-      && /^[\'’]/.test(String(current() || "").trim())
-      && !breakSet.has(index - 1)
-    ) {
-      const previous = leadNodes[index - 1];
-      if (previous) {
-        const previousLeft = Number.parseFloat(previous.style.left || "0");
-        node.style.left = (previousLeft + previous.offsetWidth + 1) + "px";
-      }
-    }
-
     leadNodes.push(node);
+  });
+
+  ezLayoutLaneNodes({
+    nodes: leadNodes,
+    words: lead.map((word, index) => ({
+      ...word,
+      text: String(
+        editorial.lead_overrides[String(index)] ?? word.text ?? ""
+      ),
+    })),
+    rawXForWord: (word) => xFor(word.start),
+    minGap: 10,
+    contractionGap: 1,
+    breakAfter: (index) => breakSet.has(index),
   });
 
   function wordRenderedEndX(index) {
@@ -450,7 +448,7 @@ export default function(component) {
     if (!word || !node) return 0;
 
     return (
-      xFor(word.start)
+      Number.parseFloat(node.style.left || String(xFor(word.start)))
       + node.getBoundingClientRect().width
       + 6
     );
@@ -643,17 +641,23 @@ export default function(component) {
     });
 
     backingTrack.appendChild(node);
+  });
 
-    if (
-      index > 0
-      && /^[\'’]/.test(String(current() || "").trim())
-    ) {
-      const previous = backingTrack.querySelectorAll(".ez-word")[index - 1];
-      if (previous) {
-        const previousLeft = Number.parseFloat(previous.style.left || "0");
-        node.style.left = (previousLeft + previous.offsetWidth + 1) + "px";
-      }
-    }
+  const backingNodes = [
+    ...backingTrack.querySelectorAll(".ez-word")
+  ];
+
+  ezLayoutLaneNodes({
+    nodes: backingNodes,
+    words: backing.map((word, index) => ({
+      ...word,
+      text: String(
+        editorial.backing_overrides[String(index)] ?? word.text ?? ""
+      ),
+    })),
+    rawXForWord: (word) => xFor(word.start),
+    minGap: 10,
+    contractionGap: 1,
   });
 
   function nearestSnap(time) {

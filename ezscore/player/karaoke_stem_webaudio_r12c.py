@@ -21,6 +21,7 @@ from ezscore.guitar import (
 )
 from ezscore.player import karaoke_stem_webaudio as _base
 from ezscore.player.media_metadata import duration_seconds
+from ezscore.player.lyrics_layout import patch_player_js
 
 
 _AUDIO_HASH_BY_STORAGE_KEY: dict[str, str] = {}
@@ -991,6 +992,9 @@ _JS = _replace_once(
 """,
     "seek metadata preload",
 )
+
+
+_JS = patch_player_js(_JS)
 
 
 _COMPONENT_R12C = st.components.v2.component(

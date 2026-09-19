@@ -36,7 +36,11 @@ _COMPONENT = st.components.v2.component(
     "ezscore_inline_timeline_editor_r5",
     html=_template("lyrics-editor.html"),
     css=_template("lyrics-editor.css"),
-    js=_template("lyrics-editor.js"),
+    js=(
+        _template("lyrics-layout.js")
+        + "\n\n"
+        + _template("lyrics-editor.js")
+    ),
     isolate_styles=True,
 )
 
