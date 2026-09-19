@@ -273,6 +273,17 @@ def _require_model_root() -> Path:
     return root
 
 
+def _runtime_temp_root() -> Path:
+    value = str(os.getenv("EZSCORE_RUNTIME_TMP", "") or "").strip()
+    if value:
+        root = Path(value).expanduser()
+    else:
+        model_root = _require_model_root()
+        root = model_root.parent / "tmp"
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
 def _run_checked(command: list[str], *, timeout_seconds: int) -> str:
     proc = subprocess.run(
         command,
@@ -322,6 +333,7 @@ def ensure_stems(
     audio_hash: str,
     model: str = DEFAULT_STEM_MODEL,
     force: bool = False,
+    force_model_download: bool = False,
     timeout_seconds: int = 7200,
 ) -> dict[str, Any]:
     """Generate/cache quality-first six-stem RoFormer analysis.
@@ -361,14 +373,14 @@ def ensure_stems(
     config_path = model_dir / entry.config
     checkpoint_path = model_dir / entry.checkpoint
 
-    if force or not config_path.is_file() or not checkpoint_path.is_file():
+    if force_model_download or not config_path.is_file() or not checkpoint_path.is_file():
         cmd = [
             sys.executable,
             "-m", "bs_roformer.download",
             "--model", entry.slug,
             "--output-dir", str(model_root),
         ]
-        if force:
+        if force_model_download:
             cmd.append("--force")
         _run_checked(cmd, timeout_seconds=max(1800, int(timeout_seconds)))
 
@@ -377,12 +389,11 @@ def ensure_stems(
     if not checkpoint_path.is_file():
         raise RuntimeError(f"Checkpoint BS-RoFormer absent : {checkpoint_path}")
 
-    parent = cache_dir.parent
-    parent.mkdir(parents=True, exist_ok=True)
+    cache_dir.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(
         tempfile.mkdtemp(
-            prefix=f".{cache_dir.name}.staging-",
-            dir=str(parent),
+            prefix=f"ezscore-{cache_dir.name}-",
+            dir=str(_runtime_temp_root()),
         )
     )
 

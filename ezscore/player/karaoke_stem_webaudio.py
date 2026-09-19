@@ -1599,25 +1599,34 @@ def render_player(
 
     labels = {
         "vocals": "Chant",
+        "lead_vocals": "Chant",
+        "backing_vocals": "Chœurs",
         "drums": "Batterie",
         "bass": "Basse",
         "other": "Other",
     }
     defaults = {
         "vocals": 0.90,
+        "lead_vocals": 0.90,
+        "backing_vocals": 0.82,
         "drums": 0.75,
         "bass": 0.75,
         "other": 0.75,
     }
-    for name in STEM_NAMES:
+    has_true_vocal_split = (
+        stems.get("lead_vocals") is not None
+        and stems.get("backing_vocals") is not None
+    )
+    track_order = (
+        ("lead_vocals", "backing_vocals", "drums", "bass", "other")
+        if has_true_vocal_split else STEM_NAMES
+    )
+    for name in track_order:
         path = stems.get(name)
         if path is not None and name in previews:
             pack(
-                name,
-                labels.get(name, name.title()),
-                path,
-                enabled=False,
-                volume=defaults.get(name, 0.75),
+                name, labels.get(name, name.title()), path,
+                enabled=False, volume=defaults.get(name, 0.75),
             )
 
     lead_words = list(words or [])

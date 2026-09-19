@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,13 @@ from ezscore.analysis.stems import (
     ensure_stems,
     load_stem_manifest,
     stems_cache_complete,
+)
+from ezscore.analysis.vocal_stems import (
+    DEFAULT_KARAOKE_MODEL,
+    delete_vocal_stem_cache,
+    ensure_vocal_stems,
+    vocal_stem_paths,
+    vocal_stems_cache_complete,
 )
 from ezscore.analysis.chords_quality import (
     analyze_chords_absolute,
@@ -140,32 +148,43 @@ def _transcribe_original(source: Path, audio_hash: str) -> dict[str, Any]:
 
 
 def _download_stems(stems: dict[str, Path]) -> None:
-    labels = {
-        "vocals": "Chant",
-        "drums": "Batterie",
-        "bass": "Basse",
-        "other": "Other",
-    }
-    cols = st.columns(4)
-    for col, name in zip(cols, STEM_NAMES):
-        with col:
-            path = stems.get(name)
-            if path is None:
-                st.button(
-                    f"{labels[name]} absent",
-                    disabled=True,
-                    width="stretch",
-                    key=f"ezstem_missing_{name}",
-                )
-            else:
-                st.download_button(
-                    f"⬇ {labels[name]}",
-                    data=path.read_bytes(),
-                    file_name=path.name,
-                    mime="audio/wav",
-                    width="stretch",
-                    key=f"ezstem_download_{name}_{path.stat().st_size}",
-                )
+    items = [
+        ("vocals", "Voix complète"),
+        ("lead_vocals", "Chant"),
+        ("backing_vocals", "Chœurs"),
+        ("drums", "Batterie"),
+        ("bass", "Basse"),
+        ("other", "Other"),
+    ]
+    for offset in range(0, len(items), 3):
+        cols = st.columns(3)
+        for col, (name, label) in zip(cols, items[offset:offset + 3]):
+            with col:
+                path = stems.get(name)
+                if path is None:
+                    st.button(f"{label} absent", disabled=True, width="stretch",
+                              key=f"ezstem_missing_{name}")
+                else:
+                    st.download_button(
+                        f"⬇ {label}", data=path.read_bytes(), file_name=path.name,
+                        mime="audio/wav", width="stretch",
+                        key=f"ezstem_download_{name}_{path.stat().st_size}",
+                    )
+
+
+def _invalidate_after_stem_regeneration(audio_hash: str, *, full: bool) -> None:
+    work = _work_dir(audio_hash)
+    shutil.rmtree(work / "browser_preview", ignore_errors=True)
+    for name in ("whisper_vocals_small.json", "whisper_backing_small.json"):
+        path = work / name
+        if path.is_file():
+            path.unlink()
+    _invalidate_all_midi(audio_hash)
+    if full:
+        for name in ("structure_analysis.json", "karaoke_conductor.json"):
+            path = work / name
+            if path.is_file():
+                path.unlink()
 
 
 _PC_NAMES = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
@@ -920,56 +939,113 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
     # ========================================================
     with tab_stem:
         st.markdown("## 1 — STEM")
-        st.caption("Séparation HQ BS-RoFormer-SW · 6 stems bruts, 4 stems canoniques EZScore.")
+        st.caption(
+            "Étape 1 : BS-RoFormer-SW sépare les instruments. "
+            "Étape 2 : le modèle Karaoke sépare Chant / Chœurs depuis vocals.wav."
+        )
 
         if not demucs_available():
             st.error("BS-RoFormer-Infer n’est pas installé dans cet environnement Python.")
+
         elif not stems_cache_complete(audio_hash):
-            if st.button(
-                "Extraire les STEM HQ",
-                type="primary",
-                width="stretch",
-                key=f"ezstem_extract_{str(audio_hash)[:12]}",
-            ):
-                with st.spinner("BS-RoFormer-SW sépare vocals / drums / bass / guitar / piano / other…"):
+            if st.button("Extraire les STEM HQ", type="primary", width="stretch",
+                         key=f"ezstem_extract_{str(audio_hash)[:12]}"):
+                with st.status("Extraction STEM en cours…", expanded=True) as status:
+                    status.write("1/2 · Instruments : vocals / drums / bass / guitar / piano / other")
                     result = ensure_stems(
                         audio_bytes=source.read_bytes(),
                         extension=source.suffix.lower() or ".mp3",
                         audio_hash=audio_hash,
                     )
-                    log = str(result.get("log_tail", "") or "")
-                    if log:
-                        with st.expander("Journal Demucs", expanded=False):
-                            st.code(log, language="text")
+                    current = cached_stem_paths(audio_hash)
+                    status.write(f"2/2 · Chant / Chœurs : {DEFAULT_KARAOKE_MODEL}")
+                    vocal_result = ensure_vocal_stems(
+                        audio_hash=audio_hash, vocals_path=current["vocals"]
+                    )
+                    status.update(label="STEM terminés.", state="complete", expanded=False)
+                    for label, payload in (("BS-RoFormer-SW", result), ("Karaoke", vocal_result)):
+                        log = str(payload.get("log_tail", "") or "")
+                        if log:
+                            with st.expander(f"Journal {label}", expanded=False):
+                                st.code(log, language="text")
                 st.rerun()
             st.info("Étape 1 à lancer.")
+
         else:
             stems = cached_stem_paths(audio_hash)
-            if len(stems) != len(STEM_NAMES):
-                st.error("Cache STEM déclaré complet mais fichiers stems incomplets.")
+            if not vocal_stems_cache_complete(audio_hash):
+                st.warning("STEM instruments présents ; Chant / Chœurs reste à extraire.")
+                if st.button("Extraire Chant / Chœurs", type="primary", width="stretch",
+                             key=f"ezstem_extract_vocal_split_{str(audio_hash)[:12]}"):
+                    with st.status("Séparation Chant / Chœurs en cours…", expanded=True) as status:
+                        status.write(f"Modèle : {DEFAULT_KARAOKE_MODEL}")
+                        ensure_vocal_stems(audio_hash=audio_hash, vocals_path=stems["vocals"])
+                        _invalidate_after_stem_regeneration(audio_hash, full=False)
+                        status.update(label="Chant / Chœurs prêts.", state="complete", expanded=False)
+                    st.rerun()
             else:
-                st.success("✓ STEM HQ prêts · BS-RoFormer-SW.")
-                _download_stems(stems)
+                st.success("✓ STEM HQ prêts · instruments + Chant + Chœurs.")
 
-                if not _stem_ffmpeg_available():
-                    st.error("FFmpeg est requis pour le lecteur STEM.")
-                else:
-                    st.markdown("### Lecteur STEM")
-                    st.caption(
-                        "Disponible dès l'étape 1. "
-                        + (
-                            "Paroles synchronisées actives."
-                            if words
-                            else "Les paroles synchronisées apparaîtront après l'étape 2."
+            vocal_parts = vocal_stem_paths(audio_hash)
+            all_stems = {**stems, **vocal_parts}
+            _download_stems(all_stems)
+
+            regen_all_col, regen_vocal_col = st.columns(2)
+            with regen_all_col:
+                if st.button(
+                    "↻ Régénérer tous les STEM", width="stretch",
+                    key=f"ezstem_regen_all_{str(audio_hash)[:12]}",
+                    help="Recalcule instruments + Chant/Chœurs sans retélécharger les modèles déjà présents.",
+                ):
+                    with st.status("Régénération complète des STEM…", expanded=True) as status:
+                        status.write("1/2 · Régénération des stems instruments")
+                        ensure_stems(
+                            audio_bytes=source.read_bytes(),
+                            extension=source.suffix.lower() or ".mp3",
+                            audio_hash=audio_hash,
+                            force=True,
+                            force_model_download=False,
                         )
-                    )
-                    _render_stem_player(
-                        source,
-                        stems,
-                        preview_dir=_work_dir(audio_hash) / "browser_preview",
-                        key=f"ezstem_player_{str(audio_hash)[:12]}_{len(words)}",
-                        words=words,
-                    )
+                        refreshed = cached_stem_paths(audio_hash)
+                        delete_vocal_stem_cache(audio_hash)
+                        status.write("2/2 · Régénération Chant / Chœurs")
+                        ensure_vocal_stems(
+                            audio_hash=audio_hash, vocals_path=refreshed["vocals"],
+                            force=True, force_model_download=False,
+                        )
+                        _invalidate_after_stem_regeneration(audio_hash, full=True)
+                        status.update(label="Régénération STEM terminée.", state="complete", expanded=False)
+                    st.rerun()
+
+            with regen_vocal_col:
+                if st.button(
+                    "↻ Régénérer Chant / Chœurs", width="stretch",
+                    key=f"ezstem_regen_vocals_{str(audio_hash)[:12]}",
+                ):
+                    with st.status("Régénération Chant / Chœurs…", expanded=True) as status:
+                        ensure_vocal_stems(
+                            audio_hash=audio_hash, vocals_path=stems["vocals"],
+                            force=True, force_model_download=False,
+                        )
+                        _invalidate_after_stem_regeneration(audio_hash, full=False)
+                        status.update(label="Chant / Chœurs régénérés.", state="complete", expanded=False)
+                    st.rerun()
+
+            if not _stem_ffmpeg_available():
+                st.error("FFmpeg est requis pour le lecteur STEM.")
+            else:
+                st.markdown("### Lecteur STEM")
+                st.caption(
+                    "Original + Chant + Chœurs + Batterie + Basse + Other. "
+                    + ("Paroles synchronisées actives." if words
+                       else "Les paroles synchronisées apparaîtront après l'étape 2.")
+                )
+                _render_stem_player(
+                    source, all_stems,
+                    preview_dir=_work_dir(audio_hash) / "browser_preview",
+                    key=f"ezstem_player_{str(audio_hash)[:12]}_{len(words)}",
+                    words=words,
+                )
 
     # ========================================================
     # TAB 2 — PAROLES

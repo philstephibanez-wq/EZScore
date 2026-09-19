@@ -4,3 +4,4 @@ bs-roformer-infer
 lv-chordia
 madmom-infer
 soundfile
+melband-roformer-infer
