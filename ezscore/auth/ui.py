@@ -505,20 +505,22 @@ def render_admin_users() -> None:
 
 def render_account_page() -> None:
     st.markdown(_AUTH_CSS, unsafe_allow_html=True)
-    user = current_user()
     st.header("Compte EZScore")
 
+    # Une BDD de comptes vide doit toujours passer par le bootstrap interactif
+    # du premier administrateur AVANT toute résolution de session/OIDC.
+    users = user_count()
+    if users == 0:
+        _render_initial_admin_setup()
+        return
+
+    user = current_user()
     if user:
         _render_profile(user)
         render_admin_users()
         return
 
-    users = user_count()
     admins = active_admin_count()
-
-    if users == 0 and admins == 0:
-        _render_initial_admin_setup()
-        return
 
     left, right = st.columns([1.05, 1.0])
 

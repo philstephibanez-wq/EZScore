@@ -1,0 +1,356 @@
+{
+  "engine": "openai-whisper",
+  "model": "small",
+  "source": "vocals",
+  "language": "en",
+  "words": [
+    {
+      "start": 83.98,
+      "end": 84.4,
+      "text": "me",
+      "confidence": 0.9702743887901306
+    },
+    {
+      "start": 84.4,
+      "end": 85.12,
+      "text": "slowly",
+      "confidence": 0.9685590863227844
+    },
+    {
+      "start": 85.12,
+      "end": 85.96,
+      "text": "what",
+      "confidence": 0.9089153409004211
+    },
+    {
+      "start": 85.96,
+      "end": 86.34,
+      "text": "I",
+      "confidence": 0.9704821705818176
+    },
+    {
+      "start": 86.34,
+      "end": 86.98,
+      "text": "only",
+      "confidence": 0.8743230700492859
+    },
+    {
+      "start": 86.98,
+      "end": 87.68,
+      "text": "know",
+      "confidence": 0.991788923740387
+    },
+    {
+      "start": 87.68,
+      "end": 88.1,
+      "text": "the",
+      "confidence": 0.7003459930419922
+    },
+    {
+      "start": 88.1,
+      "end": 88.72,
+      "text": "limits",
+      "confidence": 0.9874817132949829
+    },
+    {
+      "start": 88.72,
+      "end": 89.7,
+      "text": "of",
+      "confidence": 0.9467300772666931
+    },
+    {
+      "start": 91.32,
+      "end": 91.88,
+      "text": "me",
+      "confidence": 0.881329357624054
+    },
+    {
+      "start": 91.88,
+      "end": 92.44,
+      "text": "to",
+      "confidence": 0.9525915384292603
+    },
+    {
+      "start": 92.44,
+      "end": 92.7,
+      "text": "the",
+      "confidence": 0.9972065091133118
+    },
+    {
+      "start": 92.7,
+      "end": 93.16,
+      "text": "end",
+      "confidence": 0.9821889996528625
+    },
+    {
+      "start": 93.16,
+      "end": 94.26,
+      "text": "of",
+      "confidence": 0.9953466057777405
+    },
+    {
+      "start": 94.26,
+      "end": 94.94,
+      "text": "love",
+      "confidence": 0.9637024998664856
+    },
+    {
+      "start": 97.08,
+      "end": 98.44,
+      "text": "Dance",
+      "confidence": 0.8170671463012695
+    },
+    {
+      "start": 98.44,
+      "end": 99.0,
+      "text": "me",
+      "confidence": 0.9955925345420837
+    },
+    {
+      "start": 99.0,
+      "end": 99.66,
+      "text": "to",
+      "confidence": 0.9932500123977661
+    },
+    {
+      "start": 99.66,
+      "end": 99.92,
+      "text": "the",
+      "confidence": 0.9985253214836121
+    },
+    {
+      "start": 99.92,
+      "end": 100.64,
+      "text": "end",
+      "confidence": 0.996155321598053
+    },
+    {
+      "start": 100.64,
+      "end": 101.54,
+      "text": "of",
+      "confidence": 0.9928921461105347
+    },
+    {
+      "start": 101.54,
+      "end": 102.36,
+      "text": "love",
+      "confidence": 0.9910573959350586
+    },
+    {
+      "start": 213.60000000000002,
+      "end": 214.52,
+      "text": "la",
+      "confidence": 0.5825663208961487
+    },
+    {
+      "start": 214.52,
+      "end": 217.94,
+      "text": "la",
+      "confidence": 0.9287762641906738
+    },
+    {
+      "start": 217.94,
+      "end": 218.6,
+      "text": "la",
+      "confidence": 0.6277150511741638
+    },
+    {
+      "start": 218.6,
+      "end": 219.1,
+      "text": "la",
+      "confidence": 0.6210830807685852
+    },
+    {
+      "start": 219.1,
+      "end": 219.4,
+      "text": "la",
+      "confidence": 0.7691552639007568
+    },
+    {
+      "start": 219.4,
+      "end": 219.88,
+      "text": "la",
+      "confidence": 0.7840309143066406
+    },
+    {
+      "start": 219.88,
+      "end": 219.9,
+      "text": "la",
+      "confidence": 0.7852128744125366
+    },
+    {
+      "start": 219.9,
+      "end": 220.38,
+      "text": "la",
+      "confidence": 0.9117060899734497
+    },
+    {
+      "start": 220.38,
+      "end": 221.0,
+      "text": "la",
+      "confidence": 0.9248648881912231
+    },
+    {
+      "start": 221.0,
+      "end": 221.42,
+      "text": "la",
+      "confidence": 0.9294581413269043
+    },
+    {
+      "start": 221.42,
+      "end": 221.96,
+      "text": "la",
+      "confidence": 0.9259099364280701
+    },
+    {
+      "start": 221.96,
+      "end": 222.3,
+      "text": "la",
+      "confidence": 0.9111544489860535
+    },
+    {
+      "start": 222.3,
+      "end": 222.72,
+      "text": "la",
+      "confidence": 0.8732946515083313
+    },
+    {
+      "start": 222.72,
+      "end": 223.06,
+      "text": "la",
+      "confidence": 0.7990060448646545
+    },
+    {
+      "start": 223.06,
+      "end": 223.18,
+      "text": "la",
+      "confidence": 0.6992095112800598
+    },
+    {
+      "start": 223.18,
+      "end": 223.4,
+      "text": "la",
+      "confidence": 0.5909963250160217
+    },
+    {
+      "start": 223.4,
+      "end": 223.46,
+      "text": "la",
+      "confidence": 0.49345722794532776
+    },
+    {
+      "start": 223.46,
+      "end": 223.5,
+      "text": "la",
+      "confidence": 0.4218224585056305
+    },
+    {
+      "start": 223.5,
+      "end": 223.64,
+      "text": "la",
+      "confidence": 0.3870425224304199
+    },
+    {
+      "start": 223.64,
+      "end": 223.94,
+      "text": "la",
+      "confidence": 0.3702701926231384
+    },
+    {
+      "start": 223.94,
+      "end": 223.96,
+      "text": "la",
+      "confidence": 0.3623519837856293
+    },
+    {
+      "start": 228.54,
+      "end": 229.02,
+      "text": "me",
+      "confidence": 0.6523202657699585
+    },
+    {
+      "start": 229.02,
+      "end": 229.28,
+      "text": "to",
+      "confidence": 0.9668485522270203
+    },
+    {
+      "start": 229.28,
+      "end": 229.7,
+      "text": "your",
+      "confidence": 0.9558088779449463
+    },
+    {
+      "start": 229.7,
+      "end": 230.48,
+      "text": "beauty",
+      "confidence": 0.994142472743988
+    },
+    {
+      "start": 230.48,
+      "end": 231.18,
+      "text": "with",
+      "confidence": 0.8715034127235413
+    },
+    {
+      "start": 231.18,
+      "end": 231.64,
+      "text": "a",
+      "confidence": 0.9783677458763123
+    },
+    {
+      "start": 231.64,
+      "end": 232.5,
+      "text": "burning",
+      "confidence": 0.9945023059844971
+    },
+    {
+      "start": 232.5,
+      "end": 233.5,
+      "text": "violin",
+      "confidence": 0.9250197410583496
+    },
+    {
+      "start": 263.5,
+      "end": 264.82,
+      "text": "Dance",
+      "confidence": 0.6800100207328796
+    },
+    {
+      "start": 264.82,
+      "end": 265.22,
+      "text": "Me",
+      "confidence": 0.49482762813568115
+    },
+    {
+      "start": 265.22,
+      "end": 266.02,
+      "text": "to",
+      "confidence": 0.6874677538871765
+    },
+    {
+      "start": 266.02,
+      "end": 266.32,
+      "text": "the",
+      "confidence": 0.9723865985870361
+    },
+    {
+      "start": 266.32,
+      "end": 266.88,
+      "text": "end",
+      "confidence": 0.7273578643798828
+    },
+    {
+      "start": 266.88,
+      "end": 267.88,
+      "text": "of",
+      "confidence": 0.9795754551887512
+    },
+    {
+      "start": 267.88,
+      "end": 268.62,
+      "text": "love.",
+      "confidence": 0.7926725745201111
+    }
+  ]
+}

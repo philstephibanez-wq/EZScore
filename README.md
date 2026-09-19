@@ -1,139 +1,53 @@
-# EZScore — Full Reanalysis R1
+# EZScore_FIX_AUTH_CHOIRS_R1
 
-Base GitHub : `a6176525896c76cf73b7614b0755847689c4011f`.
-
-## Sémantique figée
-
-### Réanalyse complète
-
-Une réanalyse complète repart réellement de zéro sur tout le contenu
-musical/éditorial :
+Base vérifiée :
 
 ```text
-STEMs
-browser previews
-Whisper
-accords
-structure
-MIDI
-analyses SQLite
-versions d'analyse
-workflow
-préférences d'analyse/capo
-blocs et corrections
-overlays éditoriaux
+Repo    : philstephibanez-wq/EZScore
+Branche : restore/full-reanalysis-r1
+HEAD    : e3262b88b2de5c61dcb9a58b3b804541d325ca7e
 ```
 
-Les caches `data/analysis/stem_lab/<audio_hash>/` sont supprimés physiquement.
+## Périmètre strict
 
-Sont volontairement conservés parce que la chanson garde son identité dans le
-catalogue :
+Cette livraison corrige uniquement les deux régressions signalées :
 
-```text
-audio original
-songs (titre/artiste/catalogue)
-pochette
-affectation éditeur
-user_playlist_items (playlist + ordre de setlist)
-song_ratings
-```
+1. **BDD neuve : création du premier administrateur**
+2. **Analyse fraîche : disparition totale des Chœurs**
 
-Après purge, EZScore revient sur `Analyse` avec une analyse vierge ; le workflow
-STEM -> Paroles -> Structure -> MIDI repart donc comme après un nouvel import.
+Elle ne touche pas aux blocs, au Player sync, à `visualDelay`, au MIDI, à SQLite existante ni à l'algorithme validé `VOCAL_OVERLAP_MATCH`.
 
-### Suppression définitive
+## AUTH
 
-`Supprimer définitivement la chanson` supprimait déjà :
+Une BDD de comptes vide passe maintenant obligatoirement par l'écran de création du premier administrateur avant toute résolution OIDC/session.
 
-```text
-audio original
-pochette
-toutes les lignes SQLite possédant audio_hash
-songs
-```
+Le bootstrap automatique via `EZSCORE_ADMIN_*` n'est plus exécuté au démarrage. La fonction serveur reste disponible dans `storage.py` pour une récupération explicite.
 
-Il manquait le cache physique d'analyse.
+Après création de l'admin et déconnexion, l'onglet **Créer un compte** reste disponible pour l'inscription d'un nouvel utilisateur `reader`.
 
-Ce lot enveloppe la suppression existante et supprime aussi :
+## Chœurs
 
-```text
-data/analysis/stem_lab/<audio_hash>/
-```
+Le moteur Chant/Chœurs de la référence stable `0d86dd13` est toujours présent dans le code actuel.
 
-Ainsi une suppression suivie du réimport du même fichier ne peut plus récupérer
-un ancien Whisper/STEM/accord/MIDI par le même SHA-256.
-
-## Modularité
-
-Nouveaux modules :
-
-```text
-ezscore/analysis_lifecycle.py
-ezscore/ui/analysis_lifecycle.py
-```
-
-Template :
-
-```text
-templates/views/analysis-lifecycle.score
-```
-
-Intégration minimale :
-
-```text
-ezscore/ui/__init__.py
-```
-
-Aucune modification dans :
-
-```text
-ezscore/persistence.py
-ezscore/ui/stem_lab_analysis.py
-ezscore/ui/editorial_timeline.py
-ezscore/ui/lyrics_inline_editor.py
-players R12c
-templates/views/lyrics-editor.*
-```
-
-## Sécurité
-
-La purge DB de réanalyse est transactionnelle.
-
-Le cache est supprimé AVANT la DB. Si Windows verrouille un fichier STEM ou
-preview, la réanalyse s'arrête avant de toucher aux données SQLite.
-
-La sélection des tables à purger est générique : toute table possédant une
-colonne `audio_hash` est purgée sauf la liste blanche catalogue/social explicite.
+Cette livraison garantit que, sur une analyse fraîche, le second Whisper du stem vocal produit `whisper_vocals_small.json` dès que les STEM et la transcription originale sont disponibles. Le Player et l'éditeur réutilisent ensuite ce cache avec le moteur existant `VOCAL_OVERLAP_MATCH`.
 
 ## Installation
 
 ```powershell
-cd H:\EZScore
-
-Expand-Archive `
-  -Path "$env:USERPROFILE\Downloads\EZScore_FULL_REANALYSIS_R1.zip" `
-  -DestinationPath . `
-  -Force
-
-python -m py_compile `
-  .\ezscore\analysis_lifecycle.py `
-  .\ezscore\ui\analysis_lifecycle.py `
-  .\ezscore\ui\__init__.py
-
-git diff --check
-git status --short
+Remove-Item H:\temp\EZScore_FIX_AUTH_CHOIRS_R1 -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force H:\temp\EZScore_FIX_AUTH_CHOIRS_R1 | Out-Null
+Expand-Archive -Path "$env:USERPROFILE\Downloads\EZScore_FIX_AUTH_CHOIRS_R1.zip" -DestinationPath H:\temp\EZScore_FIX_AUTH_CHOIRS_R1 -Force
+python "H:\temp\EZScore_FIX_AUTH_CHOIRS_R1\apply.py" --repo H:\EZScore
 ```
 
-## Test
+## Contrôle
 
-1. Prendre une chanson analysée et présente dans une playlist.
-2. Noter sa position dans la setlist.
-3. Ouvrir Chanson > Analyse.
-4. Déplier `Réanalyse complète`.
-5. Confirmer puis lancer.
-6. Vérifier que l'analyse repart sans STEM/Paroles/Structure/MIDI.
-7. Vérifier que la chanson reste dans le Répertoire.
-8. Vérifier qu'elle reste dans la playlist à la même position.
-9. Vérifier que les anciennes corrections éditoriales ne réapparaissent pas.
-10. Tester ensuite une suppression définitive + réimport du même fichier :
-    aucun ancien cache ne doit réapparaître.
+```powershell
+cd H:\EZScore
+git diff --check
+git status --short
+git diff -- ezscore/auth/ui.py ezscore/auth/session.py ezscore/ui/stem_lab_analysis.py
+python -m streamlit run .\EZScore.py
+```
+
+Le script ne pousse rien sur GitHub.

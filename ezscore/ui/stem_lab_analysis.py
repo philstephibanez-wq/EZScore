@@ -887,6 +887,34 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
     structure = _load_structure(audio_hash)
     words = list((speech or {}).get("words", []) or [])
 
+    # Non-régression Chant / Chœurs :
+    # sur une analyse fraîche, la BDD peut être neuve et le cache vocal absent.
+    # Le lecteur/éditeur historiques savent déjà exploiter
+    # whisper_vocals_small.json ; on garantit simplement sa production ici,
+    # dans Analyse, dès que STEM + transcription originale sont disponibles.
+    if (
+        speech is not None
+        and words
+        and stems_cache_complete(audio_hash)
+        and not (_work_dir(audio_hash) / "whisper_vocals_small.json").is_file()
+    ):
+        try:
+            from ezscore.player.karaoke_stem_webaudio import (
+                _ensure_vocal_whisper_supplement,
+            )
+            with st.spinner("Analyse complémentaire Chant / Chœurs…"):
+                _ensure_vocal_whisper_supplement(
+                    source,
+                    cached_stem_paths(audio_hash),
+                    _work_dir(audio_hash) / "browser_preview",
+                    words,
+                )
+        except Exception as exc:
+            st.warning(
+                "Analyse complémentaire Chant / Chœurs indisponible : "
+                + str(exc)
+            )
+
     # ========================================================
     # TAB 1 — STEM
     # ========================================================

@@ -1,0 +1,526 @@
+{
+  "schema_version": 1,
+  "engine": "lv-chordia",
+  "dictionary": "submission",
+  "source": "original_audio",
+  "timebase": "original_audio_seconds",
+  "segment_count": 86,
+  "segments": [
+    {
+      "start": 0.0,
+      "end": 0.51,
+      "chord": "N",
+      "raw_chord": "N"
+    },
+    {
+      "start": 0.51,
+      "end": 4.3,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 4.3,
+      "end": 6.99,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 6.99,
+      "end": 7.96,
+      "chord": "Cm/5",
+      "raw_chord": "C:min/5"
+    },
+    {
+      "start": 7.96,
+      "end": 11.52,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 11.52,
+      "end": 14.21,
+      "chord": "Gm/5",
+      "raw_chord": "G:min/5"
+    },
+    {
+      "start": 14.21,
+      "end": 14.95,
+      "chord": "Am",
+      "raw_chord": "A:min"
+    },
+    {
+      "start": 14.95,
+      "end": 18.69,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 18.69,
+      "end": 22.38,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 22.38,
+      "end": 26.01,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 26.01,
+      "end": 28.7,
+      "chord": "Gm/5",
+      "raw_chord": "G:min/5"
+    },
+    {
+      "start": 28.7,
+      "end": 29.4,
+      "chord": "Am",
+      "raw_chord": "A:min"
+    },
+    {
+      "start": 29.4,
+      "end": 33.11,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 33.11,
+      "end": 36.04,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 36.04,
+      "end": 40.38,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 40.38,
+      "end": 43.98,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 43.98,
+      "end": 47.6,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 47.6,
+      "end": 51.15,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 51.15,
+      "end": 56.12,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 56.12,
+      "end": 58.4,
+      "chord": "D",
+      "raw_chord": "D:maj"
+    },
+    {
+      "start": 58.4,
+      "end": 63.83,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 63.83,
+      "end": 65.64,
+      "chord": "Gm/5",
+      "raw_chord": "G:min/5"
+    },
+    {
+      "start": 65.64,
+      "end": 69.45,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 69.45,
+      "end": 72.21,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 72.21,
+      "end": 76.56,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 76.56,
+      "end": 79.18,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 79.18,
+      "end": 80.13,
+      "chord": "Cm/5",
+      "raw_chord": "C:min/5"
+    },
+    {
+      "start": 80.13,
+      "end": 83.8,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 83.8,
+      "end": 86.73,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 86.73,
+      "end": 91.86,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 91.86,
+      "end": 94.78,
+      "chord": "Gm/5",
+      "raw_chord": "G:min/5"
+    },
+    {
+      "start": 94.78,
+      "end": 99.71,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 99.71,
+      "end": 101.68,
+      "chord": "Dm",
+      "raw_chord": "D:min"
+    },
+    {
+      "start": 101.68,
+      "end": 105.4,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 105.4,
+      "end": 108.99,
+      "chord": "F",
+      "raw_chord": "F:maj"
+    },
+    {
+      "start": 108.99,
+      "end": 112.64,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 112.64,
+      "end": 116.19,
+      "chord": "F",
+      "raw_chord": "F:maj"
+    },
+    {
+      "start": 116.19,
+      "end": 120.07,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 120.07,
+      "end": 122.62,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 122.62,
+      "end": 127.18,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 127.18,
+      "end": 130.68,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 130.68,
+      "end": 134.4,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 134.4,
+      "end": 137.93,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 137.93,
+      "end": 142.2,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 142.2,
+      "end": 145.24,
+      "chord": "Dm",
+      "raw_chord": "D:min"
+    },
+    {
+      "start": 145.24,
+      "end": 148.98,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 148.98,
+      "end": 152.44,
+      "chord": "Dm",
+      "raw_chord": "D:min"
+    },
+    {
+      "start": 152.44,
+      "end": 156.18,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 156.18,
+      "end": 159.59,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 159.59,
+      "end": 163.31,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 163.31,
+      "end": 166.91,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 166.91,
+      "end": 170.57,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 170.57,
+      "end": 173.38,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 173.38,
+      "end": 177.77,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 177.77,
+      "end": 181.28,
+      "chord": "Dm",
+      "raw_chord": "D:min"
+    },
+    {
+      "start": 181.28,
+      "end": 184.95,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 184.95,
+      "end": 188.55,
+      "chord": "F",
+      "raw_chord": "F:maj"
+    },
+    {
+      "start": 188.55,
+      "end": 192.17,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 192.17,
+      "end": 195.74,
+      "chord": "F",
+      "raw_chord": "F:maj"
+    },
+    {
+      "start": 195.74,
+      "end": 199.46,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 199.46,
+      "end": 202.87,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 202.87,
+      "end": 206.8,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 206.8,
+      "end": 209.4,
+      "chord": "Dm",
+      "raw_chord": "D:min"
+    },
+    {
+      "start": 209.4,
+      "end": 210.21,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 210.21,
+      "end": 213.9,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 213.9,
+      "end": 217.57,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 217.57,
+      "end": 221.1,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 221.1,
+      "end": 223.86,
+      "chord": "Gm/5",
+      "raw_chord": "G:min/5"
+    },
+    {
+      "start": 223.86,
+      "end": 224.68,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 224.68,
+      "end": 228.35,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 228.35,
+      "end": 232.04,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 232.04,
+      "end": 234.64,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 234.64,
+      "end": 235.96,
+      "chord": "Gm/5",
+      "raw_chord": "G:min/5"
+    },
+    {
+      "start": 235.96,
+      "end": 238.4,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 238.4,
+      "end": 240.0,
+      "chord": "Cm/5",
+      "raw_chord": "C:min/5"
+    },
+    {
+      "start": 240.0,
+      "end": 242.81,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 242.81,
+      "end": 245.46,
+      "chord": "Cm",
+      "raw_chord": "C:min"
+    },
+    {
+      "start": 245.46,
+      "end": 250.13,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 250.13,
+      "end": 253.65,
+      "chord": "Dm",
+      "raw_chord": "D:min"
+    },
+    {
+      "start": 253.65,
+      "end": 257.28,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 257.28,
+      "end": 259.65,
+      "chord": "Gm/5",
+      "raw_chord": "G:min/5"
+    },
+    {
+      "start": 259.65,
+      "end": 260.78,
+      "chord": "D",
+      "raw_chord": "D:maj"
+    },
+    {
+      "start": 260.78,
+      "end": 265.2,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 265.2,
+      "end": 268.52,
+      "chord": "N",
+      "raw_chord": "N"
+    },
+    {
+      "start": 268.52,
+      "end": 270.74,
+      "chord": "Gm",
+      "raw_chord": "G:min"
+    },
+    {
+      "start": 270.74,
+      "end": 280.66,
+      "chord": "N",
+      "raw_chord": "N"
+    }
+  ]
+}

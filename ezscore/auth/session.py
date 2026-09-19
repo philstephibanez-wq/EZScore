@@ -15,7 +15,6 @@ from .persistent import (
 from .roles import Role, can, normalize_role
 from .storage import (
     authenticate_local,
-    bootstrap_admin_from_env,
     get_user_by_id,
     register_reader,
     upsert_external_identity,
@@ -97,7 +96,8 @@ def _component_token(value) -> str:
 
 
 def initialize_auth() -> None:
-    bootstrap_admin_from_env()
+    # Ne jamais créer/promouvoir implicitement un compte au démarrage.
+    # Une BDD vide est initialisée depuis l'écran Compte par le premier admin.
     ensure_persistent_session_schema()
 
     existing = st.session_state.get(_PERSIST_COMPONENT_KEY)
