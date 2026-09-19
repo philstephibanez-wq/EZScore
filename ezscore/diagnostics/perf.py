@@ -446,8 +446,9 @@ def render_perf_log_sidebar() -> None:
             data=payload,
             file_name="ezscore_perf.log",
             mime="application/x-ndjson",
-            key="perf_log_download",
+            key=f"perf_log_download_{len(payload)}",
             disabled=not bool(payload),
+            on_click="ignore",
             width="stretch",
         )
 

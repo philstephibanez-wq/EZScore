@@ -81,11 +81,18 @@ def _runtime_temp_root() -> Path:
 
 
 def _run_checked(command: list[str], *, timeout_seconds: int) -> str:
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
+
     proc = subprocess.run(
         command,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        encoding="utf-8",
+        errors="replace",
+        env=env,
         timeout=int(timeout_seconds),
         check=False,
     )

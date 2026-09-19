@@ -18,6 +18,7 @@ import json
 import os
 import shutil
 import tempfile
+import traceback
 from pathlib import Path
 from typing import Any
 
@@ -53,6 +54,7 @@ from ezscore.analysis.rhythm_quality import (
     quality_rhythm_engine_available,
 )
 import ezscore.persistence as _persistence
+from ezscore.diagnostics.perf import perf_event
 from ezscore.analysis.stem_midi import (
     browser_events_from_bundle,
     launch_stem_midi_job,
@@ -934,6 +936,38 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                 + str(exc)
             )
 
+    stem_error_key = f"ezstem_error_{str(audio_hash)[:12]}"
+    persisted_stem_error = str(st.session_state.get(stem_error_key, "") or "")
+    if persisted_stem_error:
+        st.error(persisted_stem_error)
+        if st.button(
+            "Effacer l'erreur STEM",
+            key=f"ezstem_error_clear_{str(audio_hash)[:12]}",
+        ):
+            st.session_state.pop(stem_error_key, None)
+            st.rerun()
+
+    def _stem_operation_error(operation: str, exc: Exception) -> None:
+        message = f"{operation} : {type(exc).__name__}: {exc}"
+        st.session_state[stem_error_key] = message
+        perf_event(
+            "analysis.stem.error",
+            status="error",
+            operation=operation,
+            error_type=type(exc).__name__,
+            error=str(exc),
+            traceback=traceback.format_exc(),
+        )
+        st.error(message)
+
+    def _stem_operation_ok(operation: str) -> None:
+        st.session_state.pop(stem_error_key, None)
+        perf_event(
+            "analysis.stem.complete",
+            status="ok",
+            operation=operation,
+        )
+
     # ========================================================
     # TAB 1 — STEM
     # ========================================================
@@ -959,10 +993,24 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                     )
                     current = cached_stem_paths(audio_hash)
                     status.write(f"2/2 · Chant / Chœurs : {DEFAULT_KARAOKE_MODEL}")
-                    vocal_result = ensure_vocal_stems(
-                        audio_hash=audio_hash, vocals_path=current["vocals"]
-                    )
-                    status.update(label="STEM terminés.", state="complete", expanded=False)
+                    try:
+                        vocal_result = ensure_vocal_stems(
+                            audio_hash=audio_hash, vocals_path=current["vocals"]
+                        )
+                    except Exception as exc:
+                        status.update(
+                            label="Erreur Chant / Chœurs.",
+                            state="error",
+                            expanded=True,
+                        )
+                        _stem_operation_error("Extraction Chant / Chœurs", exc)
+                    else:
+                        _stem_operation_ok("Extraction STEM complète")
+                        status.update(
+                            label="STEM terminés.",
+                            state="complete",
+                            expanded=False,
+                        )
                     for label, payload in (("BS-RoFormer-SW", result), ("Karaoke", vocal_result)):
                         log = str(payload.get("log_tail", "") or "")
                         if log:
@@ -979,10 +1027,27 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                              key=f"ezstem_extract_vocal_split_{str(audio_hash)[:12]}"):
                     with st.status("Séparation Chant / Chœurs en cours…", expanded=True) as status:
                         status.write(f"Modèle : {DEFAULT_KARAOKE_MODEL}")
-                        ensure_vocal_stems(audio_hash=audio_hash, vocals_path=stems["vocals"])
-                        _invalidate_after_stem_regeneration(audio_hash, full=False)
-                        status.update(label="Chant / Chœurs prêts.", state="complete", expanded=False)
-                    st.rerun()
+                        try:
+                            ensure_vocal_stems(
+                                audio_hash=audio_hash,
+                                vocals_path=stems["vocals"],
+                            )
+                        except Exception as exc:
+                            status.update(
+                                label="Erreur Chant / Chœurs.",
+                                state="error",
+                                expanded=True,
+                            )
+                            _stem_operation_error("Extraction Chant / Chœurs", exc)
+                        else:
+                            _invalidate_after_stem_regeneration(audio_hash, full=False)
+                            _stem_operation_ok("Extraction Chant / Chœurs")
+                            status.update(
+                                label="Chant / Chœurs prêts.",
+                                state="complete",
+                                expanded=False,
+                            )
+                            st.rerun()
             else:
                 st.success("✓ STEM HQ prêts · instruments + Chant + Chœurs.")
 
@@ -1009,13 +1074,29 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                         refreshed = cached_stem_paths(audio_hash)
                         delete_vocal_stem_cache(audio_hash)
                         status.write("2/2 · Régénération Chant / Chœurs")
-                        ensure_vocal_stems(
-                            audio_hash=audio_hash, vocals_path=refreshed["vocals"],
-                            force=True, force_model_download=False,
-                        )
-                        _invalidate_after_stem_regeneration(audio_hash, full=True)
-                        status.update(label="Régénération STEM terminée.", state="complete", expanded=False)
-                    st.rerun()
+                        try:
+                            ensure_vocal_stems(
+                                audio_hash=audio_hash,
+                                vocals_path=refreshed["vocals"],
+                                force=True,
+                                force_model_download=False,
+                            )
+                        except Exception as exc:
+                            status.update(
+                                label="Erreur pendant Chant / Chœurs.",
+                                state="error",
+                                expanded=True,
+                            )
+                            _stem_operation_error("Régénération complète STEM", exc)
+                        else:
+                            _invalidate_after_stem_regeneration(audio_hash, full=True)
+                            _stem_operation_ok("Régénération complète STEM")
+                            status.update(
+                                label="Régénération STEM terminée.",
+                                state="complete",
+                                expanded=False,
+                            )
+                            st.rerun()
 
             with regen_vocal_col:
                 if st.button(
@@ -1023,13 +1104,29 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                     key=f"ezstem_regen_vocals_{str(audio_hash)[:12]}",
                 ):
                     with st.status("Régénération Chant / Chœurs…", expanded=True) as status:
-                        ensure_vocal_stems(
-                            audio_hash=audio_hash, vocals_path=stems["vocals"],
-                            force=True, force_model_download=False,
-                        )
-                        _invalidate_after_stem_regeneration(audio_hash, full=False)
-                        status.update(label="Chant / Chœurs régénérés.", state="complete", expanded=False)
-                    st.rerun()
+                        try:
+                            ensure_vocal_stems(
+                                audio_hash=audio_hash,
+                                vocals_path=stems["vocals"],
+                                force=True,
+                                force_model_download=False,
+                            )
+                        except Exception as exc:
+                            status.update(
+                                label="Erreur pendant Chant / Chœurs.",
+                                state="error",
+                                expanded=True,
+                            )
+                            _stem_operation_error("Régénération Chant / Chœurs", exc)
+                        else:
+                            _invalidate_after_stem_regeneration(audio_hash, full=False)
+                            _stem_operation_ok("Régénération Chant / Chœurs")
+                            status.update(
+                                label="Chant / Chœurs régénérés.",
+                                state="complete",
+                                expanded=False,
+                            )
+                            st.rerun()
 
             if not _stem_ffmpeg_available():
                 st.error("FFmpeg est requis pour le lecteur STEM.")
