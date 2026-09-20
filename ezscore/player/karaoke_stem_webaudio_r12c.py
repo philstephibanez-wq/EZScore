@@ -707,6 +707,7 @@ _MEDIA_ENGINE = r"""
   // -------- WebAudio EQ + HTMLMediaElement pitch-preserved transport --------
   let mediaElements = [];
   let mediaSources = [];
+  let mediaObjectUrls = [];
   let clockMedia = null;
   let lastDriftCheck = 0;
 
@@ -772,20 +773,43 @@ _MEDIA_ENGINE = r"""
     mediaElements=[];
     mediaSources=[];
 
-    for (let i=0;i<defs.length;i++) {
+    mediaObjectUrls.forEach(url => {
+      try { URL.revokeObjectURL(url); } catch (_) {}
+    });
+    mediaObjectUrls=[];
+
+    const fetched = await Promise.all(
+      defs.map(async (def) => {
+        const label=String(def?.label || def?.name || "piste");
+        const response=await fetch(
+          String(def?.url || ""),
+          {cache:"no-store"}
+        );
+        if (!response.ok) {
+          throw new Error("HTTP média "+response.status+" : "+label);
+        }
+
+        const blob=await response.blob();
+        if (!blob || blob.size <= 0) {
+          throw new Error("Média vide : "+label);
+        }
+        return {label,blob};
+      })
+    );
+
+    for (const item of fetched) {
       const media=new Audio();
       media.preload="auto";
-      media.src=String(defs[i].url || "");
+      const objectUrl=URL.createObjectURL(item.blob);
+      mediaObjectUrls.push(objectUrl);
+      media.src=objectUrl;
       setPitchPreservation(media);
       mediaElements.push(media);
     }
 
     await Promise.all(
       mediaElements.map((media,index) =>
-        waitMediaReady(
-          media,
-          String(defs[index]?.label || defs[index]?.name || "piste")
-        )
+        waitMediaReady(media,fetched[index].label)
       )
     );
 
@@ -817,7 +841,6 @@ _MEDIA_ENGINE = r"""
       highEQ.connect(trackGain);
       trackGain.connect(masterGain);
 
-      mediaElements.push(media);
       mediaSources.push(sourceNode);
       trackNodes.push({lowEQ,midEQ,highEQ,trackGain});
 
@@ -956,11 +979,13 @@ _JS = _replace_once(
     _JS,
     """  let mediaElements = [];
   let mediaSources = [];
+  let mediaObjectUrls = [];
   let clockMedia = null;
   let lastDriftCheck = 0;
 """,
     """  let mediaElements = [];
   let mediaSources = [];
+  let mediaObjectUrls = [];
   let clockMedia = null;
   let lastDriftCheck = 0;
   let metadataMedia = null;
@@ -984,27 +1009,10 @@ _JS = _replace_once(
   }
 
   function primeSeekMetadata() {
-    // Primary source: duration measured server-side with ffprobe.
-    // This avoids browser/network metadata differences (notably Edge online).
+    // Server-side ffprobe duration is authoritative.
+    // No direct media URL access occurs before the Play action.
     const serverDuration = Number(data.media_duration || 0);
     applySeekDuration(serverDuration);
-
-    // Browser metadata remains a secondary refinement/fallback.
-    const original = defs.find(item => item.name === "original") || defs[0];
-    const url = String(original?.url || "");
-    if (!url) return;
-
-    metadataMedia = new Audio();
-    metadataMedia.preload = "metadata";
-    metadataMedia.src = url;
-
-    const accept = () => {
-      applySeekDuration(Number(metadataMedia?.duration || 0));
-    };
-
-    metadataMedia.addEventListener("loadedmetadata", accept, {once:true});
-    metadataMedia.addEventListener("durationchange", accept);
-    try { metadataMedia.load(); } catch (_) {}
   }
 
   primeSeekMetadata();
