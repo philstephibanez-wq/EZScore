@@ -1104,42 +1104,14 @@ def _component_with_r12c_data(*, data: dict[str, Any], **kwargs):
         _MEDIA_DURATION_BY_STORAGE_KEY.get(storage_key, 0.0) or 0.0
     )
 
-    # The persisted backing cache is authoritative for the Chœurs lane.
-    # Always reload it here: do not let an empty/stale value prepared earlier
-    # in the base player hide a cache that contains real choir words.
+    # R8: the base player is authoritative for Chœurs.
+    # Text comes from the validated vocals Whisper pass; backing_vocals.wav is
+    # used only to refine timing. Never reload whisper_backing_small.json here.
     preview_dir = _PREVIEW_DIR_BY_STORAGE_KEY.get(storage_key)
     lead_words = list(payload.get("lead_words", []) or [])
-    authoritative_backing_words = []
 
-    if preview_dir is not None:
-        backing_cache = Path(preview_dir).parent / "whisper_backing_small.json"
-        if backing_cache.is_file():
-            try:
-                backing_payload = json.loads(
-                    backing_cache.read_text(encoding="utf-8")
-                )
-                for raw_word in list(backing_payload.get("words", []) or []):
-                    text_value = str(
-                        raw_word.get("text")
-                        or raw_word.get("word")
-                        or ""
-                    ).strip()
-                    start = float(raw_word.get("start", 0.0) or 0.0)
-                    end = float(raw_word.get("end", start) or start)
-                    if text_value and end >= start:
-                        authoritative_backing_words.append({
-                            "text": text_value,
-                            "start": start,
-                            "end": end,
-                        })
-            except Exception:
-                authoritative_backing_words = []
-
-    if authoritative_backing_words:
-        payload["backing_words"] = authoritative_backing_words
-    elif not list(payload.get("backing_words", []) or []):
-        # Historical fallback only when the real backing cache has no usable
-        # words. This preserves the old vocalise lane rather than hiding it.
+    if not list(payload.get("backing_words", []) or []):
+        # Last-resort non-destructive fallback to the validated vocalises lane.
         if preview_dir is not None and lead_words:
             cache_path = Path(preview_dir).parent / "whisper_vocals_small.json"
             if cache_path.is_file():

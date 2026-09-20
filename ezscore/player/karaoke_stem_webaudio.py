@@ -315,20 +315,24 @@ def _ensure_vocal_whisper_supplement(
     This specifically repairs sung material that the original-mix pass can
     omit (intro vocalises, repeated "la/na/oh", etc.). Results are cached.
     """
-    vocals = stems.get("vocals")
-    if vocals is None or not Path(vocals).is_file():
-        return list(original_words)
-
     cache_path = _vocal_whisper_cache_path(preview_dir)
     payload: dict[str, Any] | None = None
 
+    # The persisted vocals Whisper cache is technical analysis data and remains
+    # usable even when the current player receives only the split
+    # lead_vocals/backing_vocals tracks. Do not discard it merely because the
+    # `vocals` key is absent from the runtime stems mapping.
     if cache_path.is_file():
         try:
             payload = json.loads(cache_path.read_text(encoding="utf-8"))
         except Exception:
             payload = None
 
+    vocals = stems.get("vocals")
     if payload is None:
+        if vocals is None or not Path(vocals).is_file():
+            return list(original_words)
+
         import torch
         # Reuse the exact cached Whisper-small instance already used by step 2.
         from ezscore.ui.stem_lab_analysis import _whisper_small
@@ -385,6 +389,188 @@ def _ensure_vocal_whisper_supplement(
         list(original_words),
         list(payload.get("words", []) or []),
     )
+
+
+def _choir_words_cache_path(preview_dir: Path) -> Path:
+    return preview_dir.parent / "choir_words_from_vocals.json"
+
+
+def _derive_choir_words_from_vocals(
+    stems: dict[str, Path],
+    preview_dir: Path,
+    lead_words: list[dict[str, Any]],
+    player_words: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Use validated vocal text, and backing audio only for timing.
+
+    Text source:
+        whisper_vocals_small.json via player_words / supplementation.
+    Timing source:
+        backing_vocals.wav acoustic onsets when a plausible nearby onset exists.
+
+    The backing Whisper pass is deliberately NOT used as a text source: on
+    sparse choir/vocalise stems it can hallucinate language/text.
+    """
+    candidates = _supplement_only_words(
+        list(lead_words),
+        list(player_words),
+    )
+    if not candidates:
+        return []
+
+    backing = stems.get("backing_vocals")
+    if backing is None or not Path(backing).is_file():
+        return candidates
+
+    backing = Path(backing)
+    cache_path = _choir_words_cache_path(preview_dir)
+    signature = [
+        {
+            "text": str(word.get("text", "") or "").strip(),
+            "start": round(float(word.get("start", 0.0) or 0.0), 4),
+            "end": round(
+                float(word.get("end", word.get("start", 0.0)) or 0.0),
+                4,
+            ),
+        }
+        for word in candidates
+    ]
+
+    stat = backing.stat()
+    if cache_path.is_file():
+        try:
+            cached = json.loads(cache_path.read_text(encoding="utf-8"))
+            if (
+                int(cached.get("source_mtime_ns", 0) or 0)
+                    == int(stat.st_mtime_ns)
+                and int(cached.get("source_size", 0) or 0)
+                    == int(stat.st_size)
+                and list(cached.get("candidate_signature", []) or [])
+                    == signature
+            ):
+                cached_words = list(cached.get("words", []) or [])
+                if cached_words:
+                    return cached_words
+        except Exception:
+            pass
+
+    import librosa
+
+    y, sr = librosa.load(str(backing), sr=16000, mono=True)
+    if y.size == 0:
+        return candidates
+
+    hop_length = 160
+    onset_env = librosa.onset.onset_strength(
+        y=y,
+        sr=sr,
+        hop_length=hop_length,
+        aggregate=np.median,
+    )
+    onset_times = np.asarray(
+        librosa.onset.onset_detect(
+            onset_envelope=onset_env,
+            sr=sr,
+            hop_length=hop_length,
+            units="time",
+            backtrack=True,
+            pre_max=3,
+            post_max=3,
+            pre_avg=8,
+            post_avg=8,
+            delta=0.08,
+            wait=3,
+        ),
+        dtype=float,
+    )
+    onset_times = onset_times[np.isfinite(onset_times)]
+
+    rms = np.asarray(
+        librosa.feature.rms(
+            y=y,
+            frame_length=1024,
+            hop_length=hop_length,
+        )[0],
+        dtype=float,
+    )
+    rms_times = np.asarray(
+        librosa.frames_to_time(
+            np.arange(rms.size),
+            sr=sr,
+            hop_length=hop_length,
+        ),
+        dtype=float,
+    )
+    positive_rms = rms[rms > 1e-8]
+    activity_floor = (
+        float(np.percentile(positive_rms, 35))
+        if positive_rms.size
+        else 0.0
+    )
+
+    aligned: list[dict[str, Any]] = []
+    snap_window = 0.28
+
+    for word in candidates:
+        text_value = str(word.get("text", "") or "").strip()
+        raw_start = float(word.get("start", 0.0) or 0.0)
+        raw_end = float(word.get("end", raw_start) or raw_start)
+        duration = max(0.06, raw_end - raw_start)
+
+        local_mask = (
+            (rms_times >= max(0.0, raw_start - 0.20))
+            & (rms_times <= raw_end + 0.20)
+        )
+        local_peak = (
+            float(np.max(rms[local_mask]))
+            if np.any(local_mask)
+            else 0.0
+        )
+        has_backing_activity = (
+            local_peak > 0.0
+            and (
+                activity_floor <= 0.0
+                or local_peak >= activity_floor * 1.15
+            )
+        )
+
+        new_start = raw_start
+        snapped = False
+        if has_backing_activity and onset_times.size:
+            distances = np.abs(onset_times - raw_start)
+            index = int(np.argmin(distances))
+            if float(distances[index]) <= snap_window:
+                new_start = float(onset_times[index])
+                snapped = True
+
+        aligned.append(
+            {
+                "text": text_value,
+                "start": round(new_start, 6),
+                "end": round(new_start + duration, 6),
+                "raw_start": round(raw_start, 6),
+                "raw_end": round(raw_end, 6),
+                "backing_activity": bool(has_backing_activity),
+                "snapped_to_backing": bool(snapped),
+            }
+        )
+
+    payload = {
+        "version": 1,
+        "text_source": "whisper_vocals_small",
+        "timing_source": "backing_vocals_activity",
+        "source_mtime_ns": int(stat.st_mtime_ns),
+        "source_size": int(stat.st_size),
+        "candidate_signature": signature,
+        "words": aligned,
+    }
+    tmp = cache_path.with_suffix(".tmp")
+    tmp.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    tmp.replace(cache_path)
+    return aligned
 
 
 def _ensure_backing_whisper(
@@ -1759,25 +1945,27 @@ def render_player(
                 stems.get("backing_vocals") is not None
                 and Path(stems["backing_vocals"]).is_file()
             ):
-                backing_cache = _backing_whisper_cache_path(preview_dir)
-                if backing_cache.is_file():
-                    backing_words = _ensure_backing_whisper(stems, preview_dir)
-                else:
-                    with st.spinner(
-                        "Transcription des vrais Chœurs "
-                        "(backing_vocals.wav)…"
-                    ):
-                        backing_words = _ensure_backing_whisper(
-                            stems, preview_dir
-                        )
+                backing_words = _derive_choir_words_from_vocals(
+                    stems,
+                    preview_dir,
+                    lead_words,
+                    player_words,
+                )
             else:
                 backing_words = _supplement_only_words(
                     lead_words,
                     player_words,
                 )
         except Exception as exc:
-            st.warning("Transcription Chœurs indisponible : " + str(exc))
-            backing_words = []
+            st.warning(
+                "Recalage acoustique Chœurs indisponible ; "
+                "les vocalises validées restent utilisées : "
+                + str(exc)
+            )
+            backing_words = _supplement_only_words(
+                lead_words,
+                player_words,
+            )
 
         try:
             with st.spinner(
