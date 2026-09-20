@@ -1941,25 +1941,59 @@ def render_player(
             )
 
         try:
-            if (
-                stems.get("backing_vocals") is not None
-                and Path(stems["backing_vocals"]).is_file()
-            ):
-                backing_words = _derive_choir_words_from_vocals(
-                    stems,
-                    preview_dir,
+            # Restore the last proven Chœurs text path:
+            # whisper_vocals_small.json -> merged vocal words -> supplement only.
+            #
+            # Do NOT depend on the runtime `stems["vocals"]` key here. The cache
+            # is persisted technical analysis data and is sufficient.
+            vocal_cache = _vocal_whisper_cache_path(preview_dir)
+            vocal_payload = None
+            if vocal_cache.is_file():
+                try:
+                    vocal_payload = json.loads(
+                        vocal_cache.read_text(encoding="utf-8")
+                    )
+                except Exception:
+                    vocal_payload = None
+
+            if vocal_payload is not None:
+                merged_vocal_words = _merge_vocal_gap_words(
                     lead_words,
-                    player_words,
+                    list(vocal_payload.get("words", []) or []),
+                )
+                backing_words = _supplement_only_words(
+                    lead_words,
+                    merged_vocal_words,
                 )
             else:
                 backing_words = _supplement_only_words(
                     lead_words,
                     player_words,
                 )
+
+            # Only after the proven text selection succeeded do we attempt
+            # acoustic timing refinement. It is strictly non-destructive.
+            if (
+                backing_words
+                and stems.get("backing_vocals") is not None
+                and Path(stems["backing_vocals"]).is_file()
+            ):
+                try:
+                    aligned_words = _derive_choir_words_from_vocals(
+                        stems,
+                        preview_dir,
+                        lead_words,
+                        merged_vocal_words
+                        if vocal_payload is not None
+                        else player_words,
+                    )
+                    if aligned_words:
+                        backing_words = aligned_words
+                except Exception:
+                    pass
         except Exception as exc:
             st.warning(
-                "Recalage acoustique Chœurs indisponible ; "
-                "les vocalises validées restent utilisées : "
+                "Chœurs : retour au chemin vocal validé impossible : "
                 + str(exc)
             )
             backing_words = _supplement_only_words(
