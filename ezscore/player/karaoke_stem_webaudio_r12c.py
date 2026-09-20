@@ -424,6 +424,14 @@ _JS = (
 
   const leadWords = normalizedWords(leadInput);
   const backingWords = normalizedWords(backingInput);
+  const backingLabel = backingRow
+    ? backingRow.querySelector(".timeline-label")
+    : null;
+  if (backingLabel) {
+    backingLabel.textContent = backingWords.length
+      ? "Chœurs (" + String(backingWords.length) + ")"
+      : "Chœurs";
+  }
 
   let leadNodes=[];
   let backingNodes=[];
@@ -1096,30 +1104,43 @@ def _component_with_r12c_data(*, data: dict[str, Any], **kwargs):
         _MEDIA_DURATION_BY_STORAGE_KEY.get(storage_key, 0.0) or 0.0
     )
 
-    # Prefer the real backing-vocal Whisper cache. The historical
-    # vocals-gap heuristic remains fallback-only when no real backing cache exists.
-    if not list(payload.get("backing_words", []) or []):
-        preview_dir = _PREVIEW_DIR_BY_STORAGE_KEY.get(storage_key)
-        lead_words = list(payload.get("lead_words", []) or [])
+    # The persisted backing cache is authoritative for the Chœurs lane.
+    # Always reload it here: do not let an empty/stale value prepared earlier
+    # in the base player hide a cache that contains real choir words.
+    preview_dir = _PREVIEW_DIR_BY_STORAGE_KEY.get(storage_key)
+    lead_words = list(payload.get("lead_words", []) or [])
+    authoritative_backing_words = []
 
-        if preview_dir is not None:
-            backing_cache = Path(preview_dir).parent / "whisper_backing_small.json"
-            if backing_cache.is_file():
-                try:
-                    backing_payload = json.loads(
-                        backing_cache.read_text(encoding="utf-8")
-                    )
-                    payload["backing_words"] = list(
-                        backing_payload.get("words", []) or []
-                    )
-                except Exception:
-                    pass
+    if preview_dir is not None:
+        backing_cache = Path(preview_dir).parent / "whisper_backing_small.json"
+        if backing_cache.is_file():
+            try:
+                backing_payload = json.loads(
+                    backing_cache.read_text(encoding="utf-8")
+                )
+                for raw_word in list(backing_payload.get("words", []) or []):
+                    text_value = str(
+                        raw_word.get("text")
+                        or raw_word.get("word")
+                        or ""
+                    ).strip()
+                    start = float(raw_word.get("start", 0.0) or 0.0)
+                    end = float(raw_word.get("end", start) or start)
+                    if text_value and end >= start:
+                        authoritative_backing_words.append({
+                            "text": text_value,
+                            "start": start,
+                            "end": end,
+                        })
+            except Exception:
+                authoritative_backing_words = []
 
-        if (
-            not list(payload.get("backing_words", []) or [])
-            and preview_dir is not None
-            and lead_words
-        ):
+    if authoritative_backing_words:
+        payload["backing_words"] = authoritative_backing_words
+    elif not list(payload.get("backing_words", []) or []):
+        # Historical fallback only when the real backing cache has no usable
+        # words. This preserves the old vocalise lane rather than hiding it.
+        if preview_dir is not None and lead_words:
             cache_path = Path(preview_dir).parent / "whisper_vocals_small.json"
             if cache_path.is_file():
                 try:
@@ -1136,6 +1157,10 @@ def _component_with_r12c_data(*, data: dict[str, Any], **kwargs):
                     )
                 except Exception:
                     pass
+
+    payload["backing_word_count"] = len(
+        list(payload.get("backing_words", []) or [])
+    )
 
     if audio_hash:
         beats = list(payload.get("beats", []) or [])

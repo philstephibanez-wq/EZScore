@@ -2512,6 +2512,44 @@ audio_hash = None
 song = None
 fichier_audio = None
 
+def _open_catalog_song_now(
+    target_audio_hash,
+    *,
+    selected_version=None,
+    mode="Vue",
+    view="Paroles + accords",
+    resume_modifications=False,
+):
+    """Open a catalog song in the SAME Streamlit rerun as the click.
+
+    This callback executes before the script restarts from the top.  Therefore
+    main_menu is already ``Chanson`` before the radio and the catalogue branch
+    are rendered; the Répertoire page is not redrawn while the song loads.
+    """
+    target = str(target_audio_hash or "").strip()
+    if not target:
+        return
+
+    if resume_modifications:
+        resume_song_modifications(target)
+
+    st.session_state["active_song_hash"] = target
+    set_app_state("last_song_hash", target)
+    prepare_song_preferences_for_open(target)
+
+    if selected_version is None:
+        st.session_state.pop("active_analysis_version_no", None)
+    else:
+        prepare_analysis_version_for_open(target, int(selected_version))
+
+    st.session_state[f"song_view_{target[:12]}"] = str(view)
+    st.session_state[f"song_mode_{target[:12]}"] = str(mode)
+
+    # Critical: set the radio widget state from the callback, before the new
+    # script run instantiates it.  Do not use a late _pending_main_menu + rerun.
+    st.session_state["main_menu"] = "Chanson"
+
+
 # Changement de menu demandé depuis un widget créé plus bas :
 # on l'applique au début du rerun suivant, avant l'instanciation du menu.
 _pending_main_menu = st.session_state.pop(
@@ -2993,17 +3031,17 @@ elif main_menu == "Répertoire":
                         open_col, delete_col = st.columns([1.5, 0.6])
 
                         with open_col:
-                            if st.button(
+                            st.button(
                                 "Ouvrir",
                                 key=f"open_{sort_key}_{item['audio_hash']}",
-                            ):
-                                selected_audio_hash = item["audio_hash"]
-                                st.session_state["active_song_hash"] = selected_audio_hash
-                                st.session_state.pop("active_analysis_version_no", None)
-                                set_app_state("last_song_hash", selected_audio_hash)
-                                prepare_song_preferences_for_open(selected_audio_hash)
-                                st.session_state["_pending_main_menu"] = "Chanson"
-                                st.rerun()
+                                on_click=_open_catalog_song_now,
+                                args=(item["audio_hash"],),
+                                kwargs={
+                                    "selected_version": None,
+                                    "mode": "Vue",
+                                    "view": "Paroles + accords",
+                                },
+                            )
 
                         with delete_col:
                             if auth_allowed("song.delete"):
@@ -3022,59 +3060,37 @@ elif main_menu == "Répertoire":
                         a1, a2, a3 = st.columns([1, 1, 1])
 
                         with a1:
-                            if st.button(
+                            st.button(
                                 "👁 Voir",
                                 key=f"view_v_{item['audio_hash']}_{selected_version}",
-                            ):
-                                selected_audio_hash = item["audio_hash"]
-                                st.session_state["active_song_hash"] = selected_audio_hash
-                                set_app_state("last_song_hash", selected_audio_hash)
-                                prepare_song_preferences_for_open(selected_audio_hash)
-                                prepare_analysis_version_for_open(
-                                    selected_audio_hash,
-                                    selected_version,
-                                )
-                                st.session_state[
-                                    f"song_view_{selected_audio_hash[:12]}"
-                                ] = "Paroles + accords"
-                                st.session_state[
-                                    f"song_mode_{selected_audio_hash[:12]}"
-                                ] = "Vue"
-                                st.session_state["_pending_main_menu"] = "Chanson"
-                                st.rerun()
+                                on_click=_open_catalog_song_now,
+                                args=(item["audio_hash"],),
+                                kwargs={
+                                    "selected_version": selected_version,
+                                    "mode": "Vue",
+                                    "view": "Paroles + accords",
+                                },
+                            )
 
                         with a2:
                             if auth_allowed("song.edit"):
-                                if st.button(
+                                _resume_modifications = bool(
+                                    _selected_catalog_choice is not None
+                                    and _selected_catalog_choice.get("kind")
+                                    == "published"
+                                )
+                                st.button(
                                     "✏ Modifier",
                                     key=f"edit_v_{item['audio_hash']}_{selected_version}",
-                                ):
-                                    auth_require("song.edit")
-                                    selected_audio_hash = item["audio_hash"]
-                                    if (
-                                        _selected_catalog_choice is not None
-                                        and _selected_catalog_choice.get(
-                                            "kind"
-                                        ) == "published"
-                                    ):
-                                        resume_song_modifications(
-                                            selected_audio_hash
-                                        )
-                                    st.session_state["active_song_hash"] = selected_audio_hash
-                                    set_app_state("last_song_hash", selected_audio_hash)
-                                    prepare_song_preferences_for_open(selected_audio_hash)
-                                    prepare_analysis_version_for_open(
-                                        selected_audio_hash,
-                                        selected_version,
-                                    )
-                                    st.session_state[
-                                        f"song_view_{selected_audio_hash[:12]}"
-                                    ] = "Grille"
-                                    st.session_state[
-                                        f"song_mode_{selected_audio_hash[:12]}"
-                                    ] = "Édition"
-                                    st.session_state["_pending_main_menu"] = "Chanson"
-                                    st.rerun()
+                                    on_click=_open_catalog_song_now,
+                                    args=(item["audio_hash"],),
+                                    kwargs={
+                                        "selected_version": selected_version,
+                                        "mode": "Édition",
+                                        "view": "Grille",
+                                        "resume_modifications": _resume_modifications,
+                                    },
+                                )
 
                         with a3:
                             if auth_allowed("song.delete"):
@@ -3144,6 +3160,9 @@ elif main_menu == "Chanson":
             "Choisissez un morceau dans le Répertoire."
         )
     else:
+        _song_loading_notice = st.empty()
+        _song_loading_notice.info("Chargement du morceau sélectionné…")
+
         catalog_for_open = list_song_catalog(
             sort_by="title"
         )
@@ -3197,6 +3216,7 @@ elif main_menu == "Chanson":
                 audio_bytes = (
                     persisted_audio_path.read_bytes()
                 )
+                _song_loading_notice.empty()
 
 if (
     main_menu == "Chanson"
