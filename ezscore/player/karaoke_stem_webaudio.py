@@ -137,6 +137,10 @@ def _vocal_whisper_cache_path(preview_dir: Path) -> Path:
     return preview_dir.parent / "whisper_vocals_small.json"
 
 
+def _backing_whisper_cache_path(preview_dir: Path) -> Path:
+    return preview_dir.parent / "whisper_backing_small.json"
+
+
 def _merge_vocal_gap_words(
     original_words: list[dict[str, Any]],
     vocal_words: list[dict[str, Any]],
@@ -381,6 +385,98 @@ def _ensure_vocal_whisper_supplement(
         list(original_words),
         list(payload.get("words", []) or []),
     )
+
+
+def _ensure_backing_whisper(
+    stems: dict[str, Path],
+    preview_dir: Path,
+) -> list[dict[str, Any]]:
+    backing = stems.get("backing_vocals")
+    if backing is None or not Path(backing).is_file():
+        return []
+
+    backing = Path(backing)
+    cache_path = _backing_whisper_cache_path(preview_dir)
+    payload = None
+
+    if cache_path.is_file():
+        try:
+            cached = json.loads(cache_path.read_text(encoding="utf-8"))
+            stat = backing.stat()
+            if (
+                int(cached.get("source_mtime_ns", 0) or 0) == int(stat.st_mtime_ns)
+                and int(cached.get("source_size", 0) or 0) == int(stat.st_size)
+            ):
+                payload = cached
+        except Exception:
+            payload = None
+
+    if payload is None:
+        import torch
+        from ezscore.ui.stem_lab_analysis import _whisper_small
+
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model = _whisper_small(device)
+        result = model.transcribe(
+            str(backing),
+            word_timestamps=True,
+            fp16=(device == "cuda"),
+            verbose=False,
+            condition_on_previous_text=False,
+            initial_prompt=(
+                "Transcribe only the audible backing vocals and choir parts. "
+                "Keep repeated words and vocalisations such as la, na, oh, ah."
+            ),
+        )
+
+        words = []
+        for segment in result.get("segments", []) or []:
+            no_speech = float(segment.get("no_speech_prob", 0.0) or 0.0)
+            avg_logprob = float(segment.get("avg_logprob", 0.0) or 0.0)
+            if no_speech > 0.70 or avg_logprob < -1.50:
+                continue
+
+            for word in segment.get("words", []) or []:
+                text_value = str(word.get("word", "") or "").strip()
+                start = float(word.get("start", 0.0) or 0.0)
+                end = float(word.get("end", start) or start)
+                probability = float(word.get("probability", 1.0) or 0.0)
+                if text_value and end > start and probability >= 0.25:
+                    words.append({
+                        "start": start,
+                        "end": end,
+                        "text": text_value,
+                        "confidence": probability,
+                    })
+
+        stat = backing.stat()
+        payload = {
+            "engine": "openai-whisper",
+            "model": "small",
+            "source": "backing_vocals",
+            "language": str(result.get("language", "") or ""),
+            "source_mtime_ns": int(stat.st_mtime_ns),
+            "source_size": int(stat.st_size),
+            "words": words,
+        }
+
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = cache_path.with_suffix(".tmp")
+        tmp.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        tmp.replace(cache_path)
+
+    return [
+        {
+            "start": float(word.get("start", 0.0) or 0.0),
+            "end": float(word.get("end", word.get("start", 0.0)) or 0.0),
+            "text": str(word.get("text", "") or "").strip(),
+        }
+        for word in list(payload.get("words", []) or [])
+        if str(word.get("text", "") or "").strip()
+    ]
 
 
 def _cache_is_current(
@@ -1652,15 +1748,36 @@ def render_player(
                     player_words = _ensure_vocal_whisper_supplement(
                         source, stems, preview_dir, lead_words
                     )
-            backing_words = _supplement_only_words(
-                lead_words,
-                player_words,
-            )
         except Exception as exc:
             st.warning(
                 "Complément vocal indisponible ; la transcription originale "
                 f"reste utilisée : {exc}"
             )
+
+        try:
+            if (
+                stems.get("backing_vocals") is not None
+                and Path(stems["backing_vocals"]).is_file()
+            ):
+                backing_cache = _backing_whisper_cache_path(preview_dir)
+                if backing_cache.is_file():
+                    backing_words = _ensure_backing_whisper(stems, preview_dir)
+                else:
+                    with st.spinner(
+                        "Transcription des vrais Chœurs "
+                        "(backing_vocals.wav)…"
+                    ):
+                        backing_words = _ensure_backing_whisper(
+                            stems, preview_dir
+                        )
+            else:
+                backing_words = _supplement_only_words(
+                    lead_words,
+                    player_words,
+                )
+        except Exception as exc:
+            st.warning("Transcription Chœurs indisponible : " + str(exc))
+            backing_words = []
 
         try:
             with st.spinner(

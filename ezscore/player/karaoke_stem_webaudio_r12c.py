@@ -1088,13 +1088,30 @@ def _component_with_r12c_data(*, data: dict[str, Any], **kwargs):
         _MEDIA_DURATION_BY_STORAGE_KEY.get(storage_key, 0.0) or 0.0
     )
 
-    # Non-regression guard: Chœurs / vocalises are persisted independently.
-    # If the base render yields an empty lane, reconstruct it from the cached
-    # vocal-stem Whisper pass without reanalysis.
+    # Prefer the real backing-vocal Whisper cache. The historical
+    # vocals-gap heuristic remains fallback-only when no real backing cache exists.
     if not list(payload.get("backing_words", []) or []):
         preview_dir = _PREVIEW_DIR_BY_STORAGE_KEY.get(storage_key)
         lead_words = list(payload.get("lead_words", []) or [])
-        if preview_dir is not None and lead_words:
+
+        if preview_dir is not None:
+            backing_cache = Path(preview_dir).parent / "whisper_backing_small.json"
+            if backing_cache.is_file():
+                try:
+                    backing_payload = json.loads(
+                        backing_cache.read_text(encoding="utf-8")
+                    )
+                    payload["backing_words"] = list(
+                        backing_payload.get("words", []) or []
+                    )
+                except Exception:
+                    pass
+
+        if (
+            not list(payload.get("backing_words", []) or [])
+            and preview_dir is not None
+            and lead_words
+        ):
             cache_path = Path(preview_dir).parent / "whisper_vocals_small.json"
             if cache_path.is_file():
                 try:
