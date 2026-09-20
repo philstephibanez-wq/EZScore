@@ -307,7 +307,8 @@ def install_runtime_probes() -> None:
     # because those are too frequent and would create noisy logs.
     _wrap_streamlit_call(st, "plotly_chart", "ui.plotly_chart")
     _wrap_streamlit_call(st, "dataframe", "ui.dataframe")
-    _wrap_streamlit_call(st, "download_button", "ui.download_button")
+    # download_button is deliberately left unwrapped: Streamlit owns
+    # the browser download lifecycle and callback semantics.
     _wrap_streamlit_call(st, "image", "ui.image")
 
     # Domain probes. Importing these modules here is deliberate: EZScore.py
@@ -446,7 +447,7 @@ def render_perf_log_sidebar() -> None:
             data=payload,
             file_name="ezscore_perf.log",
             mime="application/x-ndjson",
-            key=f"perf_log_download_{len(payload)}",
+            key="perf_log_download",
             disabled=not bool(payload),
             on_click="ignore",
             width="stretch",

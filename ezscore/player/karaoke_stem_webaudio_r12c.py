@@ -724,22 +724,31 @@ _MEDIA_ENGINE = r"""
     });
   }
 
-  function waitMediaReady(media) {
+  function waitMediaReady(media,label) {
     if (media.readyState >= 1 && Number.isFinite(media.duration)) {
       return Promise.resolve();
     }
     return new Promise((resolve,reject) => {
-      const done=() => { cleanup(); resolve(); };
-      const fail=() => { cleanup(); reject(new Error("Média audio indisponible")); };
+      let timer=null;
       const cleanup=() => {
+        if (timer!==null) clearTimeout(timer);
         media.removeEventListener("loadedmetadata",done);
         media.removeEventListener("canplay",done);
         media.removeEventListener("error",fail);
       };
+      const done=() => { cleanup(); resolve(); };
+      const fail=() => {
+        cleanup();
+        reject(new Error("Média audio indisponible : "+String(label || "piste")));
+      };
+      timer=setTimeout(() => {
+        cleanup();
+        reject(new Error("Délai de chargement dépassé : "+String(label || "piste")));
+      },20000);
       media.addEventListener("loadedmetadata",done,{once:true});
       media.addEventListener("canplay",done,{once:true});
       media.addEventListener("error",fail,{once:true});
-      media.load();
+      try { media.load(); } catch (_) { fail(); }
     });
   }
 
@@ -768,8 +777,20 @@ _MEDIA_ENGINE = r"""
       media.preload="auto";
       media.src=String(defs[i].url || "");
       setPitchPreservation(media);
-      await waitMediaReady(media);
+      mediaElements.push(media);
+    }
 
+    await Promise.all(
+      mediaElements.map((media,index) =>
+        waitMediaReady(
+          media,
+          String(defs[index]?.label || defs[index]?.name || "piste")
+        )
+      )
+    );
+
+    for (let i=0;i<defs.length;i++) {
+      const media=mediaElements[i];
       const sourceNode=context.createMediaElementSource(media);
 
       const lowEQ=context.createBiquadFilter();
@@ -888,7 +909,7 @@ _MEDIA_ENGINE = r"""
 
   playButton.addEventListener("click",()=>playAll().catch(e => {
     playButton.disabled=false;
-    playButton.textContent="▶ Lecture";
+    playButton.textContent="⚠ "+String(e?.message || "Erreur audio");
     console.error(e);
   }));
   pauseButton.addEventListener("click",pauseAll);

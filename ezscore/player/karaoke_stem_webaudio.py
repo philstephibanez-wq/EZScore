@@ -1684,8 +1684,26 @@ def render_player(
     )
 
     # Re-analysis works from the persisted source audio; no MP3 re-import.
+    audio_hash = preview_dir.parent.name
+
+    if not player_words:
+        st.warning(
+            "Paroles techniques absentes du cache local. "
+            "Elles ont été retirées du suivi Git avec les artefacts d'analyse ; "
+            "l'audio original est intact."
+        )
+        if st.button(
+            "Analyser les paroles maintenant",
+            type="primary",
+            width="stretch",
+            key=f"{key}_recover_lyrics",
+        ):
+            from ezscore.ui.stem_lab_analysis import _transcribe_original
+            with st.spinner("Whisper small sur l'audio original…"):
+                _transcribe_original(source, audio_hash)
+            st.rerun()
+
     if player_words:
-        audio_hash = preview_dir.parent.name
         controls = st.columns(2)
 
         with controls[0]:
