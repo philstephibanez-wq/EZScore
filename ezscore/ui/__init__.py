@@ -30,7 +30,6 @@ def _install_karaoke_patch() -> None:
 
             ffprobe = shutil.which("ffprobe")
             if not ffprobe:
-                # No new hard dependency: let the already validated player run.
                 _preview_probe_cache[signature] = True
                 return True
 
@@ -75,7 +74,6 @@ def _install_karaoke_patch() -> None:
                             repaired.append(preview.name)
                             preview.unlink()
                     except (OSError, subprocess.SubprocessError):
-                        # Never break the validated player for a diagnostic probe.
                         pass
 
             if repaired:
@@ -101,19 +99,26 @@ def _install_karaoke_patch() -> None:
             pass
 
 
+def _install_choir_pipeline_patch() -> None:
+    try:
+        from ezscore.ui import stem_lab_analysis as _stem_lab
+        from ezscore.integration.choir_pipeline import install
+        install(_stem_lab)
+    except Exception as exc:
+        try:
+            import streamlit as st
+            st.error(f"Pipeline Chœurs indisponible : {exc}")
+        except Exception:
+            pass
+
+
 def _install_analysis_lifecycle_patch() -> None:
-    """Add complete analysis reset and make full song deletion really total."""
     try:
         from ezscore import persistence as _persistence
         from ezscore.analysis_lifecycle import purge_analysis_cache
         from ezscore.ui import stem_lab_analysis as _stem_lab
         from ezscore.ui.analysis_lifecycle import render_full_reanalysis_control
 
-        # --------------------------------------------------------------
-        # Full delete: current persistence already removes audio, covers
-        # and every DB row keyed by audio_hash. Add the missing technical
-        # cache purge without changing persistence.py.
-        # --------------------------------------------------------------
         original_delete = _persistence.delete_song_completely
         if not getattr(original_delete, "_ezscore_total_delete_patch", False):
             def delete_song_completely_total(audio_hash):
@@ -126,10 +131,6 @@ def _install_analysis_lifecycle_patch() -> None:
             delete_song_completely_total._ezscore_total_delete_patch = True
             _persistence.delete_song_completely = delete_song_completely_total
 
-        # --------------------------------------------------------------
-        # Analyse UI: wrap the validated surface; do not alter its STEM /
-        # Paroles / Structure / MIDI implementation.
-        # --------------------------------------------------------------
         original_render = _stem_lab.render_stem_lab_fresh_analysis
         if not getattr(original_render, "_ezscore_full_reanalysis_patch", False):
             def render_with_full_reanalysis(audio_hash: str) -> None:
@@ -164,13 +165,6 @@ def _install_inline_editor_patch() -> None:
 
 
 def _install_catalog_home_patch() -> None:
-    """Déporte le Répertoire vers une surface modulaire sans toucher EZScore.py.
-
-    Le projet utilise déjà ce module comme point d'installation des surfaces
-    R12c / éditeur inline. On conserve donc le même mécanisme : le shell garde
-    la navigation globale, puis la nouvelle page Répertoire est rendue avant
-    que le bloc historique de EZScore.py ne soit atteint.
-    """
     try:
         import streamlit as st
         from ezscore.ui import app_shell as _shell
@@ -207,8 +201,6 @@ def _install_catalog_home_patch() -> None:
                 st.error(f"Surface Répertoire/Groupes indisponible : {exc}")
                 return
 
-            # La surface modulaire vient d'être rendue. Ne pas exécuter ensuite
-            # l'ancien bloc monolithique de EZScore.py.
             st.stop()
 
         render_profile_sidebar_with_catalog._ezscore_catalog_home_patch = True
@@ -222,17 +214,6 @@ def _install_catalog_home_patch() -> None:
 
 
 def _install_persisted_analysis_r5_10_patch() -> None:
-    """Restore the validated R5.10 Analyse > Paroles surface for saved songs.
-
-    R5.10 is implemented inside stem_lab_analysis and its inline editor hook.
-    Historically this surface was injected only when EZScore displayed the
-    fresh-song message. Once the same song was reopened from the catalogue,
-    EZScore.py fell back to its legacy Analyse branch.
-
-    We intercept the exact legacy Analyse heading at render time, after the
-    song sidebar controls already exist, render the validated STEM/Paroles/
-    Structure/MIDI surface, then stop the legacy branch for this rerun only.
-    """
     try:
         import streamlit as st
         from ezscore.ui import app_shell as _shell
@@ -283,8 +264,6 @@ def _install_persisted_analysis_r5_10_patch() -> None:
                     finally:
                         rendering = False
 
-                    # The validated Analyse surface has been rendered. Do not
-                    # continue into the obsolete Analyse implementation below.
                     st.stop()
 
             return original_markdown(*args, **kwargs)
@@ -303,19 +282,7 @@ def _install_persisted_analysis_r5_10_patch() -> None:
             pass
 
 
-
-
 def _install_groups_navigation_patch() -> None:
-    """Expose a dedicated Groups surface without changing EZScore.py/app_shell.
-
-    EZScore.py currently knows only Répertoire / Chanson / Compte / Import.
-    We therefore keep the shell's stable main-menu contract and route Groups
-    as a dedicated sub-surface of Répertoire, selected by a private session
-    flag. The sidebar button is injected immediately after Profile.
-
-    This avoids widening the legacy global navigation enum and keeps the patch
-    modular until the shell itself is migrated to the i18n navigation model.
-    """
     try:
         import streamlit as st
         from ezscore.ui import app_shell as _shell
@@ -330,10 +297,6 @@ def _install_groups_navigation_patch() -> None:
             return
 
         def render_profile_sidebar_with_groups() -> None:
-            # IMPORTANT: never capture st.button from the module attribute.
-            # A previous hot reload may have left our temporary wrapper there,
-            # which causes the compact Groups/Playlists buttons to be injected
-            # twice and produces StreamlitDuplicateElementKey.
             main_dg = getattr(st, "_main", None)
             if main_dg is None:
                 raise RuntimeError("DeltaGenerator principal Streamlit introuvable.")
@@ -345,11 +308,6 @@ def _install_groups_navigation_patch() -> None:
                 type(main_dg),
             )
 
-            # IMPORTANT: never capture st.sidebar.button from the instance.
-            # Previous reruns/hot reloads may have left our temporary wrapper
-            # installed as an instance attribute, which makes the wrapper call
-            # itself recursively. Resolve the native DeltaGenerator method
-            # directly from the class instead.
             sidebar_button_descriptor = getattr(type(st.sidebar), "button", None)
             if sidebar_button_descriptor is None:
                 raise RuntimeError(
@@ -383,22 +341,15 @@ def _install_groups_navigation_patch() -> None:
                 clicked = original_sidebar_button(*args, **kwargs)
                 clear_groups_if_navigation(key, clicked)
 
-                # Full sidebar: requested placement is directly below Profile.
                 if key == "shell_profile":
                     if original_sidebar_button(
-                        t(
-                            "nav.groups",
-                            domain="groups",
-                        ),
+                        t("nav.groups", domain="groups"),
                         key="shell_groups",
                         width="stretch",
                     ):
                         open_groups()
                     if original_sidebar_button(
-                        t(
-                            "nav.playlists",
-                            domain="catalog",
-                        ),
+                        t("nav.playlists", domain="catalog"),
                         key="shell_playlists",
                         width="stretch",
                     ):
@@ -410,23 +361,15 @@ def _install_groups_navigation_patch() -> None:
                 clicked = original_button(*args, **kwargs)
                 clear_groups_if_navigation(key, clicked)
 
-                # Compact song/import sidebar: Profile lives in a column, so
-                # keep Groups immediately underneath it in that same quick area.
                 if key == "shell_profile":
                     if original_button(
-                        t(
-                            "nav.groups",
-                            domain="groups",
-                        ),
+                        t("nav.groups", domain="groups"),
                         key="shell_groups_compact",
                         width="stretch",
                     ):
                         open_groups()
                     if original_button(
-                        t(
-                            "nav.playlists",
-                            domain="catalog",
-                        ),
+                        t("nav.playlists", domain="catalog"),
                         key="shell_playlists_compact",
                         width="stretch",
                     ):
@@ -471,6 +414,7 @@ def _install_groups_navigation_patch() -> None:
 
 
 _install_karaoke_patch()
+_install_choir_pipeline_patch()
 _install_analysis_lifecycle_patch()
 _install_catalog_home_patch()
 _install_groups_navigation_patch()
