@@ -13,7 +13,7 @@ from typing import Any
 
 import streamlit as st
 
-from ezscore.player import karaoke_stem_webaudio as _karaoke_base
+from ezscore.analysis.choirs import load_choir_analysis
 from ezscore.ui.editorial_timeline import (
     load as load_editorial,
     normalize_beats,
@@ -50,24 +50,19 @@ def _load_backing_words(
     audio_hash: str,
     lead_raw: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    path = stem_module._work_dir(audio_hash) / "whisper_vocals_small.json"
-    if not path.is_file():
+    """Load the canonical choir timeline produced by Analyse.
+
+    The editor is a pure consumer of choir_analysis.json, exactly like the
+    analysis player. It performs no choir inference and has no fallback to the
+    historical whisper_vocals_small.json / whisper_backing_small.json caches.
+    """
+    payload = load_choir_analysis(audio_hash)
+    if payload is None:
         return []
 
-    try:
-        vocal_payload = json.loads(path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        raise RuntimeError(f"Impossible de lire {path.name}: {exc}") from exc
-
-    merged = _karaoke_base._merge_vocal_gap_words(
-        list(lead_raw),
-        list(vocal_payload.get("words", []) or []),
+    return normalize_words(
+        list(payload.get("words", []) or [])
     )
-    supplement = _karaoke_base._supplement_only_words(
-        list(lead_raw),
-        merged,
-    )
-    return normalize_words(supplement)
 
 
 def _coerce_time_signature(value: Any) -> str:
