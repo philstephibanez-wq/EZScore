@@ -1,82 +1,79 @@
-# EZScore — Chœurs visibles dans l'éditeur
+# EZScore — Analyseur Chœurs V4.1
 
-Base GitHub relue avant livraison :
+## Pourquoi V4 était fausse
 
-```text
-repository : philstephibanez-wq/EZScore
-branch     : restore/full-reanalysis-r1
-HEAD       : 1226009aa4713380314fb47aa8f47ca707d8944b
-```
-
-## Correction
-
-Le Player d'analyse affiche déjà les paroles Chœurs.
-
-L'éditeur utilisait encore l'ancien chemin :
+Le test a montré :
 
 ```text
-whisper_vocals_small.json
-→ _merge_vocal_gap_words()
-→ _supplement_only_words()
+KEEP Sous ... share=0.00 sim=0.87
+KEEP Sous ... share=0.00 sim=0.82
 ```
 
-Cette livraison modifie uniquement :
+C'était incohérent.
+
+La V4 pouvait classer `doubling` uniquement parce que l'activité du stem
+Chœurs était forte relativement à son propre niveau moyen. Une fuite minuscule
+du Chant dans un stem Chœurs très calme pouvait donc être considérée comme un
+doublage réel.
+
+## Correction V4.1
+
+Pour un mot simultané avec le Chant, l'activité relative du stem Chœurs ne suffit
+plus.
+
+Il faut désormais une part acoustique réelle du stem Chœurs par rapport aux deux
+stems :
 
 ```text
-ezscore/ui/lyrics_inline_editor.py
+backing_share < 0.12
+    -> lead_leakage
+    -> DROP
+
+backing_share >= 0.25
+    -> doubling
+    -> KEEP
+
+0.12 <= backing_share < 0.25
+    -> analyse spectrale / cas faible
 ```
 
-L'éditeur lit désormais la même source technique Chœurs que l'analyse :
+Un mot Chœurs sans Chant simultané reste `backing_only` et est conservé.
+
+Aucune règle spécifique à une chanson, un artiste, un mot ou un timestamp.
+
+## Référence rollback
 
 ```text
-choir_analysis.json
-→ load_choir_analysis()
-→ words
-→ ligne Chœurs de l'éditeur
+branche : restore/full-reanalysis-r1
+HEAD    : 9fedde9557e6ed9100ba29caaebcfcce848ef493
+
+engine Chœurs stable précédent :
+ezscore-choir-whisper-small-v3
+schema 3
 ```
 
-Aucun changement de l'analyse Chant principale.
-Aucun changement du Player.
-Aucun fallback Chœurs.
-Aucune règle spécifique à une chanson.
+## Installation
 
-`chords_lyrics_editor.py` appelle déjà `lyrics_inline_editor._load_backing_words()`,
-donc cette correction alimente aussi la ligne Chœurs de cet éditeur sans autre
-modification.
+Dézipper directement dans :
 
-## Installation PowerShell
-
-```powershell
-$zip = "$env:USERPROFILE\Downloads\EZScore_EDITOR_CHOIRS_R1.zip"
-$tmp = "$env:USERPROFILE\Downloads\EZScore_EDITOR_CHOIRS_R1"
-
-Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
-
-Expand-Archive `
-  -Path $zip `
-  -DestinationPath $tmp `
-  -Force
-
-Copy-Item `
-  "$tmp\ezscore\ui\lyrics_inline_editor.py" `
-  "H:\EZScore\ezscore\ui\lyrics_inline_editor.py" `
-  -Force
-
-cd H:\EZScore
-
-python -m py_compile .\ezscore\ui\lyrics_inline_editor.py
-
-git diff --check
-git diff -- .\ezscore\ui\lyrics_inline_editor.py
-git status --short
+```text
+H:\EZScore
 ```
 
-Redémarrer ensuite Streamlit :
+Puis :
 
 ```powershell
 cd H:\EZScore
-python -m streamlit run EZScore.py
+python -m py_compile .\ezscore\analysis\choirs.py
 ```
 
-Le résultat attendu est que la ligne Chœurs visible dans le Player d'analyse
-soit également alimentée dans l'éditeur à partir de `choir_analysis.json`.
+## Test
+
+```powershell
+python -m ezscore.analysis.choirs `
+  --audio-hash "41ea46f13ff411c003e180e719844f944af3366aad4183060121e78f99c478d0" `
+  --force
+```
+
+Le point à vérifier immédiatement : les deux `Sous` avec `share=0.00` ne doivent
+plus apparaître en `KEEP`.
