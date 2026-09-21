@@ -27,6 +27,7 @@ from ezscore.analysis.forced_lyrics import (
     load_draft,
     save_draft,
 )
+from ezscore.analysis.music_timeline import ensure_music_timeline
 
 
 LEAD_ONLY_LYRICS = True
@@ -205,6 +206,43 @@ def install(stem_lab) -> None:
     # Analysis STEM player != final karaoke player.
     stem_lab._render_stem_player = render_stem_analysis_player
 
+    # ------------------------------------------------------------
+    # Music timeline: same structure_analysis.json, earlier in workflow.
+    # No technical_timeline.json and no second analysis route.
+    # ------------------------------------------------------------
+    original_analyze_structure = stem_lab._analyze_structure
+
+    def analyze_structure_from_existing_timeline(
+        *,
+        audio_hash: str,
+        stems: dict[str, Path],
+        meter: dict[str, Any],
+    ):
+        timeline = ensure_music_timeline(
+            stem_lab,
+            audio_hash,
+        )
+        structure = stem_lab._structure_from_beat_timeline(
+            audio_hash=audio_hash,
+            beat_timeline=list(timeline.get("beat_timeline", []) or []),
+            tempo=float(timeline.get("tempo", 120.0) or 120.0),
+            meter=dict(meter),
+        )
+        structure["analysis_engines"] = dict(
+            timeline.get("analysis_engines", {}) or {}
+        )
+        structure["chord_segment_count"] = int(
+            timeline.get("chord_segment_count", 0) or 0
+        )
+        stem_lab._structure_cache_path(audio_hash).write_text(
+            json.dumps(structure, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        return structure
+
+    # Step 3 now only groups/segments the already-built timeline.
+    stem_lab._analyze_structure = analyze_structure_from_existing_timeline
+
     # Canonical speech cache is now forced alignment, not Whisper.
     stem_lab._speech_cache_path = forced_cache_path
 
@@ -227,6 +265,43 @@ def install(stem_lab) -> None:
     if not getattr(original_render, "_ezscore_manual_forced_lyrics", False):
         def render_manual(audio_hash: str) -> None:
             _purge_legacy_choir_text_cache(stem_lab, audio_hash)
+
+            # Build beats + chords exactly once, immediately after STEM + forced
+            # lyrics are ready. Player STEM and Paroles+accords then consume the
+            # same structure_analysis.json without waiting for Step 3.
+            speech = stem_lab._load_speech(audio_hash)
+            structure = stem_lab._load_structure(audio_hash)
+            has_timeline = bool(
+                structure
+                and len(list(structure.get("beat_timeline", []) or [])) >= 2
+            )
+
+            if (
+                speech is not None
+                and stem_lab.stems_cache_complete(audio_hash)
+                and not has_timeline
+            ):
+                try:
+                    with st.status(
+                        "Analyse musicale · beats + accords…",
+                        expanded=True,
+                    ) as status:
+                        ensure_music_timeline(
+                            stem_lab,
+                            audio_hash,
+                            progress=status.write,
+                        )
+                        status.update(
+                            label="Timeline beats + accords prête.",
+                            state="complete",
+                            expanded=False,
+                        )
+                except Exception as exc:
+                    st.error(
+                        "Timeline beats + accords impossible : "
+                        f"{type(exc).__name__}: {exc}"
+                    )
+
             _install_manual_lyrics_ui(
                 stem_lab,
                 audio_hash,

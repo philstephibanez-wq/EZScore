@@ -1,122 +1,147 @@
-# EZScore_STEM_CONDUCTOR_R1
+# EZScore_MUSIC_TIMELINE_R1
 
-Base GitHub vérifiée avant livraison :
-
-```text
-master = 87f1e7c3ae9b63cbbff611b6f7c5d03c35341f9d
-```
-
-Ce livrable concerne uniquement le **lecteur STEM de l'onglet Analyse**.
-Le player Karaoké/publication n'est pas modifié.
-
-## Contrat appliqué
-
-Deux lignes continues :
+Base GitHub vérifiée :
 
 ```text
-Accords :  Am   -   -   -      Am   -   -   -      Em   -   -   -
-Paroles :       Je vous parle d'un temps ...
+master = 050ae11e5fd610af26266183a3cb8a45b78a0bf2
 ```
 
-Notation EZScore :
+## Objet
+
+Corriger l'ordre du workflow sans recréer l'architecture qui vient d'être
+revertée.
+
+Il n'y a **pas** de `technical_timeline.json`, pas de nouveau routeur Analyse,
+pas de nouveau patch de cycle de vie Streamlit et pas de Madmom.
+
+La timeline musicale est désormais produite plus tôt dans le cache EZScore
+déjà existant :
 
 ```text
-Am---  = Am sur le premier temps + maintien sur 3 temps
+structure_analysis.json
 ```
 
-Si le même accord continue dans la mesure suivante, il est répété au premier
-temps de la nouvelle mesure :
+## Pipeline
 
 ```text
-mesure 1 : Am---
-mesure 2 : Am---
-mesure 3 : Em---
+STEM prêts
+    ↓
+Paroles forcées prêtes
+    ↓
+Batterie -> beat tracker librosa déjà utilisé par EZScore
+Original -> lv-chordia déjà utilisé par EZScore
+    ↓
+structure_analysis.json["beat_timeline"]
+    ├── Lecteur STEM
+    ├── Paroles + accords
+    └── Étape 3 Blocs / structure
+          ↓
+       mesures + motifs + blocs
 ```
 
-`-` = maintien harmonique d'un temps.
+L'étape 3 ne relance plus le calcul beats + accords. Elle consomme les mêmes
+timestamps déjà calculés.
 
-## Alignement et absence de chevauchement
+## Cache / recalcul
 
-Accords et paroles utilisent exactement la même fonction :
+Si `structure_analysis.json` possède déjà au moins deux beats, aucun calcul
+n'est relancé.
+
+`lv-chordia` garde son cache existant via `_chord_cache_path(audio_hash)`.
+
+Aucun fichier de cache supplémentaire n'est créé.
+
+## Moteur rythmique
+
+Le précédent essai Madmom a été entièrement abandonné avec les reverts.
+
+R1 utilise le beat tracker librosa déjà présent et éprouvé dans `EZScore.py`,
+appliqué directement au STEM Batterie. Il ne s'agit pas d'une nouvelle
+dépendance.
+
+## Affichage pendant le premier calcul
+
+Après STEM + paroles alignées, si la timeline n'existe pas encore :
 
 ```text
-X(t) = t * pixelsPerSecond
+Analyse musicale · beats + accords…
+1/2 · Détection des beats sur le STEM Batterie…
+2/2 · Raccord des accords lv-chordia sur les beats…
+Timeline beats + accords prête.
 ```
 
-Aucun mot n'est déplacé individuellement.
+Les ouvertures suivantes réutilisent le cache.
 
-Le player mesure les largeurs réelles des mots puis augmente une seule
-échelle globale en pixels/seconde jusqu'à ce que les mots successifs ne se
-chevauchent plus.
+## Player STEM
 
-Donc :
+Le player conserve :
+- une seule ligne Accords ;
+- une seule ligne Paroles ;
+- la notation `Am---` ;
+- `_` pour prolongation vocale ;
+- la même timeline absolue pour les deux.
+
+La case `Diagrammes guitare` n'est plus poussée à l'extrémité droite : elle
+reste près du titre du conducteur.
+
+## Fichiers
 
 ```text
-accord à 20.000 s -> X(20.000)
-mot à 20.000 s    -> X(20.000)
+ezscore/analysis/music_timeline.py              nouveau
+ezscore/integration/choir_pipeline.py           modifié
+ezscore/player/stem_analysis_conductor.py       modifié
+scripts/test_music_timeline_contract.py         nouveau
+readme.md
 ```
-
-reste toujours vrai.
-
-Il n'y a ni retour à la ligne, ni deuxième rangée de paroles.
-
-## Prolongation vocale
-
-Convention active :
-
-```text
--  = maintien d'accord
-_  = prolongation vocale
-```
-
-R1 ajoute des `_` quand la durée acoustique d'un mot dépasse nettement sa
-durée attendue.
-
-Exemple :
-
-```text
-bohème___
-```
-
-Le placement interne exact, par exemple `bohè___me`, nécessitera ensuite les
-spans phonétiques MMS_FA. R1 ne fabrique pas une syllabe interne par heuristique.
-
-## Diagrammes guitare
-
-Le lecteur possède une case `Diagrammes guitare`.
-
-Si elle est cochée et qu'un voicing EZScore existe pour l'accord courant, le
-diagramme courant apparaît sous les deux lignes.
-
-La préférence EZScore existante sert de valeur initiale.
 
 ## Application
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_STEM_CONDUCTOR_R1.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_MUSIC_TIMELINE_R1.zip" -C H:\EZScore
 
 .\.venv-py313\Scripts\python.exe -m py_compile `
-  .\ezscore\player\stem_analysis_conductor.py `
+  .\ezscore\analysis\music_timeline.py `
   .\ezscore\integration\choir_pipeline.py `
-  .\scripts\test_stem_conductor_contract.py
+  .\ezscore\player\stem_analysis_conductor.py `
+  .\scripts\test_music_timeline_contract.py
 
-.\.venv-py313\Scripts\python.exe .\scripts\test_stem_conductor_contract.py
+.\.venv-py313\Scripts\python.exe .\scripts\test_music_timeline_contract.py
 ```
 
 Attendu :
 
 ```text
-STEM CONDUCTOR CONTRACT OK
-timeline rows: 2
-lyrics wrapping: DISABLED
-lyrics collision policy: GLOBAL SCALE
-chords: repeated at measure start
-chord sustain: '-'
-vocal sustain: '_'
-diagram: OPTIONAL
-karaoke player: UNTOUCHED
+MUSIC TIMELINE CONTRACT OK
+cache: existing structure_analysis.json
+new parallel timeline cache: NONE
+rhythm: existing EZScore librosa tracker
+harmony: existing lv-chordia cache/engine
+Step 2 editor: receives beat_timeline
+STEM conductor: receives same beat_timeline
+Step 3: reuses timeline, segments only
+diagram checkbox: LEFT/INLINE
 ```
 
-Puis redémarrer Streamlit normalement.
+Puis redémarrer Streamlit.
+
+## Git
+
+Cette livraison est basée exactement sur `050ae11`.
+
+Après test seulement :
+
+```powershell
+git status --short
+git add ezscore/analysis/music_timeline.py `
+        ezscore/integration/choir_pipeline.py `
+        ezscore/player/stem_analysis_conductor.py `
+        scripts/test_music_timeline_contract.py `
+        readme.md
+git commit -m "EZScore_MUSIC_TIMELINE_R1"
+git push origin master
+```
+
+Ne faites pas de `git pull` si `git status` indique que `master` est déjà à
+jour avec `origin/master`.

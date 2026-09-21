@@ -92,9 +92,9 @@ _PLAYER_CSS = base._PLAYER_CSS + r'''
 }
 .conductor-head {
   display:flex;
-  justify-content:space-between;
+  justify-content:flex-start;
   align-items:center;
-  gap:12px;
+  gap:18px;
   margin-bottom:7px;
   font-size:12px;
 }
