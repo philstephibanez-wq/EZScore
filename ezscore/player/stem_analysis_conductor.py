@@ -16,7 +16,10 @@ from ezscore.guitar import (
 )
 from ezscore.player.media_url import register_media_url
 from ezscore.player import stem_webaudio as base
-from ezscore.analysis.technical_timeline import load as load_technical_timeline
+from ezscore.analysis.technical_timeline import (
+    ensure as ensure_technical_timeline,
+    load as load_technical_timeline,
+)
 
 
 def _replace_once(source: str, old: str, new: str, label: str) -> str:
@@ -606,7 +609,33 @@ def render_player(
         if name in stems and name in previews:
             pack(name, label, stems[name], enabled, volume)
 
+    work_dir = Path(preview_dir).parent
     structure = _load_timing_payload(preview_dir)
+
+    if not list(structure.get("beat_timeline", []) or []):
+        drums = stems.get("drums")
+        if drums is not None and Path(drums).is_file():
+            structure_path = work_dir / "structure_analysis.json"
+            existing_structure = {}
+            if structure_path.is_file():
+                try:
+                    existing_structure = dict(
+                        json.loads(
+                            structure_path.read_text(encoding="utf-8")
+                        ) or {}
+                    )
+                except Exception:
+                    existing_structure = {}
+
+            with st.spinner("Construction de la timeline beats + accords…"):
+                structure = ensure_technical_timeline(
+                    work_dir=work_dir,
+                    source=Path(source),
+                    drums=Path(drums),
+                    chord_cache_path=work_dir / "chord_analysis_lv_chordia.json",
+                    existing_structure=existing_structure,
+                )
+
     beats = list(structure.get("beat_timeline", []) or [])
     meter = dict(structure.get("meter", {}) or {})
     beats_per_measure = int(

@@ -1,108 +1,79 @@
-# EZScore_TECHNICAL_TIMELINE_R1
+# EZScore_TECHNICAL_TIMELINE_R2
 
-Base GitHub vérifiée avant livraison :
+Base GitHub vérifiée :
 
 ```text
-master = 27a2ff8d7c7bbd8869933dd489cce45714cbefd6
+master = daa4be565c6f5b24d774a1ad8aa5919d9deded79
+EZScore_TECHNICAL_TIMELINE_R1
 ```
 
-## Cause corrigée
+## Pourquoi R1 restait KO
 
-`Paroles + accords` était affiché dès l'étape 2, mais la timeline beats+accords
-n'était créée qu'à l'étape 3 `Blocs / structure`.
+R1 branchait `technical_timeline.json` en modifiant dynamiquement
+`lyrics_inline_editor._load_timing`.
 
-Donc l'éditeur disait :
+Le rendu `Paroles + accords` dépendait donc encore de l'ordre d'installation
+des patches Streamlit. En cas d'échec de construction de la timeline,
+l'exception était en plus avalée et l'ancien message générique réapparaissait :
 
 ```text
 Timeline de beats absente
 ```
 
-Ce n'était pas un problème MMS_FA. C'était un problème d'ordre architectural.
+R2 supprime cette dépendance.
 
-## Nouvelle séparation
+## R2
 
-EZScore possède maintenant un cache technique indépendant :
+`chords_lyrics_editor.py` consomme directement la timeline technique :
 
 ```text
+structure/karaoke timing existant
+        ↓ sinon
 technical_timeline.json
+        ↓ sinon
+construction directe :
+  Batterie -> madmom-infer -> beats
+  Original -> lv-chordia -> accords
 ```
 
-Il contient uniquement :
+Le player STEM fait également cette vérification directement avec les chemins
+audio qu'il possède déjà.
 
-```text
-beats absolus
-accord par beat
-tempo
-moteurs utilisés
-timebase = original_audio_seconds
-```
+Il n'y a aucun beat synthétique/factice.
 
-Il ne contient aucun bloc, aucune mise en page éditoriale et aucune décision
-de structure.
-
-Pipeline :
-
-```text
-STEM
-  ↓
-Batterie -> beats
-Original -> accords
-  ↓
-technical_timeline.json
-  ├── player STEM
-  ├── Paroles + accords
-  └── Étape 3 -> blocs / structure
-```
-
-L'étape 3 ne relance donc plus beats + accords : elle réutilise la timeline
-technique et ne fait que la projection métrique / segmentation.
-
-## Cache existant
-
-Si `structure_analysis.json` contient déjà une vraie `beat_timeline`, elle est
-promue dans `technical_timeline.json` sans réanalyse.
-
-Sinon la timeline est construite avec :
-- `madmom-infer` sur le STEM Batterie ;
-- `lv-chordia` sur l'audio original ;
-- le cache lv-chordia existant est réutilisé s'il est déjà présent.
-
-Aucun beat artificiel n'est créé.
+Si le moteur de beats, le STEM Batterie ou l'audio original est réellement
+indisponible, l'éditeur affiche maintenant **l'erreur technique exacte** au
+lieu du message générique.
 
 ## Application
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_TECHNICAL_TIMELINE_R1.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_TECHNICAL_TIMELINE_R2.zip" -C H:\EZScore
 
 .\.venv-py313\Scripts\python.exe -m py_compile `
   .\ezscore\analysis\technical_timeline.py `
   .\ezscore\player\stem_analysis_conductor.py `
-  .\ezscore\integration\choir_pipeline.py `
-  .\scripts\test_technical_timeline_contract.py
+  .\ezscore\ui\chords_lyrics_editor.py `
+  .\scripts\test_technical_timeline_r2_contract.py
 
-.\.venv-py313\Scripts\python.exe .\scripts\test_technical_timeline_contract.py
+.\.venv-py313\Scripts\python.exe .\scripts\test_technical_timeline_r2_contract.py
 ```
 
 Attendu :
 
 ```text
-TECHNICAL TIMELINE CONTRACT OK
-beats+chords cache: technical_timeline.json
-Paroles+accords editor: CONNECTED
-STEM conductor: CONNECTED
-Step 3 blocks: REUSES technical timeline
-fake beat fallback: NONE
+TECHNICAL TIMELINE R2 CONTRACT OK
+editor timing: DIRECT
+STEM conductor timing: DIRECT
+monkey-patch timing dependency: REMOVED
+silent timing errors: REMOVED
+fake beats: NONE
 ```
 
-Puis redémarrage complet de Streamlit.
+Redémarrer ensuite complètement Streamlit.
 
-Au premier affichage après ce patch, si aucune timeline technique n'existe
-encore, EZScore affichera temporairement :
-
-```text
-Construction de la timeline beats + accords…
-```
-
-Ensuite elle est persistée et réutilisée.
+Au premier affichage sans cache technique, la construction beats + accords peut
+prendre un peu de temps. Les exécutions suivantes réutilisent
+`technical_timeline.json`.

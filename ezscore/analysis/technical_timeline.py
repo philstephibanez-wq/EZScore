@@ -225,3 +225,34 @@ def invalidate(work_dir: Path) -> None:
         cache_path(work_dir).unlink()
     except FileNotFoundError:
         pass
+
+
+def ensure_from_stem_module(
+    stem_module,
+    audio_hash: str,
+) -> dict[str, Any]:
+    """Resolve canonical inputs directly from stem_lab_analysis.
+
+    This deliberately avoids monkey-patch order dependencies in the UI.
+    """
+    song = stem_module._song_for_hash(audio_hash)
+    source = stem_module._source_path(audio_hash, song)
+    if source is None or not Path(source).is_file():
+        raise RuntimeError(
+            "Audio original introuvable pour construire la timeline technique."
+        )
+
+    stems = stem_module.cached_stem_paths(audio_hash)
+    drums = stems.get("drums")
+    if drums is None or not Path(drums).is_file():
+        raise RuntimeError(
+            "STEM Batterie absent : impossible de calculer les beats canoniques."
+        )
+
+    return ensure(
+        work_dir=stem_module._work_dir(audio_hash),
+        source=Path(source),
+        drums=Path(drums),
+        chord_cache_path=stem_module._chord_cache_path(audio_hash),
+        existing_structure=stem_module._load_structure(audio_hash),
+    )
