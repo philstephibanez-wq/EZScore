@@ -17,8 +17,8 @@ from typing import Any
 import numpy as np
 
 
-LANGUAGE_POLICY_VERSION = 3
-LANGUAGE_POLICY_ENGINE = "ezscore-audio-only-language-v3"
+LANGUAGE_POLICY_VERSION = 5
+LANGUAGE_POLICY_ENGINE = "ezscore-audio-only-language-v5"
 
 # Whisper language detection uses 30 s windows.
 _MAX_WINDOWS = 7
@@ -271,21 +271,32 @@ def install_whisper_language_policy() -> None:
 
             profile = detect_language_profile(self, samples)
 
-            # Force only a strong monolingual result.  Ambiguous/mixed content
-            # stays in Whisper auto mode rather than imposing one language on
-            # the complete song.
-            if profile.get("dominant") and profile.get("primary"):
-                kwargs["language"] = str(profile["primary"])
+            # Never hand control back to Whisper's one-shot global auto
+            # detector. That fallback can select implausible languages on
+            # music-heavy material.
+            primary = str(profile.get("primary", "") or "").strip().lower()
+            if not primary:
+                raise RuntimeError(
+                    "Langue vocale indéterminable à partir du signal audio. "
+                    "Transcription annulée plutôt que de lancer une détection "
+                    "globale Whisper non fiable."
+                )
+            kwargs["language"] = primary
 
             result = original(self, samples, *args, **kwargs)
             if isinstance(result, dict):
                 result["ezscore_language_profile"] = profile
             return result
         except Exception:
-            # Preserve analysis availability, but if PCM decoding succeeded
-            # never reintroduce the filename/path into Whisper.
-            fallback_audio = samples if samples is not None else audio
-            return original(self, fallback_audio, *args, **kwargs)
+            # Critical invariant: once PCM decoding succeeded, never fall back
+            # to Whisper with language unset. Doing so would silently re-enable
+            # Whisper's one-shot global detector (the Khmer regression).
+            #
+            # If the caller supplied an explicit language, the direct branch
+            # above already handled it. Any failure here must propagate so the
+            # canonical cache remains absent/incomplete rather than being
+            # replaced by a transcription produced under an arbitrary language.
+            raise
 
     wrapped._ezscore_language_policy = True
     wrapped._ezscore_language_policy_version = LANGUAGE_POLICY_VERSION

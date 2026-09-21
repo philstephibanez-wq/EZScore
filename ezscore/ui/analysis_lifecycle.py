@@ -35,13 +35,52 @@ def _clear_analysis_session_state(audio_hash: str) -> None:
     st.session_state["_pending_main_menu"] = "Chanson"
 
 
+def _widget_key_already_rendered(key: str) -> bool:
+    """Return True when Streamlit already registered this user key this run.
+
+    EZScore currently has two legacy routes that can reach the canonical
+    Analyse surface during the same Streamlit script run.  The destructive
+    full-reanalysis control is a singleton for one song and must therefore
+    render only once.
+
+    We use Streamlit's current ScriptRunContext only as a defensive duplicate
+    guard.  Failure to inspect the context falls back to normal rendering.
+    """
+    try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+
+        ctx = get_script_run_ctx(suppress_warning=True)
+        if ctx is None:
+            return False
+
+        user_keys = getattr(ctx, "widget_user_keys_this_run", None)
+        if user_keys is None:
+            return False
+
+        return str(key) in user_keys
+    except Exception:
+        return False
+
+
 def render_full_reanalysis_control(
     *,
     audio_hash: str,
     db_path,
 ) -> None:
-    """Render a guarded full-reset control above the existing Analyse tabs."""
+    """Render one guarded full-reset control above the Analyse surface."""
     short_hash = str(audio_hash)[:12]
+    confirm_key = f"full_reanalysis_confirm_{short_hash}"
+    action_key = f"full_reanalysis_{short_hash}"
+
+    # Singleton contract: if another legacy route already rendered this
+    # control during the current Streamlit run, do not render it a second time.
+    # This prevents StreamlitDuplicateElementKey without changing the reset
+    # semantics or inventing multiple suffixed widget keys.
+    if (
+        _widget_key_already_rendered(confirm_key)
+        or _widget_key_already_rendered(action_key)
+    ):
+        return
 
     with st.expander("♻ Réanalyse complète", expanded=False):
         st.markdown(
@@ -54,12 +93,12 @@ def render_full_reanalysis_control(
 
         confirmed = st.checkbox(
             "Je confirme la remise à zéro complète de l’analyse",
-            key=f"full_reanalysis_confirm_{short_hash}",
+            key=confirm_key,
         )
 
         if st.button(
             "♻ Remettre à zéro et réanalyser",
-            key=f"full_reanalysis_{short_hash}",
+            key=action_key,
             type="primary",
             disabled=not confirmed,
             width="stretch",
