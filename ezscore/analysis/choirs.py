@@ -40,8 +40,8 @@ ANALYSIS_ROOT = APP_DIR / "data" / "analysis" / "stem_lab"
 # 9fedde9557e6ed9100ba29caaebcfcce848ef493
 # choir engine: ezscore-choir-whisper-small-v3 / schema 3
 CHOIR_SCHEMA_VERSION = 5
-CHOIR_ENGINE = "ezscore-choir-whisper-small-v4.1"
-CHOIR_CLASSIFIER = "lead-backing-acoustic-v1"
+CHOIR_ENGINE = "ezscore-choir-whisper-small-v4.2"
+CHOIR_CLASSIFIER = "lead-backing-acoustic-v2"
 DEFAULT_WHISPER_MODEL = "small"
 
 TARGET_SAMPLE_RATE = 16000
@@ -66,6 +66,12 @@ MIN_DOUBLING_BACKING_SHARE = 0.12
 STRONG_DOUBLING_BACKING_SHARE = 0.25
 MIN_DISTINCT_BACKING_SHARE = 0.12
 DISTINCT_SPECTRAL_SIMILARITY = 0.78
+
+# V4.2: independent-signal evidence.
+MIN_RECOVERABLE_BACKING_SHARE = 0.06
+MAX_INDEPENDENT_CORRELATION = 0.55
+MIN_INDEPENDENT_RESIDUAL_RATIO = 0.62
+MIN_INDEPENDENT_BACKING_ACTIVITY = 0.45
 
 
 class ChoirAnalysisError(RuntimeError):
@@ -497,6 +503,62 @@ def _spectral_similarity(
     return float(max(0.0, min(1.0, value)))
 
 
+def _waveform_independence(
+    lead_signal: VocalSignal,
+    backing_signal: VocalSignal,
+    start: float,
+    end: float,
+) -> tuple[float, float]:
+    lead_chunk = _window(lead_signal, start, end)
+    backing_chunk = _window(backing_signal, start, end)
+
+    length = min(lead_chunk.size, backing_chunk.size)
+    if length < 640:
+        return 0.0, 0.0
+
+    lead = np.asarray(lead_chunk[:length], dtype=np.float64)
+    backing = np.asarray(backing_chunk[:length], dtype=np.float64)
+
+    lead -= float(np.mean(lead))
+    backing -= float(np.mean(backing))
+
+    lead_norm = float(np.linalg.norm(lead))
+    backing_norm = float(np.linalg.norm(backing))
+    if lead_norm <= 1e-12 or backing_norm <= 1e-12:
+        return 0.0, 0.0
+
+    correlation = float(
+        np.dot(lead, backing) / (lead_norm * backing_norm)
+    )
+    abs_correlation = float(
+        max(0.0, min(1.0, abs(correlation)))
+    )
+
+    lead_power = float(np.dot(lead, lead))
+    if lead_power <= 1e-12:
+        return abs_correlation, 1.0
+
+    scale = float(np.dot(backing, lead) / lead_power)
+    residual = backing - (scale * lead)
+
+    residual_rms = float(
+        np.sqrt(np.mean(np.square(residual), dtype=np.float64))
+    )
+    backing_rms = float(
+        np.sqrt(np.mean(np.square(backing), dtype=np.float64))
+    )
+    residual_ratio = (
+        residual_rms / backing_rms
+        if backing_rms > 1e-12
+        else 0.0
+    )
+
+    return (
+        abs_correlation,
+        float(max(0.0, min(1.0, residual_ratio))),
+    )
+
+
 def _lead_overlap(
     candidate: dict[str, Any],
     lead_words: list[dict[str, Any]],
@@ -569,29 +631,43 @@ def _classify_candidate(
         start,
         end,
     )
+    waveform_correlation, residual_ratio = _waveform_independence(
+        lead_signal,
+        backing_signal,
+        start,
+        end,
+    )
 
     lead_overlap = overlap_ratio >= MIN_TEMPORAL_OVERLAP
 
-    # No simultaneous lead event: a backing candidate is independent evidence.
     if not lead_overlap:
         classification = "backing_only"
         keep = True
 
-    # Critical V4.1 rule:
-    # relative activity inside the backing stem is NOT sufficient to prove a
-    # choir/doubling event. A tiny amount of lead leakage can be "strong"
-    # relative to an otherwise quiet backing stem. The decision must include
-    # the cross-stem energy share.
-    elif backing_share < MIN_DOUBLING_BACKING_SHARE:
+    # Preserve V4.1 anti-hallucination behaviour for near-zero backing energy.
+    elif backing_share < MIN_RECOVERABLE_BACKING_SHARE:
         classification = "lead_leakage"
         keep = False
 
-    # Strong simultaneous backing energy = real doubling/backing.
+    # Recover quiet simultaneous backing only when it is acoustically
+    # independent from the lead, rather than a scaled copy of it.
+    elif backing_share < MIN_DOUBLING_BACKING_SHARE:
+        independent = (
+            waveform_correlation <= MAX_INDEPENDENT_CORRELATION
+            and residual_ratio >= MIN_INDEPENDENT_RESIDUAL_RATIO
+            and backing_activity >= MIN_INDEPENDENT_BACKING_ACTIVITY
+        )
+        if independent:
+            classification = "backing_independent_weak"
+            keep = True
+        else:
+            classification = "lead_leakage"
+            keep = False
+
     elif backing_share >= STRONG_DOUBLING_BACKING_SHARE:
         classification = "doubling"
         keep = True
 
-    # Quieter but spectrally distinct backing can still be a real harmony.
     elif (
         backing_share >= MIN_DISTINCT_BACKING_SHARE
         and similarity < DISTINCT_SPECTRAL_SIMILARITY
@@ -600,8 +676,6 @@ def _classify_candidate(
         classification = "backing_distinct"
         keep = True
 
-    # Borderline simultaneous energy is kept conservatively for now, but only
-    # after it has passed the minimum cross-stem backing-share gate.
     else:
         classification = "doubling_weak"
         keep = True
@@ -620,6 +694,8 @@ def _classify_candidate(
         "backing_activity": round(backing_activity, 6),
         "backing_share": round(backing_share, 6),
         "spectral_similarity": round(similarity, 6),
+        "waveform_correlation": round(waveform_correlation, 6),
+        "residual_ratio": round(residual_ratio, 6),
     }
     return bool(keep), diagnostics
 
@@ -875,6 +951,18 @@ def analyze_choirs(
             "distinct_spectral_similarity": (
                 DISTINCT_SPECTRAL_SIMILARITY
             ),
+            "min_recoverable_backing_share": (
+                MIN_RECOVERABLE_BACKING_SHARE
+            ),
+            "max_independent_correlation": (
+                MAX_INDEPENDENT_CORRELATION
+            ),
+            "min_independent_residual_ratio": (
+                MIN_INDEPENDENT_RESIDUAL_RATIO
+            ),
+            "min_independent_backing_activity": (
+                MIN_INDEPENDENT_BACKING_ACTIVITY
+            ),
         },
         "diagnostics": {
             **diagnostics,
@@ -918,7 +1006,7 @@ def analyze_choirs(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Analyse canonique des Chœurs EZScore V4.1."
+        description="Analyse canonique des Chœurs EZScore V4.2."
     )
     parser.add_argument("--audio-hash", required=True)
     parser.add_argument("--backing", type=Path, default=None)
@@ -935,7 +1023,7 @@ def main() -> int:
         device=args.device,
     )
 
-    print("CHOIR ANALYSIS V4.1")
+    print("CHOIR ANALYSIS V4.2")
     print("source     :", payload.get("source"))
     print("lead       :", payload.get("lead_source"))
     print("language   :", payload.get("language"))
@@ -961,7 +1049,9 @@ def main() -> int:
             f"{str(word.get('text', '')):<18} "
             f"{str(word.get('source_class', '')):<18} "
             f"share={float(evidence.get('backing_share', 0.0)):.2f} "
-            f"sim={float(evidence.get('spectral_similarity', 0.0)):.2f}"
+            f"sim={float(evidence.get('spectral_similarity', 0.0)):.2f} "
+            f"corr={float(evidence.get('waveform_correlation', 0.0)):.2f} "
+            f"res={float(evidence.get('residual_ratio', 0.0)):.2f}"
         )
 
     for word in payload.get("rejected_words", []) or []:
@@ -974,7 +1064,9 @@ def main() -> int:
             f"{str(word.get('source_class', '')):<18} "
             f"lead={str(evidence.get('matched_lead_text', '')):<18} "
             f"share={float(evidence.get('backing_share', 0.0)):.2f} "
-            f"sim={float(evidence.get('spectral_similarity', 0.0)):.2f}"
+            f"sim={float(evidence.get('spectral_similarity', 0.0)):.2f} "
+            f"corr={float(evidence.get('waveform_correlation', 0.0)):.2f} "
+            f"res={float(evidence.get('residual_ratio', 0.0)):.2f}"
         )
 
     return 0
