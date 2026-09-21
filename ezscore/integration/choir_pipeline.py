@@ -21,6 +21,7 @@ from ezscore.analysis.choirs import (
     load_choir_analysis,
 )
 from ezscore.analysis.vocal_stems import vocal_stem_paths
+from ezscore.player.choir_vocalises import refine_backing_words_for_display
 
 
 def _artifact_words(audio_hash: str) -> list[dict[str, Any]]:
@@ -47,16 +48,30 @@ def _ensure_analysis(stem_lab, audio_hash: str) -> None:
         analyze_choirs(audio_hash=audio_hash, force=False)
 
 
+def _display_words(audio_hash: str) -> list[dict[str, Any]]:
+    """Canonical artifact + presentation-only acoustic vocalise refinement."""
+    words = _artifact_words(audio_hash)
+    backing = vocal_stem_paths(audio_hash).get("backing_vocals")
+    if not backing:
+        return words
+
+    try:
+        return refine_backing_words_for_display(
+            words,
+            Path(backing),
+            audio_hash=audio_hash,
+            source="choir_analysis.json",
+        )
+    except Exception:
+        # Canonical analysis artifact is always the safe fallback.
+        return words
+
+
 def install(stem_lab) -> None:
     """Install one modular Analyse hook and one read-only Player bridge."""
     from ezscore.player import karaoke_stem_webaudio as base
     from ezscore.player import karaoke_stem_webaudio_r12c as r12c
 
-    # ------------------------------------------------------------------
-    # ANALYSE: create/update the canonical choir artifact before rendering.
-    # This covers both operation orders:
-    #   STEM -> Paroles, or Paroles already present -> regenerated STEM.
-    # ------------------------------------------------------------------
     original_render = stem_lab.render_stem_lab_fresh_analysis
 
     if not getattr(original_render, "_ezscore_choir_pipeline", False):
@@ -70,16 +85,12 @@ def install(stem_lab) -> None:
         render_with_choir_analysis._ezscore_choir_pipeline = True
         stem_lab.render_stem_lab_fresh_analysis = render_with_choir_analysis
 
-    # ------------------------------------------------------------------
-    # PLAYER: disable historical vocal/choir computation.
-    # The player is now strictly a consumer of persisted Analyse artifacts.
-    # ------------------------------------------------------------------
     def lead_words_passthrough(source, stems, preview_dir, original_words):
         return list(original_words or [])
 
     def choir_words_from_artifact(stems, preview_dir, lead_words, player_words):
         audio_hash = Path(preview_dir).parent.name
-        return _artifact_words(audio_hash)
+        return _display_words(audio_hash)
 
     def no_supplement_words(original_words, merged_words):
         return []
@@ -88,10 +99,6 @@ def install(stem_lab) -> None:
     base._derive_choir_words_from_vocals = choir_words_from_artifact
     base._supplement_only_words = no_supplement_words
 
-    # R12c historically had a "last resort" whisper_vocals fallback in its
-    # component post-processing. Replace that post-processing with the same
-    # presentation enrichment, but source backing_words only from the canonical
-    # choir artifact.
     def canonical_component(*, data: dict[str, Any], **kwargs):
         payload = dict(data or {})
         storage_key = str(payload.get("storage_key", "") or "")
@@ -103,7 +110,7 @@ def install(stem_lab) -> None:
             r12c._MEDIA_DURATION_BY_STORAGE_KEY.get(storage_key, 0.0) or 0.0
         )
         payload["backing_words"] = (
-            _artifact_words(audio_hash) if audio_hash else []
+            _display_words(audio_hash) if audio_hash else []
         )
         payload["backing_word_count"] = len(
             list(payload.get("backing_words", []) or [])

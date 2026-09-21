@@ -2252,3 +2252,24 @@
 {"ts":"2026-09-21T09:02:19.019224+00:00","event":"persistence.load_persisted_analysis","section":"Chanson","audio_hash":"9b299ca892f3","view":"Analyse","mode":"Vue","duration_ms":2.007,"status":"ok"}
 {"ts":"2026-09-21T09:02:19.041787+00:00","event":"persistence.list_song_catalog","section":"Chanson","audio_hash":"9b299ca892f3","view":"Analyse","mode":"Vue","duration_ms":2.341,"status":"ok","result_len":5}
 {"ts":"2026-09-21T09:02:20.050134+00:00","event":"ui.dataframe","section":"Chanson","audio_hash":"9b299ca892f3","view":"Analyse","mode":"Vue","duration_ms":15.793,"status":"ok","rows":172}
+{"ts":"2026-09-21T09:15:14.596183+00:00","event":"probe.install.complete","log_file":"H:\\EZScore\\data\\logs\\ezscore_perf.log"}
+{"ts":"2026-09-21T09:15:14.603662+00:00","event":"midi.symbol.exported","exported":true}
+{"ts":"2026-09-21T09:15:14.610262+00:00","event":"rerun.start"}
+{"ts":"2026-09-21T09:15:15.017431+00:00","event":"persistence.list_song_catalog","section":"Répertoire","duration_ms":4.683,"status":"ok","result_len":5}
+{"ts":"2026-09-21T09:15:17.863038+00:00","event":"rerun.start","section":"Répertoire"}
+{"ts":"2026-09-21T09:15:18.068242+00:00","event":"persistence.list_song_catalog","section":"Répertoire","duration_ms":2.479,"status":"ok","result_len":5}
+{"ts":"2026-09-21T09:15:18.649254+00:00","event":"ui.image","section":"Répertoire","duration_ms":97.549,"status":"ok"}
+{"ts":"2026-09-21T09:15:21.264720+00:00","event":"rerun.start","section":"Répertoire"}
+{"ts":"2026-09-21T09:15:21.382803+00:00","event":"persistence.list_song_catalog","section":"Répertoire","duration_ms":1.42,"status":"ok","result_len":5}
+{"ts":"2026-09-21T09:15:21.797866+00:00","event":"rerun.start","section":"Chanson","audio_hash":"9b299ca892f3","view":"Paroles + accords","mode":"Vue"}
+{"ts":"2026-09-21T09:15:21.869665+00:00","event":"ui.image","section":"Chanson","audio_hash":"9b299ca892f3","view":"Paroles + accords","mode":"Vue","duration_ms":1.607,"status":"ok"}
+{"ts":"2026-09-21T09:15:22.325471+00:00","event":"ui.analysis_sidebar.load_latest","section":"Chanson","audio_hash":"9b299ca892f3","view":"Paroles + accords","mode":"Vue","duration_ms":0.885,"status":"ok"}
+{"ts":"2026-09-21T09:15:22.325711+00:00","event":"ui.analysis_sidebar.state","section":"Chanson","audio_hash":"9b299ca892f3","view":"Paroles + accords","mode":"Vue","fresh_song":true,"show_settings":false,"stem_lab_ui":true}
+{"ts":"2026-09-21T09:15:22.370531+00:00","event":"persistence.list_song_catalog","section":"Chanson","audio_hash":"9b299ca892f3","view":"Paroles + accords","mode":"Vue","duration_ms":1.92,"status":"ok","result_len":5}
+{"ts":"2026-09-21T09:15:22.460050+00:00","event":"persistence.load_measure_edits","section":"Chanson","audio_hash":"9b299ca892f3","view":"Analyse","mode":"Vue","duration_ms":2.58,"status":"ok","result_len":0}
+{"ts":"2026-09-21T09:15:22.465151+00:00","event":"persistence.load_lyric_block_edits","section":"Chanson","audio_hash":"9b299ca892f3","view":"Analyse","mode":"Vue","duration_ms":4.024,"status":"ok","result_len":0}
+{"ts":"2026-09-21T09:15:22.466507+00:00","event":"persistence.load_structure_blocks","section":"Chanson","audio_hash":"9b299ca892f3","view":"Analyse","mode":"Vue","duration_ms":0.999,"status":"ok","result_len":0}
+{"ts":"2026-09-21T09:15:22.480116+00:00","event":"persistence.load_persisted_analysis","section":"Chanson","audio_hash":"9b299ca892f3","view":"Analyse","mode":"Vue","duration_ms":4.949,"status":"ok"}
+{"ts":"2026-09-21T09:15:22.535251+00:00","event":"persistence.list_song_catalog","section":"Chanson","audio_hash":"9b299ca892f3","view":"Analyse","mode":"Vue","duration_ms":8.47,"status":"ok","result_len":5}
+{"ts":"2026-09-21T09:15:50.508412+00:00","event":"ui.dataframe","section":"Chanson","audio_hash":"9b299ca892f3","view":"Analyse","mode":"Vue","duration_ms":19.953,"status":"ok","rows":172}
+{"ts":"2026-09-21T09:15:56.186434+00:00","event":"rerun.start","section":"Chanson","audio_hash":"9b299ca892f3","view":"Analyse","mode":"Vue"}

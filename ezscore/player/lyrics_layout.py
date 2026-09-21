@@ -49,11 +49,31 @@ def patch_player_js(js: str) -> str:
     track.innerHTML="";
     const nodes=[];
 
-    sourceWords.forEach(w => {
+    function isContractionPair(previousText,currentText) {
+      const previous=String(previousText || "").trim();
+      const current=String(currentText || "").trim();
+      return /[\\'’]$/.test(previous) || /^[\\'’]/.test(current);
+    }
+
+    sourceWords.forEach((w,index) => {
       const span=document.createElement("span");
       span.className="lyric-token";
       span.textContent=w.text;
-      span.style.left=timelineVisualXForTime(w.start)+"px";
+
+      let left=timelineVisualXForTime(w.start);
+
+      // Karaoke X stays timestamp-based for all ordinary tokens.
+      // Only split contractions (J' + avais, l' + amour, 'avais, ...)
+      // are glued typographically; their timestamps/highlights stay intact.
+      if (index > 0 && isContractionPair(sourceWords[index-1].text,w.text)) {
+        const previous=nodes[index-1];
+        if (previous) {
+          const previousLeft=Number.parseFloat(previous.style.left || "0");
+          left=previousLeft+previous.offsetWidth-1;
+        }
+      }
+
+      span.style.left=left+"px";
       track.appendChild(span);
       nodes.push(span);
     });

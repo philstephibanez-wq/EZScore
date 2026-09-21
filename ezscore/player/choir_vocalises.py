@@ -335,6 +335,111 @@ def _split_result_with_backing(
     return output
 
 
+
+_FINAL_CACHE: dict[tuple, list[dict[str, Any]]] = {}
+
+
+def refine_backing_words_for_display(
+    words: list[dict[str, Any]],
+    backing_path: Path,
+    *,
+    audio_hash: str = "",
+    source: str = "canonical_artifact",
+) -> list[dict[str, Any]]:
+    """Refine the FINAL backing_words list immediately before browser payload.
+
+    R1 wrapped the historical player derivation function. The canonical choir
+    pipeline later replaces that function and reads choir_analysis.json
+    directly, so R1 never saw the words used by the real player. This entry
+    point is deliberately called by the canonical bridge after all overrides.
+    """
+    clean = [dict(word) for word in list(words or [])]
+    path = Path(backing_path)
+
+    if not clean or not path.is_file():
+        _log(
+            "choir.display.final.skipped",
+            audio_hash=str(audio_hash)[:12],
+            source=source,
+            word_count=len(clean),
+            backing_exists=path.is_file(),
+        )
+        return clean
+
+    stat = path.stat()
+    signature = tuple(
+        (
+            str(word.get("text", "") or ""),
+            round(float(word.get("start", 0.0) or 0.0), 4),
+            round(
+                float(word.get("end", word.get("start", 0.0)) or 0.0),
+                4,
+            ),
+        )
+        for word in clean
+    )
+    key = (
+        str(audio_hash),
+        int(stat.st_mtime_ns),
+        int(stat.st_size),
+        signature,
+    )
+
+    cached = _FINAL_CACHE.get(key)
+    if cached is not None:
+        return [dict(word) for word in cached]
+
+    _log(
+        "choir.display.final.input",
+        audio_hash=str(audio_hash)[:12],
+        source=source,
+        word_count=len(clean),
+        preview=[
+            {
+                "text": str(word.get("text", "") or ""),
+                "start": round(float(word.get("start", 0.0) or 0.0), 3),
+                "end": round(
+                    float(word.get("end", word.get("start", 0.0)) or 0.0),
+                    3,
+                ),
+            }
+            for word in clean[:80]
+        ],
+    )
+
+    refined = _split_result_with_backing(
+        clean,
+        path,
+        audio_hash=str(audio_hash),
+    )
+
+    _log(
+        "choir.display.final.output",
+        audio_hash=str(audio_hash)[:12],
+        source=source,
+        input_count=len(clean),
+        output_count=len(refined),
+        changed=bool(refined != clean),
+        preview=[
+            {
+                "text": str(word.get("text", "") or ""),
+                "start": round(float(word.get("start", 0.0) or 0.0), 3),
+                "end": round(
+                    float(word.get("end", word.get("start", 0.0)) or 0.0),
+                    3,
+                ),
+                "split": bool(word.get("vocalise_split", False)),
+            }
+            for word in refined[:120]
+        ],
+    )
+
+    # Bound the process-local cache.
+    if len(_FINAL_CACHE) >= 24:
+        _FINAL_CACHE.clear()
+    _FINAL_CACHE[key] = [dict(word) for word in refined]
+    return [dict(word) for word in refined]
+
 def install_choir_vocalise_patch() -> None:
     from ezscore.player import karaoke_stem_webaudio as base
 
