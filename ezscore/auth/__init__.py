@@ -15,19 +15,7 @@ from .session import (
     register_and_login,
     require,
 )
-from .ui import (
-    render_account_header,
-    render_account_page as _render_account_page,
-    render_admin_users,
-)
-from .diagnostics import render_auth_diagnostics
-
-
-def render_account_page() -> None:
-    """Account page plus temporary read-only persistence diagnostics."""
-    render_auth_diagnostics()
-    _render_account_page()
-
+from .ui import render_account_header, render_account_page, render_admin_users
 
 __all__ = [
     "Role",

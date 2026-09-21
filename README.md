@@ -1,62 +1,68 @@
-# EZScore_AUTH_NATIVE_DIAG_R1
+# EZScore_AUTH_DIAG_REMOVE_NAV_SPAN_R1
 
-Diagnostic natif Streamlit/OIDC. Aucun F12 nécessaire.
+Objectifs :
 
-Ce livrable ne change pas la logique d'authentification, la création des
-sessions ni le logout.
+1. retirer le diagnostic temporaire d'authentification maintenant que la
+   persistance online est validée ;
+2. corriger l'affichage littéral :
 
-## Ajouts dans `Compte EZScore`
+```html
+<span class="eznav-item active">Répertoire</span>
+```
 
-Le panneau `Diagnostic session / persistance` affiche désormais :
+## Modifications
 
-- `_streamlit_user` : PRESENT / ABSENT
-- `_streamlit_user_tokens` : PRESENT / ABSENT
-- `st.user` : connecté / non connecté
-- `redirect_uri`
-- présence du `cookie_secret`
-- empreinte SHA-256 courte du `cookie_secret`
-- noms des cookies liés à Streamlit/user/token
+- `ezscore/auth/__init__.py`
+  - retour au `render_account_page` normal ;
+  - aucun appel au diagnostic temporaire.
 
-Aucune valeur de cookie, aucun token brut et aucun secret OAuth n'est affiché.
+- `ezscore/ui/responsive.py`
+  - intercepte uniquement les spans internes `eznav-item`;
+  - force leur rendu HTML au lieu de les afficher comme texte brut ;
+  - aucun changement du reste des appels `st.markdown`.
 
-## Installation
+## Nettoyage diagnostic
+
+Le fichier diagnostic temporaire n'est plus importé. Pour le retirer
+physiquement du dépôt local :
+
+```powershell
+Remove-Item .\ezscore\auth\diagnostics.py -Force -ErrorAction SilentlyContinue
+Remove-Item .\scripts\test_auth_diagnostic_contract.py -Force -ErrorAction SilentlyContinue
+Remove-Item .\scripts\test_auth_native_streamlit_diag.py -Force -ErrorAction SilentlyContinue
+```
+
+## Application
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_AUTH_NATIVE_DIAG_R1.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_AUTH_DIAG_REMOVE_NAV_SPAN_R1.zip" -C H:\EZScore
+
+Remove-Item .\ezscore\auth\diagnostics.py -Force -ErrorAction SilentlyContinue
+Remove-Item .\scripts\test_auth_diagnostic_contract.py -Force -ErrorAction SilentlyContinue
+Remove-Item .\scripts\test_auth_native_streamlit_diag.py -Force -ErrorAction SilentlyContinue
 
 .\.venv-py313\Scripts\python.exe -m py_compile `
-  .\ezscore\auth\diagnostics.py `
-  .\scripts\test_auth_native_streamlit_diag.py
+  .\ezscore\auth\__init__.py `
+  .\ezscore\ui\responsive.py `
+  .\scripts\test_auth_diag_remove_nav_span.py
 
-.\.venv-py313\Scripts\python.exe .\scripts\test_auth_native_streamlit_diag.py
+.\.venv-py313\Scripts\python.exe .\scripts\test_auth_diag_remove_nav_span.py
 ```
 
 Attendu :
 
 ```text
-AUTH NATIVE STREAMLIT DIAGNOSTIC OK
-mode: read-only
-native cookies: names only
-cookie_secret: SHA-256 fingerprint only
-authentication logic: unchanged
+AUTH DIAGNOSTIC REMOVAL OK
+NAV SPAN RENDER CONTRACT OK
+scope: eznav-item span only
 ```
 
-## Test
+Puis relancer Streamlit.
 
-1. relancer EZScore ;
-2. ouvrir `Connexion / inscription` ;
-3. capturer le bloc `OIDC natif Streamlit`.
+Vérifications visuelles :
 
-Interprétation :
-
-- `_streamlit_user` ABSENT :
-  le navigateur/Streamlit ne conserve pas le cookie natif OIDC.
-- `_streamlit_user` PRESENT + `st.user` non connecté :
-  le cookie est présent mais n'est pas accepté/restauré.
-- `_streamlit_user` PRESENT + `st.user` connecté :
-  Streamlit restaure correctement l'OIDC ; le défaut est dans EZScore.
-
-L'empreinte `cookie_secret` permet aussi de vérifier qu'elle reste identique
-entre deux relances, sans exposer le secret.
+- aucun bloc `Diagnostic session / persistance` dans Compte ;
+- plus de chaîne HTML brute `<span ...>Répertoire</span>` ;
+- `Répertoire` est rendu normalement.

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import streamlit as st
 
 _CSS = r"""
@@ -79,6 +81,33 @@ body,
 }
 </style>
 """
+
+_EZNAV_SPAN = re.compile(
+    r'^\\s*<span\\s+class=["\\\']eznav-item(?:\\s+active)?["\\\']>'
+    r'.*?</span>\\s*$',
+    flags=re.IGNORECASE | re.DOTALL,
+)
+
+
+def _install_nav_markup_fix() -> None:
+    """Render EZScore's own navigation span as HTML, never as literal text."""
+    current_markdown = st.markdown
+    if getattr(current_markdown, "_ezscore_nav_markup_fix", False):
+        return
+
+    def markdown_with_nav_markup(*args, **kwargs):
+        if args:
+            value = str(args[0] or "")
+            if _EZNAV_SPAN.fullmatch(value):
+                kwargs = dict(kwargs)
+                kwargs["unsafe_allow_html"] = True
+        return current_markdown(*args, **kwargs)
+
+    markdown_with_nav_markup._ezscore_nav_markup_fix = True
+    st.markdown = markdown_with_nav_markup
+
+
+_install_nav_markup_fix()
 
 
 def render_responsive_css() -> None:
