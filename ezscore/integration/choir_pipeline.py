@@ -198,6 +198,12 @@ def _install_manual_lyrics_ui(stem_lab, audio_hash: str, original_render) -> Non
 def install(stem_lab) -> None:
     from ezscore.player import karaoke_stem_webaudio as base
     from ezscore.player import karaoke_stem_webaudio_r12c as r12c
+    from ezscore.player.stem_analysis_conductor import (
+        render_player as render_stem_analysis_player,
+    )
+
+    # Analysis STEM player != final karaoke player.
+    stem_lab._render_stem_player = render_stem_analysis_player
 
     # Canonical speech cache is now forced alignment, not Whisper.
     stem_lab._speech_cache_path = forced_cache_path

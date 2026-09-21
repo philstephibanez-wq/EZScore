@@ -1,61 +1,122 @@
-# EZScore_STREAMLIT_WATCHER_OFF_R1
+# EZScore_STEM_CONDUCTOR_R1
 
 Base GitHub vérifiée avant livraison :
 
 ```text
-master = 11c96a732092a931abca45199535f8cddca0293c
+master = 87f1e7c3ae9b63cbbff611b6f7c5d03c35341f9d
 ```
 
-## Objet
+Ce livrable concerne uniquement le **lecteur STEM de l'onglet Analyse**.
+Le player Karaoké/publication n'est pas modifié.
 
-Désactivation permanente du file watcher Streamlit afin d'éviter les warnings
-répétés produits par l'introspection de Torchaudio :
+## Contrat appliqué
+
+Deux lignes continues :
 
 ```text
-streamlit\watcher\local_sources_watcher.py
-Torchaudio's I/O functions now support per-call backend dispatch...
+Accords :  Am   -   -   -      Am   -   -   -      Em   -   -   -
+Paroles :       Je vous parle d'un temps ...
 ```
 
-Configuration ajoutée :
+Notation EZScore :
 
-```toml
-[server]
-fileWatcherType = "none"
+```text
+Am---  = Am sur le premier temps + maintien sur 3 temps
 ```
 
-## Effet
+Si le même accord continue dans la mesure suivante, il est répété au premier
+temps de la nouvelle mesure :
 
-Cette option désactive uniquement la surveillance automatique des fichiers Python.
+```text
+mesure 1 : Am---
+mesure 2 : Am---
+mesure 3 : Em---
+```
 
-Elle ne désactive pas :
-- les `st.rerun()`,
-- les boutons/widgets Streamlit,
-- l'analyse audio,
-- Torch/Torchaudio,
-- le player.
+`-` = maintien harmonique d'un temps.
 
-Conséquence : si un fichier Python est modifié pendant qu'EZScore tourne,
-l'application ne se recharge plus automatiquement. Un redémarrage manuel est requis.
+## Alignement et absence de chevauchement
+
+Accords et paroles utilisent exactement la même fonction :
+
+```text
+X(t) = t * pixelsPerSecond
+```
+
+Aucun mot n'est déplacé individuellement.
+
+Le player mesure les largeurs réelles des mots puis augmente une seule
+échelle globale en pixels/seconde jusqu'à ce que les mots successifs ne se
+chevauchent plus.
+
+Donc :
+
+```text
+accord à 20.000 s -> X(20.000)
+mot à 20.000 s    -> X(20.000)
+```
+
+reste toujours vrai.
+
+Il n'y a ni retour à la ligne, ni deuxième rangée de paroles.
+
+## Prolongation vocale
+
+Convention active :
+
+```text
+-  = maintien d'accord
+_  = prolongation vocale
+```
+
+R1 ajoute des `_` quand la durée acoustique d'un mot dépasse nettement sa
+durée attendue.
+
+Exemple :
+
+```text
+bohème___
+```
+
+Le placement interne exact, par exemple `bohè___me`, nécessitera ensuite les
+spans phonétiques MMS_FA. R1 ne fabrique pas une syllabe interne par heuristique.
+
+## Diagrammes guitare
+
+Le lecteur possède une case `Diagrammes guitare`.
+
+Si elle est cochée et qu'un voicing EZScore existe pour l'accord courant, le
+diagramme courant apparaît sous les deux lignes.
+
+La préférence EZScore existante sert de valeur initiale.
 
 ## Application
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_STREAMLIT_WATCHER_OFF_R1.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_STEM_CONDUCTOR_R1.zip" -C H:\EZScore
 
-Get-Content .\.streamlit\config.toml
+.\.venv-py313\Scripts\python.exe -m py_compile `
+  .\ezscore\player\stem_analysis_conductor.py `
+  .\ezscore\integration\choir_pipeline.py `
+  .\scripts\test_stem_conductor_contract.py
 
-.\.venv-py313\Scripts\python.exe -m streamlit run EZScore.py `
-  --server.address 127.0.0.1 `
-  --server.port 8501 `
-  --server.headless true
+.\.venv-py313\Scripts\python.exe .\scripts\test_stem_conductor_contract.py
 ```
 
-La ligne de commande n'a plus besoin de :
+Attendu :
 
 ```text
---server.fileWatcherType none
+STEM CONDUCTOR CONTRACT OK
+timeline rows: 2
+lyrics wrapping: DISABLED
+lyrics collision policy: GLOBAL SCALE
+chords: repeated at measure start
+chord sustain: '-'
+vocal sustain: '_'
+diagram: OPTIONAL
+karaoke player: UNTOUCHED
 ```
 
-car la valeur est désormais persistée dans `.streamlit/config.toml`.
+Puis redémarrer Streamlit normalement.
