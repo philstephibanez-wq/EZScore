@@ -16,7 +16,6 @@ from ezscore.guitar import (
 )
 from ezscore.player.media_url import register_media_url
 from ezscore.player import stem_webaudio as base
-from ezscore.analysis.technical_timeline import load as load_technical_timeline
 
 
 def _replace_once(source: str, old: str, new: str, label: str) -> str:
@@ -474,22 +473,14 @@ _STEM_CONDUCTOR = st.components.v2.component(
 )
 
 
-def _load_timing_payload(preview_dir: Path) -> dict[str, Any]:
-    work = Path(preview_dir).parent
-
-    structure_path = work / "structure_analysis.json"
-    if structure_path.is_file():
-        try:
-            structure = dict(
-                json.loads(structure_path.read_text(encoding="utf-8")) or {}
-            )
-        except Exception:
-            structure = {}
-        if list(structure.get("beat_timeline", []) or []):
-            return structure
-
-    technical = load_technical_timeline(work)
-    return dict(technical or {})
+def _load_structure(preview_dir: Path) -> dict[str, Any]:
+    path = Path(preview_dir).parent / "structure_analysis.json"
+    if not path.is_file():
+        return {}
+    try:
+        return dict(json.loads(path.read_text(encoding="utf-8")) or {})
+    except Exception:
+        return {}
 
 
 def _build_chord_diagrams(
@@ -606,7 +597,7 @@ def render_player(
         if name in stems and name in previews:
             pack(name, label, stems[name], enabled, volume)
 
-    structure = _load_timing_payload(preview_dir)
+    structure = _load_structure(preview_dir)
     beats = list(structure.get("beat_timeline", []) or [])
     meter = dict(structure.get("meter", {}) or {})
     beats_per_measure = int(

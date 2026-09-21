@@ -1,108 +1,122 @@
-# EZScore_TECHNICAL_TIMELINE_R1
+# EZScore_STEM_CONDUCTOR_R1
 
 Base GitHub vérifiée avant livraison :
 
 ```text
-master = 27a2ff8d7c7bbd8869933dd489cce45714cbefd6
+master = 87f1e7c3ae9b63cbbff611b6f7c5d03c35341f9d
 ```
 
-## Cause corrigée
+Ce livrable concerne uniquement le **lecteur STEM de l'onglet Analyse**.
+Le player Karaoké/publication n'est pas modifié.
 
-`Paroles + accords` était affiché dès l'étape 2, mais la timeline beats+accords
-n'était créée qu'à l'étape 3 `Blocs / structure`.
+## Contrat appliqué
 
-Donc l'éditeur disait :
+Deux lignes continues :
 
 ```text
-Timeline de beats absente
+Accords :  Am   -   -   -      Am   -   -   -      Em   -   -   -
+Paroles :       Je vous parle d'un temps ...
 ```
 
-Ce n'était pas un problème MMS_FA. C'était un problème d'ordre architectural.
-
-## Nouvelle séparation
-
-EZScore possède maintenant un cache technique indépendant :
+Notation EZScore :
 
 ```text
-technical_timeline.json
+Am---  = Am sur le premier temps + maintien sur 3 temps
 ```
 
-Il contient uniquement :
+Si le même accord continue dans la mesure suivante, il est répété au premier
+temps de la nouvelle mesure :
 
 ```text
-beats absolus
-accord par beat
-tempo
-moteurs utilisés
-timebase = original_audio_seconds
+mesure 1 : Am---
+mesure 2 : Am---
+mesure 3 : Em---
 ```
 
-Il ne contient aucun bloc, aucune mise en page éditoriale et aucune décision
-de structure.
+`-` = maintien harmonique d'un temps.
 
-Pipeline :
+## Alignement et absence de chevauchement
+
+Accords et paroles utilisent exactement la même fonction :
 
 ```text
-STEM
-  ↓
-Batterie -> beats
-Original -> accords
-  ↓
-technical_timeline.json
-  ├── player STEM
-  ├── Paroles + accords
-  └── Étape 3 -> blocs / structure
+X(t) = t * pixelsPerSecond
 ```
 
-L'étape 3 ne relance donc plus beats + accords : elle réutilise la timeline
-technique et ne fait que la projection métrique / segmentation.
+Aucun mot n'est déplacé individuellement.
 
-## Cache existant
+Le player mesure les largeurs réelles des mots puis augmente une seule
+échelle globale en pixels/seconde jusqu'à ce que les mots successifs ne se
+chevauchent plus.
 
-Si `structure_analysis.json` contient déjà une vraie `beat_timeline`, elle est
-promue dans `technical_timeline.json` sans réanalyse.
+Donc :
 
-Sinon la timeline est construite avec :
-- `madmom-infer` sur le STEM Batterie ;
-- `lv-chordia` sur l'audio original ;
-- le cache lv-chordia existant est réutilisé s'il est déjà présent.
+```text
+accord à 20.000 s -> X(20.000)
+mot à 20.000 s    -> X(20.000)
+```
 
-Aucun beat artificiel n'est créé.
+reste toujours vrai.
+
+Il n'y a ni retour à la ligne, ni deuxième rangée de paroles.
+
+## Prolongation vocale
+
+Convention active :
+
+```text
+-  = maintien d'accord
+_  = prolongation vocale
+```
+
+R1 ajoute des `_` quand la durée acoustique d'un mot dépasse nettement sa
+durée attendue.
+
+Exemple :
+
+```text
+bohème___
+```
+
+Le placement interne exact, par exemple `bohè___me`, nécessitera ensuite les
+spans phonétiques MMS_FA. R1 ne fabrique pas une syllabe interne par heuristique.
+
+## Diagrammes guitare
+
+Le lecteur possède une case `Diagrammes guitare`.
+
+Si elle est cochée et qu'un voicing EZScore existe pour l'accord courant, le
+diagramme courant apparaît sous les deux lignes.
+
+La préférence EZScore existante sert de valeur initiale.
 
 ## Application
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_TECHNICAL_TIMELINE_R1.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_STEM_CONDUCTOR_R1.zip" -C H:\EZScore
 
 .\.venv-py313\Scripts\python.exe -m py_compile `
-  .\ezscore\analysis\technical_timeline.py `
   .\ezscore\player\stem_analysis_conductor.py `
   .\ezscore\integration\choir_pipeline.py `
-  .\scripts\test_technical_timeline_contract.py
+  .\scripts\test_stem_conductor_contract.py
 
-.\.venv-py313\Scripts\python.exe .\scripts\test_technical_timeline_contract.py
+.\.venv-py313\Scripts\python.exe .\scripts\test_stem_conductor_contract.py
 ```
 
 Attendu :
 
 ```text
-TECHNICAL TIMELINE CONTRACT OK
-beats+chords cache: technical_timeline.json
-Paroles+accords editor: CONNECTED
-STEM conductor: CONNECTED
-Step 3 blocks: REUSES technical timeline
-fake beat fallback: NONE
+STEM CONDUCTOR CONTRACT OK
+timeline rows: 2
+lyrics wrapping: DISABLED
+lyrics collision policy: GLOBAL SCALE
+chords: repeated at measure start
+chord sustain: '-'
+vocal sustain: '_'
+diagram: OPTIONAL
+karaoke player: UNTOUCHED
 ```
 
-Puis redémarrage complet de Streamlit.
-
-Au premier affichage après ce patch, si aucune timeline technique n'existe
-encore, EZScore affichera temporairement :
-
-```text
-Construction de la timeline beats + accords…
-```
-
-Ensuite elle est persistée et réutilisée.
+Puis redémarrer Streamlit normalement.

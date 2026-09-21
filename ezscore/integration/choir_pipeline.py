@@ -27,11 +27,6 @@ from ezscore.analysis.forced_lyrics import (
     load_draft,
     save_draft,
 )
-from ezscore.analysis.technical_timeline import (
-    ensure as ensure_technical_timeline,
-    invalidate as invalidate_technical_timeline,
-    load as load_technical_timeline,
-)
 
 
 LEAD_ONLY_LYRICS = True
@@ -210,80 +205,6 @@ def install(stem_lab) -> None:
     # Analysis STEM player != final karaoke player.
     stem_lab._render_stem_player = render_stem_analysis_player
 
-    def _ensure_timing(audio_hash: str):
-        song = stem_lab._song_for_hash(audio_hash)
-        source = stem_lab._source_path(audio_hash, song)
-        stems = stem_lab.cached_stem_paths(audio_hash)
-        drums = stems.get("drums")
-        if source is None or not Path(source).is_file():
-            raise RuntimeError("Audio original introuvable pour la timeline technique.")
-        if drums is None or not Path(drums).is_file():
-            raise RuntimeError("STEM Batterie absent pour la timeline technique.")
-
-        return ensure_technical_timeline(
-            work_dir=stem_lab._work_dir(audio_hash),
-            source=Path(source),
-            drums=Path(drums),
-            chord_cache_path=stem_lab._chord_cache_path(audio_hash),
-            existing_structure=stem_lab._load_structure(audio_hash),
-        )
-
-    # The technical timeline is independent from Step 3 block segmentation.
-    from ezscore.ui import lyrics_inline_editor as _lyrics_editor
-
-    _original_load_timing = _lyrics_editor._load_timing
-
-    def _load_timing_with_technical(stem_module, audio_hash: str):
-        beats, meter, source = _original_load_timing(
-            stem_module,
-            audio_hash,
-        )
-        if beats:
-            return beats, meter, source
-
-        technical = load_technical_timeline(
-            stem_module._work_dir(audio_hash)
-        )
-        if technical is None:
-            try:
-                technical = _ensure_timing(audio_hash)
-            except Exception:
-                return beats, meter, source
-
-        raw = list(technical.get("beat_timeline", []) or [])
-        if not raw:
-            return beats, meter, source
-
-        return (
-            _lyrics_editor.normalize_beats(raw),
-            meter or "4/4",
-            "technical_timeline",
-        )
-
-    _lyrics_editor._load_timing = _load_timing_with_technical
-
-    # Step 3 now segments blocks from the existing technical timeline instead
-    # of rerunning rhythm + harmony.
-    def _analyze_blocks_from_timeline(*, audio_hash, stems, meter):
-        technical = _ensure_timing(audio_hash)
-        return stem_lab._structure_from_beat_timeline(
-            audio_hash=audio_hash,
-            beat_timeline=list(technical.get("beat_timeline", []) or []),
-            tempo=float(technical.get("tempo", 120.0) or 120.0),
-            meter=dict(meter),
-        )
-
-    stem_lab._analyze_structure = _analyze_blocks_from_timeline
-
-    _original_invalidate_after_stem = stem_lab._invalidate_after_stem_regeneration
-
-    def _invalidate_after_stem(audio_hash: str, *, full: bool):
-        _original_invalidate_after_stem(audio_hash, full=full)
-        if full:
-            invalidate_technical_timeline(stem_lab._work_dir(audio_hash))
-
-    stem_lab._invalidate_after_stem_regeneration = _invalidate_after_stem
-
     # Canonical speech cache is now forced alignment, not Whisper.
     stem_lab._speech_cache_path = forced_cache_path
 
@@ -306,26 +227,6 @@ def install(stem_lab) -> None:
     if not getattr(original_render, "_ezscore_manual_forced_lyrics", False):
         def render_manual(audio_hash: str) -> None:
             _purge_legacy_choir_text_cache(stem_lab, audio_hash)
-
-            if (
-                stem_lab._load_speech(audio_hash) is not None
-                and stem_lab.stems_cache_complete(audio_hash)
-            ):
-                technical = load_technical_timeline(
-                    stem_lab._work_dir(audio_hash)
-                )
-                if technical is None:
-                    try:
-                        with st.spinner(
-                            "Construction de la timeline beats + accords…"
-                        ):
-                            _ensure_timing(audio_hash)
-                    except Exception as exc:
-                        st.warning(
-                            "Timeline technique indisponible : "
-                            + str(exc)
-                        )
-
             _install_manual_lyrics_ui(
                 stem_lab,
                 audio_hash,
