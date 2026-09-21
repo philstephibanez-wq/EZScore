@@ -1,47 +1,41 @@
-# EZScore_PLAYER_SYNC_VOCALISES_PY313
+# EZScore_VOCALISES_PY313_FIX2
 
-Base :
+Base GitHub :
 - branche `restore/full-reanalysis-r1`
-- commit `dd65359738a0b8bc9449f197cb885edbd33693c6`
-- `EZScore_CHOIR_V4_2_FULL`
+- commit `ac3bc844ad9ff534f2af363b7972d1cd16691164`
+- commit utilisateur : `EZScore_PLAYER_SYNC_VOCALISES_PY313`
 
-## Contenu
+## Correctifs
 
-- `ezscore/player/lyrics_layout.py`
-  - correction du glissement visuel Chant/Choeurs apres seek ;
-  - translation globale des lanes sur la meme horloge
-    `timelineVisualXForTime(time)`.
+1. Python 3.13 / audioop
+   - ajout de `audioop-lts>=0.2.2; python_version >= "3.13"`
+   - le script d'installation s'arrete maintenant reellement si une commande
+     Python ou un import echoue.
 
-- `ezscore/player/choir_vocalises.py`
-  - nouveau module ;
-  - segmente les vocalises longues type `Ooooooooo` en evenements `Ho`
-    uniquement lorsqu'il existe plusieurs onsets acoustiques credibles dans
-    `backing_vocals.wav` ;
-  - non destructif : si la segmentation n'est pas sure, le token original
-    est conserve ;
-  - ne modifie pas l'analyse CHOIR V4.2.
+2. Vocalises longues
+   - le premier correctif utilisait surtout les onsets Librosa principaux ;
+   - cette version combine trois indices acoustiques :
+     - onset_detect principal,
+     - pics de flux spectral plus faibles,
+     - attaques positives de l'enveloppe RMS ;
+   - seuils adaptes aux syllabes repetees plus douces du stem Choeurs ;
+   - aucun decoupage temporel arbitraire : il faut toujours au moins deux
+     attaques acoustiques plausibles ;
+   - si les indices ne sont pas suffisants, le token Whisper original reste
+     intact.
 
-- `requirements-analysis-hq.txt`
-  - environnement Python 3.13 ;
-  - Torch 2.6.0+cu124 ;
-  - torchvision 0.21.0+cu124 ;
-  - torchaudio 2.6.0+cu124 ;
-  - triton-windows 3.2.0.post21 ;
-  - Streamlit, Plotly, librosa, soundfile, OpenAI Whisper ;
-  - BS-RoFormer, MelBand RoFormer, LV-Chordia, madmom.
-
-- `scripts/install_analysis_hq.ps1`
-  - utilise explicitement `.venv-py313`.
+3. Seek
+   - aucune nouvelle modification : le correctif deja pousse est conserve,
+     puisque le glissement relatif n'est plus observe.
 
 ## Installation
 
 ```powershell
 cd H:\EZScore
-tar -xf "$env:USERPROFILE\Downloads\EZScore_PLAYER_SYNC_VOCALISES_PY313.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_VOCALISES_PY313_FIX2.zip" -C H:\EZScore
 
 .\.venv-py313\Scripts\python.exe -m py_compile `
-  .\ezscore\player\choir_vocalises.py `
-  .\ezscore\player\lyrics_layout.py
+  .\ezscore\player\choir_vocalises.py
 
 powershell -ExecutionPolicy Bypass -File .\scripts\install_analysis_hq.ps1
 ```
@@ -49,14 +43,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install_analysis_hq.ps1
 Puis :
 
 ```powershell
-cd H:\EZScore
 .\.venv-py313\Scripts\python.exe -m streamlit run EZScore.py
 ```
 
-## Test cible
-
-1. Charger Aline.
-2. Seeker plusieurs fois.
-3. Verifier l'absence de glissement relatif Chant / Choeurs / Accords.
-4. Verifier que les longues vocalises redeviennent des `Ho  Ho  Ho...`
-   lorsque le stem backing presente des attaques distinctes.
+Test cible : Aline, meme passage que sur la capture.

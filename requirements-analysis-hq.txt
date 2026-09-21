@@ -11,6 +11,7 @@ streamlit
 plotly
 librosa
 soundfile
+audioop-lts>=0.2.2; python_version >= "3.13"
 openai-whisper
 
 bs-roformer-infer
