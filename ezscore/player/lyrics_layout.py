@@ -2,6 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ezscore.player.choir_vocalises import install_choir_vocalise_patch
+
+
+# R13: install the non-destructive choir-vocalise presentation refinement once
+# the validated base karaoke module has already been imported by R12c.
+install_choir_vocalise_patch()
+
+
 _TEMPLATE = (
     Path(__file__).resolve().parents[2]
     / "templates"
@@ -100,24 +108,12 @@ def patch_player_js(js: str) -> str:
       "px,0,0)";
   }
 '''
-    new_translate = r'''  function lyricVisualXForTime(track,time) {
-    const geometry=lyricGeometryByTrack.get(track);
-    if (!geometry) return timelineVisualXForTime(time);
-
-    return ezVisualXForTime(
-      geometry.words,
-      geometry.xs,
-      time,
-      timelineVisualXForTime,
-    );
-  }
-
-  function translateLyricTimeline(track,viewport,time) {
+    new_translate = r'''  function translateLyricTimeline(track,viewport,time) {
     if (!track || !viewport) return;
     const anchor=viewport.clientWidth*anchorRatio;
     track.style.transform=
       "translate3d(" +
-      (anchor-lyricVisualXForTime(track,time)).toFixed(2) +
+      (anchor-timelineVisualXForTime(time)).toFixed(2) +
       "px,0,0)";
   }
 '''

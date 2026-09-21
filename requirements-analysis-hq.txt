@@ -1,7 +1,19 @@
-# EZScore quality-first analysis dependencies
-# Model weights are NOT stored in the EZScore Git repository.
+# EZScore - environnement valide Python 3.13 / Windows / RTX 2060 (Turing sm75)
+# Les poids de modeles ne sont PAS stockes dans Git.
+--extra-index-url https://download.pytorch.org/whl/cu124
+
+torch==2.6.0+cu124; python_version == "3.13" and platform_system == "Windows"
+torchvision==0.21.0+cu124; python_version == "3.13" and platform_system == "Windows"
+torchaudio==2.6.0+cu124; python_version == "3.13" and platform_system == "Windows"
+triton-windows==3.2.0.post21; python_version == "3.13" and platform_system == "Windows"
+
+streamlit
+plotly
+librosa
+soundfile
+openai-whisper
+
 bs-roformer-infer
+melband-roformer-infer
 lv-chordia
 madmom-infer
-soundfile
-melband-roformer-infer

@@ -1,17 +1,28 @@
 $ErrorActionPreference = "Stop"
 
-Write-Host "EZScore - installation des moteurs d'analyse haute qualite"
-python -m pip install --upgrade pip
-python -m pip install --upgrade -r requirements-analysis-hq.txt
+$RepoRoot = Split-Path -Parent $PSScriptRoot
+$Python = Join-Path $RepoRoot ".venv-py313\Scripts\python.exe"
+$Requirements = Join-Path $RepoRoot "requirements-analysis-hq.txt"
+
+if (-not (Test-Path $Python)) {
+    throw "Environnement Python 3.13 introuvable : $Python`nCreer d'abord : py -3.13 -m venv .venv-py313"
+}
+
+Write-Host "EZScore - environnement Python 3.13 / GPU Turing"
+& $Python -c "import sys; assert sys.version_info[:2] == (3,13), sys.version; print('Python=',sys.version); print('Exe=',sys.executable)"
+
+& $Python -m pip install --upgrade pip setuptools wheel
+& $Python -m pip install -r $Requirements
 
 Write-Host ""
-Write-Host "Verification imports..."
-python -c "import bs_roformer; import lv_chordia; import madmom_infer; import soundfile; print('Analyse HQ: imports OK')"
+Write-Host "Verification pile GPU..."
+& $Python -c "import torch,triton; print('Torch=',torch.__version__); print('CUDA=',torch.version.cuda); print('CUDA available=',torch.cuda.is_available()); print('GPU=',torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'NONE'); print('Capability=',torch.cuda.get_device_capability(0) if torch.cuda.is_available() else 'NONE'); print('Triton=',triton.__version__)"
 
 Write-Host ""
-Write-Host "Les poids BS-RoFormer ne sont pas dans Git."
-Write-Host "Ils seront telecharges automatiquement et verifies SHA-256 au premier usage."
-Write-Host "Pour les stocker sur un disque specifique:"
-Write-Host '  $env:BS_ROFORMER_MODELS_PATH="H:\EZScoreModels\bs-roformer"'
+Write-Host "Verification imports EZScore..."
+& $Python -c "import streamlit,plotly,librosa,soundfile,whisper,bs_roformer,lv_chordia; print('Imports principaux: OK')"
+
 Write-Host ""
-Write-Host "Installation terminee."
+Write-Host 'BS-RoFormer : $env:BS_ROFORMER_MODELS_PATH="H:\EZScoreModels\bs-roformer"'
+Write-Host 'Whisper     : H:\EZScoreModels\whisper'
+Write-Host 'Lancement   : .\.venv-py313\Scripts\python.exe -m streamlit run EZScore.py'
