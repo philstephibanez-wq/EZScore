@@ -9,6 +9,10 @@ Secondary analysis:
 - visual block proposal
 """
 
+from .whisper_policy import install_whisper_language_policy
+
+install_whisper_language_policy()
+
 from .timelines import (
     TIMEBASE,
     TIMELINE_SCHEMA_VERSION,

@@ -33,7 +33,7 @@ Invoke-Python -c "import audioop; print('audioop OK:', audioop.__file__)"
 
 Write-Host ""
 Write-Host "Verification imports EZScore..."
-Invoke-Python -c "import streamlit,plotly,librosa,soundfile,whisper,bs_roformer,lv_chordia; print('Imports principaux: OK')"
+Invoke-Python -c "import streamlit,plotly,librosa,soundfile,whisper,bs_roformer,lv_chordia,demucs; print('Imports principaux: OK')"
 
 Write-Host ""
 Write-Host 'BS-RoFormer : $env:BS_ROFORMER_MODELS_PATH="H:\EZScoreModels\bs-roformer"'

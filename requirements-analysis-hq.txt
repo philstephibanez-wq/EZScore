@@ -18,3 +18,6 @@ bs-roformer-infer
 melband-roformer-infer
 lv-chordia
 madmom-infer
+
+# Le moteur historique EZScore utilise encore Demucs.
+demucs==4.1.0

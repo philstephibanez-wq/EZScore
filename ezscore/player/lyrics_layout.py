@@ -5,8 +5,6 @@ from pathlib import Path
 from ezscore.player.choir_vocalises import install_choir_vocalise_patch
 
 
-# R13: install the non-destructive choir-vocalise presentation refinement once
-# the validated base karaoke module has already been imported by R12c.
 install_choir_vocalise_patch()
 
 
@@ -46,7 +44,6 @@ def _replace_region(
 def patch_player_js(js: str) -> str:
     replacement = r'''  let leadNodes=[];
   let backingNodes=[];
-  const lyricGeometryByTrack=new WeakMap();
 
   function createLane(track, sourceWords) {
     track.innerHTML="";
@@ -61,26 +58,7 @@ def patch_player_js(js: str) -> str:
       nodes.push(span);
     });
 
-    const geometry=ezLayoutLaneNodes({
-      nodes,
-      words:sourceWords,
-      rawXForWord:(word) => timelineVisualXForTime(word.start),
-      minGap:10,
-      contractionGap:1,
-    });
-
-    const visualWidth=Math.max(
-      sharedTimelineWidth(),
-      Number(geometry.right || 0)+320
-    );
-    track.style.width=visualWidth+"px";
-
-    lyricGeometryByTrack.set(track,{
-      words:sourceWords,
-      xs:geometry.xs,
-      width:visualWidth,
-    });
-
+    track.style.width=Math.max(sharedTimelineWidth(),1)+"px";
     return nodes;
   }
 
@@ -98,30 +76,6 @@ def patch_player_js(js: str) -> str:
         replacement=replacement,
         label="géométrie createLane",
     )
-
-    old_translate = r'''  function translateLyricTimeline(track,viewport,time) {
-    if (!track || !viewport) return;
-    const anchor=viewport.clientWidth*anchorRatio;
-    track.style.transform=
-      "translate3d(" +
-      (anchor-timelineVisualXForTime(time)).toFixed(2) +
-      "px,0,0)";
-  }
-'''
-    new_translate = r'''  function translateLyricTimeline(track,viewport,time) {
-    if (!track || !viewport) return;
-    const anchor=viewport.clientWidth*anchorRatio;
-    track.style.transform=
-      "translate3d(" +
-      (anchor-timelineVisualXForTime(time)).toFixed(2) +
-      "px,0,0)";
-  }
-'''
-    if js.count(old_translate) != 1:
-        raise RuntimeError(
-            "Fonction translateLyricTimeline R12c introuvable ou ambiguë"
-        )
-    js = js.replace(old_translate, new_translate, 1)
 
     marker = "  // -------- One meter-aware geometry for ALL scrolling lanes --------"
     if js.count(marker) != 1:
