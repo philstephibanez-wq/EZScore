@@ -1,77 +1,50 @@
-# EZScore_KARAOKE_DIAG_R2
+# EZScore_FIRST_RUN_WEB_R2_1
 
-Base logique :
-- `master`
-- R1 appliqué localement par l'utilisateur
-- diagnostic collecté le 2026-09-21 à 11:07
+Correction du test Windows de `EZScore_FIRST_RUN_WEB_R2`.
 
-## Ce que le diagnostic R1 a prouvé
+## Pourquoi le test affichait FIRST RUN OK puis plantait
 
-`ezscore_choir_display.log` ne contient que :
+Le scénario fonctionnel était déjà validé.
 
-`choir.patch.installed`
+Le `WinError 32` venait du nettoyage du fichier SQLite temporaire. Plusieurs
+fonctions EZScore ouvrent leurs propres connexions SQLite ; sous Windows,
+certains handles peuvent rester vivants jusqu'à la fin du processus Python.
 
-Il ne contient aucun `choir.display.input`, `choir.display.vocalise` ou
-`choir.display.output`.
+Fermer uniquement la connexion créée directement par le test ne garantit donc
+pas que tous les handles internes sont déjà libérés.
 
-Donc le splitter R1 était bien installé, mais **jamais appelé par le vrai chemin
-du lecteur**.
+## Correction
 
-Cause trouvée : `ezscore/integration/choir_pipeline.py` remplace ensuite
-`_derive_choir_words_from_vocals` et le composant R12c lit directement
-`choir_analysis.json`. Le wrapper R1 était donc court-circuité.
+Le test utilise maintenant deux processus :
 
-## Correctifs R2
+1. le processus enfant crée/teste la BDD temporaire ;
+2. il se termine ;
+3. Windows libère tous les handles SQLite du processus enfant ;
+4. le processus parent supprime le dossier temporaire.
 
-### 1. Ooooooooo / Aline
-
-Le raffinement des vocalises est maintenant appelé sur la liste
-`backing_words` **finale**, issue de `choir_analysis.json`, juste avant l'envoi
-au composant navigateur.
-
-Le fichier :
-
-`data/logs/ezscore_choir_display.log`
-
-doit désormais contenir au minimum :
-- `choir.display.final.input`
-- `choir.display.vocalise` pour les vocalises candidates
-- `choir.display.final.output`
-
-### 2. Régression J' avais
-
-R1 avait supprimé toute correction typographique afin de rendre X strictement
-temporel. Cela séparait `J'` et `avais`.
-
-R2 conserve la règle temporelle pour tous les mots ordinaires, avec une seule
-exception graphique : les contractions séparées par Whisper sont recollées :
-- `J'` + `avais`
-- `l'` + `amour`
-- token commençant par `'` ou `’`
-
-Le timestamp et le highlight de chaque token restent inchangés.
+Aucune modification applicative supplémentaire.
 
 ## Installation
 
 ```powershell
 cd H:\EZScore
-tar -xf "$env:USERPROFILE\Downloads\EZScore_KARAOKE_DIAG_R2.zip" -C H:\EZScore
+
+tar -xf "$env:USERPROFILE\Downloads\EZScore_FIRST_RUN_WEB_R2_1.zip" -C H:\EZScore
 
 .\.venv-py313\Scripts\python.exe -m py_compile `
-  .\ezscore\player\lyrics_layout.py `
-  .\ezscore\player\choir_vocalises.py `
-  .\ezscore\integration\choir_pipeline.py
+  .\scripts\test_first_run_db.py
 ```
 
-Relancer complètement EZScore :
+Puis :
 
 ```powershell
-.\.venv-py313\Scripts\python.exe -m streamlit run EZScore.py
+.\.venv-py313\Scripts\python.exe .\scripts\test_first_run_db.py
 ```
 
-Tester Aline sans réanalyse obligatoire : R2 raffine la présentation du
-`choir_analysis.json` existant.
+Résultat attendu :
 
-Si les O restent collés, envoyer uniquement :
-
-`H:\EZScore\data\logs\ezscore_choir_display.log`
+```text
+FIRST RUN OK
+...
+temporary DB cleanup: OK
+```

@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import streamlit as st
 
+from ezscore.persistence import init_persistence
 from .persistent import (
     SESSION_DAYS,
     create_persistent_session,
@@ -15,9 +16,11 @@ from .persistent import (
 from .roles import Role, can, normalize_role
 from .storage import (
     authenticate_local,
+    ensure_auth_schema,
     get_user_by_id,
     register_reader,
     upsert_external_identity,
+    user_count,
 )
 
 _SESSION_USER_ID = "_ezscore_auth_user_id"
@@ -96,9 +99,36 @@ def _component_token(value) -> str:
 
 
 def initialize_auth() -> None:
-    # Ne jamais créer/promouvoir implicitement un compte au démarrage.
-    # Une BDD vide est initialisée depuis l'écran Compte par le premier admin.
+    # FIRST RUN CONTRACT
+    #
+    # A missing SQLite database is a supported state. Build all dependent
+    # schemas in dependency order before touching a persistent browser token:
+    #
+    #   persistence tables -> app_users/app_identities -> app_sessions
+    #
+    # The functions are idempotent, so the exact same path is also used on
+    # every normal startup and after database restoration.
+    init_persistence()
+    ensure_auth_schema()
     ensure_persistent_session_schema()
+
+    # FIRST RUN WEB GATE
+    #
+    # A brand-new database must never open on the catalogue as an anonymous
+    # visitor. Until the first administrator exists, Compte is the only
+    # admissible landing page. This code runs before the main navigation radio
+    # is instantiated, therefore the Streamlit widget receives the correct
+    # state from its first render.
+    #
+    # The gate is evaluated on every rerun while app_users is empty. A user
+    # cannot bypass it by clicking another navigation item. Once the initial
+    # admin form creates the first account, user_count() becomes > 0 and the
+    # normal navigation resumes on the next rerun.
+    if user_count() == 0:
+        st.session_state["main_menu"] = "Compte"
+        st.session_state["_pending_main_menu"] = "Compte"
+        st.session_state.pop(_SESSION_USER_ID, None)
+        st.session_state.pop(_OIDC_USER_ID, None)
 
     existing = st.session_state.get(_PERSIST_COMPONENT_KEY)
     known_token = _component_token(existing)
@@ -139,6 +169,8 @@ def initialize_auth() -> None:
         if user_id is not None:
             st.session_state[_SESSION_USER_ID] = int(user_id)
         else:
+            # Typical first-run case with an old browser cookie and a new DB:
+            # clear the obsolete cookie instead of crashing on a missing user.
             st.session_state.pop(_PERSIST_TOKEN, None)
             st.session_state[_PERSIST_CLEAR] = True
 

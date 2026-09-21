@@ -2,11 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ezscore.player.choir_vocalises import install_choir_vocalise_patch
-
-
-install_choir_vocalise_patch()
-
 
 _TEMPLATE = (
     Path(__file__).resolve().parents[2]
@@ -42,6 +37,46 @@ def _replace_region(
 
 
 def patch_player_js(js: str) -> str:
+    normalized = r'''  function normalizedWords(input) {
+    const ordered=(Array.isArray(input) ? input : [])
+      .map(w => ({
+        text:String(w.text || "").trim(),
+        start:Number(w.start || 0),
+        end:Number(w.end || w.start || 0),
+      }))
+      .filter(w => w.text && Number.isFinite(w.start) && Number.isFinite(w.end))
+      .sort((a,b)=>a.start-b.start || a.end-b.end);
+
+    const merged=[];
+    ordered.forEach(w => {
+      const previous=merged.length ? merged[merged.length-1] : null;
+      const contraction=Boolean(
+        previous && (
+          /['’]$/.test(previous.text) ||
+          /^['’]/.test(w.text)
+        )
+      );
+
+      if (contraction) {
+        previous.text=previous.text+w.text;
+        previous.start=Math.min(previous.start,w.start);
+        previous.end=Math.max(previous.end,w.end);
+      } else {
+        merged.push({...w});
+      }
+    });
+    return merged;
+  }
+
+'''
+    js = _replace_region(
+        js,
+        start_marker="  function normalizedWords(input) {\n",
+        end_marker="  const leadWords = normalizedWords(leadInput);\n",
+        replacement=normalized,
+        label="normalisation paroles",
+    )
+
     replacement = r'''  let leadNodes=[];
   let backingNodes=[];
 
@@ -49,31 +84,11 @@ def patch_player_js(js: str) -> str:
     track.innerHTML="";
     const nodes=[];
 
-    function isContractionPair(previousText,currentText) {
-      const previous=String(previousText || "").trim();
-      const current=String(currentText || "").trim();
-      return /[\\'’]$/.test(previous) || /^[\\'’]/.test(current);
-    }
-
-    sourceWords.forEach((w,index) => {
+    sourceWords.forEach(w => {
       const span=document.createElement("span");
       span.className="lyric-token";
       span.textContent=w.text;
-
-      let left=timelineVisualXForTime(w.start);
-
-      // Karaoke X stays timestamp-based for all ordinary tokens.
-      // Only split contractions (J' + avais, l' + amour, 'avais, ...)
-      // are glued typographically; their timestamps/highlights stay intact.
-      if (index > 0 && isContractionPair(sourceWords[index-1].text,w.text)) {
-        const previous=nodes[index-1];
-        if (previous) {
-          const previousLeft=Number.parseFloat(previous.style.left || "0");
-          left=previousLeft+previous.offsetWidth-1;
-        }
-      }
-
-      span.style.left=left+"px";
+      span.style.left=timelineVisualXForTime(w.start)+"px";
       track.appendChild(span);
       nodes.push(span);
     });
@@ -94,7 +109,7 @@ def patch_player_js(js: str) -> str:
         start_marker="  let leadNodes=[];\n",
         end_marker="  function activeWordIndex(sourceWords,time) {\n",
         replacement=replacement,
-        label="géométrie createLane",
+        label="géométrie timeline unique",
     )
 
     marker = "  // -------- One meter-aware geometry for ALL scrolling lanes --------"

@@ -1,11 +1,6 @@
-"""Integration of the canonical choir analyzer into EZScore Analyse + Player.
+"""Canonical choir integration for EZScore.
 
-Rules:
-- Analyse owns computation and persistence.
-- Player reads choir_analysis.json only.
-- Lead analysis is untouched.
-- No fallback to whisper_vocals_small.json / whisper_backing_small.json.
-- No choir inference is performed in the player.
+Analyse owns computation. Player is a read-only projection of the one timeline.
 """
 
 from __future__ import annotations
@@ -20,8 +15,11 @@ from ezscore.analysis.choirs import (
     choir_analysis_is_current,
     load_choir_analysis,
 )
+from ezscore.analysis.choir_timeline import (
+    align_choir_timeline,
+    timeline_alignment_is_current,
+)
 from ezscore.analysis.vocal_stems import vocal_stem_paths
-from ezscore.player.choir_vocalises import refine_backing_words_for_display
 
 
 def _artifact_words(audio_hash: str) -> list[dict[str, Any]]:
@@ -41,34 +39,17 @@ def _analysis_ready(stem_lab, audio_hash: str) -> bool:
 def _ensure_analysis(stem_lab, audio_hash: str) -> None:
     if not _analysis_ready(stem_lab, audio_hash):
         return
-    if choir_analysis_is_current(audio_hash):
-        return
 
-    with st.spinner("Analyse Chœurs dédiée…"):
-        analyze_choirs(audio_hash=audio_hash, force=False)
+    if not choir_analysis_is_current(audio_hash):
+        with st.spinner("Analyse Chœurs dédiée…"):
+            analyze_choirs(audio_hash=audio_hash, force=False)
 
-
-def _display_words(audio_hash: str) -> list[dict[str, Any]]:
-    """Canonical artifact + presentation-only acoustic vocalise refinement."""
-    words = _artifact_words(audio_hash)
-    backing = vocal_stem_paths(audio_hash).get("backing_vocals")
-    if not backing:
-        return words
-
-    try:
-        return refine_backing_words_for_display(
-            words,
-            Path(backing),
-            audio_hash=audio_hash,
-            source="choir_analysis.json",
-        )
-    except Exception:
-        # Canonical analysis artifact is always the safe fallback.
-        return words
+    if not timeline_alignment_is_current(audio_hash):
+        with st.spinner("Timeline Chœurs / contre-chant…"):
+            align_choir_timeline(audio_hash, force=True)
 
 
 def install(stem_lab) -> None:
-    """Install one modular Analyse hook and one read-only Player bridge."""
     from ezscore.player import karaoke_stem_webaudio as base
     from ezscore.player import karaoke_stem_webaudio_r12c as r12c
 
@@ -90,7 +71,7 @@ def install(stem_lab) -> None:
 
     def choir_words_from_artifact(stems, preview_dir, lead_words, player_words):
         audio_hash = Path(preview_dir).parent.name
-        return _display_words(audio_hash)
+        return _artifact_words(audio_hash)
 
     def no_supplement_words(original_words, merged_words):
         return []
@@ -110,7 +91,7 @@ def install(stem_lab) -> None:
             r12c._MEDIA_DURATION_BY_STORAGE_KEY.get(storage_key, 0.0) or 0.0
         )
         payload["backing_words"] = (
-            _display_words(audio_hash) if audio_hash else []
+            _artifact_words(audio_hash) if audio_hash else []
         )
         payload["backing_word_count"] = len(
             list(payload.get("backing_words", []) or [])
