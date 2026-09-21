@@ -1,79 +1,62 @@
-# EZScore_GOOGLE_AUTH_R1
+# EZScore_AUTH_NATIVE_DIAG_R1
 
-Base :
-- `master`
-- commit de départ `208caf2ee402a9ba0a78da36831e13066746be5b`
+Diagnostic natif Streamlit/OIDC. Aucun F12 nécessaire.
 
-## Diagnostic
+Ce livrable ne change pas la logique d'authentification, la création des
+sessions ni le logout.
 
-La configuration Google est encore reconnue comme valide : dans l'UI, le bouton
-Google n'affichait pas `à configurer` ni de message de configuration invalide.
+## Ajouts dans `Compte EZScore`
 
-Le bouton était pourtant désactivé à cause de cette condition :
+Le panneau `Diagnostic session / persistance` affiche désormais :
 
-```python
-disabled=not ready or importlib.util.find_spec("authlib") is None
-```
+- `_streamlit_user` : PRESENT / ABSENT
+- `_streamlit_user_tokens` : PRESENT / ABSENT
+- `st.user` : connecté / non connecté
+- `redirect_uri`
+- présence du `cookie_secret`
+- empreinte SHA-256 courte du `cookie_secret`
+- noms des cookies liés à Streamlit/user/token
 
-Dans le nouvel environnement `.venv-py313`, `authlib` n'était pas déclaré dans
-`requirements-analysis-hq.txt`.
+Aucune valeur de cookie, aucun token brut et aucun secret OAuth n'est affiché.
 
-## Correction
-
-### requirements-analysis-hq.txt
-
-Ajout :
-
-```text
-Authlib==1.8.0
-```
-
-Authlib 1.8.0 supporte Python >= 3.10, dont Python 3.13.
-
-### scripts/install_analysis_hq.ps1
-
-Le script vérifie désormais explicitement :
-
-```text
-import authlib
-Authlib=<version>
-```
-
-### ezscore/auth/ui.py
-
-Si la configuration OIDC est correcte mais que la bibliothèque Authlib manque,
-l'interface affiche maintenant explicitement :
-
-```text
-Bibliothèque Authlib absente de l'environnement Python actif.
-```
-
-Le bouton n'est donc plus silencieusement désactivé.
-
-## Installation minimale
-
-Il n'est PAS nécessaire de réinstaller toute la pile GPU pour ce correctif :
+## Installation
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_GOOGLE_AUTH_R1.zip" -C H:\EZScore
-
-.\.venv-py313\Scripts\python.exe -m pip install Authlib==1.8.0
-
-.\.venv-py313\Scripts\python.exe -c "import authlib; print(authlib.__version__)"
+tar -xf "$env:USERPROFILE\Downloads\EZScore_AUTH_NATIVE_DIAG_R1.zip" -C H:\EZScore
 
 .\.venv-py313\Scripts\python.exe -m py_compile `
-  .\ezscore\auth\ui.py
+  .\ezscore\auth\diagnostics.py `
+  .\scripts\test_auth_native_streamlit_diag.py
+
+.\.venv-py313\Scripts\python.exe .\scripts\test_auth_native_streamlit_diag.py
 ```
 
-Puis redémarrer complètement Streamlit :
+Attendu :
 
-```powershell
-.\.venv-py313\Scripts\python.exe -m streamlit run EZScore.py
+```text
+AUTH NATIVE STREAMLIT DIAGNOSTIC OK
+mode: read-only
+native cookies: names only
+cookie_secret: SHA-256 fingerprint only
+authentication logic: unchanged
 ```
 
-Le bouton Google doit redevenir actif si `.streamlit/secrets.toml` contient
-toujours la configuration Google locale valide.
+## Test
 
-Aucun secret n'est ajouté au dépôt.
+1. relancer EZScore ;
+2. ouvrir `Connexion / inscription` ;
+3. capturer le bloc `OIDC natif Streamlit`.
+
+Interprétation :
+
+- `_streamlit_user` ABSENT :
+  le navigateur/Streamlit ne conserve pas le cookie natif OIDC.
+- `_streamlit_user` PRESENT + `st.user` non connecté :
+  le cookie est présent mais n'est pas accepté/restauré.
+- `_streamlit_user` PRESENT + `st.user` connecté :
+  Streamlit restaure correctement l'OIDC ; le défaut est dans EZScore.
+
+L'empreinte `cookie_secret` permet aussi de vérifier qu'elle reste identique
+entre deux relances, sans exposer le secret.

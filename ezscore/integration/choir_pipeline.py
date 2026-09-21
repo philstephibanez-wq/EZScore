@@ -50,6 +50,13 @@ def _ensure_analysis(stem_lab, audio_hash: str) -> None:
 
 
 def install(stem_lab) -> None:
+    # Install the canonical lyrics language policy before any Analyse surface
+    # reads or creates whisper_original_small.json.
+    from ezscore.integration.language_pipeline import (
+        install as install_language_pipeline,
+    )
+    install_language_pipeline(stem_lab)
+
     from ezscore.player import karaoke_stem_webaudio as base
     from ezscore.player import karaoke_stem_webaudio_r12c as r12c
 

@@ -15,7 +15,9 @@ audioop-lts>=0.2.2; python_version >= "3.13"
 openai-whisper
 
 # OIDC / Google / Auth0 / Apple
+# Authlib 1.8 utilise httpx2 pour son integration HTTP moderne.
 Authlib==1.8.0
+httpx2>=2.4,<3
 
 bs-roformer-infer
 melband-roformer-infer

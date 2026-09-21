@@ -31,13 +31,14 @@ _PERSIST_STORE = "_ezscore_persistent_store_token"
 _PERSIST_CLEAR = "_ezscore_persistent_clear"
 
 _SESSION_COMPONENT = st.components.v2.component(
-    "ezscore_auth_persistent_session_v1",
+    "ezscore_auth_persistent_session_v2",
     html='<span class="ezscore-auth-session-bridge" hidden></span>',
     css=".ezscore-auth-session-bridge{display:none!important}",
     js=r"""
 export default function(component) {
   const {data, setStateValue} = component;
   const cookieName = "ezscore_local_session";
+  const storageName = "ezscore_local_session_v2";
   const known = String(data.known_token || "");
   const store = String(data.store_token || "");
   const clear = Boolean(data.clear_token);
@@ -62,21 +63,70 @@ export default function(component) {
     document.cookie = cookie;
   }
 
-  const current = readCookie();
+  function readStorage() {
+    try {
+      return String(window.localStorage.getItem(storageName) || "");
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function writeStorage(value) {
+    try {
+      if (value) {
+        window.localStorage.setItem(storageName, value);
+      } else {
+        window.localStorage.removeItem(storageName);
+      }
+    } catch (_) {
+      // Cookie remains the compatibility fallback.
+    }
+  }
+
+  const cookieToken = readCookie();
+  const storageToken = readStorage();
+
+  // Prefer localStorage for restart recovery because it survives a complete
+  // Streamlit Python process restart independently from component state.
+  // Cookie remains synchronized for compatibility.
+  const current = storageToken || cookieToken;
 
   if (clear) {
-    if (current) writeCookie("", 0);
+    if (cookieToken) writeCookie("", 0);
+    if (storageToken) writeStorage("");
     if (known) setStateValue("token", "");
     return;
   }
 
   if (store) {
-    if (current !== store) writeCookie(store, Number(data.max_age || 2592000));
-    if (known !== store) setStateValue("token", store);
+    if (cookieToken !== store) {
+      writeCookie(store, Number(data.max_age || 2592000));
+    }
+    if (storageToken !== store) {
+      writeStorage(store);
+    }
+    if (known !== store) {
+      setStateValue("token", store);
+    }
     return;
   }
 
-  if (current !== known) setStateValue("token", current);
+  // Self-heal if only one browser store survived.
+  if (current) {
+    if (cookieToken !== current) {
+      writeCookie(current, Number(data.max_age || 2592000));
+    }
+    if (storageToken !== current) {
+      writeStorage(current);
+    }
+  }
+
+  // On a fresh Streamlit process, known is empty. Sending the browser token
+  // back through component state triggers one rerun; initialize_auth() then
+  // resolves it against app_sessions.
+  if (current !== known) {
+    setStateValue("token", current);
+  }
 }
 """,
     isolate_styles=True,
@@ -96,83 +146,6 @@ def _component_token(value) -> str:
         return str(value.get("token", "") or "").strip()
     except Exception:
         return ""
-
-
-def initialize_auth() -> None:
-    # FIRST RUN CONTRACT
-    #
-    # A missing SQLite database is a supported state. Build all dependent
-    # schemas in dependency order before touching a persistent browser token:
-    #
-    #   persistence tables -> app_users/app_identities -> app_sessions
-    #
-    # The functions are idempotent, so the exact same path is also used on
-    # every normal startup and after database restoration.
-    init_persistence()
-    ensure_auth_schema()
-    ensure_persistent_session_schema()
-
-    # FIRST RUN WEB GATE
-    #
-    # A brand-new database must never open on the catalogue as an anonymous
-    # visitor. Until the first administrator exists, Compte is the only
-    # admissible landing page. This code runs before the main navigation radio
-    # is instantiated, therefore the Streamlit widget receives the correct
-    # state from its first render.
-    #
-    # The gate is evaluated on every rerun while app_users is empty. A user
-    # cannot bypass it by clicking another navigation item. Once the initial
-    # admin form creates the first account, user_count() becomes > 0 and the
-    # normal navigation resumes on the next rerun.
-    if user_count() == 0:
-        st.session_state["main_menu"] = "Compte"
-        st.session_state["_pending_main_menu"] = "Compte"
-        st.session_state.pop(_SESSION_USER_ID, None)
-        st.session_state.pop(_OIDC_USER_ID, None)
-
-    existing = st.session_state.get(_PERSIST_COMPONENT_KEY)
-    known_token = _component_token(existing)
-    store_token = str(st.session_state.get(_PERSIST_STORE, "") or "")
-    clear_token = bool(st.session_state.get(_PERSIST_CLEAR, False))
-
-    def _on_token_change() -> None:
-        # Required by Streamlit Components V2 for state names used in `default`.
-        # The actual value is read from the component result just below.
-        return None
-
-    result = _SESSION_COMPONENT(
-        data={
-            "known_token": known_token,
-            "store_token": store_token,
-            "clear_token": clear_token,
-            "max_age": int(SESSION_DAYS * 24 * 60 * 60),
-        },
-        default={"token": known_token},
-        key=_PERSIST_COMPONENT_KEY,
-        on_token_change=_on_token_change,
-    )
-    browser_token = _component_token(result)
-
-    if store_token and browser_token == store_token:
-        st.session_state.pop(_PERSIST_STORE, None)
-    if clear_token and not browser_token:
-        st.session_state.pop(_PERSIST_CLEAR, None)
-    if browser_token:
-        st.session_state[_PERSIST_TOKEN] = browser_token
-
-    if (
-        not _streamlit_oidc_logged_in()
-        and st.session_state.get(_SESSION_USER_ID) is None
-        and browser_token
-    ):
-        user_id = resolve_persistent_session(browser_token)
-        if user_id is not None:
-            st.session_state[_SESSION_USER_ID] = int(user_id)
-        else:
-            # Typical first-run case with an old browser cookie and a new DB:
-            # clear the obsolete cookie instead of crashing on a missing user.
-            st.session_state.pop(_PERSIST_TOKEN, None)
-            st.session_state[_PERSIST_CLEAR] = True
 
 
 def _streamlit_oidc_logged_in() -> bool:
@@ -204,6 +177,198 @@ def _provider_from_claims(claims: dict) -> str:
     if "appleid.apple.com" in issuer:
         return "apple"
     return "oidc"
+
+
+def _resolve_oidc_user() -> dict | None:
+    """Resolve/link the current Streamlit OIDC identity to one EZScore user."""
+    if not _streamlit_oidc_logged_in():
+        return None
+
+    linked_user_id = st.session_state.get(_OIDC_USER_ID)
+    if linked_user_id is not None:
+        user = get_user_by_id(int(linked_user_id))
+        if user and user.get("active"):
+            return user
+        st.session_state.pop(_OIDC_USER_ID, None)
+
+    claims = _oidc_claims()
+    subject = str(claims.get("sub", "") or "").strip()
+    email = str(
+        claims.get("email")
+        or claims.get("preferred_username")
+        or ""
+    ).strip()
+    email_verified = claims.get("email_verified")
+
+    if email_verified is False or str(email_verified).lower() == "false":
+        return None
+
+    display_name = str(
+        claims.get("name")
+        or claims.get("given_name")
+        or email
+        or ""
+    ).strip()
+    picture_url = str(claims.get("picture") or "").strip()
+
+    if not subject or not email:
+        return None
+
+    try:
+        user = upsert_external_identity(
+            provider=_provider_from_claims(claims),
+            subject=subject,
+            email=email,
+            display_name=display_name,
+            picture_url=picture_url,
+        )
+    except Exception:
+        return None
+
+    if user and user.get("active"):
+        st.session_state[_OIDC_USER_ID] = int(user["user_id"])
+        return user
+
+    return None
+
+
+def _bootstrap_oidc_persistent_session() -> None:
+    """Bridge a successful OIDC login into EZScore's 30-day session.
+
+    Streamlit's OIDC state is an authentication mechanism; it must not be the
+    only persistence mechanism for the EZScore application session.
+
+    Once Google/Auth0/etc. has authenticated a known active user, create the
+    same EZScore browser token used by local "Rester connecté 30 jours".
+    The component invocation later in initialize_auth() writes that token in
+    the browser during the same Streamlit run.
+    """
+    if not _streamlit_oidc_logged_in():
+        return
+
+    user = _resolve_oidc_user()
+    if not user:
+        return
+
+    user_id = int(user["user_id"])
+
+    # If an EZScore persistent token already resolves to this user, keep it.
+    active_token = str(
+        st.session_state.get(_PERSIST_TOKEN, "") or ""
+    ).strip()
+    if active_token:
+        try:
+            if resolve_persistent_session(active_token) == user_id:
+                return
+        except Exception:
+            pass
+
+    # A token waiting to be written by the browser component is already enough.
+    pending_token = str(
+        st.session_state.get(_PERSIST_STORE, "") or ""
+    ).strip()
+    if pending_token:
+        return
+
+    token = create_persistent_session(user_id)
+    st.session_state[_PERSIST_TOKEN] = token
+    st.session_state[_PERSIST_STORE] = token
+    st.session_state.pop(_PERSIST_CLEAR, None)
+
+
+
+def _request_persistent_token() -> str:
+    """Read EZScore's browser cookie from the initial Streamlit request.
+
+    This is the authoritative restart path. It deliberately does not depend on
+    component state or a JS -> Python callback.
+    """
+    try:
+        cookies = st.context.cookies
+        return str(cookies.get("ezscore_local_session", "") or "").strip()
+    except Exception:
+        return ""
+
+
+def initialize_auth() -> None:
+    # FIRST RUN CONTRACT
+    init_persistence()
+    ensure_auth_schema()
+    ensure_persistent_session_schema()
+
+    has_users = user_count() > 0
+
+    # FIRST RUN WEB GATE
+    if not has_users:
+        st.session_state["main_menu"] = "Compte"
+        st.session_state["_pending_main_menu"] = "Compte"
+        st.session_state.pop(_SESSION_USER_ID, None)
+        st.session_state.pop(_OIDC_USER_ID, None)
+    else:
+        # Important: do this BEFORE reading _PERSIST_STORE and BEFORE invoking
+        # the browser bridge. This makes a successful Google/OIDC login create
+        # and write the same 30-day EZScore cookie as a local remembered login.
+        _bootstrap_oidc_persistent_session()
+
+    # Authoritative restart recovery: read the cookie directly from the
+    # HTTP/WebSocket request via Streamlit's supported st.context API.
+    # This bypasses the fragile component-state round trip completely.
+    request_token = _request_persistent_token()
+
+    if (
+        not _streamlit_oidc_logged_in()
+        and st.session_state.get(_SESSION_USER_ID) is None
+        and request_token
+    ):
+        request_user_id = resolve_persistent_session(request_token)
+        if request_user_id is not None:
+            st.session_state[_SESSION_USER_ID] = int(request_user_id)
+            st.session_state[_PERSIST_TOKEN] = request_token
+        else:
+            # Stale browser token, e.g. after deleting/recreating the DB.
+            st.session_state.pop(_PERSIST_TOKEN, None)
+            st.session_state[_PERSIST_CLEAR] = True
+
+    existing = st.session_state.get(_PERSIST_COMPONENT_KEY)
+    known_token = _component_token(existing)
+    store_token = str(st.session_state.get(_PERSIST_STORE, "") or "")
+    clear_token = bool(st.session_state.get(_PERSIST_CLEAR, False))
+
+    def _on_token_change() -> None:
+        return None
+
+    result = _SESSION_COMPONENT(
+        data={
+            "known_token": known_token,
+            "store_token": store_token,
+            "clear_token": clear_token,
+            "max_age": int(SESSION_DAYS * 24 * 60 * 60),
+        },
+        default={"token": known_token},
+        key=_PERSIST_COMPONENT_KEY,
+        on_token_change=_on_token_change,
+    )
+    component_token = _component_token(result)
+    browser_token = component_token or request_token
+
+    if store_token and component_token == store_token:
+        st.session_state.pop(_PERSIST_STORE, None)
+    if clear_token and not browser_token:
+        st.session_state.pop(_PERSIST_CLEAR, None)
+    if browser_token:
+        st.session_state[_PERSIST_TOKEN] = browser_token
+
+    if (
+        not _streamlit_oidc_logged_in()
+        and st.session_state.get(_SESSION_USER_ID) is None
+        and browser_token
+    ):
+        user_id = resolve_persistent_session(browser_token)
+        if user_id is not None:
+            st.session_state[_SESSION_USER_ID] = int(user_id)
+        else:
+            st.session_state.pop(_PERSIST_TOKEN, None)
+            st.session_state[_PERSIST_CLEAR] = True
 
 
 def _auth_section() -> dict:
@@ -282,7 +447,10 @@ def oidc_provider_status(provider: str) -> tuple[bool, str]:
     if not metadata.startswith("https://"):
         return False, "server_metadata_url invalide."
 
-    if provider_name == "google" and not client_id.endswith(".apps.googleusercontent.com"):
+    if (
+        provider_name == "google"
+        and not client_id.endswith(".apps.googleusercontent.com")
+    ):
         return False, "Le client_id Google n'a pas le format attendu."
 
     return True, "Configuré"
@@ -290,48 +458,7 @@ def oidc_provider_status(provider: str) -> tuple[bool, str]:
 
 def current_user() -> dict | None:
     if _streamlit_oidc_logged_in():
-        linked_user_id = st.session_state.get(_OIDC_USER_ID)
-        if linked_user_id is not None:
-            user = get_user_by_id(int(linked_user_id))
-            if user and user.get("active"):
-                return user
-            st.session_state.pop(_OIDC_USER_ID, None)
-
-        claims = _oidc_claims()
-        subject = str(claims.get("sub", "") or "").strip()
-        email = str(
-            claims.get("email")
-            or claims.get("preferred_username")
-            or ""
-        ).strip()
-        email_verified = claims.get("email_verified")
-        if email_verified is False or str(email_verified).lower() == "false":
-            return None
-
-        display_name = str(
-            claims.get("name")
-            or claims.get("given_name")
-            or email
-            or ""
-        ).strip()
-        picture_url = str(claims.get("picture") or "").strip()
-
-        if subject and email:
-            try:
-                user = upsert_external_identity(
-                    provider=_provider_from_claims(claims),
-                    subject=subject,
-                    email=email,
-                    display_name=display_name,
-                    picture_url=picture_url,
-                )
-            except Exception:
-                return None
-
-            if user and user.get("active"):
-                st.session_state[_OIDC_USER_ID] = int(user["user_id"])
-                return user
-        return None
+        return _resolve_oidc_user()
 
     user_id = st.session_state.get(_SESSION_USER_ID)
     if user_id is None:

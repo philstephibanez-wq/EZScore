@@ -32,12 +32,12 @@ Write-Host "Verification audioop Python 3.13..."
 Invoke-Python -c "import audioop; print('audioop OK:', audioop.__file__)"
 
 Write-Host ""
-Write-Host "Verification OIDC / Google..."
-Invoke-Python -c "import authlib; print('Authlib=',authlib.__version__)"
+Write-Host "Verification OIDC / Authlib / httpx2 sans deprecated..."
+Invoke-Python -W error::authlib.common.errors.AuthlibDeprecationWarning -c "import authlib,httpx2; from authlib.integrations.httpx_client import AsyncOAuth2Client; print('Authlib=',authlib.__version__); print('httpx2=',getattr(httpx2,'__version__','OK')); print('Authlib/httpx2: OK sans AuthlibDeprecationWarning')"
 
 Write-Host ""
 Write-Host "Verification imports EZScore..."
-Invoke-Python -c "import streamlit,plotly,librosa,soundfile,whisper,bs_roformer,lv_chordia,demucs,authlib; print('Imports principaux: OK')"
+Invoke-Python -c "import streamlit,plotly,librosa,soundfile,whisper,bs_roformer,lv_chordia,demucs,authlib,httpx2; print('Imports principaux: OK')"
 
 Write-Host ""
 Write-Host 'BS-RoFormer : $env:BS_ROFORMER_MODELS_PATH="H:\EZScoreModels\bs-roformer"'
