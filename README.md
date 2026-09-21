@@ -1,151 +1,61 @@
-# EZScore_MANUAL_LYRICS_FORCED_ALIGN_R1
+# EZScore_STREAMLIT_WATCHER_OFF_R1
 
 Base GitHub vérifiée avant livraison :
 
 ```text
-master = c825fc54c3b89f2b9229f576c45d6e8ec8776600
+master = 11c96a732092a931abca45199535f8cddca0293c
 ```
 
-## Nouveau principe
+## Objet
 
-Le chemin actif de paroles devient :
+Désactivation permanente du file watcher Streamlit afin d'éviter les warnings
+répétés produits par l'introspection de Torchaudio :
 
 ```text
-texte exact fourni par l'utilisateur
-        +
-lead_vocals.wav
-        ↓
-uroman (romanisation multilingue)
-        ↓
-TorchAudio MMS_FA
-        ↓
-forced alignment
-        ↓
-mots + timestamps
-        ↓
-timeline canonique EZScore
+streamlit\watcher\local_sources_watcher.py
+Torchaudio's I/O functions now support per-call backend dispatch...
 ```
 
-Il n'y a plus dans ce chemin :
+Configuration ajoutée :
 
-```text
-détection de langue depuis l'audio
-transcription libre Whisper
-Whisper Chœurs
-texte Chœurs
+```toml
+[server]
+fileWatcherType = "none"
 ```
 
-Les stems audio restent inchangés. `backing_vocals.wav` reste disponible dans
-le mixer mais n'est pas transcrit.
+## Effet
 
-## Multilingue
+Cette option désactive uniquement la surveillance automatique des fichiers Python.
 
-MMS_FA est un modèle de forced alignment multilingue. Le texte utilisateur est
-romanisé par `uroman`, sans imposer une langue globale au morceau.
+Elle ne désactive pas :
+- les `st.rerun()`,
+- les boutons/widgets Streamlit,
+- l'analyse audio,
+- Torch/Torchaudio,
+- le player.
 
-Un texte du type :
+Conséquence : si un fichier Python est modifié pendant qu'EZScore tourne,
+l'application ne se recharge plus automatiquement. Un redémarrage manuel est requis.
 
-```text
-Je voudrais encore
-And I know that someday
-Je reviendrai
-```
-
-est donc aligné comme une seule séquence connue.
-
-Le texte original reste celui affiché. La romanisation n'est qu'une
-représentation acoustique interne.
-
-Pour les langues sans séparation explicite des mots (certaines écritures
-chinoises/japonaises notamment), R1 suppose que le texte fourni contient déjà
-des séparations de mots exploitables.
-
-## Mots qui se superposent
-
-`ezscore/player/lyrics_layout.py` disposait déjà du moteur de collision
-`ezLayoutLaneNodes`, mais la géométrie R12c ne l'utilisait pas réellement.
-
-R1 branche ce moteur :
-
-```text
-position temporelle brute
-→ largeur réelle du mot
-→ espacement minimum 12 px
-→ courbe visuelle interpolée pour le défilement
-```
-
-Les timestamps canoniques ne sont pas déplacés pour résoudre l'affichage.
-
-## GPU / durée
-
-MMS_FA est exécuté par segments acoustiques de 20 secondes puis les émissions
-sont concaténées avant le forced alignment global. Cela évite de passer une
-chanson entière dans le modèle Wav2Vec2 en une seule fois sur la RTX 2060 6 GB.
-
-Le modèle Torch est stocké hors de C: :
-
-```text
-H:\EZScoreModels\torch
-```
-
-avec l'arborescence habituelle `H:\EZScore`. La variable
-`EZSCORE_MODELS_PATH` peut remplacer cette racine.
-
-## Installation
+## Application
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_MANUAL_LYRICS_FORCED_ALIGN_R1.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_STREAMLIT_WATCHER_OFF_R1.zip" -C H:\EZScore
 
-.\.venv-py313\Scripts\python.exe -m pip install -r .\requirements-forced-alignment.txt
+Get-Content .\.streamlit\config.toml
 
-.\.venv-py313\Scripts\python.exe -m py_compile `
-  .\ezscore\analysis\forced_lyrics.py `
-  .\ezscore\integration\choir_pipeline.py `
-  .\ezscore\player\lyrics_layout.py `
-  .\scripts\test_manual_forced_alignment_contract.py `
-  .\scripts\test_manual_forced_alignment_runtime.py
-
-.\.venv-py313\Scripts\python.exe .\scripts\test_manual_forced_alignment_contract.py
-.\.venv-py313\Scripts\python.exe .\scripts\test_manual_forced_alignment_runtime.py
+.\.venv-py313\Scripts\python.exe -m streamlit run EZScore.py `
+  --server.address 127.0.0.1 `
+  --server.port 8501 `
+  --server.headless true
 ```
 
-Attendu :
+La ligne de commande n'a plus besoin de :
 
 ```text
-MANUAL LYRICS / FORCED ALIGNMENT CONTRACT OK
-free transcription: DISABLED
-audio language detection: DISABLED
-lyrics source: USER TEXT
-acoustic source: lead_vocals.wav
-forced alignment: MMS_FA
-choir lyrics: DISABLED
-word collision layout: ENABLED
-
-FORCED ALIGNMENT RUNTIME OK
-...
+--server.fileWatcherType none
 ```
 
-Redémarrer ensuite complètement Streamlit.
-
-Dans `Analyse > 2 · Paroles` :
-1. coller le texte exact du chant ;
-2. cliquer `Aligner le texte sur le Chant` ;
-3. après alignement, vérifier les mots horodatés puis le player.
-
-## Premier alignement
-
-Le premier alignement télécharge les poids MMS_FA dans
-`H:\EZScoreModels\torch`. Les tests fournis ne téléchargent pas le modèle.
-
-## Licence du modèle
-
-La documentation TorchAudio indique que les poids MMS_FA sont publiés sous
-licence CC-BY-NC 4.0. Ce R1 convient à notre validation technique actuelle.
-Avant une exploitation commerciale d'EZScore, il faudra valider la
-compatibilité de cette licence ou remplacer le moteur par un aligneur dont la
-licence convient.
-
-L'ancien code de détection de langue audio n'est pas supprimé par ce
-livrable : il devient simplement inactif dans le chemin canonique Paroles.
+car la valeur est désormais persistée dans `.streamlit/config.toml`.
