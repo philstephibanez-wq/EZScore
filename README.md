@@ -1,80 +1,77 @@
-# EZScore_KARAOKE_DIAG_R1
+# EZScore_KARAOKE_DIAG_R2
 
-Base : `master` / `origin/master`
-HEAD de départ : `45f0bcb`
+Base logique :
+- `master`
+- R1 appliqué localement par l'utilisateur
+- diagnostic collecté le 2026-09-21 à 11:07
 
-## Inclus
+## Ce que le diagnostic R1 a prouvé
 
-1. **Karaoké Chant / Chœurs**
-   - X dépend uniquement du timestamp.
-   - suppression du déplacement horizontal indépendant anti-chevauchement.
-   - même temps = même X sur Chant et Chœurs.
+`ezscore_choir_display.log` ne contient que :
 
-2. **Aline / Ooooooooo**
-   - segmentation acoustique plus permissive ;
-   - onset + flux spectral + attaques RMS ;
-   - journal `data/logs/ezscore_choir_display.log`.
+`choir.patch.installed`
 
-3. **Langue Whisper**
-   - consensus sur plusieurs fenêtres énergétiques du morceau ;
-   - évite qu'une intro trompe la détection et francise un morceau anglais.
+Il ne contient aucun `choir.display.input`, `choir.display.vocalise` ou
+`choir.display.output`.
 
-4. **Python 3.13 / Demucs**
-   - ajout `demucs==4.1.0` au requirement ;
-   - vérification de l'import dans le script d'installation.
+Donc le splitter R1 était bien installé, mais **jamais appelé par le vrai chemin
+du lecteur**.
 
-5. **Audit stems / stem_lab**
-   - `scripts/audit_analysis_storage.py`
-   - recherche des vrais doublons SHA-256 ;
-   - aucune suppression automatique.
+Cause trouvée : `ezscore/integration/choir_pipeline.py` remplace ensuite
+`_derive_choir_words_from_vocals` et le composant R12c lit directement
+`choir_analysis.json`. Le wrapper R1 était donc court-circuité.
 
-6. **Remontée diagnostics**
-   - `scripts/collect_ezscore_diagnostics.ps1`
-   - génère un ZIP de logs/état Git/liste des artefacts JSON sans audio.
+## Correctifs R2
+
+### 1. Ooooooooo / Aline
+
+Le raffinement des vocalises est maintenant appelé sur la liste
+`backing_words` **finale**, issue de `choir_analysis.json`, juste avant l'envoi
+au composant navigateur.
+
+Le fichier :
+
+`data/logs/ezscore_choir_display.log`
+
+doit désormais contenir au minimum :
+- `choir.display.final.input`
+- `choir.display.vocalise` pour les vocalises candidates
+- `choir.display.final.output`
+
+### 2. Régression J' avais
+
+R1 avait supprimé toute correction typographique afin de rendre X strictement
+temporel. Cela séparait `J'` et `avais`.
+
+R2 conserve la règle temporelle pour tous les mots ordinaires, avec une seule
+exception graphique : les contractions séparées par Whisper sont recollées :
+- `J'` + `avais`
+- `l'` + `amour`
+- token commençant par `'` ou `’`
+
+Le timestamp et le highlight de chaque token restent inchangés.
 
 ## Installation
 
 ```powershell
 cd H:\EZScore
-tar -xf "$env:USERPROFILE\Downloads\EZScore_KARAOKE_DIAG_R1.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_KARAOKE_DIAG_R2.zip" -C H:\EZScore
 
 .\.venv-py313\Scripts\python.exe -m py_compile `
   .\ezscore\player\lyrics_layout.py `
   .\ezscore\player\choir_vocalises.py `
-  .\ezscore\analysis\whisper_policy.py `
-  .\ezscore\analysis\__init__.py `
-  .\scripts\audit_analysis_storage.py
-
-powershell -ExecutionPolicy Bypass -File .\scripts\install_analysis_hq.ps1
+  .\ezscore\integration\choir_pipeline.py
 ```
 
-Puis :
+Relancer complètement EZScore :
 
 ```powershell
 .\.venv-py313\Scripts\python.exe -m streamlit run EZScore.py
 ```
 
-## Tests
+Tester Aline sans réanalyse obligatoire : R2 raffine la présentation du
+`choir_analysis.json` existant.
 
-### Aline
-Tester le même passage `Ooooooooo`. Si le texte reste collé, envoyer :
+Si les O restent collés, envoyer uniquement :
 
 `H:\EZScore\data\logs\ezscore_choir_display.log`
-
-### Gospel anglais
-Il faut **ré-analyser les paroles** afin de ne pas réutiliser le cache créé avec
-l'ancienne détection de langue.
-
-### Doublons
-```powershell
-.\.venv-py313\Scripts\python.exe .\scripts\audit_analysis_storage.py
-```
-
-### Blocage upload / remontée générale
-Après redémarrage, lancer :
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\collect_ezscore_diagnostics.ps1
-```
-
-et envoyer le ZIP créé dans `data\logs`.
