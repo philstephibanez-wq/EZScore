@@ -1,94 +1,71 @@
-# EZScore_MADMOM_API_R2
+# EZScore_MADMOM_API_R1
 
-Base GitHub vérifiée :
+Base concernée : `EZScore_TECHNICAL_TIMELINE_R2` appliquée localement.
 
-```text
-master = d3602562fae60c5bbd04ed81025113be64160169
-EZScore_MADMOM_API_R1
-```
+## Cause exacte
 
-## Cause du KO R1
-
-La machine contient bien :
+L'erreur :
 
 ```text
-madmom-infer 0.2.0
+ModuleNotFoundError: No module named 'madmom_infer.features.beats'
 ```
 
-mais cette version installée n'expose pas `madmom_infer.detect_beats`.
+vient d'un import trop couplé à l'organisation interne du paquet.
 
-R1 avait donc encore choisi une API non réellement disponible dans la release
-présente.
-
-## Correction R2
-
-La documentation de la release 0.2.0 indique explicitement que son pipeline
-complet disponible est :
+EZScore utilisait :
 
 ```python
-from madmom_infer.features.downbeats import (
-    RNNDownBeatProcessor,
-    DBNDownBeatTrackingProcessor,
-)
+from madmom_infer.features.beats import ...
 ```
 
-R2 utilise donc directement ce pipeline :
+Le correctif utilise l'API publique documentée :
+
+```python
+import madmom_infer as mm
+beats = mm.detect_beats(audio_path)
+```
+
+## Version fixée
 
 ```text
-drums.wav
-  ↓
-RNNDownBeatProcessor
-  ↓ activations beat/downbeat
-DBNDownBeatTrackingProcessor
-  ↓ [time, beat_position]
-temps absolus des beats
-  ↓
-technical_timeline.json
+madmom-infer==0.2.0
 ```
 
-EZScore ne conserve ici que la colonne `time`. La signature métrique reste
-appliquée plus tard ; elle ne déplace jamais les timestamps.
-
-## Pas de réinstallation nécessaire
-
-Si `madmom-infer 0.2.0` est déjà installé, ne réinstallez rien.
+Cette version supporte Python 3.13.
 
 ## Application
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_MADMOM_API_R2.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_MADMOM_API_R1.zip" -C H:\EZScore
 
-.\.venv-py313\Scripts\python.exe .\scripts\test_madmom_020_api.py
+.\.venv-py313\Scripts\python.exe -m pip install --upgrade --force-reinstall `
+  madmom-infer==0.2.0
+
+.\.venv-py313\Scripts\python.exe .\scripts\test_madmom_public_api.py
 
 .\.venv-py313\Scripts\python.exe -m py_compile `
   .\ezscore\analysis\rhythm_quality.py `
-  .\scripts\test_madmom_020_api.py `
-  .\scripts\test_madmom_api_r2_contract.py
+  .\scripts\test_madmom_public_api.py `
+  .\scripts\test_madmom_api_contract.py
 
-.\.venv-py313\Scripts\python.exe .\scripts\test_madmom_api_r2_contract.py
+.\.venv-py313\Scripts\python.exe .\scripts\test_madmom_api_contract.py
 ```
 
 Attendu :
 
 ```text
 madmom-infer version: 0.2.0
-RNNDownBeatProcessor: <class ...>
-DBNDownBeatTrackingProcessor: <class ...>
-MADMOM 0.2.0 DOWNBEAT API OK
+detect_beats callable: True
+MADMOM PUBLIC API OK
 
-MADMOM API R2 CONTRACT OK
-detect_beats dependency: REMOVED
-features.beats dependency: REMOVED
-0.2.0 downbeats pipeline: ENABLED
+MADMOM API CONTRACT OK
+internal processor import: REMOVED
+public detect_beats API: ENABLED
 ```
 
-Puis redémarrer Streamlit.
+Puis redémarrer complètement Streamlit.
 
-## Première exécution
-
-Le premier vrai passage `RNNDownBeatProcessor` peut télécharger les poids
-madmom nécessaires. Ces poids sont séparément sous licence CC BY-NC-SA 4.0
-(non-commerciale), point à conserver en tête pour une future exploitation
-commerciale d'EZScore.
+Au premier vrai calcul de beats, `madmom-infer` peut télécharger ses poids de
+modèle.
