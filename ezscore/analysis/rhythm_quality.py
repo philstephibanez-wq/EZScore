@@ -1,49 +1,25 @@
 """High-quality beat/tactus tracking for EZScore analysis.
 
 The tracker is deliberately meter-agnostic here: it produces beat timestamps
-from the audio. Signature/grouping is applied later by EZScore and therefore
+from the audio.  Signature/grouping is applied later by EZScore and therefore
 cannot move these canonical timestamps.
-
-R1 compatibility note:
-Use madmom-infer's documented public task API instead of importing package
-internals.
 """
 
 from __future__ import annotations
 
+import importlib.util
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 
-ENGINE = "madmom-infer-detect-beats"
-
-
-def _madmom():
-    try:
-        import madmom_infer as mm
-    except Exception as exc:
-        raise RuntimeError(
-            "Moteur rythmique absent : installez `madmom-infer==0.2.0`."
-        ) from exc
-
-    detect_beats = getattr(mm, "detect_beats", None)
-    if not callable(detect_beats):
-        version = str(getattr(mm, "__version__", "inconnue") or "inconnue")
-        raise RuntimeError(
-            "API madmom-infer incompatible "
-            f"(version détectée : {version}). "
-            "EZScore requiert l'API publique `detect_beats`; "
-            "installez `madmom-infer==0.2.0`."
-        )
-    return mm
+ENGINE = "madmom-infer-rnn-dbn"
 
 
 def quality_rhythm_engine_available() -> bool:
     try:
-        mm = _madmom()
-        return callable(getattr(mm, "detect_beats", None))
+        return importlib.util.find_spec("madmom_infer") is not None
     except Exception:
         return False
 
@@ -53,24 +29,28 @@ def analyze_beats(audio_path: Path) -> dict[str, Any]:
     if not path.is_file():
         raise FileNotFoundError(str(path))
 
-    mm = _madmom()
-
-    try:
-        detected = mm.detect_beats(str(path))
-    except Exception as exc:
+    if not quality_rhythm_engine_available():
         raise RuntimeError(
-            "madmom-infer n'a pas pu extraire les beats du STEM Batterie : "
-            f"{type(exc).__name__}: {exc}"
-        ) from exc
+            "Moteur rythmique haute qualité absent : installez `madmom-infer`. "
+            "EZScore refuse de revenir silencieusement à librosa.beat."
+        )
 
-    beats = np.asarray(detected, dtype=float).reshape(-1)
+    from madmom_infer.features.beats import (
+        DBNBeatTrackingProcessor,
+        RNNBeatProcessor,
+    )
+
+    activations = RNNBeatProcessor()(str(path))
+    beats = np.asarray(
+        DBNBeatTrackingProcessor(fps=100)(activations),
+        dtype=float,
+    ).reshape(-1)
+
     beats = beats[np.isfinite(beats)]
     beats = np.unique(np.round(beats, 6))
-
     if beats.size < 2:
         raise RuntimeError(
-            "madmom-infer n'a pas détecté assez de pulsations "
-            "pour construire la timeline."
+            "madmom-infer n'a pas détecté assez de pulsations pour construire la timeline."
         )
 
     intervals = np.diff(beats)

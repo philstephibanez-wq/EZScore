@@ -1,71 +1,79 @@
-# EZScore_MADMOM_API_R1
+# EZScore_TECHNICAL_TIMELINE_R2
 
-Base concernée : `EZScore_TECHNICAL_TIMELINE_R2` appliquée localement.
-
-## Cause exacte
-
-L'erreur :
+Base GitHub vérifiée :
 
 ```text
-ModuleNotFoundError: No module named 'madmom_infer.features.beats'
+master = daa4be565c6f5b24d774a1ad8aa5919d9deded79
+EZScore_TECHNICAL_TIMELINE_R1
 ```
 
-vient d'un import trop couplé à l'organisation interne du paquet.
+## Pourquoi R1 restait KO
 
-EZScore utilisait :
+R1 branchait `technical_timeline.json` en modifiant dynamiquement
+`lyrics_inline_editor._load_timing`.
 
-```python
-from madmom_infer.features.beats import ...
-```
-
-Le correctif utilise l'API publique documentée :
-
-```python
-import madmom_infer as mm
-beats = mm.detect_beats(audio_path)
-```
-
-## Version fixée
+Le rendu `Paroles + accords` dépendait donc encore de l'ordre d'installation
+des patches Streamlit. En cas d'échec de construction de la timeline,
+l'exception était en plus avalée et l'ancien message générique réapparaissait :
 
 ```text
-madmom-infer==0.2.0
+Timeline de beats absente
 ```
 
-Cette version supporte Python 3.13.
+R2 supprime cette dépendance.
+
+## R2
+
+`chords_lyrics_editor.py` consomme directement la timeline technique :
+
+```text
+structure/karaoke timing existant
+        ↓ sinon
+technical_timeline.json
+        ↓ sinon
+construction directe :
+  Batterie -> madmom-infer -> beats
+  Original -> lv-chordia -> accords
+```
+
+Le player STEM fait également cette vérification directement avec les chemins
+audio qu'il possède déjà.
+
+Il n'y a aucun beat synthétique/factice.
+
+Si le moteur de beats, le STEM Batterie ou l'audio original est réellement
+indisponible, l'éditeur affiche maintenant **l'erreur technique exacte** au
+lieu du message générique.
 
 ## Application
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_MADMOM_API_R1.zip" -C H:\EZScore
-
-.\.venv-py313\Scripts\python.exe -m pip install --upgrade --force-reinstall `
-  madmom-infer==0.2.0
-
-.\.venv-py313\Scripts\python.exe .\scripts\test_madmom_public_api.py
+tar -xf "$env:USERPROFILE\Downloads\EZScore_TECHNICAL_TIMELINE_R2.zip" -C H:\EZScore
 
 .\.venv-py313\Scripts\python.exe -m py_compile `
-  .\ezscore\analysis\rhythm_quality.py `
-  .\scripts\test_madmom_public_api.py `
-  .\scripts\test_madmom_api_contract.py
+  .\ezscore\analysis\technical_timeline.py `
+  .\ezscore\player\stem_analysis_conductor.py `
+  .\ezscore\ui\chords_lyrics_editor.py `
+  .\scripts\test_technical_timeline_r2_contract.py
 
-.\.venv-py313\Scripts\python.exe .\scripts\test_madmom_api_contract.py
+.\.venv-py313\Scripts\python.exe .\scripts\test_technical_timeline_r2_contract.py
 ```
 
 Attendu :
 
 ```text
-madmom-infer version: 0.2.0
-detect_beats callable: True
-MADMOM PUBLIC API OK
-
-MADMOM API CONTRACT OK
-internal processor import: REMOVED
-public detect_beats API: ENABLED
+TECHNICAL TIMELINE R2 CONTRACT OK
+editor timing: DIRECT
+STEM conductor timing: DIRECT
+monkey-patch timing dependency: REMOVED
+silent timing errors: REMOVED
+fake beats: NONE
 ```
 
-Puis redémarrer complètement Streamlit.
+Redémarrer ensuite complètement Streamlit.
 
-Au premier vrai calcul de beats, `madmom-infer` peut télécharger ses poids de
-modèle.
+Au premier affichage sans cache technique, la construction beats + accords peut
+prendre un peu de temps. Les exécutions suivantes réutilisent
+`technical_timeline.json`.
