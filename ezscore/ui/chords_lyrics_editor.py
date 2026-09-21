@@ -2,11 +2,20 @@ from __future__ import annotations
 
 """Restored R5.10 chords + lyrics editor surface for Analyse.
 
-R2 timing rule:
-- first consume historical/canonical timing via legacy loader;
-- if absent, directly load/build technical_timeline.json;
-- never depend on monkey-patch installation order;
-- never synthesize fake beats.
+This is deliberately a dedicated module. It reuses the exact validated R5.10
+component/templates already present in the repository:
+- Sections
+- Accords
+- Chant
+- Chœurs
+- word editing
+- chord editing
+- section anchors
+- long-click line-break insertion
+- line-break drag/delete
+- one shared horizontal timeline / scrollbar
+
+No audio engine is created here.
 """
 
 import json
@@ -15,15 +24,10 @@ from typing import Any
 
 import streamlit as st
 
-from ezscore.analysis.technical_timeline import (
-    ensure_from_stem_module,
-    load as load_technical_timeline,
-)
 from ezscore.ui import lyrics_inline_editor as legacy
 from ezscore.ui.editorial_timeline import (
     empty_payload,
     load as load_editorial,
-    normalize_beats,
     normalize_words,
     save as save_editorial,
 )
@@ -36,6 +40,13 @@ def _safe_editorial(
     backing: list[dict[str, Any]],
     beats: list[dict[str, Any]],
 ) -> tuple[dict[str, Any], str]:
+    """Load the saved overlay without allowing a stale fingerprint to crash Analyse.
+
+    The old file is never deleted or rewritten automatically. If the technical
+    timeline changed after a reanalysis, the editor opens on a clean overlay and
+    reports the mismatch. A later explicit Save is the only operation that may
+    replace the editorial overlay.
+    """
     try:
         return load_editorial(work_dir, lead, backing, beats), ""
     except RuntimeError as exc:
@@ -52,43 +63,6 @@ def _safe_editorial(
         )
 
 
-def _load_editor_timing(
-    *,
-    stem_module,
-    audio_hash: str,
-) -> tuple[list[dict[str, Any]], str, str]:
-    """Load real timing without relying on installation order."""
-    beats, meter, source = legacy._load_timing(
-        stem_module,
-        audio_hash,
-    )
-    if beats:
-        return beats, meter, source
-
-    work_dir = stem_module._work_dir(audio_hash)
-    technical = load_technical_timeline(work_dir)
-
-    if technical is None:
-        technical = ensure_from_stem_module(
-            stem_module,
-            audio_hash,
-        )
-
-    raw = list(technical.get("beat_timeline", []) or [])
-    if not raw:
-        raise RuntimeError(
-            "technical_timeline.json ne contient aucun beat canonique."
-        )
-
-    normalized = normalize_beats(raw)
-    if not normalized:
-        raise RuntimeError(
-            "La timeline technique existe mais sa normalisation est vide."
-        )
-
-    return normalized, meter or "4/4", "technical_timeline"
-
-
 def render_chords_lyrics_editor(
     *,
     stem_module,
@@ -96,7 +70,7 @@ def render_chords_lyrics_editor(
 ) -> None:
     speech = stem_module._load_speech(audio_hash)
     if speech is None:
-        st.info("Paroles alignées absentes.")
+        st.info("Transcription Whisper absente.")
         return
 
     lead_raw = list(speech.get("words", []) or [])
@@ -106,20 +80,15 @@ def render_chords_lyrics_editor(
         audio_hash,
         lead_raw,
     )
+    beats, detected_meter, meter_source = legacy._load_timing(
+        stem_module,
+        audio_hash,
+    )
 
-    try:
-        beats, detected_meter, meter_source = _load_editor_timing(
-            stem_module=stem_module,
-            audio_hash=audio_hash,
-        )
-    except Exception as exc:
+    if not beats:
         st.error(
-            "Timeline beats + accords indisponible : "
-            f"{type(exc).__name__}: {exc}"
-        )
-        st.caption(
-            "Aucun beat artificiel n'est créé. "
-            "La cause technique exacte est affichée ci-dessus."
+            "Timeline de beats absente : l'éditeur synchronisé ne peut pas "
+            "être affiché correctement. Aucun faux alignement n'est généré."
         )
         return
 
@@ -202,6 +171,7 @@ def render_chords_lyrics_editor(
             st.rerun()
 
     st.caption(
-        "Éditeur visuel R5.10 · timeline technique canonique · "
-        "double-clic = modifier · clic long sur un mot = insérer ↵."
+        "Éditeur visuel R5.10 restauré : Sections / Accords / Chant / Chœurs · "
+        "double-clic = modifier · clic long sur un mot = insérer ↵ · "
+        "une seule timeline et une seule scrollbar. Aucun moteur audio ici."
     )
