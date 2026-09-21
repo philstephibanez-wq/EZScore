@@ -14,6 +14,9 @@ soundfile
 audioop-lts>=0.2.2; python_version >= "3.13"
 openai-whisper
 
+# OIDC / Google / Auth0 / Apple
+Authlib==1.8.0
+
 bs-roformer-infer
 melband-roformer-infer
 lv-chordia

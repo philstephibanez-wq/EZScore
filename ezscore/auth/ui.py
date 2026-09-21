@@ -66,18 +66,26 @@ _AUTH_CSS = r"""
 
 def _provider_button(provider: str, label: str, key: str) -> None:
     ready, reason = oidc_provider_status(provider)
+    authlib_available = importlib.util.find_spec("authlib") is not None
+    enabled = bool(ready and authlib_available)
+
     if st.button(
         label if ready else label + " · à configurer",
         key=key,
         width="stretch",
-        disabled=not ready or importlib.util.find_spec("authlib") is None,
+        disabled=not enabled,
     ):
         try:
             login_oidc(provider)
         except Exception as exc:
             st.error(str(exc))
+
     if not ready:
         st.caption(reason)
+    elif not authlib_available:
+        st.caption(
+            "Bibliothèque Authlib absente de l'environnement Python actif."
+        )
 
 
 def render_account_header() -> None:
@@ -507,8 +515,6 @@ def render_account_page() -> None:
     st.markdown(_AUTH_CSS, unsafe_allow_html=True)
     st.header("Compte EZScore")
 
-    # Une BDD de comptes vide doit toujours passer par le bootstrap interactif
-    # du premier administrateur AVANT toute résolution de session/OIDC.
     users = user_count()
     if users == 0:
         _render_initial_admin_setup()

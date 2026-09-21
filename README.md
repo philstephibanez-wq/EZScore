@@ -1,50 +1,79 @@
-# EZScore_FIRST_RUN_WEB_R2_1
+# EZScore_GOOGLE_AUTH_R1
 
-Correction du test Windows de `EZScore_FIRST_RUN_WEB_R2`.
+Base :
+- `master`
+- commit de départ `208caf2ee402a9ba0a78da36831e13066746be5b`
 
-## Pourquoi le test affichait FIRST RUN OK puis plantait
+## Diagnostic
 
-Le scénario fonctionnel était déjà validé.
+La configuration Google est encore reconnue comme valide : dans l'UI, le bouton
+Google n'affichait pas `à configurer` ni de message de configuration invalide.
 
-Le `WinError 32` venait du nettoyage du fichier SQLite temporaire. Plusieurs
-fonctions EZScore ouvrent leurs propres connexions SQLite ; sous Windows,
-certains handles peuvent rester vivants jusqu'à la fin du processus Python.
+Le bouton était pourtant désactivé à cause de cette condition :
 
-Fermer uniquement la connexion créée directement par le test ne garantit donc
-pas que tous les handles internes sont déjà libérés.
+```python
+disabled=not ready or importlib.util.find_spec("authlib") is None
+```
+
+Dans le nouvel environnement `.venv-py313`, `authlib` n'était pas déclaré dans
+`requirements-analysis-hq.txt`.
 
 ## Correction
 
-Le test utilise maintenant deux processus :
+### requirements-analysis-hq.txt
 
-1. le processus enfant crée/teste la BDD temporaire ;
-2. il se termine ;
-3. Windows libère tous les handles SQLite du processus enfant ;
-4. le processus parent supprime le dossier temporaire.
+Ajout :
 
-Aucune modification applicative supplémentaire.
+```text
+Authlib==1.8.0
+```
 
-## Installation
+Authlib 1.8.0 supporte Python >= 3.10, dont Python 3.13.
+
+### scripts/install_analysis_hq.ps1
+
+Le script vérifie désormais explicitement :
+
+```text
+import authlib
+Authlib=<version>
+```
+
+### ezscore/auth/ui.py
+
+Si la configuration OIDC est correcte mais que la bibliothèque Authlib manque,
+l'interface affiche maintenant explicitement :
+
+```text
+Bibliothèque Authlib absente de l'environnement Python actif.
+```
+
+Le bouton n'est donc plus silencieusement désactivé.
+
+## Installation minimale
+
+Il n'est PAS nécessaire de réinstaller toute la pile GPU pour ce correctif :
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_FIRST_RUN_WEB_R2_1.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_GOOGLE_AUTH_R1.zip" -C H:\EZScore
+
+.\.venv-py313\Scripts\python.exe -m pip install Authlib==1.8.0
+
+.\.venv-py313\Scripts\python.exe -c "import authlib; print(authlib.__version__)"
 
 .\.venv-py313\Scripts\python.exe -m py_compile `
-  .\scripts\test_first_run_db.py
+  .\ezscore\auth\ui.py
 ```
 
-Puis :
+Puis redémarrer complètement Streamlit :
 
 ```powershell
-.\.venv-py313\Scripts\python.exe .\scripts\test_first_run_db.py
+.\.venv-py313\Scripts\python.exe -m streamlit run EZScore.py
 ```
 
-Résultat attendu :
+Le bouton Google doit redevenir actif si `.streamlit/secrets.toml` contient
+toujours la configuration Google locale valide.
 
-```text
-FIRST RUN OK
-...
-temporary DB cleanup: OK
-```
+Aucun secret n'est ajouté au dépôt.
