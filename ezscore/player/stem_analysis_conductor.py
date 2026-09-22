@@ -350,7 +350,6 @@ conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row
     chordNodes.push(span);
   });
 
-  let activeWordIndex=-2;
   let pixelsPerSecond=96;
 
   function computeGlobalScale() {
