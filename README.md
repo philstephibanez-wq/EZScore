@@ -1,55 +1,89 @@
-# EZScore_ANALYSIS_PLAYER_R1b
+# EZScore_LYRICS_SOURCE_PERSIST_R1
 
-R1a s'est arrêté atomiquement avant toute écriture.
+Base distante vérifiée avant livraison :
 
-## Cause exacte
-
-`stem_analysis_conductor.py` ne contient pas littéralement :
-
-```javascript
-let duration = 0;
+```text
+master = 21e051ad58f1e0ed890fbd7afdebe973299b0ec5
+EZScore_ANALYSIS_PLAYER_R1b
 ```
 
-Cette ligne appartient à `base._PLAYER_JS` et n'existe qu'à l'exécution de
-Python après :
+## Principe
 
-```python
-_JS = base._PLAYER_JS
+Le bloc `Texte exact du chant` devient la source éditable persistante de la
+chanson.
+
+```text
+bloc texte utilisateur
+    ↓ sauvegarde durable
+SQLite + lyrics_input.txt
+    ↓
+MMS_FA
+    ↓
+mots horodatés
 ```
 
-R1a cherchait donc le texte au mauvais niveau.
+Modifier le bloc ne supprime pas le texte. Cela signifie seulement que les
+timestamps doivent être réalignés.
 
-R1b injecte maintenant un `_replace_once()` sur `_JS` juste après
-`_JS = base._PLAYER_JS`.
+## Réouverture et migration
 
-L'application reste atomique : aucun des trois fichiers originaux n'est
-remplacé tant que tous les patchs et la validation syntaxique ne sont pas OK.
+À l'ouverture d'une chanson, priorité :
+
+```text
+1. source utilisateur persistée
+2. source_text de l'alignement forcé
+3. lyric_block_edits historiques
+4. analyses.whisper_json historique
+5. analysis_versions.whisper_json historique
+```
+
+Une source historique récupérée est immédiatement copiée dans le nouveau
+stockage durable.
+
+Le widget utilise `on_change` : un champ vide transitoire ne réécrit plus
+aveuglément la source à chaque rendu.
 
 ## Application
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_ANALYSIS_PLAYER_R1b.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_LYRICS_SOURCE_PERSIST_R1.zip" -C H:\EZScore
 
-.\.venv-py313\Scripts\python.exe .\scripts\apply_analysis_player_r1b.py
+.\.venv-py313\Scripts\python.exe .\scripts\apply_lyrics_source_persist_r1.py
 
 .\.venv-py313\Scripts\python.exe -m py_compile `
-  .\ezscore\analysis\forced_lyrics.py `
   .\ezscore\integration\choir_pipeline.py `
-  .\ezscore\player\stem_analysis_conductor.py `
-  .\scripts\test_analysis_player_r1b_contract.py
+  .\scripts\test_lyrics_source_persist_r1_contract.py
 
-.\.venv-py313\Scripts\python.exe .\scripts\test_analysis_player_r1b_contract.py
+.\.venv-py313\Scripts\python.exe .\scripts\test_lyrics_source_persist_r1_contract.py
 ```
 
 Attendu :
 
 ```text
 PATCH OK
- - application atomique validée
- ...
-ANALYSIS PLAYER R1b CONTRACT OK
+ - bloc utilisateur persisté à chaque modification
+ - rechargement automatique à l'ouverture
+ - migration automatique lyric_block_edits -> source canonique
+ - migration fallback analyses.whisper_json
+ - migration fallback analysis_versions.whisper_json
+ - retours à la ligne conservés quand disponibles
+
+LYRICS SOURCE PERSIST R1 CONTRACT OK
+...
 ```
 
-Ne pas faire de `git pull`, `reset` ou `restore`.
+Puis redémarrer Streamlit.
+
+## Test
+
+Sur la chanson où le champ était vide :
+- ouvrir `2 · Paroles`;
+- le bloc doit se remplir automatiquement depuis la meilleure source historique ;
+- modifier une ligne ;
+- passer sur une autre chanson puis revenir ;
+- la modification doit toujours être là ;
+- si le texte diffère de l'alignement courant, le bouton de réalignement reste disponible.
+
+Aucune réanalyse STEM n'est nécessaire.
