@@ -350,6 +350,7 @@ conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row
     chordNodes.push(span);
   });
 
+  let activeWordIndex=-2;
   let pixelsPerSecond=96;
 
   function computeGlobalScale() {
@@ -499,7 +500,10 @@ conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row
     renderConductor(currentTime());
   });
 
-  renderConductor(0);
+  requestAnimationFrame(() => {
+    layoutConductor();
+    renderConductor(0);
+  });
 
 '''
 
@@ -686,7 +690,8 @@ def render_player(
     st.caption(
         "Conducteur STEM : 1 ligne Accords + 1 ligne Paroles · "
         "notation Am--- · '_' = prolongation vocale · "
-        "défilement continu sans retour à la ligne."
+        "défilement continu sans retour à la ligne. "
+        f"Payload : {len(beats)} beats · {len(player_words)} mots."
     )
 
     _STEM_CONDUCTOR(

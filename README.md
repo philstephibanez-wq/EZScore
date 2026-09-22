@@ -1,74 +1,93 @@
-# EZScore_STEM_LAZY_UI_R1
+# EZScore_STEM_CONDUCTOR_R2
 
-Base distante vérifiée :
-
-```text
-master = 907105f1100c95d9eebc7043cbdf56a6ddada7ab
-EZScore_LYRICS_RENDER_REMOTE_R1b
-```
-
-Le retour dans `1 · STEM` ne monte plus automatiquement les surfaces lourdes.
-
-Avant, deux opérations étaient déclenchées à chaque retour :
-- `_download_stems(all_stems)` lit chaque WAV avec `read_bytes()`;
-- `_render_stem_player(...)` prépare/enregistre les médias et remonte WebAudio.
-
-Sur l'instance web, cela peut provoquer un timeout de connexion navigateur
-alors que le serveur Python continue à tourner.
-
-Nouveau comportement :
+Base GitHub vérifiée :
 
 ```text
-Paroles → STEM
-        ↓
-page légère immédiatement
-        ↓
-▶ Ouvrir le lecteur STEM       (à la demande)
-⬇ Préparer les téléchargements (à la demande)
+master = 6e48c339dfff9c7d64ceeb274ff1d6d421438528
+EZScore_STEM_LAZY_UI_R1
 ```
 
-En quittant STEM, le player et les téléchargements sont remis à l'état fermé.
+## Cause exacte
 
-Ergonomie Android :
-- boutons pleine largeur ;
-- ordre DOM naturel ;
-- contrôles internes du lecteur déjà focusables ;
-- aucune action lourde déclenchée par le simple changement d'étape.
+Le moteur historique déclarait `activeWordIndex` dans une portion de JavaScript
+qui a été remplacée par le conducteur continu.
 
-Application :
+Le nouveau code utilisait encore :
+
+```javascript
+if (wordIndex !== activeWordIndex) {
+    activeWordIndex = wordIndex;
+}
+```
+
+mais la variable n'était plus déclarée.
+
+Le navigateur interrompait donc l'initialisation du conducteur avec un
+`ReferenceError`, alors que le mixer WebAudio restait visible.
+
+R2 ajoute :
+
+```javascript
+let activeWordIndex = -2;
+```
+
+et effectue le premier layout dans `requestAnimationFrame()`.
+
+## Contrôle des données
+
+La légende du conducteur affiche maintenant :
+
+```text
+Payload : N beats · M mots
+```
+
+Pour les deux analyses déjà diagnostiquées, on attend typiquement :
+
+```text
+338 beats · 139 mots
+528 beats · 430 mots
+```
+
+## Ergonomie
+
+Le bouton `✕ Fermer le lecteur STEM` est supprimé.
+
+Le lecteur reste ouvert tant que l'utilisateur reste dans STEM, puis il est
+automatiquement déchargé lorsqu'il quitte l'étape STEM. Cela évite un bouton
+inutile dans le parcours télécommande Android.
+
+## Application
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_STEM_LAZY_UI_R1.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_STEM_CONDUCTOR_R2.zip" -C H:\EZScore
 
-.\.venv-py313\Scripts\python.exe .\scripts\apply_stem_lazy_ui_r1.py
+.\.venv-py313\Scripts\python.exe .\scripts\apply_stem_conductor_r2.py
 
 .\.venv-py313\Scripts\python.exe -m py_compile `
+  .\ezscore\player\stem_analysis_conductor.py `
   .\ezscore\ui\stem_lab_analysis.py `
-  .\scripts\test_stem_lazy_ui_r1_contract.py
+  .\scripts\test_stem_conductor_r2_contract.py
 
 $env:PYTHONPATH = "H:\EZScore"
-.\.venv-py313\Scripts\python.exe .\scripts\test_stem_lazy_ui_r1_contract.py
+.\.venv-py313\Scripts\python.exe .\scripts\test_stem_conductor_r2_contract.py
 ```
 
 Attendu :
 
 ```text
 PATCH OK
-...
-STEM LAZY UI R1 CONTRACT OK
-return-to-STEM heavy auto mount: NO
-WAV payloads on simple return: NO
-player mount requires explicit action: YES
-leaving STEM unloads heavy surfaces: YES
-Android remote full-width controls: YES
+ - bug JS activeWordIndex corrigé
+ - premier rendu conducteur différé après layout
+ - compteurs beats/mots visibles
+ - bouton Fermer le lecteur STEM supprimé
+
+STEM CONDUCTOR R2 CONTRACT OK
+activeWordIndex declared: YES
+initial conductor layout deferred: YES
+payload counts visible: YES
+explicit close button removed: YES
 ```
 
 Puis redémarrer Streamlit.
-
-Test :
-1. `2 · Paroles`;
-2. retour `1 · STEM` : aucun timeout attendu ;
-3. `▶ Ouvrir le lecteur STEM` seulement quand nécessaire ;
-4. retour Paroles puis STEM : lecteur refermé automatiquement.

@@ -1215,14 +1215,6 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                         st.session_state[stem_player_open_key] = True
                         st.rerun()
                 else:
-                    if st.button(
-                        "✕ Fermer le lecteur STEM",
-                        width="stretch",
-                        key=f"ezstem_close_player_{short_hash}",
-                    ):
-                        st.session_state[stem_player_open_key] = False
-                        st.rerun()
-
                     _render_stem_player(
                         source, all_stems,
                         preview_dir=_work_dir(audio_hash) / "browser_preview",
