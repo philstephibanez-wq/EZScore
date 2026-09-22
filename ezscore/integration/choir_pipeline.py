@@ -223,12 +223,6 @@ def _install_manual_lyrics_ui(stem_lab, audio_hash: str, original_render) -> Non
                 "détection de langue audio."
             )
 
-            def persist_current_text() -> None:
-                save_draft(
-                    audio_hash,
-                    str(st.session_state.get(text_key, "") or ""),
-                )
-
             current_text = st.text_area(
                 "Texte exact du chant",
                 key=text_key,
@@ -237,8 +231,29 @@ def _install_manual_lyrics_ui(stem_lab, audio_hash: str, original_render) -> Non
                     "Collez ici les paroles exactes. "
                     "Conservez les retours à la ligne : ils seront mémorisés."
                 ),
-                on_change=persist_current_text,
             )
+
+            persisted_text = str(load_draft(audio_hash) or "")
+            source_changed = current_text != persisted_text
+
+            validate_col, _ = st.columns([1, 2])
+            with validate_col:
+                if original_button(
+                    "💾 Valider les paroles",
+                    key=f"ezscore_validate_lyrics_{short_hash}",
+                    type="primary",
+                    width="stretch",
+                    disabled=(not current_text.strip() or not source_changed),
+                ):
+                    save_draft(audio_hash, current_text)
+                    st.success("✓ Bloc de paroles enregistré.")
+                    st.rerun()
+
+            if source_changed and current_text.strip():
+                st.info(
+                    "Modifications non validées. "
+                    "Validez le bloc avant de relancer l'alignement."
+                )
 
             if not current_text.strip():
                 legacy_text = _legacy_saved_lyrics(audio_hash)
@@ -282,7 +297,7 @@ def _install_manual_lyrics_ui(stem_lab, audio_hash: str, original_render) -> Non
                 key=f"ezscore_force_align_{short_hash}",
                 type="primary",
                 width="stretch",
-                disabled=(not current_text.strip() or not lead_ready),
+                disabled=(not current_text.strip() or not lead_ready or source_changed),
             ):
                 try:
                     with st.status(
@@ -429,8 +444,7 @@ def install(stem_lab) -> None:
             )
 
             if (
-                speech is not None
-                and stem_lab.stems_cache_complete(audio_hash)
+                stem_lab.stems_cache_complete(audio_hash)
                 and not has_timeline
             ):
                 try:

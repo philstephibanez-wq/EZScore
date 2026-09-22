@@ -159,7 +159,6 @@ def invalidate_dependents(audio_hash: str) -> None:
     """Invalidate only semantic artifacts derived from word timestamps."""
     work = work_dir(audio_hash)
     for name in (
-        "structure_analysis.json",
         "karaoke_conductor.json",
         "choir_analysis.json",
         "choir_words_from_vocals.json",
