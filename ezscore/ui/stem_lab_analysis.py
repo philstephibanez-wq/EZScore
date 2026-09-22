@@ -927,6 +927,14 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
         or st.session_state.get(analysis_step_key, analysis_steps[0])
     )
 
+    short_hash = str(audio_hash)[:12]
+    stem_player_open_key = f"ezstem_player_open_{short_hash}"
+    stem_downloads_open_key = f"ezstem_downloads_open_{short_hash}"
+
+    if analysis_step != "1 · STEM":
+        st.session_state[stem_player_open_key] = False
+        st.session_state[stem_downloads_open_key] = False
+
     stems = cached_stem_paths(audio_hash)
     speech = _load_speech(audio_hash)
     structure = _load_structure(audio_hash)
@@ -1077,7 +1085,31 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
 
             vocal_parts = vocal_stem_paths(audio_hash)
             all_stems = {**stems, **vocal_parts}
-            _download_stems(all_stems)
+
+            downloads_open = bool(
+                st.session_state.get(stem_downloads_open_key, False)
+            )
+            if not downloads_open:
+                if st.button(
+                    "⬇ Préparer les téléchargements STEM",
+                    key=f"ezstem_open_downloads_{short_hash}",
+                    width="stretch",
+                    help=(
+                        "Charge les WAV uniquement à la demande. "
+                        "Évite de gros payloads pendant la navigation."
+                    ),
+                ):
+                    st.session_state[stem_downloads_open_key] = True
+                    st.rerun()
+            else:
+                if st.button(
+                    "✕ Fermer les téléchargements STEM",
+                    key=f"ezstem_close_downloads_{short_hash}",
+                    width="stretch",
+                ):
+                    st.session_state[stem_downloads_open_key] = False
+                    st.rerun()
+                _download_stems(all_stems)
 
             regen_all_col, regen_vocal_col = st.columns(2)
             with regen_all_col:
@@ -1161,12 +1193,42 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                     + ("Paroles synchronisées actives." if words
                        else "Les paroles synchronisées apparaîtront après l'étape 2.")
                 )
-                _render_stem_player(
-                    source, all_stems,
-                    preview_dir=_work_dir(audio_hash) / "browser_preview",
-                    key=f"ezstem_player_{str(audio_hash)[:12]}_{len(words)}",
-                    words=words,
+
+                player_open = bool(
+                    st.session_state.get(stem_player_open_key, False)
                 )
+                if not player_open:
+                    st.info(
+                        "Le lecteur audio est déchargé pendant la navigation. "
+                        "Ouvrez-le uniquement pour écouter."
+                    )
+                    if st.button(
+                        "▶ Ouvrir le lecteur STEM",
+                        type="primary",
+                        width="stretch",
+                        key=f"ezstem_open_player_{short_hash}",
+                        help=(
+                            "Monte le mixer à la demande. "
+                            "Bouton adapté clavier/télécommande Android."
+                        ),
+                    ):
+                        st.session_state[stem_player_open_key] = True
+                        st.rerun()
+                else:
+                    if st.button(
+                        "✕ Fermer le lecteur STEM",
+                        width="stretch",
+                        key=f"ezstem_close_player_{short_hash}",
+                    ):
+                        st.session_state[stem_player_open_key] = False
+                        st.rerun()
+
+                    _render_stem_player(
+                        source, all_stems,
+                        preview_dir=_work_dir(audio_hash) / "browser_preview",
+                        key=f"ezstem_player_{short_hash}_{len(words)}",
+                        words=words,
+                    )
 
     # ========================================================
     # TAB 2 — PAROLES

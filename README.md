@@ -1,69 +1,74 @@
-# EZScore_LYRICS_RENDER_REMOTE_R1b
+# EZScore_STEM_LAZY_UI_R1
 
-Correctif du livrable R1 qui échouait car les chaînes `Lecture/Pause/Stop`
-existent deux fois dans le source du conducteur : une fois dans le motif
-supprimé du player de base et une fois dans le transport réellement injecté.
-
-R1b cible désormais **le bloc transport injecté complet**, donc aucun patch
-ambigu.
-
-Base GitHub vérifiée :
+Base distante vérifiée :
 
 ```text
-master = a52485f22a8f0ccaaa36808a9f712916a2d84f53
+master = 907105f1100c95d9eebc7043cbdf56a6ddada7ab
+EZScore_LYRICS_RENDER_REMOTE_R1b
 ```
 
-## Résultat attendu
+Le retour dans `1 · STEM` ne monte plus automatiquement les surfaces lourdes.
 
-Le bloc Paroles est rendu directement depuis :
+Avant, deux opérations étaient déclenchées à chaque retour :
+- `_download_stems(all_stems)` lit chaque WAV avec `read_bytes()`;
+- `_render_stem_player(...)` prépare/enregistre les médias et remonte WebAudio.
+
+Sur l'instance web, cela peut provoquer un timeout de connexion navigateur
+alors que le serveur Python continue à tourner.
+
+Nouveau comportement :
 
 ```text
-data\EZScore.sqlite3
-user_lyrics_sources.source_text
+Paroles → STEM
+        ↓
+page légère immédiatement
+        ↓
+▶ Ouvrir le lecteur STEM       (à la demande)
+⬇ Préparer les téléchargements (à la demande)
 ```
 
-Le widget Streamlit utilise une clé contenant une empreinte du contenu BDD.
-Un ancien état vide du navigateur/session ne peut plus masquer la donnée.
+En quittant STEM, le player et les téléchargements sont remis à l'état fermé.
 
-Le parcours télécommande/clavier reste dans l'ordre DOM naturel, avec focus
-visible pour les contrôles HTML du lecteur STEM.
+Ergonomie Android :
+- boutons pleine largeur ;
+- ordre DOM naturel ;
+- contrôles internes du lecteur déjà focusables ;
+- aucune action lourde déclenchée par le simple changement d'étape.
 
-## Application
+Application :
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_LYRICS_RENDER_REMOTE_R1b.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_STEM_LAZY_UI_R1.zip" -C H:\EZScore
 
-.\.venv-py313\Scripts\python.exe .\scripts\apply_lyrics_render_remote_r1b.py
+.\.venv-py313\Scripts\python.exe .\scripts\apply_stem_lazy_ui_r1.py
 
 .\.venv-py313\Scripts\python.exe -m py_compile `
-  .\ezscore\integration\choir_pipeline.py `
-  .\ezscore\player\stem_analysis_conductor.py `
-  .\scripts\test_lyrics_render_remote_r1b_contract.py
+  .\ezscore\ui\stem_lab_analysis.py `
+  .\scripts\test_stem_lazy_ui_r1_contract.py
 
-.\.venv-py313\Scripts\python.exe .\scripts\test_lyrics_render_remote_r1b_contract.py
+$env:PYTHONPATH = "H:\EZScore"
+.\.venv-py313\Scripts\python.exe .\scripts\test_stem_lazy_ui_r1_contract.py
 ```
 
 Attendu :
 
 ```text
 PATCH OK
- - textarea alimenté directement par SQLite
- - clé widget versionnée par le contenu BDD
- - bouton Valider conservé
- - aide Ctrl+Enter masquée
- - lecteur STEM navigable au clavier/télécommande
-
-LYRICS RENDER + REMOTE R1b CONTRACT OK
-DB rows verified: 2
- - cd8e4603f548: 2105 chars
- - f7759e677f20: 776 chars
-textarea <- SQLite direct: YES
-stale empty widget can mask DB: NO
-explicit validation button: YES
-Ctrl+Enter helper hidden: YES
-Android remote / keyboard focus: YES
+...
+STEM LAZY UI R1 CONTRACT OK
+return-to-STEM heavy auto mount: NO
+WAV payloads on simple return: NO
+player mount requires explicit action: YES
+leaving STEM unloads heavy surfaces: YES
+Android remote full-width controls: YES
 ```
 
-Puis arrêter complètement Streamlit et le relancer.
+Puis redémarrer Streamlit.
+
+Test :
+1. `2 · Paroles`;
+2. retour `1 · STEM` : aucun timeout attendu ;
+3. `▶ Ouvrir le lecteur STEM` seulement quand nécessaire ;
+4. retour Paroles puis STEM : lecteur refermé automatiquement.
