@@ -13,6 +13,7 @@ Active policy:
 from __future__ import annotations
 
 import json
+import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,25 @@ from ezscore.analysis.music_timeline import ensure_music_timeline
 
 LEAD_ONLY_LYRICS = True
 MANUAL_LYRICS = True
+
+_DB_PATH = Path(__file__).resolve().parents[2] / "data" / "EZScore.sqlite3"
+
+
+def _legacy_saved_lyrics(audio_hash: str) -> str:
+    try:
+        with sqlite3.connect(_DB_PATH) as conn:
+            rows = conn.execute(
+                "SELECT corrected_text, original_text, time_start FROM lyric_block_edits WHERE audio_hash = ? ORDER BY time_start",
+                (str(audio_hash),),
+            ).fetchall()
+    except sqlite3.Error:
+        return ""
+    chunks = []
+    for corrected, original, _ in rows:
+        value = str(corrected or original or "").strip()
+        if value and (not chunks or value != chunks[-1]):
+            chunks.append(value)
+    return "\n\n".join(chunks).strip()
 
 
 def _speech_ready(stem_lab, audio_hash: str) -> bool:
@@ -118,6 +138,17 @@ def _install_manual_lyrics_ui(stem_lab, audio_hash: str, original_render) -> Non
             )
             save_draft(audio_hash, current_text)
 
+            if not current_text.strip():
+                legacy_text = _legacy_saved_lyrics(audio_hash)
+                if legacy_text and original_button(
+                    "↩ Récupérer les paroles enregistrées",
+                    key=f"ezscore_recover_legacy_lyrics_{short_hash}",
+                    width="stretch",
+                ):
+                    st.session_state[text_key] = legacy_text
+                    save_draft(audio_hash, legacy_text)
+                    st.rerun()
+
             aligned_text = str(
                 old_payload.get("source_text", "") or ""
             ).strip()
@@ -152,10 +183,21 @@ def _install_manual_lyrics_ui(stem_lab, audio_hash: str, original_render) -> Non
                 disabled=(not current_text.strip() or not lead_ready),
             ):
                 try:
-                    with st.spinner(
-                        "Alignement acoustique du texte sur lead_vocals.wav…"
-                    ):
-                        align_user_lyrics(audio_hash, current_text)
+                    with st.status(
+                        "Alignement des paroles en cours…",
+                        expanded=True,
+                    ) as status:
+                        status.write("Initialisation MMS_FA…")
+                        align_user_lyrics(
+                            audio_hash,
+                            current_text,
+                            progress=status.write,
+                        )
+                        status.update(
+                            label="Paroles alignées.",
+                            state="complete",
+                            expanded=False,
+                        )
                 except Exception as exc:
                     st.error(f"Alignement des paroles impossible : {exc}")
                 else:
@@ -179,10 +221,18 @@ def _install_manual_lyrics_ui(stem_lab, audio_hash: str, original_render) -> Non
         if value.startswith("✓ Paroles prêtes"):
             payload = load_alignment(audio_hash) or {}
             count = len(list(payload.get("words", []) or []))
-            return original_success(
+            result = original_success(
                 f"✓ Paroles alignées · {count} mots horodatés · "
                 f"moteur `{FORCED_ENGINE}` · texte utilisateur."
             )
+            if original_button(
+                "→ Étape 3 · Blocs / structure",
+                key=f"ezscore_next_blocks_{short_hash}",
+                width="stretch",
+            ):
+                st.session_state[f"ezstem_analysis_step_{short_hash}"] = "3 · Blocs / structure"
+                st.rerun()
+            return result
         return original_success(*args, **kwargs)
 
     st.caption = caption_proxy

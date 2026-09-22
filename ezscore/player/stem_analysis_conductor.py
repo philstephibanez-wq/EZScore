@@ -16,6 +16,7 @@ from ezscore.guitar import (
 )
 from ezscore.player.media_url import register_media_url
 from ezscore.player import stem_webaudio as base
+from ezscore.analysis.forced_lyrics import load_alignment
 
 
 def _replace_once(source: str, old: str, new: str, label: str) -> str:
@@ -53,7 +54,6 @@ _PLAYER_HTML = _replace_once(
 ''',
     '''  <div class="conductor-wrap">
     <div class="conductor-head">
-      <strong>Conducteur continu</strong>
       <label class="diagram-toggle">
         <input class="diagram-checkbox" type="checkbox">
         Diagrammes guitare
@@ -78,6 +78,41 @@ _PLAYER_HTML = _replace_once(
   </div>
 ''',
     "HTML conducteur 2 lignes",
+)
+
+
+_PLAYER_HTML = _replace_once(
+    _PLAYER_HTML,
+    """  <div class="transport">
+    <button class="play" type="button">▶ Lecture</button>
+    <button class="pause" type="button">⏸ Pause</button>
+    <button class="stop" type="button">⏹ Stop</button>
+    <span class="time">0:00 / 0:00</span>
+  </div>
+
+  <input class="seek" type="range" min="0" max="1" step="0.001" value="0">
+
+""",
+    "",
+    "transport haut retiré",
+)
+
+_PLAYER_HTML = _replace_once(
+    _PLAYER_HTML,
+    """    <div class="current-diagram"></div>
+  </div>
+""",
+    """    <div class="transport conductor-transport">
+      <button class="play" type="button">▶ Lecture</button>
+      <button class="pause" type="button">⏸ Pause</button>
+      <button class="stop" type="button">⏹ Stop</button>
+      <span class="time">0:00 / 0:00</span>
+    </div>
+    <input class="seek conductor-seek" type="range" min="0" max="1" step="0.001" value="0">
+    <div class="current-diagram"></div>
+  </div>
+""",
+    "transport sous conducteur",
 )
 
 
@@ -162,6 +197,8 @@ _PLAYER_CSS = base._PLAYER_CSS + r'''
 .lyric-word.past { opacity:.50; }
 .lyric-word.current { opacity:1; font-weight:900; }
 
+.conductor-transport { margin-top:10px; }
+.conductor-seek { width:100%; margin:8px 0 2px; }
 .current-diagram {
   display:none;
   min-height:0;
@@ -186,6 +223,12 @@ _PLAYER_CSS = base._PLAYER_CSS + r'''
 
 
 _JS = base._PLAYER_JS
+_JS = _replace_once(
+    _JS,
+    '  let duration = 0;\n',
+    '  let duration = Number(data.duration_hint || 0);\n',
+    'duration hint',
+)
 
 _JS = _replace_once(
     _JS,
@@ -619,6 +662,19 @@ def render_player(
         diagrams = {}
 
     player_words = list(words or [])
+    if not player_words:
+        forced = load_alignment(audio_hash) or {}
+        player_words = list(forced.get("words", []) or [])
+
+    last_word_end = max(
+        [float(item.get("end", item.get("start", 0.0)) or 0.0) for item in player_words]
+        or [0.0]
+    )
+    last_beat_time = max(
+        [float(item.get("time", item.get("start", 0.0)) or 0.0) for item in beats]
+        or [0.0]
+    )
+    duration_hint = max(last_word_end, last_beat_time)
 
     st.caption(
         "Conducteur STEM : 1 ligne Accords + 1 ligne Paroles · "
@@ -635,6 +691,7 @@ def render_player(
             "chord_diagrams": diagrams,
             "show_diagrams": show_diagrams,
             "diagram_storage_key": f"ezscore-stem-diagrams:{audio_hash}",
+            "duration_hint": float(duration_hint),
         },
         key=key,
         width="stretch",

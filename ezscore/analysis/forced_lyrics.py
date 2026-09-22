@@ -18,6 +18,7 @@ alignment data only.
 import json
 import os
 import re
+import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -35,6 +36,7 @@ TIMEBASE = "original_audio_seconds"
 
 APP_DIR = Path(__file__).resolve().parents[2]
 LAB_CACHE_DIR = APP_DIR / "data" / "analysis" / "stem_lab"
+DB_PATH = APP_DIR / "data" / "EZScore.sqlite3"
 
 
 def work_dir(audio_hash: str) -> Path:
@@ -51,19 +53,71 @@ def draft_path(audio_hash: str) -> Path:
     return work_dir(audio_hash) / "lyrics_input.txt"
 
 
+def _ensure_source_table(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_lyrics_sources (
+            audio_hash TEXT PRIMARY KEY,
+            source_text TEXT NOT NULL DEFAULT '',
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+
+
+def load_persisted_source_text(audio_hash: str) -> str:
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            _ensure_source_table(conn)
+            row = conn.execute(
+                "SELECT source_text FROM user_lyrics_sources WHERE audio_hash = ?",
+                (str(audio_hash),),
+            ).fetchone()
+    except sqlite3.Error:
+        return ""
+    return str(row[0] or "") if row else ""
+
+
+def save_persisted_source_text(audio_hash: str, text: str) -> None:
+    value = str(text or "")
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            _ensure_source_table(conn)
+            conn.execute(
+                """
+                INSERT INTO user_lyrics_sources (audio_hash, source_text, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(audio_hash) DO UPDATE SET
+                    source_text = excluded.source_text,
+                    updated_at = excluded.updated_at
+                """,
+                (str(audio_hash), value, datetime.now(timezone.utc).isoformat()),
+            )
+            conn.commit()
+    except sqlite3.Error:
+        pass
+
+
 def load_draft(audio_hash: str) -> str:
     path = draft_path(audio_hash)
     if path.is_file():
-        return path.read_text(encoding="utf-8")
+        value = path.read_text(encoding="utf-8")
+        if value.strip():
+            return value
 
     payload = load_alignment(audio_hash)
     if payload:
-        return str(payload.get("source_text", "") or "")
-    return ""
+        value = str(payload.get("source_text", "") or "")
+        if value.strip():
+            return value
+
+    return load_persisted_source_text(audio_hash)
 
 
 def save_draft(audio_hash: str, text: str) -> None:
-    draft_path(audio_hash).write_text(str(text or ""), encoding="utf-8")
+    value = str(text or "")
+    draft_path(audio_hash).write_text(value, encoding="utf-8")
+    save_persisted_source_text(audio_hash, value)
 
 
 def load_alignment(audio_hash: str) -> dict[str, Any] | None:
@@ -202,7 +256,7 @@ def _load_lead(audio_hash: str, sample_rate: int):
     return waveform
 
 
-def _emit_chunked(model, waveform, device, *, sample_rate: int):
+def _emit_chunked(model, waveform, device, *, sample_rate: int, progress=None):
     """Run MMS_FA in bounded chunks so a full song fits on a 6 GB GPU."""
     chunk_seconds = 20.0
     chunk_samples = max(1, int(round(chunk_seconds * sample_rate)))
@@ -211,9 +265,12 @@ def _emit_chunked(model, waveform, device, *, sample_rate: int):
     frame_map: list[dict[str, int]] = []
     cumulative_frames = 0
     total_samples = int(waveform.shape[-1])
+    total_chunks = max(1, (total_samples + chunk_samples - 1) // chunk_samples)
 
     with torch.inference_mode():
-        for sample_start in range(0, total_samples, chunk_samples):
+        for chunk_index, sample_start in enumerate(range(0, total_samples, chunk_samples), start=1):
+            if progress is not None:
+                progress(f"Analyse acoustique MMS_FA · segment {chunk_index}/{total_chunks}…")
             sample_end = min(total_samples, sample_start + chunk_samples)
             chunk = waveform[:, sample_start:sample_end].to(device)
             emission, _ = model(chunk)
@@ -281,15 +338,19 @@ def _span_score(spans) -> float:
     return weighted / max(1, weight)
 
 
-def align_user_lyrics(audio_hash: str, source_text: str) -> dict[str, Any]:
+def align_user_lyrics(audio_hash: str, source_text: str, *, progress=None) -> dict[str, Any]:
     """Align exact user lyrics against lead_vocals.wav."""
     source_text = str(source_text or "").strip()
     if not source_text:
         raise RuntimeError("Collez d'abord le texte exact du chant.")
 
+    if progress is not None:
+        progress("Préparation phonétique du texte…")
     rows = _source_tokens(source_text)
     transcript = [str(row["acoustic"]) for row in rows]
 
+    if progress is not None:
+        progress("Chargement du modèle MMS_FA…")
     bundle = torchaudio.pipelines.MMS_FA
     sample_rate = int(bundle.sample_rate)
     waveform = _load_lead(audio_hash, sample_rate)
@@ -307,7 +368,11 @@ def align_user_lyrics(audio_hash: str, source_text: str) -> dict[str, Any]:
         waveform,
         device,
         sample_rate=sample_rate,
+        progress=progress,
     )
+
+    if progress is not None:
+        progress("Alignement forcé texte ↔ chant…")
 
     try:
         tokenized = tokenizer(transcript)
@@ -377,6 +442,9 @@ def align_user_lyrics(audio_hash: str, source_text: str) -> dict[str, Any]:
             "chunk_seconds": 20.0,
         },
     }
+
+    if progress is not None:
+        progress("Enregistrement des mots horodatés…")
 
     path = cache_path(audio_hash)
     temp = path.with_suffix(".tmp")
