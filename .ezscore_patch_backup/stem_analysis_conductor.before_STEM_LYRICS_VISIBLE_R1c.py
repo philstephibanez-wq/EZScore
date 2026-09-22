@@ -194,8 +194,7 @@ _PLAYER_CSS = base._PLAYER_CSS + r'''
 .lyric-word {
   margin:0;
   font-size:18px;
-  color:var(--st-text-color);
-  opacity:.42;
+  opacity:.34;
   transition:opacity 70ms linear, font-weight 70ms linear;
 }
 .lyric-word.past { opacity:.50; }
@@ -273,13 +272,11 @@ _JS = _JS.replace("renderLyrics(0);", "renderConductor(0);")
 _JS = _JS.replace("renderLyrics(t);", "renderConductor(t);")
 
 conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row.
-  // Known-good STEM layout restored: one absolute audio-time scale for
-  // chords and lyrics. No visual remapping through the Paroles editor.
 
   function normalizedWords(input) {
     const sorted=(Array.isArray(input) ? input : [])
       .map(w => ({
-        text:String(w.text || w.word || "").trim(),
+        text:String(w.text || "").trim(),
         start:Number(w.start || 0),
         end:Number(w.end ?? w.start ?? 0),
       }))
@@ -309,10 +306,7 @@ conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row
   function vocalDisplayText(word) {
     const text=String(word.text || "").trim();
     const duration=Math.max(0,Number(word.end || 0)-Number(word.start || 0));
-    const letters=Math.max(
-      1,
-      (text.match(/[A-Za-zÀ-ÖØ-öø-ÿĀ-ž]/g) || []).length
-    );
+    const letters=Math.max(1,(text.match(/[A-Za-zÀ-ÖØ-öø-ÿĀ-ž]/g) || []).length);
     const expected=Math.min(.72,.24 + letters*.055);
     const excess=Math.max(0,duration-expected);
     const count=excess >= .24
@@ -359,44 +353,37 @@ conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row
     chordNodes.push(span);
   });
 
-  let pixelsPerSecond=96;
+  // Exact shared layout engine from Analyse > Paroles.
+  const pixelsPerSecond=100;
+  const rawXForTime=(time) =>
+    Math.max(0,Number(time || 0))*pixelsPerSecond;
 
-  function computeGlobalScale() {
-    let required=96;
+  let lyricLayout={xs:[],right:0,measurable:false};
 
-    for (let i=0;i<words.length-1;i++) {
-      const dt=Number(words[i+1].start)-Number(words[i].start);
-      if (!(dt > .005)) continue;
-
-      const width=Math.max(
-        1,
-        Number(
-          lyricNodes[i]?.getBoundingClientRect?.().width ||
-          lyricNodes[i]?.offsetWidth ||
-          lyricNodes[i]?.scrollWidth ||
-          1
-        )
-      );
-
-      required=Math.max(required,(width+16)/dt);
-    }
-
-    pixelsPerSecond=Math.max(96,required);
-  }
-
-  function xForTime(time) {
-    return Math.max(0,Number(time || 0))*pixelsPerSecond;
+  function visualXForTime(time) {
+    return ezVisualXForTime(
+      words,
+      lyricLayout.xs,
+      time,
+      rawXForTime
+    );
   }
 
   function layoutConductor() {
-    computeGlobalScale();
-
-    lyricNodes.forEach((node,index) => {
-      node.style.left=xForTime(words[index].start)+"px";
+    lyricLayout=ezLayoutLaneNodes({
+      nodes:lyricNodes,
+      words,
+      rawXForWord:(word) => rawXForTime(word.start),
+      minGap:10,
+      contractionGap:1,
     });
 
     chordNodes.forEach((node,index) => {
-      node.style.left=xForTime(chordItems[index].time)+"px";
+      const x=visualXForTime(chordItems[index].time);
+      node.style.left=x+"px";
+      node.dataset.timelineX=String(
+        rawXForTime(chordItems[index].time)
+      );
     });
 
     const lastWordEnd=words.length
@@ -405,16 +392,20 @@ conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row
     const lastBeatTime=chordItems.length
       ? Number(chordItems[chordItems.length-1].time || 0)
       : 0;
-    const width=xForTime(Math.max(lastWordEnd,lastBeatTime)+4);
 
-    lyricsTrack.style.width=Math.max(1,width)+"px";
-    chordTrack.style.width=Math.max(1,width)+"px";
+    const width=Math.max(
+      1,
+      visualXForTime(Math.max(lastWordEnd,lastBeatTime)+2)+80,
+      Number(lyricLayout.right || 0)+80
+    );
+
+    lyricsTrack.style.width=width+"px";
+    chordTrack.style.width=width+"px";
   }
 
   function findWordIndex(time) {
     if (!words.length) return -1;
     let low=0,high=words.length-1,answer=-1;
-
     while (low<=high) {
       const middle=(low+high)>>1;
       if (words[middle].start<=time) {
@@ -424,14 +415,12 @@ conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row
         high=middle-1;
       }
     }
-
     return answer;
   }
 
   function findBeatIndex(time) {
     if (!chordItems.length) return -1;
     let low=0,high=chordItems.length-1,answer=-1;
-
     while (low<=high) {
       const middle=(low+high)>>1;
       if (chordItems[middle].time<=time) {
@@ -441,13 +430,11 @@ conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row
         high=middle-1;
       }
     }
-
     return answer;
   }
 
   function updateDiagram(beatIndex) {
     if (!currentDiagram) return;
-
     if (!showDiagrams || beatIndex<0 || !chordItems[beatIndex]) {
       currentDiagram.classList.remove("visible");
       currentDiagram.innerHTML="";
@@ -456,7 +443,6 @@ conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row
 
     const chord=String(chordItems[beatIndex].chord || ".");
     const svg=String(chordDiagrams[chord] || "");
-
     if (!svg) {
       currentDiagram.classList.remove("visible");
       currentDiagram.innerHTML="";
@@ -470,13 +456,13 @@ conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row
   function renderConductor(time) {
     const t=Math.max(0,Number(time || 0));
     const anchor=Math.max(90,lyricsStrip.clientWidth*.35);
-    const translate=anchor-xForTime(t);
+    const conductorX=visualXForTime(t);
+    const translate=anchor-conductorX;
 
     lyricsTrack.style.transform="translate3d("+translate.toFixed(2)+"px,0,0)";
     chordTrack.style.transform="translate3d("+translate.toFixed(2)+"px,0,0)";
 
     const wordIndex=findWordIndex(t);
-
     if (wordIndex!==activeWordIndex) {
       activeWordIndex=wordIndex;
       lyricNodes.forEach((node,index) => {
@@ -486,11 +472,9 @@ conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row
     }
 
     const beatIndex=findBeatIndex(t);
-
     chordNodes.forEach((node,index) => {
       node.classList.toggle("current",index===beatIndex);
     });
-
     updateDiagram(beatIndex);
   }
 
@@ -502,49 +486,40 @@ conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row
 
   try {
     const saved=localStorage.getItem(diagramStorageKey);
-
     if (saved==="1" || saved==="0") {
       showDiagrams=saved==="1";
     }
   } catch (_) {}
 
   diagramCheckbox.checked=showDiagrams;
-
   diagramCheckbox.addEventListener("change",() => {
     showDiagrams=Boolean(diagramCheckbox.checked);
-
     try {
-      localStorage.setItem(
-        diagramStorageKey,
-        showDiagrams ? "1" : "0"
-      );
+      localStorage.setItem(diagramStorageKey,showDiagrams ? "1" : "0");
     } catch (_) {}
-
     renderConductor(currentTime());
   });
 
-  function relayoutStemConductor() {
+  function relayoutSharedConductor() {
     if (!lyricsTrack.isConnected || !chordTrack.isConnected) return;
     layoutConductor();
     renderConductor(currentTime());
   }
 
   window.addEventListener("resize",() => {
-    requestAnimationFrame(relayoutStemConductor);
+    requestAnimationFrame(relayoutSharedConductor);
   });
 
-  requestAnimationFrame(relayoutStemConductor);
-  setTimeout(relayoutStemConductor,80);
-  setTimeout(relayoutStemConductor,280);
+  requestAnimationFrame(relayoutSharedConductor);
+  setTimeout(relayoutSharedConductor,80);
+  setTimeout(relayoutSharedConductor,280);
 
   if (document.fonts?.ready) {
     document.fonts.ready.then(() => {
       if (!lyricsTrack.isConnected) return;
-      requestAnimationFrame(relayoutStemConductor);
+      requestAnimationFrame(relayoutSharedConductor);
     }).catch(() => {});
   }
-
-  renderConductor(0);
 
 '''
 
@@ -560,7 +535,7 @@ _JS = _JS.replace("    renderLyrics(t);", "    renderConductor(t);")
 
 
 _STEM_CONDUCTOR = st.components.v2.component(
-    "ezscore_stem_analysis_conductor_r3",
+    "ezscore_stem_analysis_conductor_r1",
     html=_PLAYER_HTML,
     css=_PLAYER_CSS,
     js=_JS,

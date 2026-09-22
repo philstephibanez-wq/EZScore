@@ -1,82 +1,57 @@
-# EZScore_STEM_CONDUCTOR_SHARED_R1
+# EZScore_STEM_LYRICS_VISIBLE_R1c
 
-Base GitHub vérifiée :
+Cette livraison remplace R1/R1b.
 
-```text
-master = 5235963939750c2341a410d04bcdb045c490ab56
-EZScore_STEM_USE_PAROLES_LAYOUT_R1
-```
+## Ce qui était faux dans R1b
 
-Le player STEM est présent directement quand on entre dans `1 · STEM`.
+R1b contenait encore un ancrage généré incorrectement pour le bloc `player_words`.
+Il cherchait un texte qui n'existait pas exactement dans le fichier. Le patch a
+donc été bloqué avant écriture.
 
-Le conducteur charge le moteur déjà validé de `Analyse > Paroles` :
+R1c supprime complètement ce changement non nécessaire.
 
-```text
-templates/views/lyrics-layout.js
-```
+## Périmètre R1c
 
-Il utilise directement :
+Un seul changement fonctionnel :
+- restauration du moteur de placement du conducteur STEM qui fonctionnait avant
+  le branchement du layout visuel partagé de l'éditeur Paroles.
 
-```text
-ezLayoutLaneNodes(...)
-ezVisualXForTime(...)
-```
+Sécurités :
+- aucune modification de `player_words` ;
+- aucune modification du mixer ;
+- aucune modification du transport ;
+- aucune modification de la source des beats/accords ;
+- aucune modification du workflow ;
+- identité du composant navigateur `r1 -> r3` ;
+- couleur des paroles explicitée.
 
-Aucune réduction de données :
-
-```javascript
-const words = normalizedWords(rawWords);
-const lyricNodes = words.map(...);
-const chordItems = beats.map(...);
-```
-
-Donc tous les mots et tous les beats/accords reçus sont matérialisés dans le
-conducteur continu. Accords et paroles utilisent exactement le même repère
-visuel.
-
-La ligne textuelle Chœurs est masquée dans Paroles. `backing_vocals.wav`
-reste disponible dans le mixer audio STEM.
+Le patch construit le fichier complet en mémoire, exécute `ast.parse()` sur ce
+fichier complet, puis seulement copie le candidat vers le repo.
 
 ## Application
-
-Ne pas réappliquer R2b : le master est déjà plus récent.
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_STEM_CONDUCTOR_SHARED_R1.zip" -C H:\EZScore
-
-.\.venv-py313\Scripts\python.exe .\scripts\apply_stem_conductor_shared_r1.py
-
-.\.venv-py313\Scripts\python.exe -m py_compile `
-  .\ezscore\player\stem_analysis_conductor.py `
-  .\ezscore\ui\stem_lab_analysis.py `
-  .\ezscore\ui\chords_lyrics_editor.py `
-  .\scripts\test_stem_conductor_shared_r1_contract.py
+tar -xf "$env:USERPROFILE\Downloads\EZScore_STEM_LYRICS_VISIBLE_R1c.zip" -C H:\EZScore
 
 $env:PYTHONPATH = "H:\EZScore"
-.\.venv-py313\Scripts\python.exe .\scripts\test_stem_conductor_shared_r1_contract.py
+
+.\.venv-py313\Scripts\python.exe .\scripts\apply_stem_lyrics_visible_r1c.py
+
+.\.venv-py313\Scripts\python.exe .\scripts\test_stem_lyrics_visible_r1c_contract.py
 ```
 
 Attendu :
 
 ```text
-PATCH OK
- - STEM ouvre directement le player
- - TOUS les mots du payload sont créés dans le conducteur
- - TOUS les beats/accords sont créés dans le conducteur
- - accords + paroles utilisent le même lyrics-layout.js que Paroles
- - ligne textuelle Chœurs masquée dans Paroles
- - backing_vocals audio inchangé dans le mixer STEM
-
-STEM CONDUCTOR SHARED R1 CONTRACT OK
-shared Paroles layout engine in final JS: YES
-all words mapped to lyric nodes: YES
-all beats mapped to chord items: YES
-same visual timeline for chords + lyrics: YES
-player auto-present in STEM: YES
-textual choir lane in Paroles: HIDDEN
-final JS activeWordIndex declarations: 1
+STEM LYRICS VISIBLE R1c CONTRACT OK
+patched Python syntax: OK
+composed player import: OK
+known-good STEM conductor restored: YES
+all supplied words materialized: YES
+component identity r3: YES
+mixer / transport / payload source: UNCHANGED
 ```
 
-Puis redémarrer Streamlit.
+Aucun commit ni push.
