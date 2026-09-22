@@ -1,93 +1,61 @@
-# EZScore_STEM_CONDUCTOR_R2
+# EZScore_STEM_USE_PAROLES_LAYOUT_R1
 
 Base GitHub vérifiée :
 
 ```text
-master = 6e48c339dfff9c7d64ceeb274ff1d6d421438528
-EZScore_STEM_LAZY_UI_R1
+master = b6c9c60d86f866c02e43f29a9afca4af3a5a2241
+EZScore_STEM_CONDUCTOR_R2b
 ```
 
-## Cause exacte
-
-Le moteur historique déclarait `activeWordIndex` dans une portion de JavaScript
-qui a été remplacée par le conducteur continu.
-
-Le nouveau code utilisait encore :
-
-```javascript
-if (wordIndex !== activeWordIndex) {
-    activeWordIndex = wordIndex;
-}
-```
-
-mais la variable n'était plus déclarée.
-
-Le navigateur interrompait donc l'initialisation du conducteur avec un
-`ReferenceError`, alors que le mixer WebAudio restait visible.
-
-R2 ajoute :
-
-```javascript
-let activeWordIndex = -2;
-```
-
-et effectue le premier layout dans `requestAnimationFrame()`.
-
-## Contrôle des données
-
-La légende du conducteur affiche maintenant :
+Le player STEM reprend maintenant la géométrie déjà validée dans
+`Analyse > Paroles` :
 
 ```text
-Payload : N beats · M mots
+100 px / seconde
+mot = max(position timeline, bord droit du mot précédent + 10 px)
+suffixe contracté = bord droit précédent + 1 px
+relayout après montage, fonts.ready et ResizeObserver
 ```
 
-Pour les deux analyses déjà diagnostiquées, on attend typiquement :
+La piste commence à `left:0`, comme dans une timeline normale.
+Le défilement reste basé sur les secondes absolues de la timeline canonique.
 
-```text
-338 beats · 139 mots
-528 beats · 430 mots
-```
-
-## Ergonomie
-
-Le bouton `✕ Fermer le lecteur STEM` est supprimé.
-
-Le lecteur reste ouvert tant que l'utilisateur reste dans STEM, puis il est
-automatiquement déchargé lorsqu'il quitte l'étape STEM. Cela évite un bouton
-inutile dans le parcours télécommande Android.
+Aucune modification des timestamps, de MMS_FA, de la BDD, des beats ou de
+l'audio.
 
 ## Application
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_STEM_CONDUCTOR_R2.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_STEM_USE_PAROLES_LAYOUT_R1.zip" -C H:\EZScore
 
-.\.venv-py313\Scripts\python.exe .\scripts\apply_stem_conductor_r2.py
+.\.venv-py313\Scripts\python.exe .\scripts\apply_stem_use_paroles_layout_r1.py
 
 .\.venv-py313\Scripts\python.exe -m py_compile `
   .\ezscore\player\stem_analysis_conductor.py `
-  .\ezscore\ui\stem_lab_analysis.py `
-  .\scripts\test_stem_conductor_r2_contract.py
+  .\scripts\test_stem_use_paroles_layout_r1_contract.py
 
 $env:PYTHONPATH = "H:\EZScore"
-.\.venv-py313\Scripts\python.exe .\scripts\test_stem_conductor_r2_contract.py
+.\.venv-py313\Scripts\python.exe .\scripts\test_stem_use_paroles_layout_r1_contract.py
 ```
 
 Attendu :
 
 ```text
 PATCH OK
- - bug JS activeWordIndex corrigé
- - premier rendu conducteur différé après layout
- - compteurs beats/mots visibles
- - bouton Fermer le lecteur STEM supprimé
+ - conducteur STEM utilise l'échelle Paroles : 100 px/s
+ - collision des mots identique à Paroles (10 px, contractions 1 px)
+ - origine de piste corrigée : x=0
+ - relayout après fonts / resize / montage caché
+ - timeline audio inchangée
 
-STEM CONDUCTOR R2 CONTRACT OK
-activeWordIndex declared: YES
-initial conductor layout deferred: YES
-payload counts visible: YES
-explicit close button removed: YES
+STEM USE PAROLES LAYOUT R1 CONTRACT OK
+Paroles scale 100 px/s: YES
+Paroles collision layout reused: YES
+track origin x=0: YES
+fonts/resize/hidden relayout: YES
+final JS activeWordIndex declarations: 1
 ```
 
-Puis redémarrer Streamlit.
+Puis redémarrer Streamlit et ouvrir le lecteur STEM.

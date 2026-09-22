@@ -162,7 +162,7 @@ _PLAYER_CSS = base._PLAYER_CSS + r'''
 }
 .conductor-track {
   position:absolute;
-  left:50%;
+  left:0;
   top:0;
   height:46px;
   white-space:nowrap;
@@ -350,40 +350,68 @@ conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row
     chordNodes.push(span);
   });
 
-  let pixelsPerSecond=96;
-
-  function computeGlobalScale() {
-    let required=96;
-    for (let i=0;i<words.length-1;i++) {
-      const dt=Number(words[i+1].start)-Number(words[i].start);
-      if (!(dt > .005)) continue;
-
-      const width=Math.max(
-        1,
-        Number(
-          lyricNodes[i]?.getBoundingClientRect?.().width ||
-          lyricNodes[i]?.offsetWidth ||
-          1
-        )
-      );
-      required=Math.max(required,(width+16)/dt);
-    }
-    pixelsPerSecond=Math.max(96,required);
-  }
+  // Same visual layout contract as Analyse > Paroles.
+  const pixelsPerSecond=100;
+  let lyricVisualXs=[];
 
   function xForTime(time) {
     return Math.max(0,Number(time || 0))*pixelsPerSecond;
   }
 
-  function layoutConductor() {
-    computeGlobalScale();
+  function ezIsContractionSuffix(text) {
+    return /^[\'’]/.test(String(text || "").trim());
+  }
+
+  function ezNodeWidth(node) {
+    if (!node) return 0;
+    const rectWidth=Number(node.getBoundingClientRect?.().width || 0);
+    const offsetWidth=Number(node.offsetWidth || 0);
+    const scrollWidth=Number(node.scrollWidth || 0);
+    return Math.max(rectWidth,offsetWidth,scrollWidth,0);
+  }
+
+  function layoutWordsLikeParoles() {
+    const xs=[];
+    let previousRight=Number.NEGATIVE_INFINITY;
 
     lyricNodes.forEach((node,index) => {
-      node.style.left=xForTime(words[index].start)+"px";
+      const word=words[index] || {};
+      const rawX=xForTime(word.start);
+      let visualX=rawX;
+
+      const isSuffix=(
+        index>0 &&
+        ezIsContractionSuffix(word.text)
+      );
+
+      if (index>0) {
+        const previous=lyricNodes[index-1];
+        const previousLeft=Number.parseFloat(previous?.style.left || "0");
+        const previousWidth=ezNodeWidth(previous);
+
+        visualX=isSuffix
+          ? previousLeft + Math.max(1,previousWidth) + 1
+          : Math.max(rawX,previousRight + 10);
+      }
+
+      node.style.left=visualX+"px";
+      node.dataset.timelineX=String(rawX);
+
+      const width=ezNodeWidth(node);
+      previousRight=visualX + Math.max(1,width);
+      xs.push(visualX);
     });
+
+    lyricVisualXs=xs;
+    return Number.isFinite(previousRight) ? previousRight : 0;
+  }
+
+  function layoutConductor() {
+    const lyricRight=layoutWordsLikeParoles();
 
     chordNodes.forEach((node,index) => {
       node.style.left=xForTime(chordItems[index].time)+"px";
+      node.dataset.timelineX=String(xForTime(chordItems[index].time));
     });
 
     const lastWordEnd=words.length
@@ -392,10 +420,42 @@ conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row
     const lastBeatTime=chordItems.length
       ? Number(chordItems[chordItems.length-1].time || 0)
       : 0;
-    const width=xForTime(Math.max(lastWordEnd,lastBeatTime)+4);
 
-    lyricsTrack.style.width=Math.max(1,width)+"px";
-    chordTrack.style.width=Math.max(1,width)+"px";
+    const rawRight=xForTime(Math.max(lastWordEnd,lastBeatTime)+2);
+    const width=Math.max(rawRight,lyricRight+40,1);
+
+    lyricsTrack.style.width=width+"px";
+    chordTrack.style.width=width+"px";
+  }
+
+  function scheduleParolesLayout() {
+    const relayout=() => {
+      if (!lyricsTrack.isConnected || !chordTrack.isConnected) return;
+      layoutConductor();
+      renderConductor(currentTime());
+    };
+
+    requestAnimationFrame(relayout);
+    setTimeout(relayout,80);
+    setTimeout(relayout,280);
+
+    if (document.fonts?.ready) {
+      document.fonts.ready.then(() => {
+        if (!lyricsTrack.isConnected) return;
+        requestAnimationFrame(relayout);
+      }).catch(() => {});
+    }
+
+    const observer=new ResizeObserver(() => {
+      if (!lyricsStrip.isConnected) {
+        try { observer.disconnect(); } catch (_) {}
+        return;
+      }
+      if (lyricsStrip.getBoundingClientRect().width>0) {
+        requestAnimationFrame(relayout);
+      }
+    });
+    observer.observe(lyricsStrip);
   }
 
   function findWordIndex(time) {
@@ -451,7 +511,8 @@ conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row
   function renderConductor(time) {
     const t=Math.max(0,Number(time || 0));
     const anchor=Math.max(90,lyricsStrip.clientWidth*.35);
-    const translate=anchor-xForTime(t);
+    const timelineX=xForTime(t);
+    const translate=anchor-timelineX;
 
     lyricsTrack.style.transform="translate3d("+translate.toFixed(2)+"px,0,0)";
     chordTrack.style.transform="translate3d("+translate.toFixed(2)+"px,0,0)";
@@ -495,14 +556,10 @@ conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row
   });
 
   window.addEventListener("resize",() => {
-    layoutConductor();
-    renderConductor(currentTime());
+    scheduleParolesLayout();
   });
 
-  requestAnimationFrame(() => {
-    layoutConductor();
-    renderConductor(0);
-  });
+  scheduleParolesLayout();
 
 '''
 
