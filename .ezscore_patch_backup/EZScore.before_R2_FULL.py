@@ -3320,33 +3320,6 @@ if (
         }[song_mode_label]
         st.session_state[_mode_key] = song_mode
 
-        signature_options = [
-            "Auto",
-            "2/4",
-            "3/4",
-            "4/4",
-            "5/4",
-            "6/8",
-            "7/8",
-            "9/8",
-            "12/8",
-        ]
-        current_signature_mode = str(
-            st.session_state.get("setting_signature_mode", "Auto") or "Auto"
-        )
-        if current_signature_mode not in signature_options:
-            signature_options.append(current_signature_mode)
-
-        signature_mode = st.selectbox(
-            "⏱ Time signature",
-            signature_options,
-            key="setting_signature_mode",
-            help=(
-                "Change uniquement la représentation métrique du conducteur "
-                "et de la grille. Aucun beat, accord ou mot n’est déplacé."
-            ),
-        )
-
         capo_user = st.selectbox(
             "🎸 Capodastre",
             list(range(0, 13)),
@@ -3389,20 +3362,12 @@ if (
         else None
     )
 
-    _effective_pref_settings = dict(_stored_settings)
-    _effective_pref_settings["signature_mode"] = str(signature_mode)
-
-    if (
-        _stored_capo != int(capo_user)
-        or str(_stored_settings.get("signature_mode", "Auto"))
-        != str(signature_mode)
-    ):
+    if _stored_capo != int(capo_user):
         save_song_preferences(
             audio_hash=audio_hash,
             capo=capo_user,
-            settings=_effective_pref_settings,
+            settings=_stored_settings,
         )
-        _stored_settings = _effective_pref_settings
 
     # --------------------------------------------------------
     # MÉTADONNÉES DU MORCEAU
@@ -3437,23 +3402,22 @@ if (
     if _validated_mods["blocks"]:
         _validated_parts.append(f'Blocs : {_validated_mods["blocks"]}')
 
-    if song_view != "Analyse":
-        st.sidebar.markdown(
-            SCORE.render(
-                "templates/left-panel.score",
-                {
-                    "panel": {
-                        "editor_visible": bool(_sidebar_editor),
-                        "editor": _sidebar_editor,
-                        "structure_dirty": bool(_structure_dirty),
-                        "has_validated": bool(_validated_mods["has_any"]),
-                        "no_validated": not bool(_validated_mods["has_any"]),
-                        "validated_summary": " · ".join(_validated_parts),
-                    }
-                },
-            ),
-            unsafe_allow_html=True,
-        )
+    st.sidebar.markdown(
+        SCORE.render(
+            "templates/left-panel.score",
+            {
+                "panel": {
+                    "editor_visible": bool(_sidebar_editor),
+                    "editor": _sidebar_editor,
+                    "structure_dirty": bool(_structure_dirty),
+                    "has_validated": bool(_validated_mods["has_any"]),
+                    "no_validated": not bool(_validated_mods["has_any"]),
+                    "validated_summary": " · ".join(_validated_parts),
+                }
+            },
+        ),
+        unsafe_allow_html=True,
+    )
 
     if song_mode == "Édition":
         st.subheader("📝 Morceau")

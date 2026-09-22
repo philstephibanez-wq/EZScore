@@ -1,0 +1,13 @@
+{
+  "delivery": "EZScore_STEM_SHARED_CONDUCTOR_R2_FULL",
+  "base_git_head": "8e6fb686445132189df0afcd860f4803ef221cc6",
+  "files": {
+    "ezscore/player/stem_analysis_conductor.py": {
+      "sha256": "e7cee0bc83b2e48bdb380587cf384bde2272136261b2e7afefe4b60d5b214462",
+      "mode": "complete replacement"
+    },
+    "EZScore.py": {
+      "mode": "idempotent ensure of sidebar Time signature / Capodastre persistence / Analyse panel cleanup"
+    }
+  }
+}

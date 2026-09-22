@@ -1,57 +1,105 @@
-# EZScore_STEM_LYRICS_VISIBLE_R1c
+# EZScore_STEM_SHARED_CONDUCTOR_R2_FULL
 
-Cette livraison remplace R1/R1b.
+Livraison complète autonome. Elle remplace R1 / R1b / R1c / TESTFIX.
 
-## Ce qui était faux dans R1b
+Base GitHub auditée :
 
-R1b contenait encore un ancrage généré incorrectement pour le bloc `player_words`.
-Il cherchait un texte qui n'existait pas exactement dans le fichier. Le patch a
-donc été bloqué avant écriture.
+```text
+8e6fb686445132189df0afcd860f4803ef221cc6
+```
 
-R1c supprime complètement ce changement non nécessaire.
+## Cible
 
-## Périmètre R1c
+```text
+                         [Diagramme accord courant]
 
-Un seul changement fonctionnel :
-- restauration du moteur de placement du conducteur STEM qui fonctionnait avant
-  le branchement du layout visuel partagé de l'éditeur Paroles.
+┌─────────────────────────────────────────────────────┐
+│ Structure │ Intro   Couplet 1   Refrain   ...       │
+│ Accords   │ Em---   G---        D-Em-     ...       │
+│ Chant     │ même moteur visuel que 2 · Paroles      │
+└─────────────────────────────────────────────────────┘
+```
 
-Sécurités :
-- aucune modification de `player_words` ;
-- aucune modification du mixer ;
-- aucune modification du transport ;
-- aucune modification de la source des beats/accords ;
-- aucune modification du workflow ;
-- identité du composant navigateur `r1 -> r3` ;
-- couleur des paroles explicitée.
+Le left panel Analyse conserve uniquement la zone métier utile :
 
-Le patch construit le fichier complet en mémoire, exécute `ast.parse()` sur ce
-fichier complet, puis seulement copie le candidat vers le repo.
+```text
+Mode
+Time signature
+Capodastre
+```
+
+## Cette livraison est autonome
+
+Elle ne dépend d'aucun marqueur R1/R1b/R1c local.
+
+Elle contient le fichier métier COMPLET :
+
+```text
+files/ezscore/player/stem_analysis_conductor.py
+```
+
+SHA256 attendu :
+
+```text
+e7cee0bc83b2e48bdb380587cf384bde2272136261b2e7afefe4b60d5b214462
+```
+
+L'installateur :
+1. vérifie le Git HEAD ;
+2. construit/valide l'état final de `EZScore.py` de manière idempotente ;
+3. valide les deux Python complets ;
+4. sauvegarde les fichiers courants ;
+5. copie le fichier STEM complet ;
+6. vérifie immédiatement son SHA256 après copie.
 
 ## Application
+
+Arrêter Streamlit puis :
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_STEM_LYRICS_VISIBLE_R1c.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_STEM_SHARED_CONDUCTOR_R2_FULL.zip" -C H:\EZScore
 
 $env:PYTHONPATH = "H:\EZScore"
 
-.\.venv-py313\Scripts\python.exe .\scripts\apply_stem_lyrics_visible_r1c.py
+.\.venv-py313\Scripts\python.exe .\scripts\apply_stem_shared_conductor_r2_full.py
 
-.\.venv-py313\Scripts\python.exe .\scripts\test_stem_lyrics_visible_r1c_contract.py
+.\.venv-py313\Scripts\python.exe .\scripts\test_stem_shared_conductor_r2_full_contract.py
 ```
 
 Attendu :
 
 ```text
-STEM LYRICS VISIBLE R1c CONTRACT OK
-patched Python syntax: OK
-composed player import: OK
-known-good STEM conductor restored: YES
-all supplied words materialized: YES
-component identity r3: YES
-mixer / transport / payload source: UNCHANGED
+STEM SHARED CONDUCTOR R2 FULL CONTRACT OK
+exact installed STEM SHA256: OK
+real module import / runtime transforms: OK
+same Paroles CSS/layout engine: YES
+Structure / Accords / Chant: YES
+1 MMS_FA word = 1 DOM node: YES
+mixer before conductor: YES
+transport under conductor: YES
+Time signature in left panel: YES
+Capodastre in left panel: YES
 ```
+
+Puis :
+
+```powershell
+.\.venv-py313\Scripts\python.exe -m streamlit run EZScore.py `
+  --server.address 127.0.0.1 `
+  --server.port 8501 `
+  --server.headless true
+```
+
+## Contrôle visuel
+
+Dans `Analyse > 1 · STEM` :
+- diagramme de l'accord courant au-dessus ;
+- ligne Structure = blocs manuels ;
+- ligne Accords = accords ajustés par capo et regroupés par Time signature ;
+- ligne Chant = même moteur visuel que `2 · Paroles` ;
+- mixer au-dessus ;
+- transport sous le conducteur.
 
 Aucun commit ni push.

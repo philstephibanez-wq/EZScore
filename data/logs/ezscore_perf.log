@@ -3002,3 +3002,5 @@
 {"ts":"2026-09-22T11:42:35.724052+00:00","event":"persistence.load_persisted_analysis","section":"Chanson","audio_hash":"cd8e4603f548","view":"Analyse","mode":"Vue","duration_ms":3.555,"status":"ok"}
 {"ts":"2026-09-22T11:42:35.799493+00:00","event":"persistence.list_song_catalog","section":"Chanson","audio_hash":"cd8e4603f548","view":"Analyse","mode":"Vue","duration_ms":1.644,"status":"ok","result_len":2}
 {"ts":"2026-09-22T11:42:35.921006+00:00","event":"ui.dataframe","section":"Chanson","audio_hash":"cd8e4603f548","view":"Analyse","mode":"Vue","duration_ms":16.548,"status":"ok","rows":430}
+{"ts":"2026-09-22T13:21:07.564162+00:00","event":"probe.install.complete","log_file":"H:\\EZScore\\data\\logs\\ezscore_perf.log"}
+{"ts":"2026-09-22T13:21:07.580819+00:00","event":"midi.symbol.exported","exported":true}
