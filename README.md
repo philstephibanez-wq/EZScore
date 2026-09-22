@@ -1,43 +1,77 @@
-# EZScore_LYRICS_VALIDATE_PLAYER_R1
+# EZScore_LYRICS_DB_SOURCE_R1
 
-Base distante vérifiée :
+Base GitHub vérifiée :
 
 ```text
-master = 21e051ad58f1e0ed890fbd7afdebe973299b0ec5
-EZScore_ANALYSIS_PLAYER_R1b
+master = d6f8f57559296b71573fdaf789cfc5828350eaa2
+EZScore_LYRICS_VALIDATE_PLAYER_R1
 ```
 
-## Corrections
+## Principe
 
-1. Bouton explicite `💾 Valider les paroles`.
-2. Le bloc validé est persisté (fichier + SQLite) et rechargé à l'ouverture.
-3. Migration automatique des anciennes paroles depuis `lyric_block_edits`, puis `analyses.whisper_json`, puis `analysis_versions.whisper_json`.
-4. L'alignement est désactivé tant que les modifications du bloc ne sont pas validées.
-5. MMS_FA ne supprime plus `structure_analysis.json` : la timeline beats+accords reste disponible pour le lecteur STEM.
-6. La timeline musicale est reconstruite dès que les STEM sont prêts, même si les paroles ne sont pas encore alignées.
+Le bloc `Texte exact du chant` est maintenant piloté par la BDD.
+
+```text
+SQLite user_lyrics_sources
+        ↓
+textarea
+        ↓
+💾 Valider les paroles
+        ↓
+UPDATE/INSERT SQLite
+        ↓
+relecture SQLite
+        ↓
+confirmation UI
+```
+
+`lyrics_input.txt` reste uniquement un miroir technique.
+
+## Correction du champ vide
+
+Si Streamlit conserve un `session_state` vide alors que SQLite contient le
+texte, le textarea est réhydraté depuis la BDD.
+
+Les données déjà diagnostiquées existent :
+
+```text
+f7759e... -> 776 caractères en BDD
+cd8e46... -> 2105 caractères en BDD
+```
+
+Il ne faut donc rien ressaisir.
 
 ## Application
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_LYRICS_VALIDATE_PLAYER_R1.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_LYRICS_DB_SOURCE_R1.zip" -C H:\EZScore
 
-.\.venv-py313\Scripts\python.exe .\scripts\apply_lyrics_validate_player_r1.py
+.\.venv-py313\Scripts\python.exe .\scripts\apply_lyrics_db_source_r1.py
 
 .\.venv-py313\Scripts\python.exe -m py_compile `
   .\ezscore\analysis\forced_lyrics.py `
   .\ezscore\integration\choir_pipeline.py `
-  .\scripts\test_lyrics_validate_player_r1_contract.py
+  .\scripts\test_lyrics_db_source_r1_contract.py
 
-.\.venv-py313\Scripts\python.exe .\scripts\test_lyrics_validate_player_r1_contract.py
+.\.venv-py313\Scripts\python.exe .\scripts\test_lyrics_db_source_r1_contract.py
 ```
 
 Attendu :
 
 ```text
 PATCH OK
-LYRICS VALIDATE PLAYER R1 CONTRACT OK
+ - SQLite = source de vérité du bloc de paroles
+ - lyrics_input.txt = miroir technique seulement
+ - textarea hydraté depuis SQLite
+ - session_state vide ne masque plus la BDD
+ - validation relit la BDD avant confirmation
+
+LYRICS DB SOURCE R1 CONTRACT OK
 ```
 
-Redémarrer Streamlit ensuite. Aucune régénération STEM n'est nécessaire.
+Puis redémarrer Streamlit.
+
+Cette livraison ne touche pas au conducteur STEM. On le corrige séparément
+après validation définitive du chargement BDD du bloc de paroles.
