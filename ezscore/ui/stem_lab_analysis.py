@@ -899,8 +899,32 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
         f"**Modèle STEM HQ :** `{DEFAULT_DEMUCS_MODEL}`"
     )
 
-    tab_stem, tab_lyrics, tab_blocks, tab_midi = st.tabs(
-        ["1 · STEM", "2 · Paroles", "3 · Blocs / structure", "4 · MIDI"]
+    analysis_steps = [
+        "1 · STEM",
+        "2 · Paroles",
+        "3 · Blocs / structure",
+        "4 · MIDI",
+    ]
+    analysis_step_key = f"ezstem_analysis_step_{str(audio_hash)[:12]}"
+
+    if analysis_step_key not in st.session_state:
+        if not stems_cache_complete(audio_hash):
+            st.session_state[analysis_step_key] = "1 · STEM"
+        elif _load_speech(audio_hash) is None:
+            st.session_state[analysis_step_key] = "2 · Paroles"
+        else:
+            st.session_state[analysis_step_key] = "1 · STEM"
+
+    analysis_step = st.segmented_control(
+        "Étape d'analyse",
+        analysis_steps,
+        key=analysis_step_key,
+        width="stretch",
+        label_visibility="collapsed",
+    )
+    analysis_step = str(
+        analysis_step
+        or st.session_state.get(analysis_step_key, analysis_steps[0])
     )
 
     stems = cached_stem_paths(audio_hash)
@@ -971,7 +995,7 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
     # ========================================================
     # TAB 1 — STEM
     # ========================================================
-    with tab_stem:
+    if analysis_step == "1 · STEM":
         st.markdown("## 1 — STEM")
         st.caption(
             "Étape 1 : BS-RoFormer-SW sépare les instruments. "
@@ -1147,7 +1171,7 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
     # ========================================================
     # TAB 2 — PAROLES
     # ========================================================
-    with tab_lyrics:
+    elif analysis_step == "2 · Paroles":
         st.markdown("## 2 — Paroles")
         st.caption(
             "Whisper small sur l'audio original. "
@@ -1198,7 +1222,7 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
     # ========================================================
     # TAB 3 — BLOCS / STRUCTURE
     # ========================================================
-    with tab_blocks:
+    elif analysis_step == "3 · Blocs / structure":
         st.markdown("## 3 — Blocs / structure")
         st.caption(
             "La signature regroupe les beats en mesures et détermine les temps "
@@ -1384,7 +1408,7 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
     # ========================================================
     # TAB 4 — MIDI
     # ========================================================
-    with tab_midi:
+    elif analysis_step == "4 · MIDI":
         st.markdown("## 4 — MIDI")
         st.caption(
             "Accords + Batterie proviennent directement de la timeline métrique "

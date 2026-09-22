@@ -3200,6 +3200,7 @@ elif main_menu == "Chanson":
                     if p.is_file()
                 )
 
+                _song_loading_notice.empty()
                 st.warning(
                     "L'analyse du morceau est persistée, mais "
                     "aucun fichier audio correspondant à son "
@@ -3207,6 +3208,26 @@ elif main_menu == "Chanson":
                     f"{AUDIO_DIR}. "
                     f"{audio_file_count} fichier(s) audio présent(s)."
                 )
+
+                recover_col, back_col = st.columns(2)
+                with recover_col:
+                    if st.button(
+                        "⬆️ Réimporter l'audio",
+                        type="primary",
+                        width="stretch",
+                        key=f"missing_audio_import_{str(current_hash)[:12]}",
+                    ):
+                        st.session_state["_pending_main_menu"] = "Import"
+                        st.rerun()
+
+                with back_col:
+                    if st.button(
+                        "← Retour au répertoire",
+                        width="stretch",
+                        key=f"missing_audio_back_{str(current_hash)[:12]}",
+                    ):
+                        st.session_state["_pending_main_menu"] = "Répertoire"
+                        st.rerun()
             else:
                 song = current_song
                 audio_hash = current_hash
