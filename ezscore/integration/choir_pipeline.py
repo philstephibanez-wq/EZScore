@@ -26,6 +26,7 @@ from ezscore.analysis.forced_lyrics import (
     cache_path as forced_cache_path,
     load_alignment,
     load_draft,
+    load_persisted_source_text,
     save_draft,
 )
 from ezscore.analysis.music_timeline import ensure_music_timeline
@@ -206,8 +207,18 @@ def _install_manual_lyrics_ui(stem_lab, audio_hash: str, original_render) -> Non
     text_key = f"ezscore_manual_lyrics_{short_hash}"
     old_payload = load_alignment(audio_hash) or {}
 
+    persisted_source = str(load_persisted_source_text(audio_hash) or "")
+
     if text_key not in st.session_state:
-        st.session_state[text_key] = _initial_user_lyrics(audio_hash)
+        st.session_state[text_key] = (
+            persisted_source or _initial_user_lyrics(audio_hash)
+        )
+    elif (
+        not str(st.session_state.get(text_key, "") or "").strip()
+        and persisted_source.strip()
+    ):
+        # Never let an empty stale widget mask durable DB content.
+        st.session_state[text_key] = persisted_source
 
     original_caption = st.caption
     original_button = st.button
@@ -233,7 +244,9 @@ def _install_manual_lyrics_ui(stem_lab, audio_hash: str, original_render) -> Non
                 ),
             )
 
-            persisted_text = str(load_draft(audio_hash) or "")
+            persisted_text = str(
+                load_persisted_source_text(audio_hash) or ""
+            )
             source_changed = current_text != persisted_text
 
             validate_col, _ = st.columns([1, 2])
@@ -246,8 +259,15 @@ def _install_manual_lyrics_ui(stem_lab, audio_hash: str, original_render) -> Non
                     disabled=(not current_text.strip() or not source_changed),
                 ):
                     save_draft(audio_hash, current_text)
-                    st.success("✓ Bloc de paroles enregistré.")
-                    st.rerun()
+                    saved_text = str(
+                        load_persisted_source_text(audio_hash) or ""
+                    )
+                    if saved_text != current_text:
+                        st.error("Échec de persistance BDD du bloc de paroles.")
+                    else:
+                        st.session_state[text_key] = saved_text
+                        st.success("✓ Bloc de paroles enregistré en BDD.")
+                        st.rerun()
 
             if source_changed and current_text.strip():
                 st.info(

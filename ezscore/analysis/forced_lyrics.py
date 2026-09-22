@@ -99,25 +99,40 @@ def save_persisted_source_text(audio_hash: str, text: str) -> None:
 
 
 def load_draft(audio_hash: str) -> str:
+    # SQLite is the business source of truth.
+    persisted = load_persisted_source_text(audio_hash)
+    if persisted.strip():
+        return persisted
+
+    # One-time migration fallback from old technical artifacts.
     path = draft_path(audio_hash)
     if path.is_file():
         value = path.read_text(encoding="utf-8")
         if value.strip():
+            save_persisted_source_text(audio_hash, value)
             return value
 
     payload = load_alignment(audio_hash)
     if payload:
         value = str(payload.get("source_text", "") or "")
         if value.strip():
+            save_persisted_source_text(audio_hash, value)
             return value
 
-    return load_persisted_source_text(audio_hash)
+    return ""
 
 
 def save_draft(audio_hash: str, text: str) -> None:
     value = str(text or "")
-    draft_path(audio_hash).write_text(value, encoding="utf-8")
+
+    # Business source of truth.
     save_persisted_source_text(audio_hash, value)
+
+    # Technical mirror only.
+    try:
+        draft_path(audio_hash).write_text(value, encoding="utf-8")
+    except OSError:
+        pass
 
 
 def load_alignment(audio_hash: str) -> dict[str, Any] | None:
