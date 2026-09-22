@@ -1,61 +1,82 @@
-# EZScore_STEM_USE_PAROLES_LAYOUT_R1
+# EZScore_STEM_CONDUCTOR_SHARED_R1
 
 Base GitHub vérifiée :
 
 ```text
-master = b6c9c60d86f866c02e43f29a9afca4af3a5a2241
-EZScore_STEM_CONDUCTOR_R2b
+master = 5235963939750c2341a410d04bcdb045c490ab56
+EZScore_STEM_USE_PAROLES_LAYOUT_R1
 ```
 
-Le player STEM reprend maintenant la géométrie déjà validée dans
-`Analyse > Paroles` :
+Le player STEM est présent directement quand on entre dans `1 · STEM`.
+
+Le conducteur charge le moteur déjà validé de `Analyse > Paroles` :
 
 ```text
-100 px / seconde
-mot = max(position timeline, bord droit du mot précédent + 10 px)
-suffixe contracté = bord droit précédent + 1 px
-relayout après montage, fonts.ready et ResizeObserver
+templates/views/lyrics-layout.js
 ```
 
-La piste commence à `left:0`, comme dans une timeline normale.
-Le défilement reste basé sur les secondes absolues de la timeline canonique.
+Il utilise directement :
 
-Aucune modification des timestamps, de MMS_FA, de la BDD, des beats ou de
-l'audio.
+```text
+ezLayoutLaneNodes(...)
+ezVisualXForTime(...)
+```
+
+Aucune réduction de données :
+
+```javascript
+const words = normalizedWords(rawWords);
+const lyricNodes = words.map(...);
+const chordItems = beats.map(...);
+```
+
+Donc tous les mots et tous les beats/accords reçus sont matérialisés dans le
+conducteur continu. Accords et paroles utilisent exactement le même repère
+visuel.
+
+La ligne textuelle Chœurs est masquée dans Paroles. `backing_vocals.wav`
+reste disponible dans le mixer audio STEM.
 
 ## Application
+
+Ne pas réappliquer R2b : le master est déjà plus récent.
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_STEM_USE_PAROLES_LAYOUT_R1.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_STEM_CONDUCTOR_SHARED_R1.zip" -C H:\EZScore
 
-.\.venv-py313\Scripts\python.exe .\scripts\apply_stem_use_paroles_layout_r1.py
+.\.venv-py313\Scripts\python.exe .\scripts\apply_stem_conductor_shared_r1.py
 
 .\.venv-py313\Scripts\python.exe -m py_compile `
   .\ezscore\player\stem_analysis_conductor.py `
-  .\scripts\test_stem_use_paroles_layout_r1_contract.py
+  .\ezscore\ui\stem_lab_analysis.py `
+  .\ezscore\ui\chords_lyrics_editor.py `
+  .\scripts\test_stem_conductor_shared_r1_contract.py
 
 $env:PYTHONPATH = "H:\EZScore"
-.\.venv-py313\Scripts\python.exe .\scripts\test_stem_use_paroles_layout_r1_contract.py
+.\.venv-py313\Scripts\python.exe .\scripts\test_stem_conductor_shared_r1_contract.py
 ```
 
 Attendu :
 
 ```text
 PATCH OK
- - conducteur STEM utilise l'échelle Paroles : 100 px/s
- - collision des mots identique à Paroles (10 px, contractions 1 px)
- - origine de piste corrigée : x=0
- - relayout après fonts / resize / montage caché
- - timeline audio inchangée
+ - STEM ouvre directement le player
+ - TOUS les mots du payload sont créés dans le conducteur
+ - TOUS les beats/accords sont créés dans le conducteur
+ - accords + paroles utilisent le même lyrics-layout.js que Paroles
+ - ligne textuelle Chœurs masquée dans Paroles
+ - backing_vocals audio inchangé dans le mixer STEM
 
-STEM USE PAROLES LAYOUT R1 CONTRACT OK
-Paroles scale 100 px/s: YES
-Paroles collision layout reused: YES
-track origin x=0: YES
-fonts/resize/hidden relayout: YES
+STEM CONDUCTOR SHARED R1 CONTRACT OK
+shared Paroles layout engine in final JS: YES
+all words mapped to lyric nodes: YES
+all beats mapped to chord items: YES
+same visual timeline for chords + lyrics: YES
+player auto-present in STEM: YES
+textual choir lane in Paroles: HIDDEN
 final JS activeWordIndex declarations: 1
 ```
 
-Puis redémarrer Streamlit et ouvrir le lecteur STEM.
+Puis redémarrer Streamlit.

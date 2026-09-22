@@ -1194,33 +1194,12 @@ def render_stem_lab_fresh_analysis(audio_hash: str) -> None:
                        else "Les paroles synchronisées apparaîtront après l'étape 2.")
                 )
 
-                player_open = bool(
-                    st.session_state.get(stem_player_open_key, False)
+                _render_stem_player(
+                    source, all_stems,
+                    preview_dir=_work_dir(audio_hash) / "browser_preview",
+                    key=f"ezstem_player_{short_hash}_{len(words)}",
+                    words=words,
                 )
-                if not player_open:
-                    st.info(
-                        "Le lecteur audio est déchargé pendant la navigation. "
-                        "Ouvrez-le uniquement pour écouter."
-                    )
-                    if st.button(
-                        "▶ Ouvrir le lecteur STEM",
-                        type="primary",
-                        width="stretch",
-                        key=f"ezstem_open_player_{short_hash}",
-                        help=(
-                            "Monte le mixer à la demande. "
-                            "Bouton adapté clavier/télécommande Android."
-                        ),
-                    ):
-                        st.session_state[stem_player_open_key] = True
-                        st.rerun()
-                else:
-                    _render_stem_player(
-                        source, all_stems,
-                        preview_dir=_work_dir(audio_hash) / "browser_preview",
-                        key=f"ezstem_player_{short_hash}_{len(words)}",
-                        words=words,
-                    )
 
     # ========================================================
     # TAB 2 — PAROLES

@@ -18,6 +18,9 @@ from ezscore.player.media_url import register_media_url
 from ezscore.player import stem_webaudio as base
 from ezscore.analysis.forced_lyrics import load_alignment
 
+_TEMPLATE_DIR = Path(__file__).resolve().parents[2] / "templates" / "views"
+_LYRICS_LAYOUT_JS = (_TEMPLATE_DIR / "lyrics-layout.js").read_text(encoding="utf-8")
+
 
 def _replace_once(source: str, old: str, new: str, label: str) -> str:
     if source.count(old) != 1:
@@ -229,7 +232,7 @@ _PLAYER_CSS = base._PLAYER_CSS + r'''
 '''
 
 
-_JS = base._PLAYER_JS
+_JS = _LYRICS_LAYOUT_JS + "\n\n" + base._PLAYER_JS
 _JS = _replace_once(
     _JS,
     '  let duration = 0;\n',
@@ -350,68 +353,37 @@ conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row
     chordNodes.push(span);
   });
 
-  // Same visual layout contract as Analyse > Paroles.
+  // Exact shared layout engine from Analyse > Paroles.
   const pixelsPerSecond=100;
-  let lyricVisualXs=[];
+  const rawXForTime=(time) =>
+    Math.max(0,Number(time || 0))*pixelsPerSecond;
 
-  function xForTime(time) {
-    return Math.max(0,Number(time || 0))*pixelsPerSecond;
-  }
+  let lyricLayout={xs:[],right:0,measurable:false};
 
-  function ezIsContractionSuffix(text) {
-    return /^[\'’]/.test(String(text || "").trim());
-  }
-
-  function ezNodeWidth(node) {
-    if (!node) return 0;
-    const rectWidth=Number(node.getBoundingClientRect?.().width || 0);
-    const offsetWidth=Number(node.offsetWidth || 0);
-    const scrollWidth=Number(node.scrollWidth || 0);
-    return Math.max(rectWidth,offsetWidth,scrollWidth,0);
-  }
-
-  function layoutWordsLikeParoles() {
-    const xs=[];
-    let previousRight=Number.NEGATIVE_INFINITY;
-
-    lyricNodes.forEach((node,index) => {
-      const word=words[index] || {};
-      const rawX=xForTime(word.start);
-      let visualX=rawX;
-
-      const isSuffix=(
-        index>0 &&
-        ezIsContractionSuffix(word.text)
-      );
-
-      if (index>0) {
-        const previous=lyricNodes[index-1];
-        const previousLeft=Number.parseFloat(previous?.style.left || "0");
-        const previousWidth=ezNodeWidth(previous);
-
-        visualX=isSuffix
-          ? previousLeft + Math.max(1,previousWidth) + 1
-          : Math.max(rawX,previousRight + 10);
-      }
-
-      node.style.left=visualX+"px";
-      node.dataset.timelineX=String(rawX);
-
-      const width=ezNodeWidth(node);
-      previousRight=visualX + Math.max(1,width);
-      xs.push(visualX);
-    });
-
-    lyricVisualXs=xs;
-    return Number.isFinite(previousRight) ? previousRight : 0;
+  function visualXForTime(time) {
+    return ezVisualXForTime(
+      words,
+      lyricLayout.xs,
+      time,
+      rawXForTime
+    );
   }
 
   function layoutConductor() {
-    const lyricRight=layoutWordsLikeParoles();
+    lyricLayout=ezLayoutLaneNodes({
+      nodes:lyricNodes,
+      words,
+      rawXForWord:(word) => rawXForTime(word.start),
+      minGap:10,
+      contractionGap:1,
+    });
 
     chordNodes.forEach((node,index) => {
-      node.style.left=xForTime(chordItems[index].time)+"px";
-      node.dataset.timelineX=String(xForTime(chordItems[index].time));
+      const x=visualXForTime(chordItems[index].time);
+      node.style.left=x+"px";
+      node.dataset.timelineX=String(
+        rawXForTime(chordItems[index].time)
+      );
     });
 
     const lastWordEnd=words.length
@@ -421,41 +393,14 @@ conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row
       ? Number(chordItems[chordItems.length-1].time || 0)
       : 0;
 
-    const rawRight=xForTime(Math.max(lastWordEnd,lastBeatTime)+2);
-    const width=Math.max(rawRight,lyricRight+40,1);
+    const width=Math.max(
+      1,
+      visualXForTime(Math.max(lastWordEnd,lastBeatTime)+2)+80,
+      Number(lyricLayout.right || 0)+80
+    );
 
     lyricsTrack.style.width=width+"px";
     chordTrack.style.width=width+"px";
-  }
-
-  function scheduleParolesLayout() {
-    const relayout=() => {
-      if (!lyricsTrack.isConnected || !chordTrack.isConnected) return;
-      layoutConductor();
-      renderConductor(currentTime());
-    };
-
-    requestAnimationFrame(relayout);
-    setTimeout(relayout,80);
-    setTimeout(relayout,280);
-
-    if (document.fonts?.ready) {
-      document.fonts.ready.then(() => {
-        if (!lyricsTrack.isConnected) return;
-        requestAnimationFrame(relayout);
-      }).catch(() => {});
-    }
-
-    const observer=new ResizeObserver(() => {
-      if (!lyricsStrip.isConnected) {
-        try { observer.disconnect(); } catch (_) {}
-        return;
-      }
-      if (lyricsStrip.getBoundingClientRect().width>0) {
-        requestAnimationFrame(relayout);
-      }
-    });
-    observer.observe(lyricsStrip);
   }
 
   function findWordIndex(time) {
@@ -511,8 +456,8 @@ conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row
   function renderConductor(time) {
     const t=Math.max(0,Number(time || 0));
     const anchor=Math.max(90,lyricsStrip.clientWidth*.35);
-    const timelineX=xForTime(t);
-    const translate=anchor-timelineX;
+    const conductorX=visualXForTime(t);
+    const translate=anchor-conductorX;
 
     lyricsTrack.style.transform="translate3d("+translate.toFixed(2)+"px,0,0)";
     chordTrack.style.transform="translate3d("+translate.toFixed(2)+"px,0,0)";
@@ -555,11 +500,26 @@ conductor_js = r'''  // Continuous STEM conductor: one chord row + one lyric row
     renderConductor(currentTime());
   });
 
+  function relayoutSharedConductor() {
+    if (!lyricsTrack.isConnected || !chordTrack.isConnected) return;
+    layoutConductor();
+    renderConductor(currentTime());
+  }
+
   window.addEventListener("resize",() => {
-    scheduleParolesLayout();
+    requestAnimationFrame(relayoutSharedConductor);
   });
 
-  scheduleParolesLayout();
+  requestAnimationFrame(relayoutSharedConductor);
+  setTimeout(relayoutSharedConductor,80);
+  setTimeout(relayoutSharedConductor,280);
+
+  if (document.fonts?.ready) {
+    document.fonts.ready.then(() => {
+      if (!lyricsTrack.isConnected) return;
+      requestAnimationFrame(relayoutSharedConductor);
+    }).catch(() => {});
+  }
 
 '''
 

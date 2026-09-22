@@ -171,7 +171,7 @@ def render_chords_lyrics_editor(
             st.rerun()
 
     st.caption(
-        "Éditeur visuel R5.10 restauré : Sections / Accords / Chant / Chœurs · "
+        "Éditeur visuel R5.10 : Sections / Accords / Chant · "
         "double-clic = modifier · clic long sur un mot = insérer ↵ · "
         "une seule timeline et une seule scrollbar. Aucun moteur audio ici."
     )
