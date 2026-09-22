@@ -1,77 +1,69 @@
-# EZScore_LYRICS_DB_SOURCE_R1
+# EZScore_LYRICS_RENDER_REMOTE_R1b
+
+Correctif du livrable R1 qui échouait car les chaînes `Lecture/Pause/Stop`
+existent deux fois dans le source du conducteur : une fois dans le motif
+supprimé du player de base et une fois dans le transport réellement injecté.
+
+R1b cible désormais **le bloc transport injecté complet**, donc aucun patch
+ambigu.
 
 Base GitHub vérifiée :
 
 ```text
-master = d6f8f57559296b71573fdaf789cfc5828350eaa2
-EZScore_LYRICS_VALIDATE_PLAYER_R1
+master = a52485f22a8f0ccaaa36808a9f712916a2d84f53
 ```
 
-## Principe
+## Résultat attendu
 
-Le bloc `Texte exact du chant` est maintenant piloté par la BDD.
+Le bloc Paroles est rendu directement depuis :
 
 ```text
-SQLite user_lyrics_sources
-        ↓
-textarea
-        ↓
-💾 Valider les paroles
-        ↓
-UPDATE/INSERT SQLite
-        ↓
-relecture SQLite
-        ↓
-confirmation UI
+data\EZScore.sqlite3
+user_lyrics_sources.source_text
 ```
 
-`lyrics_input.txt` reste uniquement un miroir technique.
+Le widget Streamlit utilise une clé contenant une empreinte du contenu BDD.
+Un ancien état vide du navigateur/session ne peut plus masquer la donnée.
 
-## Correction du champ vide
-
-Si Streamlit conserve un `session_state` vide alors que SQLite contient le
-texte, le textarea est réhydraté depuis la BDD.
-
-Les données déjà diagnostiquées existent :
-
-```text
-f7759e... -> 776 caractères en BDD
-cd8e46... -> 2105 caractères en BDD
-```
-
-Il ne faut donc rien ressaisir.
+Le parcours télécommande/clavier reste dans l'ordre DOM naturel, avec focus
+visible pour les contrôles HTML du lecteur STEM.
 
 ## Application
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_LYRICS_DB_SOURCE_R1.zip" -C H:\EZScore
+tar -xf "$env:USERPROFILE\Downloads\EZScore_LYRICS_RENDER_REMOTE_R1b.zip" -C H:\EZScore
 
-.\.venv-py313\Scripts\python.exe .\scripts\apply_lyrics_db_source_r1.py
+.\.venv-py313\Scripts\python.exe .\scripts\apply_lyrics_render_remote_r1b.py
 
 .\.venv-py313\Scripts\python.exe -m py_compile `
-  .\ezscore\analysis\forced_lyrics.py `
   .\ezscore\integration\choir_pipeline.py `
-  .\scripts\test_lyrics_db_source_r1_contract.py
+  .\ezscore\player\stem_analysis_conductor.py `
+  .\scripts\test_lyrics_render_remote_r1b_contract.py
 
-.\.venv-py313\Scripts\python.exe .\scripts\test_lyrics_db_source_r1_contract.py
+.\.venv-py313\Scripts\python.exe .\scripts\test_lyrics_render_remote_r1b_contract.py
 ```
 
 Attendu :
 
 ```text
 PATCH OK
- - SQLite = source de vérité du bloc de paroles
- - lyrics_input.txt = miroir technique seulement
- - textarea hydraté depuis SQLite
- - session_state vide ne masque plus la BDD
- - validation relit la BDD avant confirmation
+ - textarea alimenté directement par SQLite
+ - clé widget versionnée par le contenu BDD
+ - bouton Valider conservé
+ - aide Ctrl+Enter masquée
+ - lecteur STEM navigable au clavier/télécommande
 
-LYRICS DB SOURCE R1 CONTRACT OK
+LYRICS RENDER + REMOTE R1b CONTRACT OK
+DB rows verified: 2
+ - cd8e4603f548: 2105 chars
+ - f7759e677f20: 776 chars
+textarea <- SQLite direct: YES
+stale empty widget can mask DB: NO
+explicit validation button: YES
+Ctrl+Enter helper hidden: YES
+Android remote / keyboard focus: YES
 ```
 
-Puis redémarrer Streamlit.
-
-Cette livraison ne touche pas au conducteur STEM. On le corrige séparément
-après validation définitive du chargement BDD du bloc de paroles.
+Puis arrêter complètement Streamlit et le relancer.

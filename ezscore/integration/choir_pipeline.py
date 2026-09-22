@@ -12,6 +12,7 @@ Active policy:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from pathlib import Path
@@ -204,21 +205,22 @@ def _purge_legacy_choir_text_cache(stem_lab, audio_hash: str) -> None:
 def _install_manual_lyrics_ui(stem_lab, audio_hash: str, original_render) -> None:
     """Render the existing analysis surface with a targeted Paroles replacement."""
     short_hash = str(audio_hash)[:12]
-    text_key = f"ezscore_manual_lyrics_{short_hash}"
     old_payload = load_alignment(audio_hash) or {}
 
+    # SQLite is the authoritative source for the editable block.
     persisted_source = str(load_persisted_source_text(audio_hash) or "")
-
-    if text_key not in st.session_state:
-        st.session_state[text_key] = (
-            persisted_source or _initial_user_lyrics(audio_hash)
+    if not persisted_source.strip():
+        migrated = _initial_user_lyrics(audio_hash)
+        persisted_source = str(
+            load_persisted_source_text(audio_hash) or migrated or ""
         )
-    elif (
-        not str(st.session_state.get(text_key, "") or "").strip()
-        and persisted_source.strip()
-    ):
-        # Never let an empty stale widget mask durable DB content.
-        st.session_state[text_key] = persisted_source
+
+    # DB content revision = widget identity. A stale/empty Streamlit
+    # widget from an earlier render cannot mask the persisted source.
+    source_revision = hashlib.sha256(
+        persisted_source.encode("utf-8")
+    ).hexdigest()[:12]
+    text_key = f"ezscore_manual_lyrics_{short_hash}_{source_revision}"
 
     original_caption = st.caption
     original_button = st.button
@@ -234,8 +236,27 @@ def _install_manual_lyrics_ui(stem_lab, audio_hash: str, original_render) -> Non
                 "détection de langue audio."
             )
 
+            st.markdown(
+                """
+                <style>
+                div[data-testid="InputInstructions"] {
+                    display: none !important;
+                }
+                textarea:focus-visible,
+                button:focus-visible,
+                input:focus-visible,
+                [role="button"]:focus-visible {
+                    outline: 3px solid currentColor !important;
+                    outline-offset: 2px !important;
+                }
+                </style>
+                """,
+                unsafe_allow_html=True,
+            )
+
             current_text = st.text_area(
                 "Texte exact du chant",
+                value=persisted_source,
                 key=text_key,
                 height=300,
                 placeholder=(
@@ -265,7 +286,6 @@ def _install_manual_lyrics_ui(stem_lab, audio_hash: str, original_render) -> Non
                     if saved_text != current_text:
                         st.error("Échec de persistance BDD du bloc de paroles.")
                     else:
-                        st.session_state[text_key] = saved_text
                         st.success("✓ Bloc de paroles enregistré en BDD.")
                         st.rerun()
 

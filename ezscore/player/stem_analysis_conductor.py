@@ -55,7 +55,7 @@ _PLAYER_HTML = _replace_once(
     '''  <div class="conductor-wrap">
     <div class="conductor-head">
       <label class="diagram-toggle">
-        <input class="diagram-checkbox" type="checkbox">
+        <input class="diagram-checkbox" type="checkbox" tabindex="0" aria-label="Diagrammes guitare">
         Diagrammes guitare
       </label>
     </div>
@@ -103,12 +103,12 @@ _PLAYER_HTML = _replace_once(
   </div>
 """,
     """    <div class="transport conductor-transport">
-      <button class="play" type="button">▶ Lecture</button>
-      <button class="pause" type="button">⏸ Pause</button>
-      <button class="stop" type="button">⏹ Stop</button>
+      <button class="play" type="button" tabindex="0" aria-label="Lecture">▶ Lecture</button>
+      <button class="pause" type="button" tabindex="0" aria-label="Pause">⏸ Pause</button>
+      <button class="stop" type="button" tabindex="0" aria-label="Stop">⏹ Stop</button>
       <span class="time">0:00 / 0:00</span>
     </div>
-    <input class="seek conductor-seek" type="range" min="0" max="1" step="0.001" value="0">
+    <input class="seek conductor-seek" type="range" min="0" max="1" step="0.001" value="0" tabindex="0" aria-label="Position de lecture">
     <div class="current-diagram"></div>
   </div>
 """,
@@ -199,6 +199,13 @@ _PLAYER_CSS = base._PLAYER_CSS + r'''
 
 .conductor-transport { margin-top:10px; }
 .conductor-seek { width:100%; margin:8px 0 2px; }
+
+.diagram-checkbox:focus-visible,
+.conductor-transport button:focus-visible,
+.conductor-seek:focus-visible {
+  outline:3px solid currentColor;
+  outline-offset:3px;
+}
 .current-diagram {
   display:none;
   min-height:0;
