@@ -32,47 +32,63 @@ from ezscore.persistence import (
     current_song_settings_payload,
     load_song_preferences,
     save_song_preferences,
+    list_song_catalog,
 )
 from ezscore.player.media_url import register_media_url
 
 
 _HTML = r"""
 <div class="riffstation-step1">
+  <div class="song-card">
+    <div class="song-id">
+      <div class="song-title"></div>
+      <div class="song-meta"></div>
+    </div>
+    <div class="song-controls">
+      <label class="compact-control">Mode
+        <select class="work-mode" aria-label="Mode de travail">
+          <option value="Analyse">Analyse</option>
+          <option value="Édition">Édition</option>
+          <option value="Player">Player</option>
+        </select>
+      </label>
+      <label class="compact-control">Time sig
+        <select class="signature-mode" aria-label="Time signature Step 1">
+          <option value="Auto">Auto</option>
+          <option value="2/4">2/4</option>
+          <option value="3/4">3/4</option>
+          <option value="4/4">4/4</option>
+          <option value="5/4">5/4</option>
+          <option value="6/8">6/8</option>
+          <option value="7/8">7/8</option>
+          <option value="9/8">9/8</option>
+          <option value="12/8">12/8</option>
+        </select>
+      </label>
+      <label class="compact-control">Capo
+        <select class="capo-select" aria-label="Capo Step 1"></select>
+      </label>
+      <label class="compact-control">Vitesse
+        <select class="speed" aria-label="Vitesse de lecture">
+          <option value="0.50">0,50×</option>
+          <option value="0.75">0,75×</option>
+          <option value="1.00" selected>1,00×</option>
+          <option value="1.25">1,25×</option>
+          <option value="1.50">1,50×</option>
+        </select>
+      </label>
+      <label class="diagram-toggle">
+        <input class="diagram-checkbox" type="checkbox"> Diagramme
+      </label>
+    </div>
+  </div>
+
   <div class="transport">
     <button class="play" type="button">▶ Lecture</button>
     <button class="pause" type="button">⏸ Pause</button>
     <button class="stop" type="button">⏹ Stop</button>
-    <label class="compact-control">Time sig
-      <select class="signature-mode" aria-label="Time signature Step 1">
-        <option value="Auto">Auto</option>
-        <option value="2/4">2/4</option>
-        <option value="3/4">3/4</option>
-        <option value="4/4">4/4</option>
-        <option value="5/4">5/4</option>
-        <option value="6/8">6/8</option>
-        <option value="7/8">7/8</option>
-        <option value="9/8">9/8</option>
-        <option value="12/8">12/8</option>
-      </select>
-    </label>
-    <label class="compact-control">Capo
-      <select class="capo-select" aria-label="Capo Step 1"></select>
-    </label>
-    <label class="compact-control">Vitesse
-      <select class="speed" aria-label="Vitesse de lecture">
-        <option value="0.50">0,50×</option>
-        <option value="0.75">0,75×</option>
-        <option value="1.00" selected>1,00×</option>
-        <option value="1.25">1,25×</option>
-        <option value="1.50">1,50×</option>
-      </select>
-    </label>
-    <label class="diagram-toggle">
-      <input class="diagram-checkbox" type="checkbox"> Diagramme
-    </label>
     <span class="time">0:00 / 0:00</span>
   </div>
-
   <input class="seek" type="range" min="0" max="1" step="0.001" value="0">
 
   <div class="mixer-head">
@@ -98,12 +114,10 @@ _HTML = r"""
   <div class="media-host" aria-hidden="true"></div>
 
   <div class="hint">
-    Audit Step 1 : mixage des STEM, ralentissement avec conservation de hauteur,
-    accords et diagramme courant. Aucune parole n'est chargée dans ce composant.
+    Step 1 = Riffstation + STEM. La timeline audio reste immuable ; seule sa représentation défile sous la mire.
   </div>
 </div>
 """
-
 
 _CSS = r"""
 :host { display:block; width:100%; }
@@ -114,8 +128,18 @@ _CSS = r"""
   background:color-mix(in srgb,var(--st-text-color) 4%,transparent);
   color:var(--st-text-color); font-family:var(--st-font);
 }
+.song-card {
+  display:flex; justify-content:space-between; align-items:flex-end; gap:18px;
+  padding:10px 12px 12px; margin-bottom:12px;
+  border:1px solid color-mix(in srgb,var(--st-text-color) 18%,transparent);
+  border-radius:9px; background:color-mix(in srgb,var(--st-text-color) 3%,transparent);
+}
+.song-id { min-width:220px; flex:1 1 auto; }
+.song-title { font-size:20px; font-weight:900; line-height:1.15; }
+.song-meta { margin-top:4px; font-size:12px; opacity:.72; }
+.song-controls { display:flex; gap:9px; align-items:flex-end; flex-wrap:wrap; justify-content:flex-end; }
 .transport { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-.transport button, .eq-reset, .speed, .signature-mode, .capo-select {
+.transport button, .eq-reset, .speed, .signature-mode, .capo-select, .work-mode {
   min-height:30px; border-radius:7px;
   border:1px solid color-mix(in srgb,var(--st-text-color) 35%,transparent);
   background:color-mix(in srgb,var(--st-text-color) 8%,transparent);
@@ -123,8 +147,10 @@ _CSS = r"""
 }
 .transport button { cursor:pointer; }
 .compact-control, .diagram-toggle {
-  display:flex; align-items:center; gap:6px; font-size:12px; font-weight:700;
+  display:flex; flex-direction:column; align-items:flex-start; gap:4px;
+  font-size:11px; font-weight:750;
 }
+.diagram-toggle { flex-direction:row; align-items:center; min-height:30px; padding-bottom:2px; }
 .time { margin-left:auto; font-variant-numeric:tabular-nums; font-size:12px; opacity:.78; }
 .seek { width:100%; margin:10px 0 14px; }
 .mixer-head, .track {
@@ -150,59 +176,43 @@ _CSS = r"""
 .master-name { font-weight:900; }
 .master-value { font-size:11px; opacity:.75; font-variant-numeric:tabular-nums; }
 .master-volume { width:100%; }
-.audit-head {
-  display:flex; gap:12px; align-items:center; flex-wrap:wrap;
-  margin-top:14px; padding-top:10px;
-  border-top:1px solid color-mix(in srgb,var(--st-text-color) 18%,transparent);
-  font-size:12px;
-}
-.meter, .capo { font-weight:850; }
-.audit-note { opacity:.62; }
 .conductor-window {
-  --playhead-x:34%;
-  position:relative; overflow:hidden; height:235px; margin-top:8px;
+  --playhead-x:28%;
+  position:relative; overflow:hidden; height:230px; margin-top:14px;
   border-radius:9px; background:color-mix(in srgb,var(--st-text-color) 5%,transparent);
   border:1px solid color-mix(in srgb,var(--st-text-color) 12%,transparent);
 }
 .playhead {
-  position:absolute; z-index:12; left:var(--playhead-x); top:0; bottom:0; width:2px;
+  position:absolute; z-index:20; left:var(--playhead-x); top:0; bottom:0; width:2px;
   background:#4da3ff; box-shadow:0 0 0 1px color-mix(in srgb,#4da3ff 20%,transparent);
   pointer-events:none;
 }
 .diagram-float {
-  position:absolute; z-index:15; top:5px; left:var(--playhead-x); transform:translateX(-50%);
-  width:112px; height:122px; display:none; align-items:center; justify-content:center;
-  background:color-mix(in srgb,var(--st-background-color) 90%,transparent);
+  position:absolute; z-index:25; top:8px; left:var(--playhead-x); transform:translateX(-50%);
+  width:112px; height:120px; display:none; align-items:center; justify-content:center;
+  background:color-mix(in srgb,var(--st-background-color) 94%,transparent);
+  border:1px solid color-mix(in srgb,var(--st-text-color) 16%,transparent);
   border-radius:8px; pointer-events:none;
 }
 .diagram-float.visible { display:flex; }
-.diagram-float svg { max-width:104px; max-height:116px; }
-.conductor-canvas {
-  position:absolute; left:0; top:0; height:100%; will-change:transform;
-  transform:translateX(42%);
-}
-.beat-grid, .chord-track { position:absolute; left:0; right:0; }
-.beat-grid { top:132px; height:68px; }
-.chord-track { top:132px; height:68px; }
-.beat-line {
-  position:absolute; top:0; bottom:0; width:1px;
-  background:color-mix(in srgb,var(--st-text-color) 14%,transparent);
-}
-.beat-line.measure { width:2px; background:color-mix(in srgb,#4da3ff 38%,transparent); }
+.diagram-float svg { max-width:104px; max-height:114px; }
+.conductor-canvas { position:absolute; left:0; top:0; height:100%; will-change:transform; }
+.beat-grid, .chord-track { position:absolute; left:0; right:0; top:140px; height:72px; }
+.beat-line { position:absolute; top:0; bottom:0; width:1px; background:color-mix(in srgb,var(--st-text-color) 15%,transparent); }
+.beat-line.measure { width:2px; background:color-mix(in srgb,#4da3ff 42%,transparent); }
 .chord-token {
-  position:absolute; top:18px; transform:translateX(-50%);
+  position:absolute; top:20px; transform:translateX(-50%);
   padding:4px 7px; border-radius:6px; font-weight:850; font-size:16px;
-  white-space:nowrap; opacity:.58;
-  transition:opacity 60ms linear, transform 60ms linear, background 60ms linear;
+  white-space:nowrap; opacity:.62;
+  transition:opacity 50ms linear, transform 50ms linear, background 50ms linear;
 }
-.chord-token.past { opacity:.28; }
-.chord-token.current {
-  opacity:1; transform:translateX(-50%) scale(1.08);
-  background:color-mix(in srgb,#4da3ff 22%,transparent);
-}
+.chord-token.past { opacity:.24; }
+.chord-token.current { opacity:1; transform:translateX(-50%) scale(1.08); background:color-mix(in srgb,#4da3ff 22%,transparent); }
 .hint { margin-top:8px; font-size:11px; opacity:.68; }
 .media-host { display:none; }
 @media(max-width:950px) {
+  .song-card { align-items:flex-start; flex-direction:column; }
+  .song-controls { justify-content:flex-start; }
   .mixer-head { display:none; }
   .track { grid-template-columns:1fr 58px; }
   .track-name { grid-column:1; }
@@ -211,7 +221,6 @@ _CSS = r"""
   .eq-reset { justify-self:start; }
 }
 """
-
 
 _JS = r"""
 export default function(component) {
@@ -226,6 +235,7 @@ export default function(component) {
   const playButton = root.querySelector('.play');
   const pauseButton = root.querySelector('.pause');
   const stopButton = root.querySelector('.stop');
+  const workModeSelect = root.querySelector('.work-mode');
   const signatureSelect = root.querySelector('.signature-mode');
   const capoSelect = root.querySelector('.capo-select');
   const speedSelect = root.querySelector('.speed');
@@ -241,6 +251,8 @@ export default function(component) {
   const chordTrack = root.querySelector('.chord-track');
   const diagramNode = root.querySelector('.diagram-float');
   const mediaHost = root.querySelector('.media-host');
+  const songTitleNode = root.querySelector('.song-title');
+  const songMetaNode = root.querySelector('.song-meta');
 
 
   const trackState = defs.map(track => ({
@@ -249,7 +261,11 @@ export default function(component) {
   }));
   let masterState = 1.0;
   let playbackRate = 1.0;
+  const initialWorkMode = String(data.work_mode || 'Analyse');
   const initialSignatureMode = String(data.signature_mode || 'Auto');
+  workModeSelect.value = initialWorkMode;
+  songTitleNode.textContent = String(data.song_title || 'Morceau');
+  songMetaNode.textContent = [String(data.song_artist || '').trim(), String(data.song_editor || '').trim() ? ('Éditeur : ' + String(data.song_editor || '').trim()) : ''].filter(Boolean).join(' · ');
   const initialCapo = Math.max(0, Math.min(12, Number(data.capo) || 0));
   signatureSelect.value = initialSignatureMode;
   for (let c = 0; c <= 12; c += 1) {
@@ -396,14 +412,33 @@ export default function(component) {
   });
   masterVolume.addEventListener('input',()=>{masterState=Number(masterVolume.value);masterValue.textContent=Math.round(masterState*100)+'%';applyMasterState(true);});
 
-  const lastBeatEnd=beats.length?Number(beats[beats.length-1].end||beats[beats.length-1].start||0):0;
-  const trackWidth=Math.max(1400,(Math.max(duration,lastBeatEnd)+4)*pxPerSecond);
+  const beatSpacing=Math.max(86,Number(data.beat_spacing || 104));
+  const beatStarts=beats.map(beat=>Number(beat.start||0));
+  const intervals=[];
+  for(let i=1;i<beatStarts.length;i+=1){ const d=beatStarts[i]-beatStarts[i-1]; if(Number.isFinite(d)&&d>.02) intervals.push(d); }
+  intervals.sort((a,b)=>a-b);
+  const nominalInterval=intervals.length ? intervals[Math.floor(intervals.length/2)] : .5;
+  const firstBeatStart=beatStarts.length ? Math.max(0,beatStarts[0]) : 0;
+  const firstBeatX=(firstBeatStart/Math.max(.02,nominalInterval))*beatSpacing;
+  const xForBeatIndex=index=>firstBeatX+(index*beatSpacing);
+  function metricXAtTime(value) {
+    const t=Math.max(0,Number(value)||0);
+    if(!beatStarts.length) return (t/Math.max(.02,nominalInterval))*beatSpacing;
+    if(t<=beatStarts[0]) return firstBeatX*(beatStarts[0]>.001 ? t/beatStarts[0] : 1);
+    let lo=0,hi=beatStarts.length-1,idx=0;
+    while(lo<=hi){ const mid=(lo+hi)>>1; if(beatStarts[mid]<=t){idx=mid;lo=mid+1;}else hi=mid-1; }
+    if(idx>=beatStarts.length-1) return xForBeatIndex(idx)+((t-beatStarts[idx])/Math.max(.02,nominalInterval))*beatSpacing;
+    const t0=beatStarts[idx], t1=Math.max(t0+.02,beatStarts[idx+1]);
+    const phase=Math.max(0,Math.min(1,(t-t0)/(t1-t0)));
+    return xForBeatIndex(idx)+(phase*beatSpacing);
+  }
+  const trackWidth=Math.max(1400,xForBeatIndex(Math.max(0,beats.length-1))+beatSpacing*6);
   canvas.style.width=trackWidth+'px'; grid.style.width=trackWidth+'px'; chordTrack.style.width=trackWidth+'px';
-  const xFor=t=>Math.max(0,Number(t)||0)*pxPerSecond;
   const chordNodes=[];
   beats.forEach((beat,index)=>{
-    const line=document.createElement('span'); line.className='beat-line'+(index%bpb===0?' measure':''); line.style.left=xFor(beat.start)+'px'; grid.appendChild(line);
-    const token=document.createElement('span'); token.className='chord-token'; token.style.left=xFor(beat.start)+'px'; token.textContent=String(beat.chord||'.');
+    const x=xForBeatIndex(index);
+    const line=document.createElement('span'); line.className='beat-line'+(index%bpb===0?' measure':''); line.style.left=x+'px'; grid.appendChild(line);
+    const token=document.createElement('span'); token.className='chord-token'; token.style.left=x+'px'; token.textContent=String(beat.chord||'.');
     token.title='Beat '+(index+1); chordTrack.appendChild(token); chordNodes.push(token);
   });
 
@@ -424,8 +459,8 @@ export default function(component) {
   }
   function renderAt(t) {
     const time=Math.max(0,Number(t)||0); seek.value=String(time); timeLabel.textContent=fmt(time)+' / '+fmt(duration);
-    const playheadX=windowNode.clientWidth*.34;
-    const px=playheadX-xFor(time); canvas.style.transform='translateX('+px+'px)';
+    const playheadX=windowNode.clientWidth*.28;
+    const px=playheadX-metricXAtTime(time); canvas.style.transform='translateX('+px+'px)';
     const index=findBeatIndex(time);
     if(index!==activeBeat){activeBeat=index;chordNodes.forEach((n,i)=>{n.classList.toggle('past',i<index);n.classList.toggle('current',i===index);});updateDiagram(index);}
   }
@@ -441,6 +476,7 @@ export default function(component) {
     raf=requestAnimationFrame(tick);
   }
 
+  workModeSelect.addEventListener('change',()=>{component.setStateValue('work_mode',String(workModeSelect.value||'Analyse'));});
   diagramCheckbox.checked=showDiagrams;
   diagramCheckbox.addEventListener('change',()=>{showDiagrams=Boolean(diagramCheckbox.checked);component.setStateValue('show_diagrams',showDiagrams);updateDiagram(activeBeat);});
   signatureSelect.addEventListener('change',()=>{
@@ -519,16 +555,14 @@ def render_step1_riffstation(
     work_dir = preview_dir.parent
     audio_hash = work_dir.name
 
-    # Step 1 owns Time sig + Capo visually. The historical sidebar controls
-    # remain untouched for the other EZScore modes, but are hidden while this
-    # Step 1 surface is mounted.
+    # Step 1 owns the song cartouche and its controls. Hide the historical
+    # left song panel while Analyse/Step 1 is mounted; it is restored on rerun
+    # when the user switches to Édition or Player.
     st.markdown(
         """
         <style>
-        section[data-testid="stSidebar"] div[data-testid="stSelectbox"]:has([aria-label="⏱ Time signature"]),
-        section[data-testid="stSidebar"] div[data-testid="stSelectbox"]:has([aria-label="🎸 Capodastre"]) {
-            display:none !important;
-        }
+        section[data-testid="stSidebar"] { display:none !important; }
+        [data-testid="stSidebarCollapsedControl"] { display:none !important; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -669,6 +703,20 @@ def render_step1_riffstation(
         if name in stems and name in previews:
             pack(name, label, Path(stems[name]), enabled, volume)
 
+    song = next(
+        (
+            dict(item)
+            for item in list_song_catalog(sort_by="title")
+            if str(item.get("audio_hash", "")) == str(audio_hash)
+        ),
+        {},
+    )
+    song_title = str(song.get("title", "") or source.stem).strip() or source.stem
+    song_artist = str(song.get("artist", "") or "").strip()
+    song_editor = str(song.get("editor", "") or "").strip()
+    work_mode_key = f"ez_work_mode_{audio_hash[:12]}"
+    work_mode = str(st.session_state.get(work_mode_key, "Analyse") or "Analyse")
+
     try:
         show_diagrams = bool(load_show_diagrams(audio_hash))
     except Exception:
@@ -683,6 +731,10 @@ def render_step1_riffstation(
         data={
             "tracks": tracks,
             "beats": display_beats,
+            "song_title": song_title,
+            "song_artist": song_artist,
+            "song_editor": song_editor,
+            "work_mode": work_mode,
             "signature": signature,
             "signature_mode": selected_mode,
             "detected_signature": detected,
@@ -694,6 +746,7 @@ def render_step1_riffstation(
             "px_per_second": 118,
         },
         default={
+            "work_mode": work_mode,
             "show_diagrams": show_diagrams,
             "signature_mode": selected_mode,
             "capo": int(capo),
@@ -702,10 +755,22 @@ def render_step1_riffstation(
             f"step1_riffstation_{audio_hash[:12]}_"
             f"{signature.replace('/', '_')}_capo{capo}_{len(display_beats)}"
         ),
+        on_work_mode_change=lambda: None,
+        on_signature_mode_change=lambda: None,
+        on_capo_change=lambda: None,
         on_show_diagrams_change=lambda: None,
         width="stretch",
         height=730,
     )
+
+    requested_work_mode = str(
+        getattr(result, "work_mode", work_mode) or work_mode
+    ).strip()
+    if requested_work_mode not in {"Analyse", "Édition", "Player"}:
+        requested_work_mode = work_mode
+    if requested_work_mode != work_mode:
+        st.session_state[work_mode_key] = requested_work_mode
+        st.rerun()
 
     requested_signature_mode = str(
         getattr(result, "signature_mode", selected_mode) or selected_mode

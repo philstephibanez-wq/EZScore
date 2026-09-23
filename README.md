@@ -1,103 +1,93 @@
-# EZScore_STEP1_RIFFSTATION_STEMS_R2
+# EZScore — STEP1_RIFFSTATION_STEMS_R3
 
-Base de travail vérifiée : GitHub `master` commit `e949eb1db272dc07695f032bf91af6187290fd1e`.
+Base GitHub : `master` / `1294ef6e3950a5a83c218832ad3f193ce1977e38` (`EZScore_STEP1_RIFFSTATION_STEMS_R2`).
 
-Cette livraison remplace la R1. Elle ne modifie aucun fichier du Step 2 (`chords_lyrics_editor.py`, `lyrics_inline_editor.py`, `templates/views/lyrics-editor.*`, `stem_analysis_conductor.py`).
+## Objet
 
-## Contrat Step 1
+R3 corrige le problème principal de R2 : le nouveau composant Step 1 existait mais le chemin réellement utilisé par `Analyse > 1 · STEM` continuait d'appeler l'ancien lecteur `stem_webaudio` avec les paroles.
 
-Step 1 = Riffstation + STEMS, pour audit à l'oreille :
+Le point d'entrée historique `stem_webaudio.render_player()` délègue maintenant explicitement les appels `ezstem_player_*` vers `step1_riffstation.render_step1_riffstation()`.
 
-- extraction STEM existante conservée ;
-- timeline musicale dédiée `riffstation_step1.json` ;
-- beats : batterie / `madmom-infer` ;
-- accords : audio original / `lv-chordia` ;
-- time signature calculée à partir des accents batterie ;
-- aucun fallback métrique inventé ;
-- mixeur STEM ;
-- lecture / pause / stop / seek ;
-- vitesse 0,50x / 0,75x / 1,00x / 1,25x / 1,50x avec conservation de hauteur ;
-- Time sig dans le composant Step 1 ;
-- Capo dans le composant Step 1 ;
-- diagramme optionnel ;
-- prompteur accords uniquement ;
-- aucune parole n'est fournie au composant Step 1.
+## Step 1 livré
 
-La time signature, le capo et la vitesse sont des paramètres de représentation/lecture. Les timestamps de la timeline musicale ne sont jamais déplacés.
+Step 1 = **Riffstation + STEM**, sans parole :
 
-## Mire temporelle
+- mixeur Original + STEM ;
+- lecture / pause / stop ;
+- vitesse 0,50× à 1,50× avec conservation de hauteur ;
+- time signature ;
+- capo ;
+- diagramme courant optionnel ;
+- accords seuls ;
+- mire fixe ;
+- défilement métrique régulier : les beats sont espacés uniformément comme un métronome, tandis que la fonction de projection convertit le temps audio réel en position visuelle sans modifier aucun timestamp.
 
-La mire est fixe à 34 % de la fenêtre. La timeline se déplace dessous.
+À `t=0`, aucun beat futur ne peut se trouver à gauche de la mire. Avant le premier beat, aucun accord/diagramme n'est courant.
 
-À `t = 0`, la position temporelle zéro est exactement sur la mire : aucun événement de temps positif ne peut apparaître à gauche. Avant le premier beat, aucun accord n'est marqué `current` ou `past`.
+Le diagramme courant est physiquement ancré sur la même abscisse CSS que la mire (`--playhead-x`).
 
-Quand la lecture avance, le passé passe à gauche et le futur reste à droite. Le diagramme courant est centré au-dessus de la même mire que l'accord courant.
+## Cartouche morceau
 
-## Time sig / Capo
+Le composant Step 1 contient désormais un cartouche avec :
 
-Les contrôles historiques de la sidebar sont seulement masqués pendant que le composant Step 1 est monté. Ils ne sont pas supprimés du reste d'EZScore.
+- titre du morceau ;
+- artiste ;
+- éditeur ;
+- Mode Analyse / Édition / Player ;
+- Time sig ;
+- Capo ;
+- Vitesse ;
+- option Diagramme.
 
-Les contrôles du composant Step 1 utilisent le contrat existant `song_preferences` :
+Pendant Step 1 / Analyse, l'ancien panneau latéral Streamlit est masqué. Un changement de Mode depuis le cartouche remet le mode demandé dans `ez_work_mode_<hash>` puis relance Streamlit ; le panneau latéral historique redevient alors disponible dans les autres modes.
 
-1. changement dans le composant ;
-2. sauvegarde dans `song_preferences` ;
-3. alimentation de `_pending_song_preferences` ;
-4. rerun ;
-5. EZScore resynchronise son état global avant de recréer ses widgets.
+Time sig et Capo continuent d'utiliser le contrat de persistance EZScore existant (`song_preferences`) et ne recalculent pas les timestamps.
 
-Aucune seconde source de vérité métier n'est créée dans `localStorage`.
+## Step 2
 
-## Important : redémarrage complet
+Le moteur / rendu Step 2 n'est pas réécrit dans cette livraison. Les assets historiques de paroles dans `stem_webaudio.py` restent présents. Le nouveau routage ne s'applique qu'aux clés `ezstem_player_*` du Step 1.
 
-La R1 pouvait sembler ne rien changer si Streamlit était resté lancé : `stem_lab_analysis.py` importe `render_player` au chargement du module. Après remplacement des fichiers, il faut donc arrêter complètement le serveur puis le relancer.
+La future lane paroles pourra utiliser la même transformation temps -> métrique pour faire passer le mot courant sous la même mire sans déplacer la timeline métier.
+
+## Installation PowerShell
+
+Arrêter Streamlit, puis :
 
 ```powershell
 cd H:\EZScore
 
-# arrêter le serveur actuel avec Ctrl+C avant ceci
-.\.venv-py313\Scripts\python.exe -m streamlit run EZScore.py --server.address 127.0.0.1 --server.port 8501 --server.headless true
-```
-
-## Installation
-
-Depuis `H:\EZScore` :
-
-```powershell
-$pkg = "$env:USERPROFILE\Downloads\EZScore_STEP1_RIFFSTATION_STEMS_R2.zip"
-$tmp = "H:\Temp\EZScore_STEP1_RIFFSTATION_STEMS_R2"
+$pkg = "$env:USERPROFILE\Downloads\EZScore_STEP1_RIFFSTATION_STEMS_R3.zip"
+$tmp = "H:\Temp\EZScore_STEP1_RIFFSTATION_STEMS_R3"
 
 Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Path $tmp -Force | Out-Null
 tar -xf $pkg -C $tmp
 
-Copy-Item "$tmp\ezscore\analysis\riffstation_step1.py" "H:\EZScore\ezscore\analysis\riffstation_step1.py" -Force
 Copy-Item "$tmp\ezscore\player\step1_riffstation.py" "H:\EZScore\ezscore\player\step1_riffstation.py" -Force
 Copy-Item "$tmp\ezscore\player\stem_webaudio.py" "H:\EZScore\ezscore\player\stem_webaudio.py" -Force
 Copy-Item "$tmp\scripts\test_step1_riffstation_contract.py" "H:\EZScore\scripts\test_step1_riffstation_contract.py" -Force
 
-.\.venv-py313\Scripts\python.exe -m py_compile `
-  .\ezscore\analysis\riffstation_step1.py `
-  .\ezscore\player\step1_riffstation.py `
-  .\ezscore\player\stem_webaudio.py
-
+.\.venv-py313\Scripts\python.exe -m py_compile .\ezscore\player\step1_riffstation.py .\ezscore\player\stem_webaudio.py
 .\.venv-py313\Scripts\python.exe .\scripts\test_step1_riffstation_contract.py
 ```
 
 Résultat attendu :
 
 ```text
-STEP1_RIFFSTATION_R2_CONTRACT_OK
+STEP1_RIFFSTATION_R3_CONTRACT_OK
 ```
 
-## Contrôle visuel attendu
+Relancer ensuite :
 
-Après redémarrage et ouverture du Step 1 :
+```powershell
+.\.venv-py313\Scripts\python.exe -m streamlit run EZScore.py --server.address 127.0.0.1 --server.port 8501 --server.headless true
+```
 
-- pas de ligne `Paroles` / `Chant` dans le prompteur ;
-- pas de diagramme dans une ligne séparée sous les accords ;
-- `Time sig`, `Capo`, `Vitesse`, `Diagramme` sont dans la barre du composant ;
-- la mire verticale traverse l'accord courant ;
-- le diagramme optionnel est au-dessus de cette mire ;
-- à `0:00`, rien de temporellement antérieur n'apparaît à gauche de la mire.
+## Fichiers modifiés
 
-Si l'ancien conducteur `Structure / Accords / Chant` est encore visible après copie, le serveur n'a pas été redémarré avec les nouveaux modules.
+- `ezscore/player/step1_riffstation.py`
+- `ezscore/player/stem_webaudio.py`
+- `scripts/test_step1_riffstation_contract.py`
+- `readme.md`
+
+Aucun `__pycache__` n'est livré.

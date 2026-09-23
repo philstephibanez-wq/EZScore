@@ -680,6 +680,21 @@ def render_player(
     key: str,
     words: list[dict[str, Any]] | None = None,
 ) -> None:
+    # Analyse > Step 1 is now the autonomous Riffstation + STEM surface.
+    # The historical caller still passes `words`; Step 1 deliberately ignores
+    # them and never instantiates a lyric lane. Other callers retain the legacy
+    # renderer below.
+    if str(key).startswith("ezstem_player_"):
+        from ezscore.player.step1_riffstation import render_step1_riffstation
+
+        render_step1_riffstation(
+            source=Path(source),
+            stems=dict(stems),
+            preview_dir=Path(preview_dir),
+            key=str(key),
+        )
+        return
+
     """Step 1 facade: Riffstation + stems, intentionally without lyrics.
 
     The old low-level assets above are kept byte-for-byte compatible for the
