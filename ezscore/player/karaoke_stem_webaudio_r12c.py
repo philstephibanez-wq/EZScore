@@ -58,7 +58,7 @@ _CSS = (TEMPLATE_DIR / "riffstation-workspace.css").read_text(encoding="utf-8")
 _JS = (TEMPLATE_DIR / "riffstation-workspace.js").read_text(encoding="utf-8")
 
 _COMPONENT = st.components.v2.component(
-    "ezscore_karaoke_stem_player_r13",
+    "ezscore_karaoke_stem_player_r15",
     html=_HTML,
     css=_CSS,
     js=_JS,
@@ -369,7 +369,10 @@ def _pack_tracks(source: Path, stems: dict[str, Path], preview_dir: Path, key: s
             }
         )
 
-    add("original", "Original", True, 0.78)
+    # Reference clock: original is audible alone by default.
+    # Selecting any STEM in the UI mutes Original immediately to avoid
+    # duplicated audio / comb-filter echo.
+    add("original", "Original", True, 1.00)
     labels = {
         "vocals": "Voix",
         "drums": "Batterie",
@@ -381,7 +384,7 @@ def _pack_tracks(source: Path, stems: dict[str, Path], preview_dir: Path, key: s
         "backing_vocals": "Chœurs",
     }
     defaults = {
-        "vocals": (True, 0.82),
+        "vocals": (False, 0.82),
         "drums": (False, 0.72),
         "bass": (False, 0.72),
         "guitar": (False, 0.72),
@@ -599,7 +602,7 @@ def render_player(
         # Stable component instance. Step navigation is edge-triggered through
         # a tokenised request so stale component state can never re-activate
         # the previous tab on the next Streamlit rerun.
-        key=f"riffstation_r13_{audio_hash[:12]}_{effective.replace('/', '_')}_capo{capo}",
+        key=f"riffstation_r15_{audio_hash[:12]}_{effective.replace('/', '_')}_capo{capo}",
         on_header_payload_change=lambda: None,
         on_show_diagrams_change=lambda: None,
         on_step_request_change=lambda: None,

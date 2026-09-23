@@ -47,9 +47,11 @@
       <div class="player-tools"><label class="diagram-toggle"><input class="show-diagrams" type="checkbox"> Diagramme accord courant</label><span class="mode-badge"></span></div>
 
       <div class="conductor-stage">
+        <canvas class="riff-waveform" aria-hidden="true"></canvas>
         <div class="fixed-playhead" aria-hidden="true"></div>
         <div class="diagram-anchor"><div class="current-diagram"></div></div>
         <div class="current-chord-anchor"><span class="current-chord-label"></span></div>
+        <div class="current-word-anchor"><span class="current-word-label"></span></div>
         <div class="timeline-window chord-window"><div class="chord-track"></div></div>
         <div class="timeline-window lyric-window"><div class="lyric-track"></div></div>
       </div>

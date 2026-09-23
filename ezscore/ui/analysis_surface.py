@@ -288,6 +288,17 @@ def render_analysis_surface(audio_hash: str) -> None:
         words=words,
     )
 
+    if words:
+        from ezscore.ui.chords_lyrics_editor import render_chords_lyrics_editor
+        with st.expander(
+            "✏️ Édition paroles / accords / blocs",
+            expanded=True,
+        ):
+            render_chords_lyrics_editor(
+                stem_module=stem,
+                audio_hash=audio_hash,
+            )
+
     if not words:
         st.info(
             "Step 2 ajoute les paroles au même conducteur. "
