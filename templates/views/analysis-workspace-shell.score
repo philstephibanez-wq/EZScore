@@ -1,0 +1,16 @@
+<style>
+/* Analyse Riffstation owns the full main workspace. Keep only global sidebar navigation. */
+section[data-testid="stSidebar"] div[data-testid="stRadio"],
+section[data-testid="stSidebar"] div[data-testid="stSelectbox"],
+section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h3 {
+  display:none !important;
+}
+/* The historical Analyse route renders legacy blocks before the canonical hook.
+   Hide only those earlier siblings; the Riffstation workspace and anything after
+   this marker stay visible. */
+.block-container > div[data-testid="stVerticalBlock"] > div:has(~ div .ezscore-analysis-workspace-marker) {
+  display:none !important;
+}
+.ezscore-analysis-workspace-marker { display:none !important; }
+</style>
+<div class="ezscore-analysis-workspace-marker" aria-hidden="true"></div>

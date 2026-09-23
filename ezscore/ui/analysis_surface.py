@@ -1,34 +1,31 @@
 """Canonical two-step Analyse workflow.
 
 Step 1 = Riffstation + STEMS, no lyrics.
-Step 2 = exactly the same workspace + anchored lyrics.
+Step 2 = exactly the same template-driven workspace + anchored lyrics.
 
-The mature STEM analysis module remains the data/engine provider.  This module
-owns the product workflow and calls the existing template-driven player once.
-No monkey-patching, no parallel player implementation.
+This module owns only the product workflow. It deliberately calls the existing
+R12c template-driven Riffstation player directly so no historical monkey-patch
+can silently replace the requested workspace with the legacy conductor.
 """
 
 from __future__ import annotations
 
 import traceback
+from pathlib import Path
 
 import streamlit as st
 
+from EZScoreTemplate import ScoreTemplateRenderer
 
-def _hide_legacy_song_sidebar() -> None:
-    """Keep global navigation, remove song workflow controls from the sidebar."""
+SCORE = ScoreTemplateRenderer(Path(__file__).resolve().parents[2])
+
+
+def _render_analysis_shell() -> None:
     st.markdown(
-        """
-        <style>
-        section[data-testid="stSidebar"] div[data-testid="stRadio"],
-        section[data-testid="stSidebar"] div[data-testid="stSelectbox"] {
-            display:none !important;
-        }
-        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] h3 {
-            display:none !important;
-        }
-        </style>
-        """,
+        SCORE.render(
+            "templates/views/analysis-workspace-shell.score",
+            {"view": {"name": "Analyse Riffstation"}},
+        ),
         unsafe_allow_html=True,
     )
 
@@ -90,7 +87,7 @@ def _extract_all_stems(stem, audio_hash: str, source) -> None:
 
 
 def _render_stem_maintenance(stem, audio_hash: str, source) -> None:
-    """Technical STEM operations stay available but out of the main workflow."""
+    """Technical STEM operations remain available outside the main workspace."""
     short_hash = str(audio_hash)[:12]
     with st.expander("Maintenance STEM", expanded=False):
         stems = stem.cached_stem_paths(audio_hash)
@@ -99,7 +96,7 @@ def _render_stem_maintenance(stem, audio_hash: str, source) -> None:
 
         if st.button(
             "⬇ Préparer les téléchargements STEM",
-            key=f"ezstem_r8_downloads_{short_hash}",
+            key=f"ezstem_r10_downloads_{short_hash}",
             width="stretch",
         ):
             stem._download_stems(all_stems)
@@ -108,7 +105,7 @@ def _render_stem_maintenance(stem, audio_hash: str, source) -> None:
         with c1:
             if st.button(
                 "↻ Régénérer tous les STEM",
-                key=f"ezstem_r8_regen_all_{short_hash}",
+                key=f"ezstem_r10_regen_all_{short_hash}",
                 width="stretch",
             ):
                 with st.status("Régénération complète…", expanded=True) as status:
@@ -150,7 +147,7 @@ def _render_stem_maintenance(stem, audio_hash: str, source) -> None:
         with c2:
             if st.button(
                 "↻ Régénérer Chant / Chœurs",
-                key=f"ezstem_r8_regen_vocals_{short_hash}",
+                key=f"ezstem_r10_regen_vocals_{short_hash}",
                 width="stretch",
             ):
                 with st.status("Régénération Chant / Chœurs…", expanded=True) as status:
@@ -186,13 +183,20 @@ def _render_workspace(stem, *, audio_hash: str, source, words: list[dict]) -> No
         st.error("FFmpeg est requis pour le lecteur STEM.")
         return
 
+    # IMPORTANT: direct call to the existing template-driven player.
+    # Do not use stem._render_stem_player here: historical integration hooks can
+    # replace that symbol with the old Structure/Accords/Chant conductor.
+    from ezscore.player.karaoke_stem_webaudio_r12c import (
+        render_player as render_riffstation_workspace,
+    )
+
     all_stems = _all_stems(stem, audio_hash)
-    stem._render_stem_player(
+    render_riffstation_workspace(
         source,
         all_stems,
         preview_dir=stem._work_dir(audio_hash) / "browser_preview",
         key=(
-            f"ezstem_riffstation_{str(audio_hash)[:12]}_"
+            f"ezstem_riffstation_r9_{str(audio_hash)[:12]}_"
             f"{'lyrics' if words else 'stems'}"
         ),
         words=words,
@@ -200,10 +204,10 @@ def _render_workspace(stem, *, audio_hash: str, source, words: list[dict]) -> No
 
 
 def render_analysis_surface(audio_hash: str) -> None:
-    """Render the product workflow exactly as Step 1 / Step 2."""
+    """Render exactly the two requested product steps."""
     from ezscore.ui import stem_lab_analysis as stem
 
-    _hide_legacy_song_sidebar()
+    _render_analysis_shell()
 
     song = stem._song_for_hash(audio_hash)
     source = stem._source_path(audio_hash, song)
@@ -216,21 +220,9 @@ def render_analysis_surface(audio_hash: str) -> None:
     steps = ["1 · STEMS", "2 · PAROLES"]
 
     current = str(st.session_state.get(step_key, steps[0]) or steps[0])
-    # Migrate historical labels without exposing the old workflow.
-    if current.startswith("2"):
-        current = steps[1]
-    else:
-        current = steps[0]
+    current = steps[1] if current.startswith("2") else steps[0]
     st.session_state[step_key] = current
-
-    selected = st.segmented_control(
-        "Workflow",
-        steps,
-        key=step_key,
-        width="stretch",
-        label_visibility="collapsed",
-    )
-    selected = str(selected or st.session_state.get(step_key, steps[0]))
+    selected = current
 
     stem_error = str(
         st.session_state.get(f"ezstem_error_{short_hash}", "") or ""
@@ -251,19 +243,18 @@ def render_analysis_surface(audio_hash: str) -> None:
             "Extraire les STEM HQ",
             type="primary",
             width="stretch",
-            key=f"ezstem_r8_extract_{short_hash}",
+            key=f"ezstem_r10_extract_{short_hash}",
         ):
             _extract_all_stems(stem, audio_hash, source)
         return
 
-    # Complete vocal split when necessary, but do not block Riffstation audit.
     if not stem.vocal_stems_cache_complete(audio_hash):
         with st.expander("Chant / Chœurs non séparés", expanded=False):
             if st.button(
                 "Extraire Chant / Chœurs",
                 type="primary",
                 width="stretch",
-                key=f"ezstem_r8_split_vocals_{short_hash}",
+                key=f"ezstem_r10_split_vocals_{short_hash}",
             ):
                 stems = stem.cached_stem_paths(audio_hash)
                 try:
@@ -277,19 +268,25 @@ def render_analysis_surface(audio_hash: str) -> None:
                     st.rerun()
 
     if selected == steps[0]:
-        # STEP 1 = Riffstation + STEMS.  Lyrics are not even passed to the player.
+        # STEP 1 = Riffstation + STEMS. No lyrics object enters the component.
         _render_workspace(
             stem,
             audio_hash=audio_hash,
             source=source,
             words=[],
         )
-        _render_stem_maintenance(stem, audio_hash, source)
         return
 
-    # STEP 2 = the exact same workspace + anchored user lyrics/word timeline.
+    # STEP 2 = same workspace, same musical timeline, plus anchored words.
     speech = stem._load_speech(audio_hash)
     words = list((speech or {}).get("words", []) or [])
+
+    _render_workspace(
+        stem,
+        audio_hash=audio_hash,
+        source=source,
+        words=words,
+    )
 
     if not words:
         st.info(
@@ -300,16 +297,8 @@ def render_analysis_surface(audio_hash: str) -> None:
             "Analyser / ancrer les paroles",
             type="primary",
             width="stretch",
-            key=f"ezstem_r8_speech_{short_hash}",
+            key=f"ezstem_r10_speech_{short_hash}",
         ):
             with st.spinner("Reconnaissance et ancrage des mots…"):
                 stem._transcribe_original(source, audio_hash)
             st.rerun()
-        return
-
-    _render_workspace(
-        stem,
-        audio_hash=audio_hash,
-        source=source,
-        words=words,
-    )
