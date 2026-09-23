@@ -1,0 +1,89 @@
+<div class="ez-riff-root">
+  <section class="song-cartouche">
+    <div class="song-summary">
+      <div><span class="k">Titre</span><strong class="summary-title">—</strong></div>
+      <div><span class="k">Auteur / Interprète</span><strong class="summary-artist">—</strong></div>
+      <div><span class="k">Éditeur</span><strong class="summary-editor">—</strong></div>
+      <div><span class="k">Time sig</span><strong class="summary-signature">—</strong></div>
+      <div><span class="k">Capo</span><strong class="summary-capo">—</strong></div>
+      <div><span class="k">Strum</span><strong class="summary-strum">—</strong></div>
+    </div>
+
+    <details class="editor-details">
+      <summary>Modifier le cartouche</summary>
+      <div class="editor-form">
+        <label>Titre<input class="edit-title" type="text"></label>
+        <label>Auteur / Interprète<input class="edit-artist" type="text"></label>
+        <label class="editor-select-wrap">Éditeur<select class="edit-editor"></select></label>
+        <label>Time signature<select class="edit-signature"></select></label>
+        <label>Capodastre<select class="edit-capo"></select></label>
+        <label>Strum<input class="edit-strum" type="text"></label>
+        <label>Strum alternatif<input class="edit-strum-alt" type="text"></label>
+        <button class="save-header" type="button">💾 Enregistrer</button>
+      </div>
+    </details>
+  </section>
+
+  <details class="mixer-details" open>
+    <summary>STEMS + table de mixage</summary>
+    <div class="mixer-body">
+      <div class="mixer-head">
+        <div>Piste</div><div>ON</div><div>Volume</div><div>Graves</div><div>Médiums</div><div>Aigus</div><div></div>
+      </div>
+      <div class="tracks"></div>
+      <div class="master-row">
+        <div class="master-name">Master</div>
+        <div class="master-value">100%</div>
+        <input class="master-volume" type="range" min="0" max="1.25" step="0.01" value="1">
+      </div>
+    </div>
+  </details>
+
+  <details class="player-details" open>
+    <summary>Player</summary>
+    <div class="player-body">
+      <div class="player-tools">
+        <label class="diagram-toggle"><input class="show-diagrams" type="checkbox"> Diagramme</label>
+        <span class="mode-badge"></span>
+      </div>
+
+      <div class="conductor-stage">
+        <div class="fixed-playhead" aria-hidden="true"></div>
+        <div class="diagram-anchor"><div class="current-diagram"></div></div>
+
+        <div class="timeline-row chord-row">
+          <div class="row-label">Accord</div>
+          <div class="timeline-window chord-window"><div class="chord-track"></div></div>
+        </div>
+
+        <div class="timeline-row lyric-row">
+          <div class="row-label">Paroles</div>
+          <div class="timeline-window lyric-window"><div class="lyric-track"></div></div>
+        </div>
+      </div>
+
+      <input class="seek" type="range" min="0" max="1" step="0.001" value="0">
+      <div class="transport">
+        <button class="play" type="button">▶ Lecture</button>
+        <button class="pause" type="button">⏸ Pause</button>
+        <button class="stop" type="button">⏹ Stop</button>
+        <label>Vitesse
+          <select class="playback-rate">
+            <option value="0.50">0,50×</option>
+            <option value="0.60">0,60×</option>
+            <option value="0.70">0,70×</option>
+            <option value="0.75">0,75×</option>
+            <option value="0.85">0,85×</option>
+            <option value="1.00" selected>1,00×</option>
+            <option value="1.10">1,10×</option>
+            <option value="1.25">1,25×</option>
+            <option value="1.50">1,50×</option>
+          </select>
+        </label>
+        <span class="time">0:00 / 0:00</span>
+      </div>
+    </div>
+  </details>
+
+  <div class="hint">Timeline audio immuable · beats à espacement métrique régulier · la représentation des paroles s'adapte à la mire.</div>
+</div>

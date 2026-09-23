@@ -1,1040 +1,62 @@
 from __future__ import annotations
 
-"""R12c karaoke presentation layer.
+"""Template-driven Riffstation/STEM player used by Analyse Step 1 and Step 2.
 
-This module deliberately reuses the validated R10 audio/STEM/EQ implementation
-and only replaces the conductor presentation/control layer.
+The existing STEM_LAB orchestration remains authoritative.  This module only
+prepares the shared player ViewModel and renders the existing Streamlit v2
+component from SCORE/CSS/JS templates.
 """
 
-from typing import Any
-from pathlib import Path
 import json
+from pathlib import Path
+from typing import Any
 
 import streamlit as st
 
+from EZScoreTemplate import ScoreTemplateRenderer
+from ezscore.analysis.riffstation_step1 import (
+    SUPPORTED_SIGNATURES,
+    analyze as analyze_step1,
+    effective_signature,
+    load as load_step1,
+    timeline_beats_per_measure,
+)
+from ezscore.analysis.stems import STEM_NAMES
+from ezscore.auth import current_user
+from ezscore.auth.storage import list_users
 from ezscore.guitar import (
     choices as guitar_choices,
     get_voicing,
     load_show_diagrams,
     load_voicings,
+    save_show_diagrams,
     svg as guitar_svg,
 )
-from ezscore.player import karaoke_stem_webaudio as _base
+from ezscore.notation import accord_forme_capo
+from ezscore.persistence import (
+    assign_song_editor,
+    get_song_editor_assignment,
+    list_song_catalog,
+    load_song_preferences,
+    save_song_preferences,
+    update_song_metadata,
+)
+from ezscore.player.karaoke_stem_webaudio import prepare_browser_previews
 from ezscore.player.media_metadata import duration_seconds
-from ezscore.player.lyrics_layout import patch_player_js
+from ezscore.player.media_url import register_media_url
 
+APP_DIR = Path(__file__).resolve().parents[2]
+TEMPLATE_DIR = APP_DIR / "templates" / "views"
+SCORE = ScoreTemplateRenderer(APP_DIR)
 
-_AUDIO_HASH_BY_STORAGE_KEY: dict[str, str] = {}
-_PREVIEW_DIR_BY_STORAGE_KEY: dict[str, Path] = {}
-_MEDIA_DURATION_BY_STORAGE_KEY: dict[str, float] = {}
-
-
-def _replace_once(source: str, old: str, new: str, label: str) -> str:
-    if old not in source:
-        raise RuntimeError(f"EZScore R11 patch point missing: {label}")
-    return source.replace(old, new, 1)
-
-
-_HTML = _base._HTML
-
-_HTML = _replace_once(
-    _HTML,
-    """  <div class="transport">
-    <button class="play" type="button">▶ Lecture</button>
-    <button class="pause" type="button">⏸ Pause</button>
-    <button class="stop" type="button">⏹ Stop</button>
-    <span class="time">0:00 / 0:00</span>
-  </div>
-  <input class="seek" type="range" min="0" max="1" step="0.001" value="0">
-
-""",
-    "",
-    "top transport",
+_HTML = SCORE.render(
+    "templates/views/riffstation-workspace.score",
+    {"view": {"name": "Riffstation + STEM"}},
 )
+_CSS = (TEMPLATE_DIR / "riffstation-workspace.css").read_text(encoding="utf-8")
+_JS = (TEMPLATE_DIR / "riffstation-workspace.js").read_text(encoding="utf-8")
 
-_HTML = _replace_once(
-    _HTML,
-    """  <div class="meter-box">
-    <strong>Mesure</strong>
-    <input class="meter-num" type="number" min="1" step="1" value="4">
-    <span>/</span>
-    <input class="meter-den" type="number" min="1" step="1" value="4">
-    <label>Groupement <input class="meter-group" type="text" placeholder="auto"></label>
-    <span class="meter-state"></span>
-  </div>
-
-  <div class="karaoke">
-""",
-    """  <div class="meter-box">
-    <label><strong>Mesure</strong>
-      <select class="meter-signature">
-        <option value="2/4">2/4</option>
-        <option value="3/4">3/4</option>
-        <option value="4/4">4/4</option>
-        <option value="5/4">5/4</option>
-        <option value="6/8">6/8</option>
-        <option value="7/8">7/8</option>
-        <option value="9/8">9/8</option>
-        <option value="12/8">12/8</option>
-      </select>
-    </label>
-
-    <label><strong>Vitesse</strong>
-      <select class="playback-rate">
-        <option value="0.75">0.75×</option>
-        <option value="0.85">0.85×</option>
-        <option value="1.00" selected>1.00×</option>
-        <option value="1.10">1.10×</option>
-        <option value="1.25">1.25×</option>
-      </select>
-    </label>
-
-    <label class="diagram-toggle">
-      <input class="show-diagrams" type="checkbox">
-      Diagrammes guitare
-    </label>
-
-    <span class="meter-state"></span>
-  </div>
-
-  <div class="transport transport-karaoke">
-    <button class="play" type="button">▶ Lecture</button>
-    <button class="pause" type="button">⏸ Pause</button>
-    <button class="stop" type="button">⏹ Stop</button>
-    <span class="time">0:00 / 0:00</span>
-  </div>
-  <input class="seek" type="range" min="0" max="1" step="0.001" value="0">
-
-  <div class="karaoke">
-""",
-    "meter / transport",
-)
-
-_HTML = _replace_once(
-    _HTML,
-    """    <div class="timeline-row chord-row">
-      <div class="timeline-label">Accords</div>
-""",
-    """    <div class="current-diagram-row">
-      <div class="timeline-label">Diagramme</div>
-      <div class="current-diagram"></div>
-    </div>
-
-    <div class="current-chord-row">
-      <div class="timeline-label">Accord</div>
-      <div class="current-chord">—</div>
-    </div>
-
-    <div class="timeline-row chord-row">
-      <div class="timeline-label">Accords</div>
-""",
-    "current chord rows",
-)
-
-
-_CSS = _base._CSS + r"""
-
-/* R12c presentation controls */
-.meter-box select {
-  background:#1f232b;
-  color:#f4f4f4;
-  border:1px solid color-mix(in srgb, var(--st-text-color) 25%, transparent);
-  border-radius:5px;
-  padding:4px 7px;
-  color-scheme:dark;
-}
-.meter-box select option {
-  background:#1f232b;
-  color:#f4f4f4;
-}
-.meter-box select:focus {
-  outline:2px solid color-mix(in srgb, #4da3ff 70%, transparent);
-  outline-offset:1px;
-}
-.meter-box label {
-  display:flex;
-  align-items:center;
-  gap:6px;
-}
-.diagram-toggle {
-  margin-left:4px;
-  white-space:nowrap;
-}
-.transport-karaoke {
-  margin-top:4px;
-}
-.playhead,
-.future-hint {
-  display:none !important;
-}
-.current-diagram-row,
-.current-chord-row {
-  display:grid;
-  grid-template-columns:64px 1fr;
-  align-items:center;
-  position:relative;
-}
-.current-diagram-row {
-  display:none;
-  min-height:126px;
-}
-.current-diagram {
-  position:absolute;
-  left:38%;
-  top:2px;
-  transform:translateX(-50%);
-  min-height:118px;
-  width:112px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  z-index:7;
-}
-.current-diagram svg {
-  width:92px;
-  height:auto;
-  max-height:118px;
-  display:block;
-}
-.diagram-unavailable {
-  width:106px;
-  padding:7px 5px;
-  border:1px dashed color-mix(in srgb, var(--st-text-color) 30%, transparent);
-  border-radius:7px;
-  font-size:10px;
-  opacity:.62;
-  text-align:center;
-}
-.current-chord-row {
-  min-height:54px;
-}
-.current-chord {
-  position:absolute;
-  left:38%;
-  top:7px;
-  transform:translateX(-50%);
-  min-width:140px;
-  text-align:center;
-  font-family:Consolas,"Courier New",monospace;
-  font-size:32px;
-  font-weight:950;
-  line-height:1;
-  color:#f4f4f4;
-}
-"""
-
-
-_JS = _base._JS
-
-_JS = _replace_once(
-    _JS,
-    """  const meterDefault = data.meter_default || {signature:"4/4", grouping:""};
-""",
-    """  const meterDefault = data.meter_default || {signature:"4/4", grouping:""};
-  const chordDiagrams = data.chord_diagrams || {};
-""",
-    "data chord diagrams",
-)
-
-_JS = _replace_once(
-    _JS,
-    """  const numInput = root.querySelector(".meter-num");
-  const denInput = root.querySelector(".meter-den");
-  const groupingInput = root.querySelector(".meter-group");
-  const meterState = root.querySelector(".meter-state");
-""",
-    """  const meterSelect = root.querySelector(".meter-signature");
-  const rateSelect = root.querySelector(".playback-rate");
-  const showDiagramsInput = root.querySelector(".show-diagrams");
-  const meterState = root.querySelector(".meter-state");
-  const currentDiagramRow = root.querySelector(".current-diagram-row");
-  const currentDiagramNode = root.querySelector(".current-diagram");
-  const currentChordNode = root.querySelector(".current-chord");
-""",
-    "meter selectors",
-)
-
-_JS = _replace_once(
-    _JS,
-    """  let duration = 0;
-  let raf = null;
-""",
-    """  let duration = 0;
-  let raf = null;
-  let playbackRate = 1.0;
-  const visualDelay = 0.35;
-  let showDiagrams = Boolean(data.show_diagrams_default);
-""",
-    "player state",
-)
-
-_JS = _replace_once(
-    _JS,
-    """  function currentTime() {
-    if (!playing || !context) return position;
-    return Math.max(
-      0,
-      Math.min(duration, position + (context.currentTime - startedAtContextTime))
-    );
-  }
-""",
-    """  function currentTime() {
-    if (!playing || !context) return position;
-    return Math.max(
-      0,
-      Math.min(
-        duration,
-        position + (context.currentTime - startedAtContextTime) * playbackRate
-      )
-    );
-  }
-""",
-    "rate-aware clock",
-)
-
-meter_start = _JS.index("  // -------- Meter / presentation only --------")
-lyrics_start = _JS.index("  // -------- Continuous lyrics geometry --------")
-_JS = (
-    _JS[:meter_start]
-    + r"""  // -------- Meter / presentation only --------
-  const allowedMeters = new Set([
-    "2/4","3/4","4/4","5/4","6/8","7/8","9/8","12/8"
-  ]);
-  const defaultSignature = allowedMeters.has(String(meterDefault.signature || ""))
-    ? String(meterDefault.signature)
-    : "4/4";
-  meterSelect.value = defaultSignature;
-  rateSelect.value = "1.00";
-  showDiagramsInput.checked = showDiagrams;
-
-  const storageKey = "ezscore-karaoke-meter:" + String(data.storage_key || "default");
-  try {
-    const saved = JSON.parse(localStorage.getItem(storageKey) || "null");
-    if (saved && allowedMeters.has(String(saved.signature || ""))) {
-      meterSelect.value = String(saved.signature);
-    }
-  } catch (_) {}
-
-  function defaultGrouping(n,d) {
-    if (d >= 8 && n > 3 && n % 3 === 0) return Array(n/3).fill(3);
-    if (d >= 8 && n === 5) return [2,3];
-    if (d >= 8 && n === 7) return [2,2,3];
-    if (d === 4 && n === 5) return [3,2];
-    if (d === 4 && n === 7) return [4,3];
-    return Array(n).fill(1);
-  }
-
-  function meter() {
-    const parts = String(meterSelect.value || "4/4").split("/");
-    const n = Math.max(1, Math.floor(Number(parts[0] || 4)));
-    const d = Math.max(1, Math.floor(Number(parts[1] || 4)));
-    const groups = defaultGrouping(n,d);
-    const grouped = d >= 8 && groups.some(x => x > 1);
-    return {
-      n,d,groups,grouped,
-      beatsPerMeasure: grouped ? groups.length : n
-    };
-  }
-
-  let renderedMeterKey = "";
-  function persistMeter() {
-    const m = meter();
-    try {
-      localStorage.setItem(storageKey, JSON.stringify({
-        signature:m.n + "/" + m.d
-      }));
-    } catch (_) {}
-    meterState.textContent = m.grouped
-      ? m.n + "/" + m.d + " · " + m.groups.join("+")
-      : m.n + "/" + m.d;
-    renderedMeterKey = "";
-  }
-
-"""
-    + _JS[lyrics_start:]
-)
-
-lyrics_start = _JS.index("  // -------- Continuous lyrics geometry --------")
-chords_start = _JS.index("  // -------- Chords / measure presentation --------")
-_JS = (
-    _JS[:lyrics_start]
-    + r"""  // -------- One meter-aware geometry for ALL scrolling lanes --------
-  /*
-  Timestamps never change.
-  The selected time signature only changes the visual measure grouping.
-  One visual measure keeps a fixed width, so changing 4/4 -> 2/4 -> 9/8
-  reflows chords AND lyrics together while preserving absolute time.
-  */
-  const measureSlotWidth = 318;
-
-  function beatIndexAndProgress(time) {
-    const t = Number(time || 0);
-    if (!beats.length) return {index:0,progress:0};
-
-    if (t <= Number(beats[0].start || 0)) {
-      return {index:0,progress:0};
-    }
-
-    let low=0, high=beats.length-1, index=0;
-    while (low<=high) {
-      const mid=(low+high)>>1;
-      if (Number(beats[mid].start || 0) <= t) {
-        index=mid;
-        low=mid+1;
-      } else {
-        high=mid-1;
-      }
-    }
-
-    const beat=beats[index];
-    const start=Number(beat.start || 0);
-    const end=Math.max(start+.02,Number(beat.end || start+.5));
-    const progress=Math.max(0,Math.min(1,(t-start)/(end-start)));
-    return {index,progress};
-  }
-
-  function timelineVisualXForTime(time) {
-    if (!beats.length) return Math.max(0,Number(time || 0))*74;
-
-    const mp=meter();
-    const bp=beatIndexAndProgress(time);
-    const measureIndex=Math.floor(bp.index/mp.beatsPerMeasure);
-    const localBeat=bp.index%mp.beatsPerMeasure;
-    const measureProgress=(localBeat+bp.progress)/mp.beatsPerMeasure;
-
-    return measureIndex*measureSlotWidth + measureProgress*measureSlotWidth;
-  }
-
-  function sharedTimelineWidth() {
-    const mp=meter();
-    const count=Math.max(1,Math.ceil(beats.length/mp.beatsPerMeasure));
-    return count*measureSlotWidth+320;
-  }
-
-  function normalizedWords(input) {
-    return (Array.isArray(input) ? input : [])
-      .map(w => ({
-        text:String(w.text || "").trim(),
-        start:Number(w.start || 0),
-        end:Number(w.end || w.start || 0),
-      }))
-      .filter(w => w.text && Number.isFinite(w.start) && Number.isFinite(w.end))
-      .sort((a,b)=>a.start-b.start || a.end-b.end);
-  }
-
-  const leadWords = normalizedWords(leadInput);
-  const backingWords = normalizedWords(backingInput);
-  const backingLabel = backingRow
-    ? backingRow.querySelector(".timeline-label")
-    : null;
-  if (backingLabel) {
-    backingLabel.textContent = backingWords.length
-      ? "Chœurs (" + String(backingWords.length) + ")"
-      : "Chœurs";
-  }
-
-  let leadNodes=[];
-  let backingNodes=[];
-
-  function isContractionSuffix(text) {
-    return /^[\'’]/.test(String(text || "").trim());
-  }
-
-  function createLane(track, sourceWords) {
-    track.innerHTML="";
-    track.style.width=sharedTimelineWidth()+"px";
-
-    const nodes=[];
-    sourceWords.forEach((w,index) => {
-      const span=document.createElement("span");
-      span.className="lyric-token";
-      span.textContent=w.text;
-
-      let left=timelineVisualXForTime(w.start);
-
-      // Typographic compaction only: Whisper may split contractions such as
-      // "J" + "'avais" or "l" + "'amour" into separate timestamped tokens.
-      // Keep both timestamps intact but visually glue the apostrophe suffix
-      // to the previous token so lyrics remain readable.
-      if (index > 0 && isContractionSuffix(w.text)) {
-        const previous=nodes[index-1];
-        if (previous) {
-          const previousLeft=Number.parseFloat(previous.style.left || "0");
-          left=previousLeft+previous.offsetWidth+1;
-        }
-      }
-
-      span.style.left=left+"px";
-      track.appendChild(span);
-      nodes.push(span);
-    });
-
-    return nodes;
-  }
-
-  function rebuildLyricGeometry() {
-    leadNodes=createLane(leadTrack,leadWords);
-    backingNodes=createLane(backingTrack,backingWords);
-    backingRow.style.display = backingWords.length ? "grid" : "none";
-  }
-
-  function activeWordIndex(sourceWords,time) {
-    if (!sourceWords.length) return -1;
-    let low=0,high=sourceWords.length-1,answer=-1;
-    while (low<=high) {
-      const mid=(low+high)>>1;
-      if (sourceWords[mid].start<=time) {
-        answer=mid;
-        low=mid+1;
-      } else {
-        high=mid-1;
-      }
-    }
-    if (answer<0) return -1;
-    const w=sourceWords[answer];
-    return time<=Math.max(w.end,w.start+.06) ? answer : -1;
-  }
-
-  function translateLyricTimeline(track,viewport,time) {
-    if (!track || !viewport) return;
-    const anchor=viewport.clientWidth*anchorRatio;
-    track.style.transform=
-      "translate3d(" +
-      (anchor-timelineVisualXForTime(time)).toFixed(2) +
-      "px,0,0)";
-  }
-
-  rebuildLyricGeometry();
-
-"""
-    + _JS[chords_start:]
-)
-
-chords_start = _JS.index("  // -------- Chords / measure presentation --------")
-persist_call = _JS.index("  persistMeter();", chords_start)
-_JS = (
-    _JS[:chords_start]
-    + r"""  // -------- Chords / measure presentation --------
-  function measureNotation(measureIndex,m) {
-    const startBeat=measureIndex*m.beatsPerMeasure;
-    if (startBeat>=beats.length) return null;
-    const beatSlice=beats.slice(startBeat,startBeat+m.beatsPerMeasure);
-    if (!beatSlice.length) return null;
-
-    let notation="";
-    let prevChord=null;
-    beatSlice.forEach((beat,localIndex) => {
-      const chord=String(beat.chord || ".").trim() || ".";
-      let token;
-      if (chord === ".") token=".";
-      else if (localIndex===0) token=chord;
-      else if (chord===prevChord) token="-";
-      else token=chord;
-
-      if (m.grouped) {
-        const count=Math.max(1,Number(m.groups[localIndex] || 1));
-        if (token === ".") notation += ".".repeat(count);
-        else if (token === "-") notation += "-".repeat(count);
-        else notation += token + "-".repeat(Math.max(0,count-1));
-      } else {
-        notation += token;
-      }
-      prevChord=chord;
-    });
-
-    return {
-      notation,
-      start:Number(beatSlice[0].start || 0),
-      end:Number(
-        beatSlice[beatSlice.length-1].end ||
-        beatSlice[beatSlice.length-1].start ||
-        0
-      ),
-    };
-  }
-
-  let chordMeasures=[];
-  let chordNodes=[];
-
-  function rebuildChordTimeline() {
-    const m=meter();
-    const key=m.n+"/"+m.d+"|"+m.groups.join("+");
-    if (key===renderedMeterKey && chordNodes.length) return;
-
-    renderedMeterKey=key;
-    chordTrack.innerHTML="";
-    chordMeasures=[];
-    chordNodes=[];
-
-    const count=Math.ceil(beats.length/m.beatsPerMeasure);
-    for (let i=0;i<count;i++) {
-      const item=measureNotation(i,m);
-      if (!item) continue;
-
-      item.visualX=i*measureSlotWidth;
-      item.visualWidth=measureSlotWidth;
-      chordMeasures.push(item);
-
-      const marker=document.createElement("span");
-      marker.className="chord-marker";
-      marker.textContent=item.notation;
-      marker.style.left=item.visualX+"px";
-      marker.style.width=Math.max(36,item.visualWidth-12)+"px";
-      marker.style.boxSizing="border-box";
-      marker.style.overflow="hidden";
-      chordTrack.appendChild(marker);
-      chordNodes.push(marker);
-    }
-
-    chordTrack.style.width=sharedTimelineWidth()+"px";
-  }
-
-  function chordVisualXForTime(time) {
-    return timelineVisualXForTime(time);
-  }
-
-  function currentChordAtTime(time) {
-    if (!beats.length) return ".";
-    const t=Number(time || 0);
-    if (t < Number(beats[0].start || 0)) return ".";
-
-    const bp=beatIndexAndProgress(t);
-    const index=Math.max(0,Math.min(beats.length-1,bp.index));
-    return String(beats[index].chord || ".").trim() || ".";
-  }
-
-  function renderCurrentChord(time) {
-    const chord=currentChordAtTime(time);
-    currentChordNode.textContent=chord==="." ? "—" : chord;
-
-    if (!showDiagrams) {
-      currentDiagramRow.style.display="none";
-      currentDiagramNode.innerHTML="";
-      return;
-    }
-
-    currentDiagramRow.style.display="grid";
-    const svg=chordDiagrams[chord] || "";
-    if (svg) {
-      currentDiagramNode.innerHTML=svg;
-    } else {
-      currentDiagramNode.innerHTML=
-        '<div class="diagram-unavailable">Diagramme indisponible<br>' +
-        String(chord==="." ? "—" : chord) +
-        '</div>';
-    }
-  }
-
-  function renderConductor(time) {
-    rebuildChordTimeline();
-
-    const chordAnchor=chordViewport.clientWidth*anchorRatio;
-    chordTrack.style.transform =
-      "translate3d(" +
-      (chordAnchor-chordVisualXForTime(time)).toFixed(2) +
-      "px,0,0)";
-
-    translateLyricTimeline(leadTrack,leadViewport,time);
-    if (backingWords.length) {
-      translateLyricTimeline(backingTrack,backingViewport,time);
-    }
-
-    const currentLead=activeWordIndex(leadWords,time);
-    leadNodes.forEach((node,i) => {
-      node.classList.toggle("past", time>leadWords[i].end);
-      node.classList.toggle("current", i===currentLead);
-    });
-
-    const currentBacking=activeWordIndex(backingWords,time);
-    backingNodes.forEach((node,i) => {
-      node.classList.toggle("past", time>backingWords[i].end);
-      node.classList.toggle("current", i===currentBacking);
-    });
-
-    chordNodes.forEach((node,i) => {
-      const item=chordMeasures[i];
-      node.classList.toggle(
-        "active",
-        Boolean(item && time>=item.start && time<item.end)
-      );
-    });
-
-    renderCurrentChord(time);
-  }
-
-  meterSelect.addEventListener("change",() => {
-    persistMeter();
-    rebuildLyricGeometry();
-    rebuildChordTimeline();
-    renderConductor(Math.max(0,currentTime()-visualDelay));
-  });
-
-  rateSelect.addEventListener("change",() => {
-    playbackRate=Math.max(
-      .75,
-      Math.min(1.25,Number(rateSelect.value || 1))
-    );
-    setPlaybackRateOnMedia();
-    renderConductor(Math.max(0,currentTime()-visualDelay));
-  });
-
-  showDiagramsInput.addEventListener("change",() => {
-    showDiagrams=Boolean(showDiagramsInput.checked);
-    renderCurrentChord(Math.max(0,currentTime()-visualDelay));
-  });
-
-"""
-    + _JS[persist_call:]
-)
-
-
-# Visual follow delay only: audio clock remains authoritative.
-_JS = _JS.replace(
-    "renderConductor(position);",
-    "renderConductor(Math.max(0,position-visualDelay));",
-)
-_JS = _JS.replace(
-    "renderConductor(t);",
-    "renderConductor(Math.max(0,t-visualDelay));",
-)
-_JS = _JS.replace(
-    "renderConductor(Math.max(0,0-visualDelay));",
-    "renderConductor(0);",
-)
-
-
-# Replace only the audio transport engine. Media elements provide native
-# pitch-preserving playbackRate in Chromium/Edge/Firefox while WebAudio still
-# provides the validated per-track EQ and gain graph.
-_audio_start = _JS.index(
-    "  // -------- WebAudio engine / proven 3-band crossover --------"
-)
-_audio_end = _JS.index("  tick();", _audio_start) + len("  tick();")
-
-_MEDIA_ENGINE = r"""
-  // -------- WebAudio EQ + HTMLMediaElement pitch-preserved transport --------
-  let mediaElements = [];
-  let mediaSources = [];
-  let mediaObjectUrls = [];
-  let clockMedia = null;
-  let lastDriftCheck = 0;
-
-  function setPitchPreservation(media) {
-    try { media.preservesPitch = true; } catch (_) {}
-    try { media.webkitPreservesPitch = true; } catch (_) {}
-    try { media.mozPreservesPitch = true; } catch (_) {}
-  }
-
-  function setPlaybackRateOnMedia() {
-    mediaElements.forEach(media => {
-      setPitchPreservation(media);
-      try { media.playbackRate = playbackRate; } catch (_) {}
-      try { media.defaultPlaybackRate = playbackRate; } catch (_) {}
-    });
-  }
-
-  function waitMediaReady(media,label) {
-    if (media.readyState >= 1 && Number.isFinite(media.duration)) {
-      return Promise.resolve();
-    }
-    return new Promise((resolve,reject) => {
-      let timer=null;
-      const cleanup=() => {
-        if (timer!==null) clearTimeout(timer);
-        media.removeEventListener("loadedmetadata",done);
-        media.removeEventListener("canplay",done);
-        media.removeEventListener("error",fail);
-      };
-      const done=() => { cleanup(); resolve(); };
-      const fail=() => {
-        cleanup();
-        reject(new Error("Média audio indisponible : "+String(label || "piste")));
-      };
-      timer=setTimeout(() => {
-        cleanup();
-        reject(new Error("Délai de chargement dépassé : "+String(label || "piste")));
-      },20000);
-      media.addEventListener("loadedmetadata",done,{once:true});
-      media.addEventListener("canplay",done,{once:true});
-      media.addEventListener("error",fail,{once:true});
-      try { media.load(); } catch (_) { fail(); }
-    });
-  }
-
-  async function ensureReady() {
-    if (ready) {
-      if (context && context.state==="suspended") await context.resume();
-      return;
-    }
-
-    playButton.disabled=true;
-    playButton.textContent="Chargement audio…";
-
-    context=new (window.AudioContext || window.webkitAudioContext)({
-      latencyHint:"interactive"
-    });
-    masterGain=context.createGain();
-    masterGain.gain.value=masterState;
-    masterGain.connect(context.destination);
-
-    trackNodes=[];
-    mediaElements=[];
-    mediaSources=[];
-
-    mediaObjectUrls.forEach(url => {
-      try { URL.revokeObjectURL(url); } catch (_) {}
-    });
-    mediaObjectUrls=[];
-
-    const fetched = await Promise.all(
-      defs.map(async (def) => {
-        const label=String(def?.label || def?.name || "piste");
-        const response=await fetch(
-          String(def?.url || ""),
-          {cache:"no-store"}
-        );
-        if (!response.ok) {
-          throw new Error("HTTP média "+response.status+" : "+label);
-        }
-
-        const blob=await response.blob();
-        if (!blob || blob.size <= 0) {
-          throw new Error("Média vide : "+label);
-        }
-        return {label,blob};
-      })
-    );
-
-    for (const item of fetched) {
-      const media=new Audio();
-      media.preload="auto";
-      const objectUrl=URL.createObjectURL(item.blob);
-      mediaObjectUrls.push(objectUrl);
-      media.src=objectUrl;
-      setPitchPreservation(media);
-      mediaElements.push(media);
-    }
-
-    await Promise.all(
-      mediaElements.map((media,index) =>
-        waitMediaReady(media,fetched[index].label)
-      )
-    );
-
-    for (let i=0;i<defs.length;i++) {
-      const media=mediaElements[i];
-      const sourceNode=context.createMediaElementSource(media);
-
-      const lowEQ=context.createBiquadFilter();
-      lowEQ.type="lowshelf";
-      lowEQ.frequency.value=200;
-      lowEQ.gain.value=0;
-
-      const midEQ=context.createBiquadFilter();
-      midEQ.type="peaking";
-      midEQ.frequency.value=1000;
-      midEQ.Q.value=.9;
-      midEQ.gain.value=0;
-
-      const highEQ=context.createBiquadFilter();
-      highEQ.type="highshelf";
-      highEQ.frequency.value=5000;
-      highEQ.gain.value=0;
-
-      const trackGain=context.createGain();
-
-      sourceNode.connect(lowEQ);
-      lowEQ.connect(midEQ);
-      midEQ.connect(highEQ);
-      highEQ.connect(trackGain);
-      trackGain.connect(masterGain);
-
-      mediaSources.push(sourceNode);
-      trackNodes.push({lowEQ,midEQ,highEQ,trackGain});
-
-      if (i===0) duration=Number(media.duration || 0);
-    }
-
-    clockMedia=mediaElements[0] || null;
-    seek.max=String(Math.max(.001,duration));
-    setPlaybackRateOnMedia();
-
-    ready=true;
-    trackState.forEach((_,i)=>applyTrackState(i,false));
-    applyMasterState(false);
-
-    playButton.disabled=false;
-    playButton.textContent="▶ Lecture";
-  }
-
-  function currentTime() {
-    if (clockMedia && Number.isFinite(clockMedia.currentTime)) {
-      return Math.max(0,Math.min(duration,Number(clockMedia.currentTime)||0));
-    }
-    return Math.max(0,Math.min(duration,Number(position)||0));
-  }
-
-  function stopSources() {
-    mediaElements.forEach(media => {
-      try { media.pause(); } catch (_) {}
-    });
-  }
-
-  function syncMediaTo(time) {
-    const t=Math.max(0,Math.min(duration,Number(time)||0));
-    mediaElements.forEach(media => {
-      try {
-        if (Math.abs((Number(media.currentTime)||0)-t) > .025) {
-          media.currentTime=t;
-        }
-      } catch (_) {}
-    });
-    position=t;
-  }
-
-  async function startSources(offset) {
-    const t=Math.max(0,Math.min(duration,Number(offset)||0));
-    syncMediaTo(t);
-    setPlaybackRateOnMedia();
-
-    const promises=mediaElements.map(media => {
-      try { return media.play(); }
-      catch (_) { return Promise.resolve(); }
-    });
-    await Promise.all(promises);
-
-    position=t;
-    playing=true;
-  }
-
-  async function playAll() {
-    await ensureReady();
-    if (context.state==="suspended") await context.resume();
-    if (playing) return;
-    if (position>=duration-.01) position=0;
-    await startSources(position);
-  }
-
-  function pauseAll() {
-    if (!playing) return;
-    position=currentTime();
-    playing=false;
-    stopSources();
-  }
-
-  function stopAll() {
-    playing=false;
-    stopSources();
-    position=0;
-    syncMediaTo(0);
-    seek.value="0";
-    renderConductor(0);
-    timeLabel.textContent="0:00 / "+fmt(duration);
-  }
-
-  function seekTo(value) {
-    position=Math.max(0,Math.min(duration,Number(value)||0));
-    syncMediaTo(position);
-    renderConductor(Math.max(0,position-visualDelay));
-  }
-
-  playButton.addEventListener("click",()=>playAll().catch(e => {
-    playButton.disabled=false;
-    playButton.textContent="⚠ "+String(e?.message || "Erreur audio");
-    console.error(e);
-  }));
-  pauseButton.addEventListener("click",pauseAll);
-  stopButton.addEventListener("click",stopAll);
-  seek.addEventListener("input",()=>seekTo(Number(seek.value || 0)));
-
-  function correctStemDrift(t) {
-    if (!playing || !clockMedia) return;
-    const now=performance.now();
-    if (now-lastDriftCheck < 500) return;
-    lastDriftCheck=now;
-
-    mediaElements.forEach((media,index) => {
-      if (index===0) return;
-      const drift=(Number(media.currentTime)||0)-t;
-      if (Math.abs(drift) > .080) {
-        try { media.currentTime=t; } catch (_) {}
-      }
-    });
-  }
-
-  function tick() {
-    if (disposed) return;
-    const t=currentTime();
-    position=t;
-    correctStemDrift(t);
-    seek.value=String(t);
-    timeLabel.textContent=fmt(t)+" / "+fmt(duration);
-    renderConductor(Math.max(0,t-visualDelay));
-
-    if (playing && t>=duration-.01) stopAll();
-    raf=requestAnimationFrame(tick);
-  }
-
-  tick();
-"""
-
-_JS = _JS[:_audio_start] + _MEDIA_ENGINE + _JS[_audio_end:]
-
-
-# Seeker fix: initialize duration from original preview metadata at mount time.
-# This starts neither playback nor an AudioContext.
-_JS = _replace_once(
-    _JS,
-    """  let mediaElements = [];
-  let mediaSources = [];
-  let mediaObjectUrls = [];
-  let clockMedia = null;
-  let lastDriftCheck = 0;
-""",
-    """  let mediaElements = [];
-  let mediaSources = [];
-  let mediaObjectUrls = [];
-  let clockMedia = null;
-  let lastDriftCheck = 0;
-  let metadataMedia = null;
-""",
-    "seek metadata state",
-)
-
-_JS = _replace_once(
-    _JS,
-    """  async function ensureReady() {
-""",
-    r"""  function applySeekDuration(value) {
-    const parsed = Number(value || 0);
-    if (!Number.isFinite(parsed) || parsed <= 0) return false;
-
-    duration = parsed;
-    seek.max = String(Math.max(.001, duration));
-    seek.value = String(Math.max(0, Math.min(duration, position)));
-    timeLabel.textContent = fmt(position) + " / " + fmt(duration);
-    return true;
-  }
-
-  function primeSeekMetadata() {
-    // Server-side ffprobe duration is authoritative.
-    // No direct media URL access occurs before the Play action.
-    const serverDuration = Number(data.media_duration || 0);
-    applySeekDuration(serverDuration);
-  }
-
-  primeSeekMetadata();
-
-  async function ensureReady() {
-""",
-    "seek metadata preload",
-)
-
-
-_JS = patch_player_js(_JS)
-
-
-_COMPONENT_R12C = st.components.v2.component(
+_COMPONENT = st.components.v2.component(
     "ezscore_karaoke_stem_player_r12c",
     html=_HTML,
     css=_CSS,
@@ -1042,122 +64,290 @@ _COMPONENT_R12C = st.components.v2.component(
     isolate_styles=True,
 )
 
+_SIGNATURE_OPTIONS = ["Auto", *SUPPORTED_SIGNATURES]
 
-def _build_chord_diagrams(
-    audio_hash: str,
-    beats: list[dict[str, Any]],
-) -> dict[str, str]:
-    saved_voicings = load_voicings(audio_hash)
+
+def _song(audio_hash: str) -> dict[str, Any]:
+    for item in list_song_catalog(sort_by="title"):
+        if str(item.get("audio_hash", "")) == str(audio_hash):
+            return dict(item)
+    return {}
+
+
+def _editor_context(audio_hash: str, song: dict[str, Any]) -> tuple[list[dict[str, str]], str, int | None, bool]:
+    assignment = get_song_editor_assignment(audio_hash)
+    editor_id = (
+        int(assignment["user_id"])
+        if assignment and assignment.get("user_id") is not None
+        else None
+    )
+    editor_name = str(
+        (assignment or {}).get("display_name")
+        or song.get("editor")
+        or ""
+    ).strip()
+
+    editors: list[dict[str, str]] = []
+    for user in list_users():
+        if not bool(user.get("active")):
+            continue
+        if str(user.get("role") or "") not in {"editor", "admin"}:
+            continue
+        uid = int(user["user_id"])
+        label = str(user.get("display_name") or user.get("email") or uid)
+        editors.append({"value": str(uid), "label": label})
+    editors.sort(key=lambda item: item["label"].casefold())
+
+    auth_user = current_user() or {}
+    is_admin = str(auth_user.get("role") or "") == "admin"
+    return editors, editor_name, editor_id, is_admin
+
+
+def _timeline_from_structure(work_dir: Path) -> dict[str, Any] | None:
+    path = Path(work_dir) / "structure_analysis.json"
+    if not path.is_file():
+        return None
+    try:
+        structure = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+    raw = list(structure.get("beat_timeline", []) or [])
+    if len(raw) < 2:
+        return None
+
+    tempo = float(structure.get("tempo", 0.0) or 0.0)
+    starts = [float(item.get("time", 0.0) or 0.0) for item in raw]
+    intervals = [b - a for a, b in zip(starts[:-1], starts[1:]) if b > a]
+    if tempo <= 1.0 and intervals:
+        ordered = sorted(intervals)
+        tempo = 60.0 / ordered[len(ordered) // 2]
+    if tempo <= 1.0:
+        return None
+
+    beats: list[dict[str, Any]] = []
+    default_interval = 60.0 / tempo
+    for index, item in enumerate(raw):
+        start = float(item.get("time", 0.0) or 0.0)
+        end = (
+            float(raw[index + 1].get("time", start + default_interval) or start + default_interval)
+            if index + 1 < len(raw)
+            else start + default_interval
+        )
+        chord = str(item.get("chord", ".") or ".").strip() or "."
+        if chord.upper() in {"N", "NC", "N.C."}:
+            chord = "."
+        beats.append(
+            {
+                "index": index,
+                "start": start,
+                "end": max(start + 0.001, end),
+                "chord": chord,
+            }
+        )
+
+    meter = dict(structure.get("meter", {}) or {})
+    detected = str(structure.get("signature") or meter.get("signature") or "").strip()
+    if not detected:
+        return None
+
+    return {
+        "version": "structure-analysis-bridge",
+        "timebase": "original_audio_seconds",
+        "tempo": tempo,
+        "detected_signature": detected,
+        "meter_detection": {"signature": detected, "confidence": 1.0, "engine": "structure-cache"},
+        "beats": beats,
+        "analysis_engines": dict(structure.get("analysis_engines", {}) or {}),
+    }
+
+
+def _load_timeline(source: Path, stems: dict[str, Path], work_dir: Path) -> dict[str, Any]:
+    timeline = load_step1(work_dir)
+    if timeline is not None:
+        return timeline
+
+    timeline = _timeline_from_structure(work_dir)
+    if timeline is not None:
+        return timeline
+
+    drums = stems.get("drums")
+    if drums is None or not Path(drums).is_file():
+        raise RuntimeError("Step 1 impossible : stem Batterie absent.")
+
+    return analyze_step1(
+        source=Path(source),
+        drums_path=Path(drums),
+        work_dir=Path(work_dir),
+        force=False,
+    )
+
+
+def _display_beats(raw: list[dict[str, Any]], capo: int) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    for index, beat in enumerate(raw):
+        item = dict(beat)
+        item["index"] = int(item.get("index", index) or index)
+        real = str(item.get("chord", ".") or ".").strip() or "."
+        item["real_chord"] = real
+        item["chord"] = accord_forme_capo(real, capo)
+        result.append(item)
+    return result
+
+
+def _build_diagrams(audio_hash: str, beats: list[dict[str, Any]]) -> dict[str, str]:
+    saved = load_voicings(audio_hash)
     diagrams: dict[str, str] = {}
-
     for beat in beats:
         symbol = str(beat.get("chord", "") or "").strip()
-        if not symbol or symbol == "." or symbol in diagrams:
+        if not symbol or symbol in {".", "-", "?", "^"} or symbol in diagrams:
             continue
-
         candidates = [symbol]
         if "/" in symbol:
-            base_symbol = symbol.split("/", 1)[0].strip()
-            if base_symbol and base_symbol not in candidates:
-                candidates.append(base_symbol)
-
-        selected = None
-        selected_symbol = None
-
+            base = symbol.split("/", 1)[0].strip()
+            if base and base not in candidates:
+                candidates.append(base)
         for candidate in candidates:
             available = guitar_choices(candidate)
             if not available:
                 continue
-
-            saved_name = (
-                saved_voicings.get(symbol)
-                or saved_voicings.get(candidate)
-            )
-            selected = get_voicing(
-                candidate,
-                saved_name if saved_name else available[0].name,
-            )
-            if selected is not None:
-                selected_symbol = candidate
-                break
-
-        if selected is None or selected_symbol is None:
-            continue
-
-        # Keep the actual current chord as the diagram title, while using the
-        # deterministic base voicing for slash chords when needed.
-        diagrams[symbol] = guitar_svg(
-            symbol,
-            selected,
-            width=92,
-            height=118,
-        )
-
+            selected_name = saved.get(symbol) or saved.get(candidate) or available[0].name
+            voicing = get_voicing(candidate, selected_name)
+            if voicing is None:
+                continue
+            diagrams[symbol] = guitar_svg(symbol, voicing, width=92, height=118)
+            break
     return diagrams
 
 
-def _component_with_r12c_data(*, data: dict[str, Any], **kwargs):
-    payload = dict(data or {})
-    storage_key = str(payload.get("storage_key", "") or "")
-    audio_hash = _AUDIO_HASH_BY_STORAGE_KEY.get(storage_key, "")
-    payload["media_duration"] = float(
-        _MEDIA_DURATION_BY_STORAGE_KEY.get(storage_key, 0.0) or 0.0
+def _pack_tracks(source: Path, stems: dict[str, Path], preview_dir: Path, key: str) -> list[dict[str, Any]]:
+    previews = prepare_browser_previews(source, stems, preview_dir)
+    tracks: list[dict[str, Any]] = []
+
+    def add(name: str, label: str, enabled: bool, volume: float) -> None:
+        if name == "original":
+            path = source
+        else:
+            path = stems.get(name)
+            if path is None:
+                return
+        preview = previews.get(name)
+        if preview is None:
+            return
+        tracks.append(
+            {
+                "name": name,
+                "label": label,
+                "url": register_media_url(
+                    preview,
+                    coordinates=f"{key}:riff:{name}",
+                    mimetype="audio/mpeg",
+                ),
+                "enabled": bool(enabled),
+                "volume": float(volume),
+                "low": 0.0,
+                "mid": 0.0,
+                "high": 0.0,
+            }
+        )
+
+    add("original", "Original", True, 0.78)
+    labels = {
+        "vocals": "Voix",
+        "drums": "Batterie",
+        "bass": "Basse",
+        "guitar": "Guitare",
+        "piano": "Piano",
+        "other": "Other",
+        "lead_vocals": "Chant principal",
+        "backing_vocals": "Chœurs",
+    }
+    defaults = {
+        "vocals": (True, 0.82),
+        "drums": (False, 0.72),
+        "bass": (False, 0.72),
+        "guitar": (False, 0.72),
+        "piano": (False, 0.72),
+        "other": (False, 0.72),
+        "lead_vocals": (False, 0.82),
+        "backing_vocals": (False, 0.72),
+    }
+    ordered = list(STEM_NAMES) + ["lead_vocals", "backing_vocals"]
+    seen: set[str] = set()
+    for name in ordered:
+        if name in seen:
+            continue
+        seen.add(name)
+        if name not in stems:
+            continue
+        enabled, volume = defaults.get(name, (False, 0.72))
+        add(name, labels.get(name, name), enabled, volume)
+    return tracks
+
+
+def _persist_header(
+    *,
+    audio_hash: str,
+    song: dict[str, Any],
+    editor_name: str,
+    editor_id: int | None,
+    is_admin: bool,
+    stored_settings: dict[str, Any],
+    payload_text: str,
+) -> bool:
+    try:
+        payload = dict(json.loads(payload_text or "{}") or {})
+    except Exception:
+        return False
+    token = str(payload.get("token", "") or "")
+    if not token:
+        return False
+    token_key = f"_riff_header_token_{audio_hash[:12]}"
+    if token == str(st.session_state.get(token_key, "") or ""):
+        return False
+
+    title = str(payload.get("title", song.get("title", "")) or "").strip()
+    artist = str(payload.get("artist", song.get("artist", "")) or "").strip()
+    strum = str(payload.get("strumming_primary", song.get("strumming_primary", "")) or "").strip()
+    strum_alt = str(payload.get("strumming_secondary", song.get("strumming_secondary", "")) or "").strip()
+
+    new_editor_id = editor_id
+    new_editor_name = editor_name
+    if is_admin:
+        raw_editor = str(payload.get("editor_user_id", "") or "").strip()
+        new_editor_id = int(raw_editor) if raw_editor.isdigit() else None
+        by_id = {
+            int(user["user_id"]): str(user.get("display_name") or user.get("email") or "")
+            for user in list_users()
+            if bool(user.get("active")) and str(user.get("role") or "") in {"editor", "admin"}
+        }
+        new_editor_name = by_id.get(new_editor_id, "") if new_editor_id is not None else ""
+
+    update_song_metadata(
+        audio_hash,
+        title,
+        artist,
+        new_editor_name,
+        strum,
+        strum_alt,
     )
+    if is_admin:
+        assign_song_editor(audio_hash, new_editor_id, new_editor_name)
 
-    # R8: the base player is authoritative for Chœurs.
-    # Text comes from the validated vocals Whisper pass; backing_vocals.wav is
-    # used only to refine timing. Never reload whisper_backing_small.json here.
-    preview_dir = _PREVIEW_DIR_BY_STORAGE_KEY.get(storage_key)
-    lead_words = list(payload.get("lead_words", []) or [])
+    signature_mode = str(payload.get("signature_mode", stored_settings.get("signature_mode", "Auto")) or "Auto").strip()
+    if signature_mode not in _SIGNATURE_OPTIONS:
+        signature_mode = "Auto"
+    capo = max(0, min(12, int(payload.get("capo", 0) or 0)))
+    new_settings = dict(stored_settings)
+    new_settings["signature_mode"] = signature_mode
+    save_song_preferences(audio_hash=audio_hash, capo=capo, settings=new_settings)
+    st.session_state["_pending_song_preferences"] = {
+        "capo": capo,
+        "settings": new_settings,
+    }
 
-    if not list(payload.get("backing_words", []) or []):
-        # Last-resort non-destructive fallback to the validated vocalises lane.
-        if preview_dir is not None and lead_words:
-            cache_path = Path(preview_dir).parent / "whisper_vocals_small.json"
-            if cache_path.is_file():
-                try:
-                    vocal_payload = json.loads(
-                        cache_path.read_text(encoding="utf-8")
-                    )
-                    merged = _base._merge_vocal_gap_words(
-                        lead_words,
-                        list(vocal_payload.get("words", []) or []),
-                    )
-                    payload["backing_words"] = _base._supplement_only_words(
-                        lead_words,
-                        merged,
-                    )
-                except Exception:
-                    pass
-
-    payload["backing_word_count"] = len(
-        list(payload.get("backing_words", []) or [])
-    )
-
-    if audio_hash:
-        beats = list(payload.get("beats", []) or [])
-        try:
-            payload["chord_diagrams"] = _build_chord_diagrams(
-                audio_hash,
-                beats,
-            )
-        except Exception:
-            payload["chord_diagrams"] = {}
-
-        try:
-            payload["show_diagrams_default"] = bool(
-                load_show_diagrams(audio_hash)
-            )
-        except Exception:
-            payload["show_diagrams_default"] = False
-    else:
-        payload["chord_diagrams"] = {}
-        payload["show_diagrams_default"] = False
-
-    return _COMPONENT_R12C(data=payload, **kwargs)
-
-
-_base._COMPONENT = _component_with_r12c_data
+    st.session_state[token_key] = token
+    return True
 
 
 def render_player(
@@ -1168,14 +358,123 @@ def render_player(
     key: str,
     words=None,
 ) -> None:
-    storage_key = str(key)
-    _AUDIO_HASH_BY_STORAGE_KEY[storage_key] = preview_dir.parent.name
-    _PREVIEW_DIR_BY_STORAGE_KEY[storage_key] = Path(preview_dir)
-    _MEDIA_DURATION_BY_STORAGE_KEY[storage_key] = duration_seconds(Path(source))
-    return _base.render_player(
-        source,
-        stems,
-        preview_dir=preview_dir,
-        key=key,
-        words=words,
+    source = Path(source)
+    preview_dir = Path(preview_dir)
+    work_dir = preview_dir.parent
+    audio_hash = work_dir.name
+    stems = {name: Path(path) for name, path in dict(stems).items()}
+
+    step_key = f"ezstem_analysis_step_{audio_hash[:12]}"
+    active_step = str(st.session_state.get(step_key, "1 · STEM") or "1 · STEM")
+    lyrics_enabled = active_step.startswith("2")
+    visible_words = list(words or []) if lyrics_enabled else []
+
+    try:
+        timeline = _load_timeline(source, stems, work_dir)
+    except Exception as exc:
+        st.error(f"Timeline musicale Step 1 indisponible : {type(exc).__name__}: {exc}")
+        return
+
+    detected = str(timeline.get("detected_signature", "") or "").strip()
+    prefs = load_song_preferences(audio_hash) or {}
+    stored_settings = dict(prefs.get("settings", {}) or {})
+    selected_mode = str(stored_settings.get("signature_mode", "Auto") or "Auto").strip()
+    capo = max(0, min(12, int(prefs.get("capo", 0) or 0)))
+
+    try:
+        effective = effective_signature(selected=selected_mode, detected=detected)
+        beats_per_measure = timeline_beats_per_measure(effective)
+    except Exception as exc:
+        st.error(f"Time signature indisponible : {exc}")
+        return
+
+    display_beats = _display_beats(list(timeline.get("beats", []) or []), capo)
+    if not display_beats:
+        st.error("Timeline musicale Step 1 vide.")
+        return
+
+    song = _song(audio_hash)
+    editors, editor_name, editor_id, is_admin = _editor_context(audio_hash, song)
+    current = current_user() or {}
+    header_readonly = str(current.get("role") or "") not in {"editor", "admin"}
+
+    try:
+        show_diagrams = bool(load_show_diagrams(audio_hash))
+    except Exception:
+        show_diagrams = False
+
+    tracks = _pack_tracks(source, stems, preview_dir, key)
+    diagrams = _build_diagrams(audio_hash, display_beats)
+    duration = duration_seconds(source)
+    if duration <= 0.0:
+        duration = max(float(item.get("end", item.get("start", 0.0)) or 0.0) for item in display_beats)
+
+    signature_label = effective if selected_mode != "Auto" else f"Auto · {effective}"
+    initial_header = json.dumps(
+        {
+            "title": str(song.get("title", "") or ""),
+            "artist": str(song.get("artist", "") or ""),
+            "editor_user_id": "" if editor_id is None else str(editor_id),
+            "signature_mode": selected_mode,
+            "capo": capo,
+            "strumming_primary": str(song.get("strumming_primary", "") or ""),
+            "strumming_secondary": str(song.get("strumming_secondary", "") or ""),
+            "token": "",
+        },
+        ensure_ascii=False,
+        sort_keys=True,
     )
+
+    result = _COMPONENT(
+        data={
+            "tracks": tracks,
+            "beats": display_beats,
+            "words": visible_words,
+            "chord_diagrams": diagrams,
+            "show_diagrams": show_diagrams,
+            "duration_hint": duration,
+            "beat_spacing": 112,
+            "beats_per_measure": beats_per_measure,
+            "step_label": "Step 2 · Paroles" if lyrics_enabled else "Step 1 · STEMS",
+            "song_title": str(song.get("title", "") or source.stem),
+            "song_artist": str(song.get("artist", "") or ""),
+            "song_editor": editor_name,
+            "editor_user_id": "" if editor_id is None else str(editor_id),
+            "editors": editors,
+            "editor_selectable": bool(is_admin and not header_readonly),
+            "header_readonly": bool(header_readonly),
+            "signature_options": _SIGNATURE_OPTIONS,
+            "signature_mode": selected_mode,
+            "signature_label": signature_label,
+            "detected_signature": detected,
+            "capo": capo,
+            "strumming_primary": str(song.get("strumming_primary", "") or ""),
+            "strumming_secondary": str(song.get("strumming_secondary", "") or ""),
+        },
+        default={
+            "header_payload": initial_header,
+            "show_diagrams": show_diagrams,
+        },
+        key=f"riffstation_r7_{audio_hash[:12]}_{'lyrics' if lyrics_enabled else 'stems'}_{effective.replace('/', '_')}_capo{capo}",
+        on_header_payload_change=lambda: None,
+        on_show_diagrams_change=lambda: None,
+        width="stretch",
+        height=980 if lyrics_enabled else 900,
+    )
+
+    payload_text = str(getattr(result, "header_payload", initial_header) or initial_header)
+    if payload_text != initial_header:
+        if _persist_header(
+            audio_hash=audio_hash,
+            song=song,
+            editor_name=editor_name,
+            editor_id=editor_id,
+            is_admin=is_admin,
+            stored_settings=stored_settings,
+            payload_text=payload_text,
+        ):
+            st.rerun()
+
+    current_show = bool(getattr(result, "show_diagrams", show_diagrams))
+    if current_show != show_diagrams:
+        save_show_diagrams(audio_hash, current_show)
