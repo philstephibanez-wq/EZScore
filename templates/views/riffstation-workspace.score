@@ -50,8 +50,6 @@
         <canvas class="riff-waveform" aria-hidden="true"></canvas>
         <div class="fixed-playhead" aria-hidden="true"></div>
         <div class="diagram-anchor"><div class="current-diagram"></div></div>
-        <div class="current-chord-anchor"><span class="current-chord-label"></span></div>
-        <div class="current-word-anchor"><span class="current-word-label"></span></div>
         <div class="timeline-window chord-window"><div class="chord-track"></div></div>
         <div class="timeline-window lyric-window"><div class="lyric-track"></div></div>
       </div>
@@ -67,5 +65,5 @@
     </div>
   </details>
 
-  <div class="hint">Timeline audio immuable · beats réguliers · diagramme, accord courant et mot courant sur la même mire.</div>
+  <div class="hint">Timeline audio immuable · 1 case = 1 beat · 1 groupe = 1 mesure · mot courant allumé sur la ligne du vers.</div>
 </div>

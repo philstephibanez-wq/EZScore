@@ -24,8 +24,6 @@ export default function(component){
   const lyricTrack=root.querySelector('.lyric-track');
   const diagramCheck=root.querySelector('.show-diagrams');
   const diagramNode=root.querySelector('.current-diagram');
-  const currentChordLabel=root.querySelector('.current-chord-label');
-  const currentWordLabel=root.querySelector('.current-word-label');
   const title=root.querySelector('.edit-title');
   const artist=root.querySelector('.edit-artist');
   const editor=root.querySelector('.edit-editor');
@@ -44,7 +42,7 @@ export default function(component){
   const editorWrap=root.querySelector('.editor-select-wrap');
   const modeBadge=root.querySelector('.mode-badge');
 
-  const instanceId='riff15-'+String(Date.now())+'-'+Math.random().toString(36).slice(2);
+  const instanceId='riff16-'+String(Date.now())+'-'+Math.random().toString(36).slice(2);
   try{
     const previous=window.__EZScoreRiffstationAudioOwner;
     if(previous&&previous.id!==instanceId&&typeof previous.stop==='function')previous.stop();
@@ -114,7 +112,6 @@ export default function(component){
     renderDiagram(activeBeat);
   });
   lyricWindow.classList.toggle('hidden',!words.length);
-  root.querySelector('.current-word-anchor').classList.toggle('hidden',!words.length);
 
   const trackState=defs.map(d=>({
     enabled:Boolean(d.enabled),
@@ -418,79 +415,133 @@ export default function(component){
   const stripWidth=Math.max(1600,(beats.length?xBeat(beats.length-1):0)+spacing*8);
   chordTrack.style.width=stripWidth+'px';
   const beatsPerMeasure=Math.max(1,Number(data.beats_per_measure||4));
-  const chordOf=i=>String(beats[i]?.chord||'.').trim()||'.';
-  function measureNotation(start){
-    let active='';
-    let out='';
-    const end=Math.min(beats.length,start+beatsPerMeasure);
-    for(let i=start;i<end;i++){
-      const chord=chordOf(i);
-      if(chord==='.'||chord.toUpperCase()==='N'){
-        out+='.';
-        continue;
-      }
-      if(!active||chord!==active){
-        out+=chord;
-        active=chord;
-      }else{
-        out+='-';
-      }
+  const silenceChord=value=>{
+    const c=String(value||'.').trim()||'.';
+    return c==='.'||c.toUpperCase()==='N'||c.toUpperCase()==='NC'||c.toUpperCase()==='N.C.';
+  };
+  // Resolve any historical '-' hold token back to its sounding chord first.
+  // Rendering can then repeat the chord explicitly on beat 1 of every measure.
+  const effectiveChords=[];
+  let sounding='.';
+  beats.forEach((beat,index)=>{
+    const raw=String(beat?.chord||'.').trim()||'.';
+    if(raw==='-'){
+      effectiveChords[index]=sounding;
+    }else if(silenceChord(raw)){
+      sounding='.';
+      effectiveChords[index]='.';
+    }else{
+      sounding=raw;
+      effectiveChords[index]=raw;
     }
-    const missing=beatsPerMeasure-(end-start);
-    if(missing>0)out+='.'.repeat(missing);
-    return out||'.';
-  }
-  const measureNodes=[];
-  for(let start=0;start<beats.length;start+=beatsPerMeasure){
-    const end=Math.min(beats.length,start+beatsPerMeasure);
-    const n=document.createElement('span');
-    n.className='measure-token';
-    n.dataset.measureStart=String(start);
-    n.dataset.measureEnd=String(end-1);
-    n.style.left=xBeat(start)+'px';
-    n.style.width=(beatsPerMeasure*spacing)+'px';
-    n.textContent=measureNotation(start);
-    chordTrack.appendChild(n);
-    measureNodes.push(n);
-  }
-  beats.forEach((_,i)=>{
-    const tick=document.createElement('span');
-    tick.className='beat-tick';
-    tick.style.left=xBeat(i)+'px';
-    chordTrack.appendChild(tick);
   });
+  const chordOf=i=>String(effectiveChords[i]??'.').trim()||'.';
+  function beatTokenForMeasure(index,measureStart){
+    if(index<0||index>=beats.length)return'.';
+    const chord=chordOf(index);
+    if(silenceChord(chord))return'.';
+    // First beat of every measure is explicit, even when the same chord
+    // continues from the preceding measure: [Cm|-|-|-] | [Cm|-|-|-].
+    if(index===measureStart)return chord;
+    const previous=chordOf(index-1);
+    if(!silenceChord(previous)&&previous===chord)return'-';
+    return chord;
+  }
 
-  const futureNodes=[];
-  for(let i=0;i<8;i++){
-    const n=document.createElement('span');
-    n.className='future-word';
-    lyricTrack.appendChild(n);
-    futureNodes.push(n);
+  const measureGroups=[];
+  const beatCells=[];
+  let measureNo=1;
+  for(let start=0;start<beats.length;start+=beatsPerMeasure,measureNo+=1){
+    const group=document.createElement('div');
+    group.className='measure-group';
+    group.dataset.measureStart=String(start);
+    group.dataset.measureNo=String(measureNo);
+    group.style.left=xBeat(start)+'px';
+    group.style.width=(beatsPerMeasure*spacing)+'px';
+
+    const number=document.createElement('span');
+    number.className='measure-number';
+    number.textContent='#'+measureNo;
+
+    const row=document.createElement('div');
+    row.className='measure-beats';
+    row.style.setProperty('--beats',String(beatsPerMeasure));
+
+    for(let offset=0;offset<beatsPerMeasure;offset+=1){
+      const index=start+offset;
+      const cell=document.createElement('span');
+      cell.className='measure-beat';
+      cell.dataset.beatIndex=String(index);
+      cell.dataset.measureNo=String(measureNo);
+      cell.textContent=index<beats.length?beatTokenForMeasure(index,start):'.';
+      cell.title='Mesure '+measureNo+' · beat '+(offset+1)+'/'+beatsPerMeasure;
+      row.appendChild(cell);
+      if(index<beats.length)beatCells[index]=cell;
+    }
+
+    group.append(number,row);
+    chordTrack.appendChild(group);
+    measureGroups.push(group);
+  }
+
+  // The lyric line is a single continuous baseline.  We lay words out for
+  // readability, then move that one line only when the active word changes.
+  const wordNodes=words.map((word,index)=>{
+    const node=document.createElement('span');
+    node.className='word-token';
+    node.dataset.wordIndex=String(index);
+    node.textContent=String(word?.text||'').trim();
+    lyricTrack.appendChild(node);
+    return node;
+  });
+  const wordXs=[];
+  function layoutWords(){
+    let cursor=0;
+    wordNodes.forEach((node,index)=>{
+      const width=Math.max(12,node.getBoundingClientRect().width||node.offsetWidth||12);
+      const center=cursor+width/2;
+      wordXs[index]=center;
+      node.style.left=center+'px';
+      cursor+=width+18;
+    });
+    lyricTrack.style.width=Math.max(stage.clientWidth,cursor+240)+'px';
+    renderWords(currentTime(),true);
   }
   function activeWord(t){
     if(!words.length)return-1;
     let lo=0,hi=words.length-1,a=-1;
-    while(lo<=hi){const m=(lo+hi)>>1;if(Number(words[m].start||0)<=t){a=m;lo=m+1;}else hi=m-1;}
+    while(lo<=hi){
+      const m=(lo+hi)>>1;
+      if(Number(words[m].start||0)<=t){a=m;lo=m+1;}else hi=m-1;
+    }
     return a;
   }
-  function renderWords(t){
+  function renderWords(t,force=false){
     if(!words.length)return;
     const wi=activeWord(t);
-    if(wi===activeWordIndex)return;
+    if(!force&&wi===activeWordIndex)return;
     activeWordIndex=wi;
-    currentWordLabel.textContent=wi>=0?String(words[wi]?.text||'').trim():'';
-    let x=0;
-    futureNodes.forEach((node,k)=>{
-      const item=words[wi+1+k];
-      node.textContent=item?String(item.text||'').trim():'';
-      node.style.left=x+'px';
-      x+=node.offsetWidth+18;
+    wordNodes.forEach((node,index)=>{
+      node.classList.toggle('past',wi>=0&&index<wi);
+      node.classList.toggle('current',index===wi);
     });
+    const axis=lineX();
+    if(wi>=0&&Number.isFinite(wordXs[wi])){
+      // Current word remains on the verse baseline and is centered under
+      // the same playhead as the active beat.  No separate floating label.
+      lyricTrack.style.setProperty('transform','translate3d('+(axis-wordXs[wi])+'px,0,0)','important');
+    }else if(wordXs.length){
+      lyricTrack.style.setProperty('transform','translate3d('+(axis+160-wordXs[0])+'px,0,0)','important');
+    }
+  }
+  requestAnimationFrame(layoutWords);
+  if(document.fonts?.ready){
+    document.fonts.ready.then(()=>requestAnimationFrame(layoutWords)).catch(()=>{});
   }
 
   function renderDiagram(i){
     if(!showDiagrams||i<0){diagramNode.innerHTML='';diagramNode.classList.remove('visible');return;}
-    const chord=String(beats[i]?.chord||'');
+    const chord=chordOf(i);
     const svg=String(diagrams[chord]||'');
     diagramNode.innerHTML=svg;
     diagramNode.classList.toggle('visible',Boolean(svg));
@@ -551,12 +602,15 @@ export default function(component){
     if(bi!==activeBeat){
       activeBeat=bi;
       const mi=bi<0?-1:Math.floor(bi/beatsPerMeasure);
-      measureNodes.forEach((n,i)=>{
-        n.classList.toggle('past',mi>=0&&i<mi);
-        n.classList.toggle('current',i===mi);
+      measureGroups.forEach((group,index)=>{
+        group.classList.toggle('past',mi>=0&&index<mi);
+        group.classList.toggle('current',index===mi);
       });
-      const chord=bi<0?'':chordOf(bi);
-      currentChordLabel.textContent=(chord==='.'||chord.toUpperCase()==='N')?'':chord;
+      beatCells.forEach((cell,index)=>{
+        if(!cell)return;
+        cell.classList.toggle('past',bi>=0&&index<bi);
+        cell.classList.toggle('current',index===bi);
+      });
       renderDiagram(bi);
     }
     renderWords(tm);
@@ -570,7 +624,7 @@ export default function(component){
   pause.addEventListener('click',pauseAll);
   stop.addEventListener('click',stopAll);
   seek.addEventListener('input',()=>seekTo(seek.value));
-  window.addEventListener('resize',()=>{drawWaveformWindow(currentTime(),true);render(currentTime());});
+  window.addEventListener('resize',()=>{layoutWords();drawWaveformWindow(currentTime(),true);render(currentTime());});
 
   function tick(){
     if(disposed)return;

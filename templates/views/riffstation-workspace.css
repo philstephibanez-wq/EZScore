@@ -25,3 +25,26 @@
 .future-word{font-size:18px;opacity:.50}
 .fixed-playhead{z-index:70}
 .current-diagram{box-shadow:0 6px 18px rgba(0,0,0,.28)}
+
+
+/* R16 — one visible cell per beat, grouped by measure; lyrics stay on one baseline. */
+.conductor-stage{height:294px}
+.chord-window{top:116px;height:94px;background:rgba(255,255,255,.012)}
+.chord-track{height:94px;transition:none}
+.measure-group{position:absolute;top:0;height:94px;box-sizing:border-box;border-left:1px solid rgba(120,150,185,.30);border-right:1px solid rgba(120,150,185,.18);background:rgba(24,40,56,.30)}
+.measure-group.past{opacity:.46}
+.measure-group.current{background:rgba(36,76,120,.22)}
+.measure-number{position:absolute;left:6px;top:4px;font:700 10px/1 system-ui,-apple-system,Segoe UI,sans-serif;opacity:.58;letter-spacing:.03em;z-index:4}
+.measure-beats{position:absolute;left:0;right:0;top:23px;bottom:5px;display:grid;grid-template-columns:repeat(var(--beats),minmax(0,1fr));gap:0}
+.measure-beat{display:flex;align-items:center;justify-content:center;min-width:0;box-sizing:border-box;border-top:1px solid rgba(77,163,255,.30);border-bottom:1px solid rgba(77,163,255,.30);border-right:1px solid rgba(77,163,255,.28);background:rgba(24,40,56,.76);color:#62b0ff;font:850 18px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:nowrap;overflow:hidden;text-overflow:clip;padding:0 4px}
+.measure-beat:first-child{border-left:1px solid rgba(77,163,255,.30)}
+.measure-beat.current{color:#fff;background:#315f90;border-color:#a7d5ff;box-shadow:inset 0 0 0 2px rgba(158,211,255,.32);z-index:3}
+.measure-beat.past{opacity:.58}
+.beat-tick{display:none!important}
+.current-chord-anchor,.current-word-anchor{display:none!important}
+.lyric-window{top:212px;height:68px;left:0;right:0;overflow:hidden;border-top:1px solid rgba(145,155,170,.10)}
+.lyric-track{position:absolute;left:0;top:0;height:68px;white-space:nowrap;will-change:transform;transition:transform 90ms linear}
+.word-token{position:absolute;top:18px;transform:translateX(-50%);font-size:21px;font-weight:720;line-height:1.25;opacity:.42;white-space:nowrap;padding:2px 5px;border-radius:5px}
+.word-token.past{opacity:.26}
+.word-token.current{opacity:1;font-weight:900;color:#fff;background:rgba(77,163,255,.20);box-shadow:inset 0 0 0 1px rgba(110,190,255,.28)}
+.future-word{display:none!important}

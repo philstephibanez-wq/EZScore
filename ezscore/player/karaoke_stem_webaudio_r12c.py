@@ -58,7 +58,7 @@ _CSS = (TEMPLATE_DIR / "riffstation-workspace.css").read_text(encoding="utf-8")
 _JS = (TEMPLATE_DIR / "riffstation-workspace.js").read_text(encoding="utf-8")
 
 _COMPONENT = st.components.v2.component(
-    "ezscore_karaoke_stem_player_r15",
+    "ezscore_karaoke_stem_player_r16",
     html=_HTML,
     css=_CSS,
     js=_JS,
@@ -602,7 +602,7 @@ def render_player(
         # Stable component instance. Step navigation is edge-triggered through
         # a tokenised request so stale component state can never re-activate
         # the previous tab on the next Streamlit rerun.
-        key=f"riffstation_r15_{audio_hash[:12]}_{effective.replace('/', '_')}_capo{capo}",
+        key=f"riffstation_r16_{audio_hash[:12]}_{effective.replace('/', '_')}_capo{capo}",
         on_header_payload_change=lambda: None,
         on_show_diagrams_change=lambda: None,
         on_step_request_change=lambda: None,
