@@ -1,105 +1,103 @@
-# EZScore_STEM_SHARED_CONDUCTOR_R2_FULL
+# EZScore_STEP1_RIFFSTATION_STEMS_R2
 
-Livraison complète autonome. Elle remplace R1 / R1b / R1c / TESTFIX.
+Base de travail vérifiée : GitHub `master` commit `e949eb1db272dc07695f032bf91af6187290fd1e`.
 
-Base GitHub auditée :
+Cette livraison remplace la R1. Elle ne modifie aucun fichier du Step 2 (`chords_lyrics_editor.py`, `lyrics_inline_editor.py`, `templates/views/lyrics-editor.*`, `stem_analysis_conductor.py`).
 
-```text
-8e6fb686445132189df0afcd860f4803ef221cc6
-```
+## Contrat Step 1
 
-## Cible
+Step 1 = Riffstation + STEMS, pour audit à l'oreille :
 
-```text
-                         [Diagramme accord courant]
+- extraction STEM existante conservée ;
+- timeline musicale dédiée `riffstation_step1.json` ;
+- beats : batterie / `madmom-infer` ;
+- accords : audio original / `lv-chordia` ;
+- time signature calculée à partir des accents batterie ;
+- aucun fallback métrique inventé ;
+- mixeur STEM ;
+- lecture / pause / stop / seek ;
+- vitesse 0,50x / 0,75x / 1,00x / 1,25x / 1,50x avec conservation de hauteur ;
+- Time sig dans le composant Step 1 ;
+- Capo dans le composant Step 1 ;
+- diagramme optionnel ;
+- prompteur accords uniquement ;
+- aucune parole n'est fournie au composant Step 1.
 
-┌─────────────────────────────────────────────────────┐
-│ Structure │ Intro   Couplet 1   Refrain   ...       │
-│ Accords   │ Em---   G---        D-Em-     ...       │
-│ Chant     │ même moteur visuel que 2 · Paroles      │
-└─────────────────────────────────────────────────────┘
-```
+La time signature, le capo et la vitesse sont des paramètres de représentation/lecture. Les timestamps de la timeline musicale ne sont jamais déplacés.
 
-Le left panel Analyse conserve uniquement la zone métier utile :
+## Mire temporelle
 
-```text
-Mode
-Time signature
-Capodastre
-```
+La mire est fixe à 34 % de la fenêtre. La timeline se déplace dessous.
 
-## Cette livraison est autonome
+À `t = 0`, la position temporelle zéro est exactement sur la mire : aucun événement de temps positif ne peut apparaître à gauche. Avant le premier beat, aucun accord n'est marqué `current` ou `past`.
 
-Elle ne dépend d'aucun marqueur R1/R1b/R1c local.
+Quand la lecture avance, le passé passe à gauche et le futur reste à droite. Le diagramme courant est centré au-dessus de la même mire que l'accord courant.
 
-Elle contient le fichier métier COMPLET :
+## Time sig / Capo
 
-```text
-files/ezscore/player/stem_analysis_conductor.py
-```
+Les contrôles historiques de la sidebar sont seulement masqués pendant que le composant Step 1 est monté. Ils ne sont pas supprimés du reste d'EZScore.
 
-SHA256 attendu :
+Les contrôles du composant Step 1 utilisent le contrat existant `song_preferences` :
 
-```text
-e7cee0bc83b2e48bdb380587cf384bde2272136261b2e7afefe4b60d5b214462
-```
+1. changement dans le composant ;
+2. sauvegarde dans `song_preferences` ;
+3. alimentation de `_pending_song_preferences` ;
+4. rerun ;
+5. EZScore resynchronise son état global avant de recréer ses widgets.
 
-L'installateur :
-1. vérifie le Git HEAD ;
-2. construit/valide l'état final de `EZScore.py` de manière idempotente ;
-3. valide les deux Python complets ;
-4. sauvegarde les fichiers courants ;
-5. copie le fichier STEM complet ;
-6. vérifie immédiatement son SHA256 après copie.
+Aucune seconde source de vérité métier n'est créée dans `localStorage`.
 
-## Application
+## Important : redémarrage complet
 
-Arrêter Streamlit puis :
+La R1 pouvait sembler ne rien changer si Streamlit était resté lancé : `stem_lab_analysis.py` importe `render_player` au chargement du module. Après remplacement des fichiers, il faut donc arrêter complètement le serveur puis le relancer.
 
 ```powershell
 cd H:\EZScore
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_STEM_SHARED_CONDUCTOR_R2_FULL.zip" -C H:\EZScore
-
-$env:PYTHONPATH = "H:\EZScore"
-
-.\.venv-py313\Scripts\python.exe .\scripts\apply_stem_shared_conductor_r2_full.py
-
-.\.venv-py313\Scripts\python.exe .\scripts\test_stem_shared_conductor_r2_full_contract.py
+# arrêter le serveur actuel avec Ctrl+C avant ceci
+.\.venv-py313\Scripts\python.exe -m streamlit run EZScore.py --server.address 127.0.0.1 --server.port 8501 --server.headless true
 ```
 
-Attendu :
+## Installation
 
-```text
-STEM SHARED CONDUCTOR R2 FULL CONTRACT OK
-exact installed STEM SHA256: OK
-real module import / runtime transforms: OK
-same Paroles CSS/layout engine: YES
-Structure / Accords / Chant: YES
-1 MMS_FA word = 1 DOM node: YES
-mixer before conductor: YES
-transport under conductor: YES
-Time signature in left panel: YES
-Capodastre in left panel: YES
-```
-
-Puis :
+Depuis `H:\EZScore` :
 
 ```powershell
-.\.venv-py313\Scripts\python.exe -m streamlit run EZScore.py `
-  --server.address 127.0.0.1 `
-  --server.port 8501 `
-  --server.headless true
+$pkg = "$env:USERPROFILE\Downloads\EZScore_STEP1_RIFFSTATION_STEMS_R2.zip"
+$tmp = "H:\Temp\EZScore_STEP1_RIFFSTATION_STEMS_R2"
+
+Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Path $tmp -Force | Out-Null
+tar -xf $pkg -C $tmp
+
+Copy-Item "$tmp\ezscore\analysis\riffstation_step1.py" "H:\EZScore\ezscore\analysis\riffstation_step1.py" -Force
+Copy-Item "$tmp\ezscore\player\step1_riffstation.py" "H:\EZScore\ezscore\player\step1_riffstation.py" -Force
+Copy-Item "$tmp\ezscore\player\stem_webaudio.py" "H:\EZScore\ezscore\player\stem_webaudio.py" -Force
+Copy-Item "$tmp\scripts\test_step1_riffstation_contract.py" "H:\EZScore\scripts\test_step1_riffstation_contract.py" -Force
+
+.\.venv-py313\Scripts\python.exe -m py_compile `
+  .\ezscore\analysis\riffstation_step1.py `
+  .\ezscore\player\step1_riffstation.py `
+  .\ezscore\player\stem_webaudio.py
+
+.\.venv-py313\Scripts\python.exe .\scripts\test_step1_riffstation_contract.py
 ```
 
-## Contrôle visuel
+Résultat attendu :
 
-Dans `Analyse > 1 · STEM` :
-- diagramme de l'accord courant au-dessus ;
-- ligne Structure = blocs manuels ;
-- ligne Accords = accords ajustés par capo et regroupés par Time signature ;
-- ligne Chant = même moteur visuel que `2 · Paroles` ;
-- mixer au-dessus ;
-- transport sous le conducteur.
+```text
+STEP1_RIFFSTATION_R2_CONTRACT_OK
+```
 
-Aucun commit ni push.
+## Contrôle visuel attendu
+
+Après redémarrage et ouverture du Step 1 :
+
+- pas de ligne `Paroles` / `Chant` dans le prompteur ;
+- pas de diagramme dans une ligne séparée sous les accords ;
+- `Time sig`, `Capo`, `Vitesse`, `Diagramme` sont dans la barre du composant ;
+- la mire verticale traverse l'accord courant ;
+- le diagramme optionnel est au-dessus de cette mire ;
+- à `0:00`, rien de temporellement antérieur n'apparaît à gauche de la mire.
+
+Si l'ancien conducteur `Structure / Accords / Chant` est encore visible après copie, le serveur n'a pas été redémarré avec les nouveaux modules.

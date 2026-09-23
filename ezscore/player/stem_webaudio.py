@@ -680,73 +680,17 @@ def render_player(
     key: str,
     words: list[dict[str, Any]] | None = None,
 ) -> None:
-    st.caption(
-        "Préparation/chargement du lecteur… "
-        "La première ouverture peut prendre quelques secondes."
-    )
+    """Step 1 facade: Riffstation + stems, intentionally without lyrics.
 
-    previews = prepare_browser_previews(source, stems, preview_dir)
-    tracks = []
+    The old low-level assets above are kept byte-for-byte compatible for the
+    existing Step 2 conductor.  Only this public Step 1 entry point delegates
+    to the dedicated Riffstation workflow.
+    """
+    from ezscore.player.step1_riffstation import render_step1_riffstation
 
-    def pack(
-        name: str,
-        label: str,
-        path: Path,
-        enabled: bool,
-        volume: float,
-    ) -> None:
-        preview = previews[name]
-        media_url = register_media_url(
-            preview,
-            coordinates=f"{key}:stem:{name}",
-            mimetype="audio/mpeg",
-        )
-        tracks.append({
-            "name": name,
-            "label": label,
-            "mime": "audio/mpeg",
-            "url": media_url,
-            "enabled": enabled,
-            "volume": volume,
-            "low": 0.0,
-            "mid": 0.0,
-            "high": 0.0,
-            "source_bytes": int(path.stat().st_size),
-            "preview_bytes": int(preview.stat().st_size),
-        })
-
-    pack("original", "Original", source, True, 0.75)
-
-    defaults = {
-        "vocals": (True, 0.90),
-        "drums": (False, 0.75),
-        "bass": (False, 0.75),
-        "other": (False, 0.75),
-    }
-    labels = {
-        "vocals": "Chant",
-        "drums": "Batterie",
-        "bass": "Basse",
-        "other": "Other",
-    }
-
-    for name in STEM_NAMES:
-        if name in stems:
-            enabled, volume = defaults[name]
-            pack(name, labels[name], stems[name], enabled, volume)
-
-    st.caption(
-        "Lecteur WebAudio prêt · previews MP3 64 kb/s servies en HTTP · "
-        "payload Bidi = métadonnées/URLs uniquement · WAV Demucs intacts."
-    )
-
-    player_words = list(words or [])
-    _STEM_PLAYER(
-        data={
-            "tracks": tracks,
-            "words": player_words,
-        },
+    render_step1_riffstation(
+        source=source,
+        stems=stems,
+        preview_dir=preview_dir,
         key=key,
-        width="stretch",
-        height=610 if player_words else 530,
     )
