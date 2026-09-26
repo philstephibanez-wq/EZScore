@@ -5,7 +5,7 @@
 {% block stylesheets %}
 <link rel="stylesheet" href="/assets/css/workflow-tabs-r23-2.css?v=20260926r31">
 <link rel="stylesheet" href="/assets/css/stems.css?v=20260926r29">
-<link rel="stylesheet" href="/assets/css/chordslab.css?v=20260927r34">
+<link rel="stylesheet" href="/assets/css/chordslab.css?v=20260927r34_1">
 {% endblock %}
 
 {% block body %}
@@ -29,7 +29,7 @@
 </section>
 
 <section class="panel chordslab-settings">
-    <form method="post" action="{{ path('app_song_chordslab_settings', {'_locale': app.request.locale, id: song.id}) }}" class="chordslab-settings-grid">
+    <form method="post" action="{{ path('app_song_chordslab_settings', {'_locale': app.request.locale, id: song.id}) }}" class="chordslab-settings-grid" data-chord-settings-form>
         <input type="hidden" name="_token" value="{{ csrf_token('song_chordslab_settings_' ~ song.id) }}">
 
         <label>
@@ -64,8 +64,7 @@
             <input type="checkbox" data-chordslab-diagram checked>
             <span>{{ 'chordslab.guitar_chords'|trans({}, 'chordslab') }}</span>
         </label>
-
-        <button type="submit" class="primary">{{ 'common.save'|trans }}</button>
+        <span class="chordslab-settings-save-state" data-chord-settings-state>Enregistré automatiquement</span>
     </form>
     <small>{{ 'chordslab.level_note'|trans({}, 'chordslab') }}</small>
 </section>
@@ -77,6 +76,7 @@
          data-profile="{{ chord_profile }}"
          data-profile-url="{{ path('app_song_chordslab_profile', {'_locale': app.request.locale, id: song.id}) }}"
          data-profile-token="{{ csrf_token('song_chordslab_profile_' ~ song.id) }}"
+         data-profile-data-url-template="{{ path('app_song_chordslab_profile_data', {'_locale': app.request.locale, id: song.id, profile:'__PROFILE__'}) }}"
          data-beats="{{ beat_events|json_encode|e('html_attr') }}"
          data-capo="{{ song.capo }}"
          data-time-signature="{{ song.timeSignature }}"
@@ -88,10 +88,16 @@
             <h2>{{ 'chordslab.timeline'|trans({}, 'chordslab') }}</h2>
         </div>
 
+        <div class="chord-profile-status">
+            <span>Profil affiché</span>
+            <strong data-chord-profile-badge>{{ ('chordslab.level.' ~ chord_profile)|trans({}, 'chordslab') }}</strong>
+            <small data-chord-profile-count>{{ chord_events|length }} accords</small>
+        </div>
+
         <div class="chordslab-prompter-actions">
             <form method="post"
                   action="{{ path('app_song_chordslab_analyze', {'_locale': app.request.locale, id: song.id}) }}"
-                  onsubmit="const b=this.querySelector('button'); b.disabled=true; b.textContent='{{ 'chordslab.analyze.running'|trans({}, 'chordslab')|e('js') }}';">
+                  data-chord-analyze-form>
                 <input type="hidden" name="_token" value="{{ csrf_token('song_chordslab_analyze_' ~ song.id) }}">
                 <button type="submit" class="primary">{{ (chord_events ? 'chordslab.analyze.again' : 'chordslab.analyze.button')|trans({}, 'chordslab') }}</button>
             </form>
@@ -231,6 +237,19 @@
 </section>
 {% endif %}
 
+
+<dialog class="ez-modal chord-analyze-dialog" data-chord-analyze-dialog>
+    <div class="ez-modal-card">
+        <h3>Réanalyser les accords ?</h3>
+        <p>Une nouvelle analyse harmonique va être lancée dans le Worker et recalculera les trois profils Débutant, Intermédiaire et Expert.</p>
+        <p>Les corrections manuelles déjà enregistrées seront conservées profil par profil lorsqu’elles peuvent être réancrées sur les mêmes beats.</p>
+        <div class="ez-modal-actions">
+            <button type="button" data-chord-analyze-cancel>Annuler</button>
+            <button type="button" class="primary" data-chord-analyze-confirm>Lancer la réanalyse</button>
+        </div>
+    </div>
+</dialog>
+
 <dialog class="ez-modal chord-reset-dialog" data-chord-reset-dialog>
     <div class="ez-modal-card">
         <h3>Réinitialiser les accords ?</h3>
@@ -247,7 +266,7 @@
 {% block javascripts %}
 <script src="/assets/js/audio/ezscore-audio-engine.js?v=20260926r29"></script>
 <script src="/assets/js/stems-mixer.js?v=20260926r32"></script>
-<script src="/assets/js/chordslab.js?v=20260926r33"></script>
+<script src="/assets/js/chordslab.js?v=20260927r34_1"></script>
 <script src="/assets/js/chordslab-r33-2.js?v=20260926r33_2"></script>
 <script src="/assets/js/chordslab-r33-1.js?v=20260926r33_1a"></script>
 {% endblock %}

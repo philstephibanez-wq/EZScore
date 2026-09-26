@@ -1,0 +1,13 @@
+
+        $em->flush();
+
+        if ($request->getPreferredFormat() === 'json' || str_contains((string) $request->headers->get('Accept'), 'application/json')) {
+            return $this->json([
+                'ok' => true,
+                'capo' => $song->getCapo(),
+                'time_signature' => $song->getTimeSignature(),
+                'profile' => $song->getChordAnalysisLevel(),
+            ]);
+        }
+
+        $this->addFlash('success', 'chordslab.settings.saved');

@@ -763,3 +763,23 @@ Commentaires :
 - [ ] la progression est visuellement plus forte et pleine largeur ;
 - [ ] aucun traitement n’est spécifique à un titre, artiste ou identifiant de chanson ;
 - [ ] aucune migration Doctrine n’est requise.
+
+
+## 34. Recette R34.1 — switch profils / autosave / alerte réanalyse
+
+- [ ] aucun bouton `Enregistrer` n’est visible dans les réglages ChordsLab ;
+- [ ] changer Capo persiste le réglage sans rechargement ;
+- [ ] changer Signature persiste le réglage sans rechargement ;
+- [ ] changer Débutant / Intermédiaire / Expert ne crée aucun job ;
+- [ ] le profil sélectionné est persisté ;
+- [ ] le profil affiché change réellement dans le prompteur ;
+- [ ] le nombre d’accords affiché correspond à la couche chargée ;
+- [ ] avec la recette actuelle Aline, les couches 58 / 56 / 132 restent distinguables après analyse R34 ;
+- [ ] le switch de profil utilise un endpoint de lecture dédié ;
+- [ ] une erreur de chargement conserve un fallback local ;
+- [ ] cliquer Réanalyser n’envoie pas immédiatement le formulaire ;
+- [ ] une modale EZScore demande confirmation ;
+- [ ] Annuler ne crée aucun job ;
+- [ ] Confirmer crée le job d’analyse ;
+- [ ] aucune popup native `confirm()` n’est introduite ;
+- [ ] aucun traitement n’est spécifique à Aline dans le moteur ou le contrôleur.

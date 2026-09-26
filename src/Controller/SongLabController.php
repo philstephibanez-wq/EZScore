@@ -139,6 +139,41 @@ final class SongLabController extends AbstractController
     }
 
 
+
+    #[Route('/chords/profile/{profile}', name: 'app_song_chordslab_profile_data', methods: ['GET'])]
+    public function chordProfileData(
+        Song $song,
+        string $profile,
+        SongTimelineEventRepository $timeline,
+    ): JsonResponse {
+        $this->requireEditor($song);
+
+        if (!in_array($profile, ['beginner', 'intermediate', 'expert'], true)) {
+            return $this->json(['error' => 'invalid_profile'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $events = array_map(
+            static fn (SongTimelineEvent $event): array => [
+                'id' => $event->getId(),
+                'start_ms' => $event->getStartMs(),
+                'end_ms' => $event->getEndMs(),
+                'measure_index' => $event->getMeasureIndex(),
+                'beat_index' => $event->getBeatIndex(),
+                'subdivision_index' => $event->getSubdivisionIndex(),
+                'original' => $event->getOriginalValue(),
+                'override' => $event->getOverrideValue(),
+                'effective' => $event->getEffectiveValue(),
+            ],
+            $timeline->findChordEventsForProfile($song, $profile),
+        );
+
+        return $this->json([
+            'profile' => $profile,
+            'count' => count($events),
+            'events' => $events,
+        ]);
+    }
+
     #[Route('/chords/profile', name: 'app_song_chordslab_profile', methods: ['POST'])]
     public function saveChordProfile(
         Song $song,
@@ -199,7 +234,18 @@ final class SongLabController extends AbstractController
             ]);
         }
 
+
         $em->flush();
+
+        if ($request->getPreferredFormat() === 'json' || str_contains((string) $request->headers->get('Accept'), 'application/json')) {
+            return $this->json([
+                'ok' => true,
+                'capo' => $song->getCapo(),
+                'time_signature' => $song->getTimeSignature(),
+                'profile' => $song->getChordAnalysisLevel(),
+            ]);
+        }
+
         $this->addFlash('success', 'chordslab.settings.saved');
 
         return $this->redirectToRoute('app_song_chordslab', [

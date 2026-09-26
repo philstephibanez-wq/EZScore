@@ -26,7 +26,7 @@ chordslab:
     button: Réinitialiser les accords
     confirm: Supprimer toutes les corrections manuelles et restaurer les accords issus de l’analyse ?
     done: Les accords ont été restaurés depuis l’analyse.
-  guitar_chords: Afficher accords guitare
+  guitar_chords: Afficher les accords guitare
   analyze:
     button: Analyser les accords
     again: Réanalyser les accords

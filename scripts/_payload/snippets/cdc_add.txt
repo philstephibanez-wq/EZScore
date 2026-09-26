@@ -1,66 +1,37 @@
 
 
-## 42. ChordsLab — trois profils harmoniques simultanés
+## 43. ChordsLab — ergonomie profils et protection réanalyse
 
-Une analyse ChordsLab produit désormais simultanément trois couches harmoniques partageant la même timeline rythmique :
+### 43.1 Réglages immédiats
 
-```text
-Timeline canonique beats/mesures
-        ├── Débutant
-        ├── Intermédiaire
-        └── Expert
-```
+Le bouton générique `Enregistrer` n’est plus affiché dans ChordsLab.
 
-Les traitements audio lourds (sources, beat tracking, downbeat, chroma, tonalité) ne sont exécutés qu’une fois.
+Les réglages Capo et Signature sont persistés immédiatement lors d’un changement.
 
-Les trois profils sont ensuite dérivés à partir des mêmes observations harmoniques.
+Le profil Débutant / Intermédiaire / Expert est également persisté immédiatement et son changement ne déclenche aucun recalcul.
 
-### 42.1 Richesse progressive
+### 43.2 Chargement explicite des profils
 
-- Débutant : accords majeurs/mineurs simples, changements fortement lissés.
-- Intermédiaire : ajoute notamment 7, m7, sus et dim lorsque suffisamment établis.
-- Expert : autorise les enrichissements supplémentaires tels que maj7, 6, m6, add9 et une granularité plus fine.
+Le changement de profil recharge explicitement depuis le serveur la couche d’accords correspondante.
 
-Le passage d’un profil à l’autre ne déclenche aucune nouvelle analyse audio.
-
-### 42.2 Éditions indépendantes
-
-Chaque couche possède ses propres valeurs originales et ses propres overrides.
-
-Une modification effectuée en Débutant ne modifie ni Intermédiaire ni Expert.
-
-Le reset s’applique uniquement au profil courant.
-
-### 42.3 Persistance du profil affiché
-
-Le profil sélectionné est persisté comme préférence ChordsLab du morceau.
-
-Changer de profil dans le prompteur est immédiat ; la préférence est enregistrée en arrière-plan.
-
-### 42.4 Notation compacte mais standard
-
-Une triade majeure simple est affichée sans suffixe redondant :
+L’interface affiche en permanence :
 
 ```text
-C
-D
-E
+Profil affiché : Intermédiaire · 56 accords
 ```
 
-et jamais :
+Ce compteur permet de vérifier immédiatement que la couche réellement affichée est celle demandée.
 
-```text
-Cmaj
-Dmaj
-Emaj
-```
+Aucun nouveau job n’est créé lors d’un changement de profil.
 
-Le suffixe `maj` reste conservé lorsqu’il apporte une information harmonique réelle, par exemple :
+### 43.3 Protection contre une réanalyse accidentelle
 
-```text
-Cmaj7
-```
+`Réanalyser les accords` ouvre obligatoirement une modale EZScore de confirmation.
 
-Les noms d’accords standards ne sont pas remplacés par des symboles jazz non universels.
+La modale précise que :
 
-Les slots du prompteur ont une largeur fixe ; les accords longs utilisent une réduction typographique locale sans modifier la donnée canonique.
+- le Worker va recalculer les trois profils ;
+- l’opération peut prendre du temps ;
+- les corrections manuelles existantes sont conservées profil par profil lorsqu’elles peuvent être réancrées.
+
+Aucune popup native du navigateur n’est utilisée.

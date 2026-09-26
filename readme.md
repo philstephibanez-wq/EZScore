@@ -1,127 +1,44 @@
-# EZScore_v1 — R34 trois profils d’accords simultanés
+# EZScore_v1 — R34.2 affichage accords / diagrammes enrichis
 
-R34 met en œuvre le modèle retenu pour ChordsLab :
+Ce livrable affine ChordsLab sur trois points :
 
-```text
-Timeline commune
-├── Débutant
-├── Intermédiaire
-└── Expert
-```
+1. **Lisibilité des accords riches**
+   - `Gmaj7` s’affiche maintenant avec **G** à taille normale ;
+   - seule la portion `maj` est réduite ;
+   - le suffixe reste lisible dans le prompteur et au-dessus du diagramme.
 
-## Ce qui change
+2. **Diagrammes enrichis**
+   - ajout d’accords enrichis fréquemment rencontrés :
+     `maj7`, `add9`, `m7`, `sus2`, `sus4`, `6` pour plusieurs fondamentales ;
+   - cela couvre notamment les cas signalés comme `Gmaj7` et `Fadd9`.
 
-Une seule analyse audio calcule les éléments lourds une fois :
-
-- beats ;
-- downbeats ;
-- chroma ;
-- tonalité ;
-- observations harmoniques.
-
-Puis les trois profils sont générés dans le même job.
-
-### Débutant
-
-- majeur / mineur simples ;
-- fort lissage temporel ;
-- pas d’enrichissement.
-
-### Intermédiaire
-
-- triades prioritaires ;
-- 7, m7, sus, dim si réellement soutenus par le signal.
-
-### Expert
-
-- enrichissements supplémentaires ;
-- notamment maj7, 6, m6, add9 ;
-- changements moins pénalisés.
-
-## Switch immédiat
-
-Changer Débutant / Intermédiaire / Expert dans ChordsLab :
-
-- change immédiatement la couche affichée ;
-- ne lance pas de nouvelle analyse ;
-- persiste le profil sélectionné en arrière-plan.
-
-## Édition isolée
-
-Les corrections manuelles sont propres au profil.
-
-Exemple :
-
-```text
-Débutant      E  -> Em   (correction utilisateur)
-Intermédiaire E7         (inchangé)
-Expert        Emaj7      (inchangé)
-```
-
-Le reset agit uniquement sur le profil courant.
-
-## Affichage des accords
-
-Notation standard guitariste conservée.
-
-```text
-C       oui
-Cmaj    non : redondant
-C7      oui
-Cmaj7   oui : information réellement différente
-Cm7     oui
-```
-
-Aucun remplacement automatique par des symboles jazz du type triangle.
-
-Les cases de beat ont maintenant une largeur fixe. Les noms longs réduisent localement leur police au lieu d’élargir la mesure pendant le défilement.
-
-## Volume / progression
-
-Le CSS R34 rapproche et renforce le libellé Volume, son slider et son pourcentage.
-
-La progression d’analyse occupe toute la largeur disponible et est plus visible.
+3. **Libellé “Afficher les accords guitare” plus propre**
+   - présentation en ligne plus compacte ;
+   - suppression de l’aspect “empilé / pas propre” du libellé.
 
 ## Installation
 
 ```powershell
 cd H:\EZScore_v1
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_v1_R34_THREE_CHORD_PROFILES.zip" -C H:\EZScore_v1
+tar -xf "$env:USERPROFILE\Downloads\EZScore_v1_R34_2_CHORD_DISPLAY_POLISH.zip" -C H:\EZScore_v1
 
-H:\EZScore_v1\.venv-py313\Scripts\python.exe .\scripts\apply_r34_three_profiles.py
-
-php -l .\src\Service\ChordTimelineResultService.php
-php -l .\src\Controller\SongLabController.php
-php -l .\src\Domain\Song\SongTimelineEventRepository.php
-
-node --check .\public\assets\js\chordslab.js
-H:\EZScore_v1\.venv-py313\Scripts\python.exe -m py_compile .\analysis\chord_timeline_analysis.py
-
-php .\tests\r34_contract.php
-php bin\console lint:twig templates
+H:\EZScore_v1\.venv-py313\Scripts\python.exe .\scripts\apply_r34_2_chord_display_polish.py
+php .\tests\r34_2_contract.php
 php bin\console cache:clear
 ```
 
 Attendu :
 
 ```text
-22 R34 checks passed.
+7 R34.2 checks passed.
 ```
 
-Ensuite :
+Puis faire `Ctrl+F5` sur ChordsLab.
 
-1. fermer / relancer EZScore Analysis Worker ;
-2. Ctrl+F5 ;
-3. lancer une seule **Réanalyse des accords** ;
-4. une fois terminée, passer entre Débutant / Intermédiaire / Expert sans relancer de job.
+## Remarques
 
-La première analyse R34 est nécessaire pour remplir les trois couches.
-
-## Base de données
-
-Aucune migration Doctrine : le profil est stocké dans le payload JSON des événements accords existants. Les beats restent uniques.
-
-## Généralité
-
-Aucun titre, artiste, song ID ou cas particulier Aline n’est codé dans le moteur.
+- aucun recalcul d’analyse nécessaire ;
+- aucune migration ;
+- aucun traitement spécifique à **Aline** ;
+- ce livrable agit uniquement sur l’affichage / diagrammes de ChordsLab.

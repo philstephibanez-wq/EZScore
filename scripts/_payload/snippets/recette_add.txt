@@ -1,23 +1,20 @@
 
 
-## 33. Recette R34 — profils Débutant / Intermédiaire / Expert
+## 34. Recette R34.1 — switch profils / autosave / alerte réanalyse
 
-- [ ] une seule analyse produit les trois profils ;
-- [ ] les beats et mesures sont strictement identiques entre les trois profils ;
-- [ ] changer de profil ne déclenche aucun nouveau job ;
-- [ ] Débutant contient uniquement des majeurs/mineurs simples ;
-- [ ] Intermédiaire peut contenir 7, m7, sus et dim ;
-- [ ] Expert peut contenir maj7, 6, m6, add9 et autres enrichissements prévus ;
-- [ ] Expert est globalement au moins aussi riche qu’Intermédiaire ;
-- [ ] une édition Débutant n’altère pas Intermédiaire ;
-- [ ] une édition Débutant n’altère pas Expert ;
-- [ ] le reset ne touche que le profil affiché ;
-- [ ] le profil affiché est persisté ;
-- [ ] `Cmaj` est normalisé en `C` ;
-- [ ] `Cmaj7` reste `Cmaj7` ;
-- [ ] les slots ont une largeur stable pendant le défilement ;
-- [ ] les accords longs restent lisibles sans symbole jazz imposé ;
-- [ ] le libellé Volume reste accolé à son composant ;
-- [ ] la progression est visuellement plus forte et pleine largeur ;
-- [ ] aucun traitement n’est spécifique à un titre, artiste ou identifiant de chanson ;
-- [ ] aucune migration Doctrine n’est requise.
+- [ ] aucun bouton `Enregistrer` n’est visible dans les réglages ChordsLab ;
+- [ ] changer Capo persiste le réglage sans rechargement ;
+- [ ] changer Signature persiste le réglage sans rechargement ;
+- [ ] changer Débutant / Intermédiaire / Expert ne crée aucun job ;
+- [ ] le profil sélectionné est persisté ;
+- [ ] le profil affiché change réellement dans le prompteur ;
+- [ ] le nombre d’accords affiché correspond à la couche chargée ;
+- [ ] avec la recette actuelle Aline, les couches 58 / 56 / 132 restent distinguables après analyse R34 ;
+- [ ] le switch de profil utilise un endpoint de lecture dédié ;
+- [ ] une erreur de chargement conserve un fallback local ;
+- [ ] cliquer Réanalyser n’envoie pas immédiatement le formulaire ;
+- [ ] une modale EZScore demande confirmation ;
+- [ ] Annuler ne crée aucun job ;
+- [ ] Confirmer crée le job d’analyse ;
+- [ ] aucune popup native `confirm()` n’est introduite ;
+- [ ] aucun traitement n’est spécifique à Aline dans le moteur ou le contrôleur.
