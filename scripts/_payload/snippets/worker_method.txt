@@ -1,0 +1,149 @@
+
+    def _run_chord_job(self, job: dict) -> None:
+        assert self.api is not None
+        assert self.engine_python is not None
+
+        job_id = int(job["job_id"])
+        song = job.get("song") or {}
+        paths = job.get("paths") or {}
+        request = job.get("request") or {}
+
+        self.current_job = {
+            "job_id": job_id,
+            "song_id": job.get("song_id"),
+            "kind": "chords",
+            "title": song.get("title"),
+            "artist": song.get("artist"),
+            "progress": 1,
+            "stage": "queued",
+        }
+        self.app.events.put(("job", self.current_job.copy()))
+        self.log(f"Job accords #{job_id} pris: {song.get('artist')} — {song.get('title')}")
+
+        command = [
+            self.engine_python,
+            str(self.root / "analysis" / "chord_timeline_analysis.py"),
+            "--audio", str(paths["source"]),
+            "--level", str(request.get("level") or "intermediate"),
+            "--time-signature", str(request.get("time_signature") or "auto"),
+            "--progress-file", str(paths["progress_file"]),
+            "--output", str(paths["result_file"]),
+        ]
+        for stem_path in (paths.get("harmony_stems") or []):
+            if stem_path:
+                command.extend(["--stem", str(stem_path)])
+        if paths.get("drums"):
+            command.extend(["--drums", str(paths["drums"])])
+
+        progress_path = Path(str(paths["progress_file"]))
+        result_path = Path(str(paths["result_file"]))
+        progress_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            progress_path.unlink(missing_ok=True)
+            result_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+        env = os.environ.copy()
+        env["PYTHONUTF8"] = "1"
+        env["PYTHONIOENCODING"] = "utf-8"
+        self.log("Commande CHORDS lancée.")
+
+        proc = subprocess.Popen(
+            command,
+            cwd=str(self.root),
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            bufsize=1,
+            creationflags=WINDOWS_NO_WINDOW if os.name == "nt" else 0,
+        )
+        self.current_process = proc
+
+        output_queue: queue.Queue[str | None] = queue.Queue()
+        def _reader() -> None:
+            if proc.stdout is None:
+                output_queue.put(None)
+                return
+            try:
+                for line in proc.stdout:
+                    output_queue.put(line.rstrip())
+            finally:
+                output_queue.put(None)
+        threading.Thread(target=_reader, daemon=True).start()
+
+        last_progress = -1
+        last_db_update = 0.0
+        last_job_heartbeat = 0.0
+
+        while proc.poll() is None:
+            if self.stop_event.is_set():
+                proc.terminate()
+                break
+
+            while True:
+                try:
+                    line = output_queue.get_nowait()
+                except queue.Empty:
+                    break
+                if line:
+                    self.log("[CHORDS] " + line)
+
+            current = self._read_progress(progress_path)
+            if current:
+                pct = int(current.get("percent", 0))
+                self.current_job["progress"] = pct
+                self.current_job["stage"] = current.get("stage")
+                self.current_job["message"] = current.get("message")
+                self.app.events.put(("progress", current))
+                now = time.monotonic()
+                if pct != last_progress and now - last_db_update >= 0.5:
+                    try:
+                        self.api.post(
+                            f"/internal/analysis/desktop/jobs/{job_id}/progress",
+                            {"progress": pct},
+                            timeout=10,
+                        )
+                    except Exception as exc:
+                        self.log(f"Progression accords non publiée: {exc}")
+                    last_progress = pct
+                    last_db_update = now
+
+            now = time.monotonic()
+            if now - last_job_heartbeat >= HEARTBEAT_SECONDS:
+                try:
+                    self._send_heartbeat("busy")
+                except Exception as exc:
+                    self.log(f"Heartbeat accords impossible: {exc}")
+                last_job_heartbeat = now
+
+            time.sleep(0.25)
+
+        return_code = proc.wait()
+        self.current_process = None
+
+        if return_code == 0 and result_path.is_file():
+            try:
+                self.api.post(f"/internal/analysis/desktop/jobs/{job_id}/complete", {}, timeout=20)
+                self.log(f"Job accords #{job_id} terminé.")
+                self.app.events.put(("progress", {"percent": 100, "stage": "complete", "message": "Accords terminés"}))
+            except Exception as exc:
+                self.log(f"Échec validation accords #{job_id}: {exc}")
+                try:
+                    self.api.post(f"/internal/analysis/desktop/jobs/{job_id}/fail", {"error": str(exc)[:400]})
+                except Exception:
+                    pass
+        else:
+            error = f"chords_python_exit_{return_code}"
+            self.log(f"Job accords #{job_id} en échec: {error}")
+            try:
+                self.api.post(f"/internal/analysis/desktop/jobs/{job_id}/fail", {"error": error})
+            except Exception as exc:
+                self.log(f"Impossible de publier l'échec accords: {exc}")
+
+        self.current_job = None
+        self.app.events.put(("job", None))
+

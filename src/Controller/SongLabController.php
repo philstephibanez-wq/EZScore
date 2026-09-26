@@ -10,6 +10,7 @@ use App\Domain\Song\SongTimelineEventRepository;
 use App\Domain\Song\UserSongStemMixRepository;
 use App\Domain\User\User;
 use App\Service\ChordTimelineAnalysisService;
+use App\Service\SongChordJobService;
 use App\Service\SongStemPlaybackStorage;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -93,72 +94,41 @@ final class SongLabController extends AbstractController
     public function analyzeChords(
         Song $song,
         Request $request,
-        ChordTimelineAnalysisService $analysis,
-        SongTimelineEventRepository $timeline,
-        EntityManagerInterface $em,
+        SongChordJobService $chordJobs,
     ): Response {
-        $this->requireEditor($song);
+        $user = $this->requireEditor($song);
 
-        if (!$this->isCsrfTokenValid('song_chordslab_analyze_'.$song->getId(), (string) $request->request->get('_token'))) {
+        if (!$this->isCsrfTokenValid(
+            'song_chordslab_analyze_'.$song->getId(),
+            (string) $request->request->get('_token'),
+        )) {
             throw $this->createAccessDeniedException();
         }
 
-        $overrides = [];
-        foreach ($timeline->findChordEvents($song) as $existing) {
-            if ($existing->getOverrideValue() !== null) {
-                $key = ($existing->getMeasureIndex() ?? -1).':'.($existing->getBeatIndex() ?? -1);
-                $overrides[$key] = $existing->getOverrideValue();
-            }
+        $chordJobs->queue($song, $user);
+
+        return $this->redirectToRoute('app_song_chordslab', [
+            '_locale' => $request->getLocale(),
+            'id' => $song->getId(),
+        ]);
+    }
+
+    #[Route('/chords/status', name: 'app_song_chordslab_status', methods: ['GET'])]
+    public function chordStatus(Song $song, SongChordJobService $chordJobs): JsonResponse
+    {
+        $this->requireEditor($song);
+        $job = $chordJobs->latest($song);
+
+        if (!$job) {
+            return $this->json(['status' => 'none', 'progress' => 0]);
         }
 
-        try {
-            $result = $analysis->analyze($song);
-            $timeline->deleteMusicalAnalysisForSong($song);
-
-            foreach (($result['beats'] ?? []) as $beat) {
-                if (!is_array($beat)) continue;
-                $event=(new SongTimelineEvent($song, SongTimelineEvent::TYPE_BEAT, max(0,(int)($beat['start_ms']??0))))
-                    ->setPosition(
-                        isset($beat['measure_index'])?(int)$beat['measure_index']:null,
-                        isset($beat['beat_index'])?(int)$beat['beat_index']:null,
-                        isset($beat['subdivision_index'])?(int)$beat['subdivision_index']:null,
-                    );
-                $em->persist($event);
-            }
-
-            foreach (($result['chords'] ?? []) as $chord) {
-                if (!is_array($chord)) continue;
-                $measure=isset($chord['measure_index'])?(int)$chord['measure_index']:null;
-                $beat=isset($chord['beat_index'])?(int)$chord['beat_index']:null;
-                $event=(new SongTimelineEvent($song, SongTimelineEvent::TYPE_CHORD, max(0,(int)($chord['start_ms']??0))))
-                    ->setPosition($measure,$beat,isset($chord['subdivision_index'])?(int)$chord['subdivision_index']:null)
-                    ->setOriginalValue(trim((string)($chord['chord']??'.')))
-                    ->setPayload([
-                        'confidence'=>isset($chord['confidence'])?(float)$chord['confidence']:null,
-                        'analysis_level'=>$song->getChordAnalysisLevel(),
-                        'analysis_version'=>(string)($result['version']??'r33'),
-                    ]);
-
-                $overrideKey=($measure??-1).':'.($beat??-1);
-                if (isset($overrides[$overrideKey])) $event->setOverrideValue($overrides[$overrideKey]);
-                $em->persist($event);
-            }
-
-            $key=trim((string)($result['key']??''));
-            if ($key!=='') $song->setKeySignature($key);
-
-            if ($song->getTimeSignature()==='auto') {
-                $sig=trim((string)($result['time_signature']??''));
-                if ($sig!=='') $song->setTimeSignature($sig);
-            }
-
-            $em->flush();
-            $this->addFlash('success','chordslab.analyze.done');
-        } catch (\Throwable $error) {
-            $this->addFlash('error','chordslab.analyze.failed|'.mb_substr($error->getMessage(),0,240));
-        }
-
-        return $this->redirectToRoute('app_song_chordslab', ['_locale'=>$request->getLocale(),'id'=>$song->getId()]);
+        return $this->json([
+            'job_id' => $job->getId(),
+            'status' => $job->getStatus()->value,
+            'progress' => $job->getProgress(),
+            'error' => $job->getErrorCode(),
+        ]);
     }
 
     #[Route('/chords/settings', name: 'app_song_chordslab_settings', methods: ['POST'])]

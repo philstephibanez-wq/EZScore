@@ -5,7 +5,7 @@
 {% block stylesheets %}
 <link rel="stylesheet" href="/assets/css/workflow-tabs-r23-2.css?v=20260926r31">
 <link rel="stylesheet" href="/assets/css/stems.css?v=20260926r29">
-<link rel="stylesheet" href="/assets/css/chordslab.css?v=20260926r33_1aa">
+<link rel="stylesheet" href="/assets/css/chordslab.css?v=20260926r33_2aa">
 {% endblock %}
 
 {% block body %}
@@ -58,6 +58,7 @@
                 {% endfor %}
             </select>
         </label>
+        <small data-analysis-level-help></small>
 
         <label class="chordslab-diagram-toggle">
             <input type="checkbox" data-chordslab-diagram checked>
@@ -90,10 +91,21 @@
                 <input type="hidden" name="_token" value="{{ csrf_token('song_chordslab_analyze_' ~ song.id) }}">
                 <button type="submit" class="primary">{{ (chord_events ? 'chordslab.analyze.again' : 'chordslab.analyze.button')|trans({}, 'chordslab') }}</button>
             </form>
-            {% if chord_events %}
+            
+    <div class="chord-analysis-progress"
+         data-chord-analysis-progress
+         data-status-url="{{ path('app_song_chordslab_status', {'_locale': app.request.locale, id: song.id}) }}"
+         hidden>
+        <div class="chord-analysis-progress-head">
+            <span data-chord-analysis-text>Analyse harmonique…</span>
+            <strong data-chord-analysis-percent>0%</strong>
+        </div>
+        <progress max="100" value="0"></progress>
+    </div>
+
+    {% if chord_events %}
             <form method="post"
-                  action="{{ path('app_song_chordslab_reset', {'_locale': app.request.locale, id: song.id}) }}"
-                  onsubmit="return confirm('{{ 'chordslab.reset.confirm'|trans({}, 'chordslab')|e('js') }}');">
+                  action="{{ path('app_song_chordslab_reset', {'_locale': app.request.locale, id: song.id}) }}" data-chord-reset-form>
                 <input type="hidden" name="_token" value="{{ csrf_token('song_chordslab_reset_' ~ song.id) }}">
                 <button type="submit">{{ 'chordslab.reset.button'|trans({}, 'chordslab') }}</button>
             </form>
@@ -136,6 +148,11 @@
         <button type="button" data-mixer-play>{{ 'stems.mixer.play'|trans({}, 'stems') }}</button>
         <button type="button" data-mixer-pause>{{ 'stems.mixer.pause'|trans({}, 'stems') }}</button>
         <button type="button" data-mixer-stop>{{ 'stems.mixer.stop'|trans({}, 'stems') }}</button>
+        <label class="chordslab-quick-volume">
+            <span>Volume</span>
+            <input type="range" min="0" max="1.25" step="0.01" value="1" data-chordslab-quick-volume>
+            <output data-chordslab-quick-volume-output>100%</output>
+        </label>
         <input type="range" min="0" max="1000" value="0" data-mixer-seek aria-label="Seek">
         <span data-mixer-time>0:00 / 0:00</span>
         <select data-mixer-rate aria-label="{{ 'stems.mixer.speed'|trans({}, 'stems') }}">
@@ -209,11 +226,24 @@
     <a href="{{ path('app_song_stems', {'_locale': app.request.locale, id: song.id}) }}">StemsLab</a>
 </section>
 {% endif %}
+
+<dialog class="ez-modal chord-reset-dialog" data-chord-reset-dialog>
+    <div class="ez-modal-card">
+        <h3>Réinitialiser les accords ?</h3>
+        <p>Les corrections manuelles seront supprimées et les accords issus de la dernière analyse seront restaurés.</p>
+        <div class="ez-modal-actions">
+            <button type="button" data-chord-reset-cancel>Annuler</button>
+            <button type="button" class="danger" data-chord-reset-confirm>Réinitialiser</button>
+        </div>
+    </div>
+</dialog>
+
 {% endblock %}
 
 {% block javascripts %}
 <script src="/assets/js/audio/ezscore-audio-engine.js?v=20260926r29"></script>
 <script src="/assets/js/stems-mixer.js?v=20260926r32"></script>
 <script src="/assets/js/chordslab.js?v=20260926r33"></script>
+<script src="/assets/js/chordslab-r33-2.js?v=20260926r33_2"></script>
 <script src="/assets/js/chordslab-r33-1.js?v=20260926r33_1a"></script>
 {% endblock %}

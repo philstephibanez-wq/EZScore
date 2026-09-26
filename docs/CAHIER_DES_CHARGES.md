@@ -1338,3 +1338,53 @@ Pendant la lecture, le diagramme reste visuellement fixe et le beat/accord coura
 ### 40.3 Maintien de l’écran allumé
 
 Option `Garder l’écran allumé pendant la lecture` via Screen Wake Lock lorsque disponible. Play demande le verrou ; Pause, Stop, page cachée ou quittée le libèrent ; si la lecture continue, le verrou est redemandé quand l’onglet redevient visible. La préférence est conservée localement sur l’appareil. Le navigateur et l’OS peuvent toujours refuser ou révoquer le verrou.
+
+
+## 41. ChordsLab — analyse asynchrone et progression
+
+L’analyse harmonique ChordsLab est exécutée comme un job du Worker Desktop.
+
+Objectifs :
+
+- ne jamais bloquer le serveur PHP local pendant l’analyse ;
+- afficher le job dans EZScore Analysis Worker ;
+- publier une progression 0–100 % ;
+- afficher la même progression dans ChordsLab ;
+- permettre au navigateur de rester réactif pendant tout le calcul.
+
+Étapes indicatives :
+
+```text
+5%   chargement audio
+18%  beats
+32%  chroma
+50%  reconnaissance des accords
+68%  lissage temporel
+84%  construction timeline
+96%  écriture résultat
+100% terminé
+```
+
+### 41.1 Niveaux d’analyse
+
+Débutant : triades majeures/mineures uniquement, pénalité forte sur les changements.
+
+Intermédiaire : triades prioritaires ; 7, m7, sus et dim seulement avec preuve harmonique suffisante.
+
+Expert : enrichissements supplémentaires et pénalité de transition plus faible.
+
+### 41.2 Alignement des mesures
+
+Le moteur estime la phase de downbeat à partir des accents rythmiques.
+
+Si la preuve est faible, le premier beat détecté reste beat 1.
+
+Si la preuve est forte, les beats précédant le premier downbeat constituent une mesure de levée explicite ; la timeline conserve leurs vrais `measure_index` / `beat_index`.
+
+Le renderer ChordsLab respecte ces positions canoniques pour la signature courante.
+
+### 41.3 Reset et volume
+
+Les confirmations destructives utilisent une modale EZScore responsive et non une popup native du navigateur.
+
+Le transport expose un volume master compact immédiatement visible. Il pilote la même valeur master que la chaîne d’effets.

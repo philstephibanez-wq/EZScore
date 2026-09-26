@@ -8,6 +8,9 @@ use App\Domain\Analysis\AnalysisJob;
 use App\Domain\Analysis\AnalysisJobStatus;
 use App\Service\AnalysisDesktopStateStore;
 use App\Service\AnalysisWorkerTokenGuard;
+use App\Service\ChordTimelineResultService;
+use App\Service\ChordTimelineStorage;
+use App\Service\SongChordJobService;
 use App\Service\SongStemJobService;
 use App\Service\SongStemStorage;
 use Doctrine\ORM\EntityManagerInterface;
@@ -23,6 +26,9 @@ final class AnalysisDesktopController extends AbstractController
     public function __construct(
         private readonly AnalysisWorkerTokenGuard $guard,
         private readonly AnalysisDesktopStateStore $state,
+        private readonly SongChordJobService $chordJobs,
+        private readonly ChordTimelineStorage $chordStorage,
+        private readonly ChordTimelineResultService $chordResults,
         private readonly SongStemJobService $stemJobs,
         private readonly SongStemStorage $stemStorage,
         private readonly EntityManagerInterface $em,
@@ -74,7 +80,7 @@ final class AnalysisDesktopController extends AbstractController
     {
         $this->guard->assertAuthorized($request);
 
-        $job = $this->stemJobs->claimNext();
+        $job = $this->chordJobs->claimNext() ?? $this->stemJobs->claimNext();
         if (!$job instanceof AnalysisJob) {
             return new Response('', Response::HTTP_NO_CONTENT);
         }
@@ -87,7 +93,7 @@ final class AnalysisDesktopController extends AbstractController
     {
         $this->guard->assertAuthorized($request);
 
-        if ($job->getKind() !== SongStemJobService::KIND) {
+        if (!in_array($job->getKind(), [SongStemJobService::KIND, SongChordJobService::KIND], true)) {
             return $this->json(['error' => 'Unsupported job kind.'], Response::HTTP_CONFLICT);
         }
 
@@ -128,6 +134,18 @@ final class AnalysisDesktopController extends AbstractController
     {
         $this->guard->assertAuthorized($request);
 
+        if ($job->getKind() === SongChordJobService::KIND) {
+            try {
+                $result = $this->chordStorage->readResult($job->getSong());
+                $summary = $this->chordResults->apply($job->getSong(), $result);
+                $this->chordJobs->complete($job, $summary);
+            } catch (\Throwable $error) {
+                $this->chordJobs->fail($job, $error->getMessage());
+                return $this->json(['error' => $error->getMessage()], Response::HTTP_CONFLICT);
+            }
+            return $this->json(['job_id' => $job->getId(), 'status' => 'completed', 'progress' => 100]);
+        }
+
         if ($job->getKind() !== SongStemJobService::KIND) {
             return $this->json(['error' => 'Unsupported job kind.'], Response::HTTP_CONFLICT);
         }
@@ -155,7 +173,11 @@ final class AnalysisDesktopController extends AbstractController
         $this->guard->assertAuthorized($request);
         $payload = $request->toArray();
         $error = trim((string) ($payload['error'] ?? 'desktop_worker_failed'));
-        $this->stemJobs->fail($job, $error);
+        if ($job->getKind() === SongChordJobService::KIND) {
+            $this->chordJobs->fail($job, $error);
+        } else {
+            $this->stemJobs->fail($job, $error);
+        }
 
         return $this->json(['job_id' => $job->getId(), 'status' => 'failed']);
     }
@@ -179,12 +201,25 @@ final class AnalysisDesktopController extends AbstractController
                 'artist' => $song->getArtist(),
             ],
             'request' => $job->getRequestData(),
-            'paths' => [
-                'source' => $this->stemStorage->sourcePath($song),
-                'storage_root' => $this->stemStorage->storageRoot($song),
-                'progress_file' => $this->stemStorage->progressPath($song),
-                'log_file' => $this->stemStorage->logPath($song),
-            ],
+            'paths' => $job->getKind() === SongChordJobService::KIND
+                ? [
+                    'source' => $this->chordStorage->sourcePath($song),
+                    'progress_file' => $this->chordStorage->progressPath($song),
+                    'result_file' => $this->chordStorage->resultPath($song),
+                    'harmony_stems' => array_values(array_filter([
+                        $this->stemStorage->stemPath($song, 'bass'),
+                        $this->stemStorage->stemPath($song, 'guitar'),
+                        $this->stemStorage->stemPath($song, 'piano'),
+                        $this->stemStorage->stemPath($song, 'other'),
+                    ])),
+                    'drums' => $this->stemStorage->stemPath($song, 'drums'),
+                ]
+                : [
+                    'source' => $this->stemStorage->sourcePath($song),
+                    'storage_root' => $this->stemStorage->storageRoot($song),
+                    'progress_file' => $this->stemStorage->progressPath($song),
+                    'log_file' => $this->stemStorage->logPath($song),
+                ],
         ];
     }
 }

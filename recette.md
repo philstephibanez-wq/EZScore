@@ -719,3 +719,24 @@ Commentaires :
 - [ ] quitter la page libère le wake lock ;
 - [ ] le choix persiste sur le terminal ;
 - [ ] l’absence de Wake Lock ne bloque jamais la lecture.
+
+
+## 32. Recette R33.2 — job accords / progression / UX
+
+- [ ] Réanalyser crée un job `chords` ;
+- [ ] le job apparaît dans EZScore Analysis Worker ;
+- [ ] le serveur web reste répondant pendant l’analyse ;
+- [ ] progression Worker 0–100 % ;
+- [ ] barre de progression ChordsLab ;
+- [ ] rechargement unique après succès ;
+- [ ] reset via modale EZScore ;
+- [ ] Annuler ne modifie rien ;
+- [ ] Confirmer supprime uniquement les overrides ;
+- [ ] volume rapide pilote le master existant ;
+- [ ] Débutant = majeur/mineur uniquement ;
+- [ ] Intermédiaire plus simple qu’Expert ;
+- [ ] Expert autorise les enrichissements ;
+- [ ] phase downbeat appliquée seulement si suffisamment fiable ;
+- [ ] levée représentée explicitement ;
+- [ ] renderer respecte les beat_index canoniques ;
+- [ ] aucune migration Doctrine supplémentaire.

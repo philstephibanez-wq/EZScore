@@ -28,10 +28,13 @@ function displayChord(chord){
 function activeEventAt(ms){let current=null;for(const e of events){if(e.start_ms<=ms)current=e;else break}return current}
 function eventStartingNear(ms,nextMs){return events.find(e=>e.start_ms>=ms&&e.start_ms<nextMs)||null}
 
+const canonicalSignature=signature;
 function buildProjection(){
  const sig=parseSignature(signature), measures=[]; let measure=null;
+ const useCanonical=signature===canonicalSignature;
  beats.forEach((beat,seq)=>{
-  const measureIndex=Math.floor(seq/sig.num), beatIndex=seq%sig.num;
+  const measureIndex=useCanonical&&Number.isInteger(beat.measure_index)?beat.measure_index:Math.floor(seq/sig.num);
+  const beatIndex=useCanonical&&Number.isInteger(beat.beat_index)?beat.beat_index:seq%sig.num;
   if(!measure||measure.index!==measureIndex){measure={index:measureIndex,slots:[]};measures.push(measure)}
   const nextMs=seq+1<beats.length?beats[seq+1].start_ms:beat.start_ms+1000;
   const exact=eventStartingNear(beat.start_ms,nextMs), active=exact||activeEventAt(beat.start_ms);
