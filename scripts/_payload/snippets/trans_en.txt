@@ -1,8 +1,1 @@
-  guitar_chords: Show guitar chords
-  analyze:
-    button: Analyze chords
-    again: Analyze chords again
-    running: Chord analysis in progress…
-    done: Chord analysis completed.
-    failed: 'Chord analysis failed: %error%'
-    note: Analysis creates the real timeline. Every chord remains editable afterward in the prompter.
+  keep_awake: Keep screen awake during playback

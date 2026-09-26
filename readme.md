@@ -1,43 +1,31 @@
-# EZScore_v1 — R33 Prompteur ChordsLab éditable
+# EZScore_v1 — R33.1a correctif d'application
 
-R33 livre le prompteur réellement alimenté par l'audio et éditable.
+R33.1 initial échouait sur `public/assets/js/chordslab.js` parce que son patcher cherchait la variante formatée du bloc `highlightAt()`, alors que R33 avait livré ce fichier sous forme compacte.
 
-## Inclus
+R33.1a corrige le patcher et supporte explicitement :
 
-- bouton **Analyser les accords** ;
-- détection beats + accords + tonalité ;
-- modes Débutant / Intermédiaire / Expert ;
-- écriture dans la timeline canonique ;
-- affichage `[Em---]` dérivé de la timeline ;
-- accord actif répété au début de la mesure suivante ;
-- surbrillance du beat courant synchronisée au player existant ;
-- édition inline avec persistance dans `override_value` ;
-- reset des overrides déjà présent ;
-- capo temps réel uniquement sur la forme guitare ;
-- recomposition temps réel du prompteur quand la signature change ;
-- diagramme au-dessus de l'accord actif ;
-- libellé **Afficher accords guitare** ;
-- Pistes / Effets restent repliés par défaut ;
-- responsive PC / tablette / smartphone.
+- la variante compacte réellement livrée en R33 ;
+- la variante formatée ;
+- un fallback structurel limité au bloc du beat courant.
+
+Le script reste idempotent et refuse toute modification s'il ne reconnaît pas une structure sûre.
+
+Le premier lancement R33.1 a déjà pu installer certains fichiers avant l'échec. C'est prévu : R33.1a reconnaît ces fichiers comme déjà appliqués et reprend au point suivant.
 
 ## Installation
 
 ```powershell
 cd H:\EZScore_v1
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_v1_R33_EDITABLE_CHORD_PROMPTER.zip" -C H:\EZScore_v1
+tar -xf "$env:USERPROFILE\Downloads\EZScore_v1_R33_1a_RIFF_WAKERLOCK_PATCHER_FIX.zip" -C H:\EZScore_v1
 
-H:\EZScore_v1\.venv-py313\Scripts\python.exe .\scripts\apply_r33_editable_chord_prompter.py
+H:\EZScore_v1\.venv-py313\Scripts\python.exe .\scripts\apply_r33_1_riff_wakelock.py
 
-H:\EZScore_v1\.venv-py313\Scripts\python.exe -m pip install -r .\analysis\requirements-chords.txt
-
-php -l .\src\Service\ChordTimelineAnalysisService.php
-php -l .\src\Controller\SongLabController.php
-php -l .\src\Domain\Song\SongTimelineEventRepository.php
+php .\tests\r33_1a_contract.php
 node --check .\public\assets\js\chordslab.js
+node --check .\public\assets\js\chordslab-r33-1.js
 H:\EZScore_v1\.venv-py313\Scripts\python.exe -m py_compile .\analysis\chord_timeline_analysis.py
-
-php .\tests\r33_editable_chord_prompter_contract.php
+php -l .\src\Service\ChordTimelineAnalysisService.php
 php bin\console lint:yaml translations
 php bin\console lint:twig templates
 php bin\console cache:clear
@@ -46,9 +34,9 @@ php bin\console cache:clear
 Attendu :
 
 ```text
-16 R33 editable-prompter checks passed.
+8 R33.1a checks passed.
 ```
 
-Puis Ctrl+F5, ouvrir ChordsLab et cliquer **Analyser les accords**.
+Puis `Ctrl+F5` et réanalyse des accords.
 
-Aucune migration Doctrine supplémentaire.
+Aucune migration Doctrine.

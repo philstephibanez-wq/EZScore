@@ -34,3 +34,4 @@ chordslab:
     done: Chord analysis completed.
     failed: 'Chord analysis failed: %error%'
     note: Analysis creates the real timeline. Every chord remains editable afterward in the prompter.
+  keep_awake: Keep screen awake during playback

@@ -5,7 +5,7 @@
 {% block stylesheets %}
 <link rel="stylesheet" href="/assets/css/workflow-tabs-r23-2.css?v=20260926r31">
 <link rel="stylesheet" href="/assets/css/stems.css?v=20260926r29">
-<link rel="stylesheet" href="/assets/css/chordslab.css?v=20260926r32">
+<link rel="stylesheet" href="/assets/css/chordslab.css?v=20260926r33_1aa">
 {% endblock %}
 
 {% block body %}
@@ -144,6 +144,10 @@
             {% endfor %}
         </select>
         <span class="stem-mixer-state" data-mixer-state>{{ 'stems.mixer.ready'|trans({}, 'stems') }}</span>
+        <label class="chordslab-wakelock">
+            <input type="checkbox" data-chordslab-wakelock checked>
+            <span>{{ 'chordslab.keep_awake'|trans({}, 'chordslab') }}</span>
+        </label>
     </div>
 
     <details class="chordslab-collapse">
@@ -211,4 +215,5 @@
 <script src="/assets/js/audio/ezscore-audio-engine.js?v=20260926r29"></script>
 <script src="/assets/js/stems-mixer.js?v=20260926r32"></script>
 <script src="/assets/js/chordslab.js?v=20260926r33"></script>
+<script src="/assets/js/chordslab-r33-1.js?v=20260926r33_1a"></script>
 {% endblock %}

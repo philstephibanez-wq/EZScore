@@ -702,3 +702,20 @@ Commentaires :
 - [ ] `lint:twig` OK
 - [ ] `doctrine:schema:validate` OK
 - [ ] `doctrine:schema:update --dump-sql` vide
+
+## 31. Recette R33.1 — accords simplifiés / prompteur centré / wake lock
+
+- [ ] les STEMS harmoniques sont utilisés en priorité lorsqu’ils existent ;
+- [ ] `drums` sert prioritairement à la grille de beats ;
+- [ ] l’audio original reste un fallback ;
+- [ ] en Intermédiaire, les `maj7` et enrichissements faibles sont réduits ;
+- [ ] les changements isolés d’un beat sont fortement réduits ;
+- [ ] l’accord courant vient se placer sous le diagramme pendant la lecture ;
+- [ ] le centrage suit également un seek ;
+- [ ] le comportement reste utilisable sur tablette et smartphone ;
+- [ ] l’option de maintien écran est visible ;
+- [ ] Play demande le wake lock si supporté ;
+- [ ] Pause et Stop libèrent le wake lock ;
+- [ ] quitter la page libère le wake lock ;
+- [ ] le choix persiste sur le terminal ;
+- [ ] l’absence de Wake Lock ne bloque jamais la lecture.

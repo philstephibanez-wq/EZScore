@@ -34,3 +34,4 @@ chordslab:
     done: Analyse harmonique terminée.
     failed: 'Analyse harmonique impossible : %error%'
     note: L’analyse crée la timeline réelle. Tous les accords restent modifiables ensuite dans le prompteur.
+  keep_awake: Garder l’écran allumé pendant la lecture

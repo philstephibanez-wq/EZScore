@@ -1324,3 +1324,17 @@ prompteur = projection visuelle
 capo = transformation d'affichage
 transposition = future transformation harmonique distincte
 ```
+
+## 40. ChordsLab — analyse simplifiée type RiffStation et maintien écran
+
+### 40.1 Analyse harmonique
+
+ChordsLab privilégie la lisibilité et la stabilité : source harmonique prioritaire `bass + guitar + piano + other`, source rythmique prioritaire `drums`, audio original en fallback, priorité aux triades, pénalité aux changements trop fréquents, bonus tonal léger et enrichissements Intermédiaire conservés uniquement si leur preuve est nette. L’objectif est une lecture immédiatement exploitable à la guitare, proche de l’esprit RiffStation, avant correction manuelle éventuelle.
+
+### 40.2 Prompteur centré
+
+Pendant la lecture, le diagramme reste visuellement fixe et le beat/accord courant se déplace sous lui. Le centrage est piloté par l’horloge du player et reste identique sur PC, tablette et smartphone.
+
+### 40.3 Maintien de l’écran allumé
+
+Option `Garder l’écran allumé pendant la lecture` via Screen Wake Lock lorsque disponible. Play demande le verrou ; Pause, Stop, page cachée ou quittée le libèrent ; si la lecture continue, le verrou est redemandé quand l’onglet redevient visible. La préférence est conservée localement sur l’appareil. Le navigateur et l’OS peuvent toujours refuser ou révoquer le verrou.

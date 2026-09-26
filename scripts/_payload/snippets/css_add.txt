@@ -1,7 +1,7 @@
-.chordslab-prompter-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
-.chordslab-prompter-actions form{margin:0}
-.chordslab-prompter-actions button{min-height:36px}
-@media(max-width:640px){
-  .chordslab-prompter-actions{width:100%;display:grid;grid-template-columns:1fr}
-  .chordslab-prompter-actions button{width:100%;min-height:42px}
-}
+/* R33.1 RiffStation-like centered prompter */
+.chordslab-stage{overflow:hidden}
+.chordslab-measures{scroll-behavior:smooth;scroll-padding-inline:50%}
+.chord-measure{scroll-snap-align:none}
+.chordslab-wakelock{display:flex;align-items:center;gap:7px;font-size:12px;white-space:nowrap}
+.chordslab-wakelock input{width:18px;height:18px}
+@media(max-width:640px){.chordslab-wakelock{grid-column:1/-1;min-height:40px}}

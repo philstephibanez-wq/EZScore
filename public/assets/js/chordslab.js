@@ -67,7 +67,7 @@ function highlightAt(seconds){
  measuresEl.querySelectorAll('.is-current').forEach(el=>el.classList.remove('is-current'));
  if(seq<0){updateDiagram(null);return}
  const slot=measuresEl.querySelector(`.chord-slot[data-beat-seq="${seq}"]`);
- if(slot){slot.classList.add('is-current');const m=slot.closest('.chord-measure');m?.classList.add('is-current');m?.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'})}
+ if(slot){slot.classList.add('is-current');const m=slot.closest('.chord-measure');m?.classList.add('is-current');root.dispatchEvent(new CustomEvent('ezscore:chord-current',{detail:{beatSeq:seq,timeMs:ms}}))}
  const active=activeEventAt(ms); updateDiagram(displayChord(active?.effective||active?.original||null));
 }
 

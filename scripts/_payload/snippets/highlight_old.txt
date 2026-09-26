@@ -1,0 +1,9 @@
+        const slot = measuresEl.querySelector(`.chord-slot[data-beat-seq="${seq}"]`);
+        if (slot) {
+            slot.classList.add('is-current');
+            const measure = slot.closest('.chord-measure');
+            measure?.classList.add('is-current');
+            measure?.scrollIntoView({behavior:'smooth', inline:'center', block:'nearest'});
+        }
+
+        const active = activeEventAt(ms);
