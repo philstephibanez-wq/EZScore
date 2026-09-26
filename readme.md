@@ -1,92 +1,104 @@
-# EZScore_v1 — R33.2 ChordsLab async + progression + UX
+# EZScore_v1 — R34 trois profils d’accords simultanés
 
-Ce livrable corrige les retours sur le premier prompteur.
-
-## Analyse asynchrone
-
-`Réanalyser les accords` crée maintenant un job `chords`.
-
-Le job est pris par **EZScore Analysis Worker** au lieu de bloquer la requête PHP.
-
-Conséquences :
-
-- le job apparaît dans le Worker ;
-- plus de blocage du serveur local pendant le calcul ;
-- progression publiée vers EZScore ;
-- barre de progression visible dans ChordsLab.
-
-## Barre de progression
-
-Étapes indicatives :
+R34 met en œuvre le modèle retenu pour ChordsLab :
 
 ```text
-5%   chargement
-18%  beats
-32%  chroma
-50%  reconnaissance
-68%  lissage
-84%  timeline
-96%  résultat
-100% terminé
+Timeline commune
+├── Débutant
+├── Intermédiaire
+└── Expert
 ```
 
-## Modes d'analyse
+## Ce qui change
 
-**Débutant**
-- majeur / mineur uniquement ;
-- pénalité forte sur les changements ;
-- résultat volontairement stable.
+Une seule analyse audio calcule les éléments lourds une fois :
 
-**Intermédiaire**
+- beats ;
+- downbeats ;
+- chroma ;
+- tonalité ;
+- observations harmoniques.
+
+Puis les trois profils sont générés dans le même job.
+
+### Débutant
+
+- majeur / mineur simples ;
+- fort lissage temporel ;
+- pas d’enrichissement.
+
+### Intermédiaire
+
 - triades prioritaires ;
-- 7 / m7 / sus / dim seulement si suffisamment établis ;
-- lissage intermédiaire.
+- 7, m7, sus, dim si réellement soutenus par le signal.
 
-**Expert**
-- davantage d'enrichissements ;
-- pénalité de changement plus faible ;
-- résultat plus détaillé.
+### Expert
 
-## Alignement de mesure
+- enrichissements supplémentaires ;
+- notamment maj7, 6, m6, add9 ;
+- changements moins pénalisés.
 
-R33.2 estime la phase de downbeat.
+## Switch immédiat
 
-Si la confiance est faible, le premier beat détecté reste le beat 1.
+Changer Débutant / Intermédiaire / Expert dans ChordsLab :
 
-Si une levée est réellement probable, elle est représentée explicitement au lieu de décaler toute la chanson.
+- change immédiatement la couche affichée ;
+- ne lance pas de nouvelle analyse ;
+- persiste le profil sélectionné en arrière-plan.
 
-Le prompteur utilise les `measure_index` / `beat_index` canoniques pour la signature enregistrée.
+## Édition isolée
 
-## UI
+Les corrections manuelles sont propres au profil.
 
-- popup navigateur du reset remplacée par une modale EZScore ;
-- slider **Volume** immédiatement visible dans le transport ;
-- ce slider pilote le même master que la chaîne d'effets ;
-- explication dynamique du mode Débutant / Intermédiaire / Expert.
+Exemple :
+
+```text
+Débutant      E  -> Em   (correction utilisateur)
+Intermédiaire E7         (inchangé)
+Expert        Emaj7      (inchangé)
+```
+
+Le reset agit uniquement sur le profil courant.
+
+## Affichage des accords
+
+Notation standard guitariste conservée.
+
+```text
+C       oui
+Cmaj    non : redondant
+C7      oui
+Cmaj7   oui : information réellement différente
+Cm7     oui
+```
+
+Aucun remplacement automatique par des symboles jazz du type triangle.
+
+Les cases de beat ont maintenant une largeur fixe. Les noms longs réduisent localement leur police au lieu d’élargir la mesure pendant le défilement.
+
+## Volume / progression
+
+Le CSS R34 rapproche et renforce le libellé Volume, son slider et son pourcentage.
+
+La progression d’analyse occupe toute la largeur disponible et est plus visible.
 
 ## Installation
 
 ```powershell
 cd H:\EZScore_v1
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_v1_R33_2_ASYNC_PROGRESS_UX.zip" -C H:\EZScore_v1
+tar -xf "$env:USERPROFILE\Downloads\EZScore_v1_R34_THREE_CHORD_PROFILES.zip" -C H:\EZScore_v1
 
-H:\EZScore_v1\.venv-py313\Scripts\python.exe .\scripts\apply_r33_2_async_progress.py
+H:\EZScore_v1\.venv-py313\Scripts\python.exe .\scripts\apply_r34_three_profiles.py
 
-php -l .\src\Service\SongChordJobService.php
-php -l .\src\Service\ChordTimelineStorage.php
 php -l .\src\Service\ChordTimelineResultService.php
 php -l .\src\Controller\SongLabController.php
-php -l .\src\Controller\AnalysisDesktopController.php
+php -l .\src\Domain\Song\SongTimelineEventRepository.php
 
 node --check .\public\assets\js\chordslab.js
-node --check .\public\assets\js\chordslab-r33-2.js
-
 H:\EZScore_v1\.venv-py313\Scripts\python.exe -m py_compile .\analysis\chord_timeline_analysis.py
-H:\EZScore_v1\.venv-py313\Scripts\python.exe -m py_compile .\worker_app\ezscore_analysis_worker.pyw
 
-php .\tests\r33_2_contract.php
-php bin\console lint:yaml translations
+php .\tests\r34_contract.php
 php bin\console lint:twig templates
 php bin\console cache:clear
 ```
@@ -94,17 +106,22 @@ php bin\console cache:clear
 Attendu :
 
 ```text
-19 R33.2 checks passed.
+22 R34 checks passed.
 ```
 
 Ensuite :
 
-1. fermer puis relancer **EZScore Analysis Worker** ;
-2. `Ctrl+F5` dans le navigateur ;
-3. choisir le niveau d'analyse ;
-4. **Enregistrer** ;
-5. cliquer **Réanalyser les accords**.
+1. fermer / relancer EZScore Analysis Worker ;
+2. Ctrl+F5 ;
+3. lancer une seule **Réanalyse des accords** ;
+4. une fois terminée, passer entre Débutant / Intermédiaire / Expert sans relancer de job.
 
-Le job doit apparaître dans le Worker et la barre de progression dans ChordsLab.
+La première analyse R34 est nécessaire pour remplir les trois couches.
 
-Aucune migration Doctrine.
+## Base de données
+
+Aucune migration Doctrine : le profil est stocké dans le payload JSON des événements accords existants. Les beats restent uniques.
+
+## Généralité
+
+Aucun titre, artiste, song ID ou cas particulier Aline n’est codé dans le moteur.

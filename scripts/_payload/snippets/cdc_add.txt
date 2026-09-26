@@ -1,50 +1,66 @@
 
 
-## 41. ChordsLab — analyse asynchrone et progression
+## 42. ChordsLab — trois profils harmoniques simultanés
 
-L’analyse harmonique ChordsLab est exécutée comme un job du Worker Desktop.
-
-Objectifs :
-
-- ne jamais bloquer le serveur PHP local pendant l’analyse ;
-- afficher le job dans EZScore Analysis Worker ;
-- publier une progression 0–100 % ;
-- afficher la même progression dans ChordsLab ;
-- permettre au navigateur de rester réactif pendant tout le calcul.
-
-Étapes indicatives :
+Une analyse ChordsLab produit désormais simultanément trois couches harmoniques partageant la même timeline rythmique :
 
 ```text
-5%   chargement audio
-18%  beats
-32%  chroma
-50%  reconnaissance des accords
-68%  lissage temporel
-84%  construction timeline
-96%  écriture résultat
-100% terminé
+Timeline canonique beats/mesures
+        ├── Débutant
+        ├── Intermédiaire
+        └── Expert
 ```
 
-### 41.1 Niveaux d’analyse
+Les traitements audio lourds (sources, beat tracking, downbeat, chroma, tonalité) ne sont exécutés qu’une fois.
 
-Débutant : triades majeures/mineures uniquement, pénalité forte sur les changements.
+Les trois profils sont ensuite dérivés à partir des mêmes observations harmoniques.
 
-Intermédiaire : triades prioritaires ; 7, m7, sus et dim seulement avec preuve harmonique suffisante.
+### 42.1 Richesse progressive
 
-Expert : enrichissements supplémentaires et pénalité de transition plus faible.
+- Débutant : accords majeurs/mineurs simples, changements fortement lissés.
+- Intermédiaire : ajoute notamment 7, m7, sus et dim lorsque suffisamment établis.
+- Expert : autorise les enrichissements supplémentaires tels que maj7, 6, m6, add9 et une granularité plus fine.
 
-### 41.2 Alignement des mesures
+Le passage d’un profil à l’autre ne déclenche aucune nouvelle analyse audio.
 
-Le moteur estime la phase de downbeat à partir des accents rythmiques.
+### 42.2 Éditions indépendantes
 
-Si la preuve est faible, le premier beat détecté reste beat 1.
+Chaque couche possède ses propres valeurs originales et ses propres overrides.
 
-Si la preuve est forte, les beats précédant le premier downbeat constituent une mesure de levée explicite ; la timeline conserve leurs vrais `measure_index` / `beat_index`.
+Une modification effectuée en Débutant ne modifie ni Intermédiaire ni Expert.
 
-Le renderer ChordsLab respecte ces positions canoniques pour la signature courante.
+Le reset s’applique uniquement au profil courant.
 
-### 41.3 Reset et volume
+### 42.3 Persistance du profil affiché
 
-Les confirmations destructives utilisent une modale EZScore responsive et non une popup native du navigateur.
+Le profil sélectionné est persisté comme préférence ChordsLab du morceau.
 
-Le transport expose un volume master compact immédiatement visible. Il pilote la même valeur master que la chaîne d’effets.
+Changer de profil dans le prompteur est immédiat ; la préférence est enregistrée en arrière-plan.
+
+### 42.4 Notation compacte mais standard
+
+Une triade majeure simple est affichée sans suffixe redondant :
+
+```text
+C
+D
+E
+```
+
+et jamais :
+
+```text
+Cmaj
+Dmaj
+Emaj
+```
+
+Le suffixe `maj` reste conservé lorsqu’il apporte une information harmonique réelle, par exemple :
+
+```text
+Cmaj7
+```
+
+Les noms d’accords standards ne sont pas remplacés par des symboles jazz non universels.
+
+Les slots du prompteur ont une largeur fixe ; les accords longs utilisent une réduction typographique locale sans modifier la donnée canonique.

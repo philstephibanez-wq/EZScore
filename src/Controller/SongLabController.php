@@ -56,10 +56,11 @@ final class SongLabController extends AbstractController
         SongStemPlaybackStorage $playback,
     ): Response {
         $user = $this->requireEditor($song);
+        $activeProfile = $song->getChordAnalysisLevel();
+        $profiles = [];
 
-        return $this->render('song/chordslab.html.twig', [
-            'song' => $song,
-            'chord_events' => array_map(
+        foreach (['beginner', 'intermediate', 'expert'] as $profile) {
+            $profiles[$profile] = array_map(
                 static fn (SongTimelineEvent $event): array => [
                     'id' => $event->getId(),
                     'start_ms' => $event->getStartMs(),
@@ -71,8 +72,15 @@ final class SongLabController extends AbstractController
                     'override' => $event->getOverrideValue(),
                     'effective' => $event->getEffectiveValue(),
                 ],
-                $timeline->findChordEvents($song),
-            ),
+                $timeline->findChordEventsForProfile($song, $profile),
+            );
+        }
+
+        return $this->render('song/chordslab.html.twig', [
+            'song' => $song,
+            'chord_profile' => $activeProfile,
+            'chord_profiles' => $profiles,
+            'chord_events' => $profiles[$activeProfile] ?? [],
             'beat_events' => array_map(
                 static fn (SongTimelineEvent $event): array => [
                     'id' => $event->getId(),
@@ -88,7 +96,6 @@ final class SongLabController extends AbstractController
             'playback_ready' => $playback->isReady($song),
         ]);
     }
-
 
     #[Route('/chords/analyze', name: 'app_song_chordslab_analyze', methods: ['POST'])]
     public function analyzeChords(
@@ -129,6 +136,34 @@ final class SongLabController extends AbstractController
             'progress' => $job->getProgress(),
             'error' => $job->getErrorCode(),
         ]);
+    }
+
+
+    #[Route('/chords/profile', name: 'app_song_chordslab_profile', methods: ['POST'])]
+    public function saveChordProfile(
+        Song $song,
+        Request $request,
+        EntityManagerInterface $em,
+    ): JsonResponse {
+        $this->requireEditor($song);
+        $payload = $request->toArray();
+
+        if (!$this->isCsrfTokenValid(
+            'song_chordslab_profile_'.$song->getId(),
+            (string) ($payload['_token'] ?? ''),
+        )) {
+            return $this->json(['error' => 'invalid_csrf'], Response::HTTP_FORBIDDEN);
+        }
+
+        $profile = trim((string) ($payload['profile'] ?? ''));
+        if (!in_array($profile, ['beginner', 'intermediate', 'expert'], true)) {
+            return $this->json(['error' => 'invalid_profile'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $song->setChordAnalysisLevel($profile);
+        $em->flush();
+
+        return $this->json(['ok' => true, 'profile' => $profile]);
     }
 
     #[Route('/chords/settings', name: 'app_song_chordslab_settings', methods: ['POST'])]
@@ -199,6 +234,8 @@ final class SongLabController extends AbstractController
         }
 
         $chord = trim((string) ($payload['chord'] ?? ''));
+        // Plain major triads use standard compact spelling: C, not redundant Cmaj.
+        $chord = preg_replace('/^([A-G](?:#|b)?)maj$/', '$1', $chord) ?? $chord;
         if ($chord === '' || mb_strlen($chord) > 32 || !preg_match('/^[A-G](?:#|b)?[A-Za-z0-9()+#b°øΔ\/-]*$/u', $chord)) {
             return $this->json(['error' => 'invalid_chord'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
@@ -231,7 +268,8 @@ final class SongLabController extends AbstractController
             throw $this->createAccessDeniedException();
         }
 
-        foreach ($timeline->findChordEvents($song) as $event) {
+        $profile = $song->getChordAnalysisLevel();
+        foreach ($timeline->findChordEventsForProfile($song, $profile) as $event) {
             $event->resetOverride();
         }
 

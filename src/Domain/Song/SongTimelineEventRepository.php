@@ -47,6 +47,23 @@ final class SongTimelineEventRepository extends ServiceEntityRepository
         return $this->findForSongAndType($song, SongTimelineEvent::TYPE_CHORD);
     }
 
+
+    /** @return list<SongTimelineEvent> */
+    public function findChordEventsForProfile(Song $song, string $profile): array
+    {
+        $events = $this->findChordEvents($song);
+
+        return array_values(array_filter(
+            $events,
+            static function (SongTimelineEvent $event) use ($profile): bool {
+                $payload = $event->getPayload() ?? [];
+                $eventProfile = (string) ($payload['profile'] ?? $payload['analysis_level'] ?? 'intermediate');
+
+                return $eventProfile === $profile;
+            },
+        ));
+    }
+
     /** @return list<SongTimelineEvent> */
     public function findBeatEvents(Song $song): array
     {

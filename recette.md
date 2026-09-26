@@ -740,3 +740,26 @@ Commentaires :
 - [ ] levée représentée explicitement ;
 - [ ] renderer respecte les beat_index canoniques ;
 - [ ] aucune migration Doctrine supplémentaire.
+
+
+## 33. Recette R34 — profils Débutant / Intermédiaire / Expert
+
+- [ ] une seule analyse produit les trois profils ;
+- [ ] les beats et mesures sont strictement identiques entre les trois profils ;
+- [ ] changer de profil ne déclenche aucun nouveau job ;
+- [ ] Débutant contient uniquement des majeurs/mineurs simples ;
+- [ ] Intermédiaire peut contenir 7, m7, sus et dim ;
+- [ ] Expert peut contenir maj7, 6, m6, add9 et autres enrichissements prévus ;
+- [ ] Expert est globalement au moins aussi riche qu’Intermédiaire ;
+- [ ] une édition Débutant n’altère pas Intermédiaire ;
+- [ ] une édition Débutant n’altère pas Expert ;
+- [ ] le reset ne touche que le profil affiché ;
+- [ ] le profil affiché est persisté ;
+- [ ] `Cmaj` est normalisé en `C` ;
+- [ ] `Cmaj7` reste `Cmaj7` ;
+- [ ] les slots ont une largeur stable pendant le défilement ;
+- [ ] les accords longs restent lisibles sans symbole jazz imposé ;
+- [ ] le libellé Volume reste accolé à son composant ;
+- [ ] la progression est visuellement plus forte et pleine largeur ;
+- [ ] aucun traitement n’est spécifique à un titre, artiste ou identifiant de chanson ;
+- [ ] aucune migration Doctrine n’est requise.

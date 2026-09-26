@@ -79,3 +79,73 @@
  .chordslab-quick-volume{grid-column:1/-1;grid-template-columns:auto 1fr auto}
  .ez-modal-actions{display:grid;grid-template-columns:1fr 1fr}
 }
+
+/* R34 — three chord profiles / compact standard chord labels */
+.chordslab-settings-grid label > span{
+    display:block;
+    margin-bottom:6px;
+    font-weight:700;
+    color:#eef5f8;
+}
+.chordslab-settings-grid [data-analysis-level-help]{
+    grid-column:1/-1;
+    margin-top:-4px;
+    color:#b9c8d0;
+    font-size:12px;
+}
+.chord-measure-notation{
+    display:flex;
+    align-items:stretch;
+}
+.chord-slot{
+    flex:0 0 44px;
+    width:44px;
+    min-width:44px;
+    max-width:44px;
+    padding-inline:2px;
+    overflow:hidden;
+    white-space:nowrap;
+    text-overflow:clip;
+    font-variant-numeric:tabular-nums;
+}
+.chord-slot.is-long{font-size:11px;letter-spacing:-.25px}
+.chord-slot.is-very-long{font-size:9.5px;letter-spacing:-.45px}
+.chordslab-quick-volume{
+    display:inline-grid;
+    grid-template-columns:auto 132px auto;
+    width:max-content;
+    max-width:100%;
+    align-items:center;
+    gap:8px;
+    padding:5px 8px;
+    border:1px solid #334650;
+    border-radius:8px;
+    background:#111b21;
+}
+.chordslab-quick-volume > span{
+    font-weight:700;
+    color:#eef5f8;
+}
+.chordslab-quick-volume output{
+    min-width:38px;
+    text-align:right;
+    color:#eef5f8;
+    font-weight:700;
+}
+.chord-analysis-progress{
+    grid-column:1/-1;
+    width:100%;
+    margin-top:8px;
+    padding:9px 10px;
+    border:1px solid #2e4654;
+    border-radius:8px;
+    background:#101a20;
+}
+.chord-analysis-progress-head{
+    font-size:12px;
+    color:#e1ebf0;
+}
+@media(max-width:700px){
+    .chord-slot{flex-basis:40px;width:40px;min-width:40px;max-width:40px}
+    .chordslab-quick-volume{grid-template-columns:auto minmax(90px,1fr) auto;width:100%}
+}

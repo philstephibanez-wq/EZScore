@@ -1,0 +1,28 @@
+
+    #[Route('/chords/profile', name: 'app_song_chordslab_profile', methods: ['POST'])]
+    public function saveChordProfile(
+        Song $song,
+        Request $request,
+        EntityManagerInterface $em,
+    ): JsonResponse {
+        $this->requireEditor($song);
+        $payload = $request->toArray();
+
+        if (!$this->isCsrfTokenValid(
+            'song_chordslab_profile_'.$song->getId(),
+            (string) ($payload['_token'] ?? ''),
+        )) {
+            return $this->json(['error' => 'invalid_csrf'], Response::HTTP_FORBIDDEN);
+        }
+
+        $profile = trim((string) ($payload['profile'] ?? ''));
+        if (!in_array($profile, ['beginner', 'intermediate', 'expert'], true)) {
+            return $this->json(['error' => 'invalid_profile'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $song->setChordAnalysisLevel($profile);
+        $em->flush();
+
+        return $this->json(['ok' => true, 'profile' => $profile]);
+    }
+

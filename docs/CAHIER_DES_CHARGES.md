@@ -1388,3 +1388,69 @@ Le renderer ChordsLab respecte ces positions canoniques pour la signature couran
 Les confirmations destructives utilisent une modale EZScore responsive et non une popup native du navigateur.
 
 Le transport expose un volume master compact immédiatement visible. Il pilote la même valeur master que la chaîne d’effets.
+
+
+## 42. ChordsLab — trois profils harmoniques simultanés
+
+Une analyse ChordsLab produit désormais simultanément trois couches harmoniques partageant la même timeline rythmique :
+
+```text
+Timeline canonique beats/mesures
+        ├── Débutant
+        ├── Intermédiaire
+        └── Expert
+```
+
+Les traitements audio lourds (sources, beat tracking, downbeat, chroma, tonalité) ne sont exécutés qu’une fois.
+
+Les trois profils sont ensuite dérivés à partir des mêmes observations harmoniques.
+
+### 42.1 Richesse progressive
+
+- Débutant : accords majeurs/mineurs simples, changements fortement lissés.
+- Intermédiaire : ajoute notamment 7, m7, sus et dim lorsque suffisamment établis.
+- Expert : autorise les enrichissements supplémentaires tels que maj7, 6, m6, add9 et une granularité plus fine.
+
+Le passage d’un profil à l’autre ne déclenche aucune nouvelle analyse audio.
+
+### 42.2 Éditions indépendantes
+
+Chaque couche possède ses propres valeurs originales et ses propres overrides.
+
+Une modification effectuée en Débutant ne modifie ni Intermédiaire ni Expert.
+
+Le reset s’applique uniquement au profil courant.
+
+### 42.3 Persistance du profil affiché
+
+Le profil sélectionné est persisté comme préférence ChordsLab du morceau.
+
+Changer de profil dans le prompteur est immédiat ; la préférence est enregistrée en arrière-plan.
+
+### 42.4 Notation compacte mais standard
+
+Une triade majeure simple est affichée sans suffixe redondant :
+
+```text
+C
+D
+E
+```
+
+et jamais :
+
+```text
+Cmaj
+Dmaj
+Emaj
+```
+
+Le suffixe `maj` reste conservé lorsqu’il apporte une information harmonique réelle, par exemple :
+
+```text
+Cmaj7
+```
+
+Les noms d’accords standards ne sont pas remplacés par des symboles jazz non universels.
+
+Les slots du prompteur ont une largeur fixe ; les accords longs utilisent une réduction typographique locale sans modifier la donnée canonique.

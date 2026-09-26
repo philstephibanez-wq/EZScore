@@ -1,19 +1,70 @@
 
-/* R33.2 async analysis / custom modal / quick volume */
-.chord-analysis-progress{display:grid;gap:7px;margin-top:10px}
-.chord-analysis-progress[hidden]{display:none}
-.chord-analysis-progress-head{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:#a9bac4}
-.chord-analysis-progress progress{width:100%;height:10px;accent-color:#4aa3df}
-.chordslab-quick-volume{display:grid;grid-template-columns:auto minmax(90px,150px) auto;align-items:center;gap:7px;font-size:11px}
-.chordslab-quick-volume input{width:100%}
-.ez-modal{border:0;padding:0;background:transparent;max-width:min(92vw,520px)}
-.ez-modal::backdrop{background:rgba(0,0,0,.66);backdrop-filter:blur(2px)}
-.ez-modal-card{background:#121b22;color:#eef4f7;border:1px solid #40515c;border-radius:14px;padding:18px;box-shadow:0 18px 50px rgba(0,0,0,.45)}
-.ez-modal-card h3{margin:0 0 8px}.ez-modal-card p{margin:0;color:#b1c0c8}
-.ez-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
-.ez-modal-actions button{min-height:40px}.ez-modal-actions .danger{background:#7b2528;border-color:#a53c41;color:white}
-[data-analysis-level-help]{display:block;margin-top:6px;color:#9fb1bb;font-size:11px}
-@media(max-width:760px){
- .chordslab-quick-volume{grid-column:1/-1;grid-template-columns:auto 1fr auto}
- .ez-modal-actions{display:grid;grid-template-columns:1fr 1fr}
+/* R34 — three chord profiles / compact standard chord labels */
+.chordslab-settings-grid label > span{
+    display:block;
+    margin-bottom:6px;
+    font-weight:700;
+    color:#eef5f8;
+}
+.chordslab-settings-grid [data-analysis-level-help]{
+    grid-column:1/-1;
+    margin-top:-4px;
+    color:#b9c8d0;
+    font-size:12px;
+}
+.chord-measure-notation{
+    display:flex;
+    align-items:stretch;
+}
+.chord-slot{
+    flex:0 0 44px;
+    width:44px;
+    min-width:44px;
+    max-width:44px;
+    padding-inline:2px;
+    overflow:hidden;
+    white-space:nowrap;
+    text-overflow:clip;
+    font-variant-numeric:tabular-nums;
+}
+.chord-slot.is-long{font-size:11px;letter-spacing:-.25px}
+.chord-slot.is-very-long{font-size:9.5px;letter-spacing:-.45px}
+.chordslab-quick-volume{
+    display:inline-grid;
+    grid-template-columns:auto 132px auto;
+    width:max-content;
+    max-width:100%;
+    align-items:center;
+    gap:8px;
+    padding:5px 8px;
+    border:1px solid #334650;
+    border-radius:8px;
+    background:#111b21;
+}
+.chordslab-quick-volume > span{
+    font-weight:700;
+    color:#eef5f8;
+}
+.chordslab-quick-volume output{
+    min-width:38px;
+    text-align:right;
+    color:#eef5f8;
+    font-weight:700;
+}
+.chord-analysis-progress{
+    grid-column:1/-1;
+    width:100%;
+    margin-top:8px;
+    padding:9px 10px;
+    border:1px solid #2e4654;
+    border-radius:8px;
+    background:#101a20;
+}
+.chord-analysis-progress-head{
+    font-size:12px;
+    color:#e1ebf0;
+}
+@media(max-width:700px){
+    .chord-slot{flex-basis:40px;width:40px;min-width:40px;max-width:40px}
+    .chordslab-quick-volume{grid-template-columns:auto minmax(90px,1fr) auto;width:100%}
 }
