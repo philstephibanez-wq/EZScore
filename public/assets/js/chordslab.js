@@ -262,3 +262,30 @@ if(analyzeForm&&analyzeDialog){
 updateProfileIndicator();
 render();
 })();
+
+/* R34.4 tempo display: derived from canonical beat timeline, no reanalysis required */
+(function installTempoDisplay(){
+ const card=document.querySelector('.chordslab-song-card');
+ const root=document.querySelector('[data-chordslab]');
+ if(!card||!root||card.querySelector('[data-chordslab-tempo]'))return;
+ let beats=[];
+ try{beats=JSON.parse(root.dataset.beats||'[]')}catch(_){beats=[]}
+ if(!Array.isArray(beats)||beats.length<3)return;
+ const deltas=[];
+ for(let i=1;i<beats.length;i++){
+  const d=Number(beats[i].start_ms)-Number(beats[i-1].start_ms);
+  if(Number.isFinite(d)&&d>=180&&d<=2000)deltas.push(d);
+ }
+ if(!deltas.length)return;
+ deltas.sort((a,b)=>a-b);
+ const mid=Math.floor(deltas.length/2);
+ const median=deltas.length%2?deltas[mid]:(deltas[mid-1]+deltas[mid])/2;
+ const tempo=Math.round(60000/median);
+ if(!Number.isFinite(tempo)||tempo<=0)return;
+ const box=document.createElement('div');
+ box.className='chordslab-tempo-value';
+ box.dataset.chordslabTempo='1';
+ box.innerHTML=`<span>Tempo</span><strong>Tempo = ${tempo}</strong>`;
+ card.appendChild(box);
+})();
+

@@ -195,3 +195,87 @@
     .chord-profile-status{width:100%;justify-content:space-between}
     .chordslab-settings-save-state{grid-column:1/-1}
 }
+
+/* R34.4 — chord typography / guitar toggle / tempo */
+.chord-measure-notation .chord-slot.is-long,
+.chord-measure-notation .chord-slot.is-very-long{
+    font-size:14px!important;
+    letter-spacing:normal!important;
+}
+.chord-measure-notation .chord-slot .chord-label-root{
+    font-size:15px!important;
+    font-weight:800!important;
+    line-height:1!important;
+    flex:0 0 auto!important;
+}
+.chord-measure-notation .chord-slot .chord-label-suffix{
+    font-size:11px!important;
+    line-height:1!important;
+    margin-left:1px!important;
+    flex:0 0 auto!important;
+}
+.chord-measure-notation .chord-slot .chord-quality-maj{
+    font-size:8px!important;
+    line-height:1!important;
+    vertical-align:super!important;
+    letter-spacing:0!important;
+    margin:0 1px 0 0!important;
+}
+.chord-measure-notation .chord-slot .chord-label-bass{
+    font-size:10px!important;
+    line-height:1!important;
+    margin-left:1px!important;
+}
+.chordslab-settings-grid .chordslab-diagram-toggle,
+.chordslab-settings-grid .chordslab-diagram-inline{
+    grid-column:1 / -1!important;
+    display:flex!important;
+    grid-template-columns:none!important;
+    width:max-content!important;
+    max-width:100%!important;
+    align-items:center!important;
+    gap:8px!important;
+    padding:2px 0!important;
+    margin:0!important;
+}
+.chordslab-settings-grid .chordslab-diagram-toggle>span,
+.chordslab-settings-grid .chordslab-diagram-inline>span{
+    display:inline!important;
+    margin:0!important;
+    white-space:nowrap!important;
+    font-size:13px!important;
+    line-height:1.2!important;
+    font-weight:600!important;
+    text-transform:none!important;
+    letter-spacing:0!important;
+    color:#eef5f8!important;
+}
+.chordslab-settings-grid .chordslab-diagram-toggle input[type=checkbox],
+.chordslab-settings-grid .chordslab-diagram-inline input[type=checkbox]{
+    margin:0!important;
+    flex:0 0 auto!important;
+}
+.chordslab-settings-save-state{
+    grid-column:1 / -1!important;
+    margin-top:-4px!important;
+    min-width:0!important;
+    white-space:nowrap!important;
+}
+.chordslab-tempo-value{
+    display:grid;
+    gap:3px;
+}
+.chordslab-tempo-value span{
+    font-size:10px;
+    text-transform:uppercase;
+    color:#91a3ad;
+    letter-spacing:.05em;
+}
+.chordslab-tempo-value strong{font-size:15px;}
+@media(max-width:640px){
+    .chordslab-settings-grid .chordslab-diagram-toggle,
+    .chordslab-settings-grid .chordslab-diagram-inline{width:100%!important}
+    .chordslab-settings-grid .chordslab-diagram-toggle>span,
+    .chordslab-settings-grid .chordslab-diagram-inline>span{white-space:normal!important}
+}
+

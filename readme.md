@@ -1,80 +1,57 @@
-# EZScore_v1 — R34.3 lisibilité accords + scroll pause + checkbox
+# EZScore_v1 — R34.4 correction réelle CSS + scroll pause + tempo
 
-Ce correctif remplace directement :
+R34.4 corrige les régressions visibles dans les captures.
+
+## Pourquoi R34.3 n'a pas corrigé l'affichage
+
+La typographie et la grille de réglages sont définies dans `public/assets/css/chordslab.css`. Modifier uniquement le JS secondaire n'était pas suffisant / fiable.
+
+R34.4 modifie donc réellement trois fichiers suivis par Git :
 
 ```text
+public/assets/css/chordslab.css
+public/assets/js/chordslab.js
 public/assets/js/chordslab-r33-1.js
 ```
 
-Il ne s'agit pas d'un patcher : après extraction, `git status` doit donc montrer ce fichier modifié.
-
 ## Corrections
 
-### 1. Accords riches
+- fondamentale (`G`, `F`, `E`...) à taille fixe identique, même dans `Gmaj7`, `Fadd9`, `Esus2` ;
+- `maj` seul est petit dans `Gmaj7` ;
+- fin de la réduction globale `.is-long/.is-very-long` qui réduisait également la fondamentale ;
+- `Afficher les accords guitare` occupe une ligne complète et reste sur une seule ligne sur PC ;
+- en pause et à l'arrêt, aucun recentrage automatique du prompteur ;
+- en lecture, le beat courant reste centré sous le diagramme ;
+- ajout du tempo dans le cartouche sous la forme `Tempo = 60` (sans `BPM`).
 
-Les anciennes règles `.is-long` / `.is-very-long` réduisaient tout le bouton, donc également la fondamentale.
-
-R34.3 neutralise cette réduction globale.
-
-Résultat attendu :
-
-```text
-Gmaj7
-^
-G = même taille que G simple
-maj = petit
-7 = suffixe lisible
-```
-
-Même principe pour `Fadd9`, `Esus2`, etc. : la fondamentale reste visuellement dominante.
-
-### 2. "Afficher les accords guitare"
-
-Le contrôle est forcé sur une ligne propre sur PC :
-
-```text
-☑ Afficher les accords guitare
-```
-
-Il occupe une ligne complète de la grille de réglages, ce qui évite les trois lignes vues dans R34.2.
-
-Sur petit écran uniquement, le libellé peut revenir à la ligne si la largeur l'impose réellement.
-
-### 3. Scroll du prompteur en pause
-
-Le centrage automatique du beat courant ne fonctionne maintenant que lorsque la lecture est active.
-
-```text
-Play  -> suivi automatique sous le diagramme
-Pause -> aucun recentrage automatique
-Stop  -> aucun recentrage automatique
-```
-
-En pause, la barre horizontale peut donc être déplacée manuellement sans revenir à la position courante.
-
-## Diagrammes riches
-
-Les diagrammes enrichis ajoutés en R34.2 restent dans `public/assets/js/chordslab.js` et ne sont pas supprimés par ce correctif.
+Le tempo est calculé à partir de la timeline canonique des beats déjà enregistrée. Aucune réanalyse n'est nécessaire.
 
 ## Installation
 
 ```powershell
 cd H:\EZScore_v1
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_v1_R34_3_SCROLL_UI_FIX.zip" -C H:\EZScore_v1
+tar -xf "$env:USERPROFILE\Downloads\EZScore_v1_R34_4_VISUAL_TEMPO_SCROLL.zip" -C H:\EZScore_v1
 
+H:\EZScore_v1\.venv-py313\Scripts\python.exe .\scripts\apply_r34_4_visual_tempo_scroll.py
+
+node --check .\public\assets\js\chordslab.js
 node --check .\public\assets\js\chordslab-r33-1.js
+php .\tests\r34_4_contract.php
 php bin\console cache:clear
 
-git status --short -- public\assets\js\chordslab-r33-1.js
+git status --short -- public\assets\css\chordslab.css public\assets\js\chordslab.js public\assets\js\chordslab-r33-1.js
 ```
 
-La dernière commande doit montrer le fichier comme modifié.
-
-Ensuite :
+Attendu :
 
 ```text
-Ctrl+F5
+8 R34.4 checks passed.
+ M public/assets/css/chordslab.css
+ M public/assets/js/chordslab.js
+ M public/assets/js/chordslab-r33-1.js
 ```
 
-Aucune migration et aucune nouvelle analyse harmonique ne sont nécessaires.
+Puis `Ctrl+F5`.
+
+Aucune migration. Aucune réanalyse.
