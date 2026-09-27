@@ -9,6 +9,9 @@ use App\Domain\Song\SongStatus;
 use App\Domain\User\User;
 use App\Domain\User\UserRepository;
 use App\Service\SongImportStorage;
+use App\Service\SongStemStorage;
+use App\Service\ChordTimelineStorage;
+use App\Domain\Song\SongTimelineEventRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -141,6 +144,41 @@ final class SongImportController extends AbstractController
             'current_editor' => $user,
             'status_choices' => [SongStatus::Imported, SongStatus::Editing, SongStatus::Published],
         ]);
+    }
+
+    #[Route('/song/{id}/reimport', name: 'app_song_reimport', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function reimport(
+        Song $song,
+        Request $request,
+        SongImportStorage $storage,
+        SongStemStorage $stems,
+        ChordTimelineStorage $chords,
+        SongTimelineEventRepository $timeline,
+        EntityManagerInterface $em,
+    ): Response {
+        $user = $this->getUser();
+        $canEdit = $user instanceof User && (
+            $this->isGranted('ROLE_ADMIN')
+            || ($this->isGranted('ROLE_EDITOR') && $song->getEditor()?->getId() === $user->getId())
+        );
+        if (!$canEdit) throw $this->createAccessDeniedException();
+        if (!$this->isCsrfTokenValid('song_reimport_'.$song->getId(), (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+        $audio = $request->files->get('audio');
+        if (!$audio instanceof UploadedFile || !$audio->isValid()) {
+            $this->addFlash('error', 'Réimportation impossible : fichier audio invalide.');
+            return $this->redirectToRoute('app_song_workspace', ['_locale'=>$request->getLocale(),'id'=>$song->getId()]);
+        }
+        $audioData = $storage->storeAudio($audio);
+        $timeline->deleteAllForSong($song);
+        $stems->deleteForSong($song);
+        $chords->deleteForSong($song);
+        $song->setImportedAudio($audioData['original_name'], $audioData['storage_path'], $audioData['mime_type'], $audioData['size'], $audioData['sha256']);
+        $song->markImported();
+        $em->flush();
+        $this->addFlash('success', 'Audio réimporté ; analyses précédentes invalidées.');
+        return $this->redirectToRoute('app_song_workspace', ['_locale'=>$request->getLocale(),'id'=>$song->getId()]);
     }
 
     private function buildSong(Request $request, User $user, UserRepository $users): Song

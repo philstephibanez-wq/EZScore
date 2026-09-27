@@ -29,6 +29,11 @@ final class SongTimelineEventRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    public function deleteAllForSong(Song $song): void
+    {
+        $this->createQueryBuilder('e')->delete()->andWhere('e.song = :song')->setParameter('song', $song)->getQuery()->execute();
+    }
+
     public function deleteMusicalAnalysisForSong(Song $song): void
     {
         $this->createQueryBuilder('e')

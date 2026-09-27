@@ -1,7 +1,7 @@
 {
   "release": "R35.2",
   "supersedes": "R35.1",
-  "base_commit": "d2a7dc22588044c81f67f8610f4b9820620e91c4",
+  "base_commit": "535ac59dbbb4797d41779ca0c36ba102d81712c2",
   "new_files": [
     "analysis/meter_detection_r35_2.py"
   ],
@@ -15,5 +15,6 @@
     "src/Service/ChordTimelineStorage.php",
     "templates/song/workspace.html.twig",
     "templates/catalog/index.html.twig"
-  ]
+  ],
+  "rebuild": "R35.2-R34.6-FIX"
 }

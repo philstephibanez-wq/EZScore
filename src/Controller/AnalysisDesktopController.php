@@ -6,6 +6,7 @@ namespace App\Controller;
 
 use App\Domain\Analysis\AnalysisJob;
 use App\Domain\Analysis\AnalysisJobStatus;
+use App\Domain\Analysis\AnalysisJobRepository;
 use App\Service\AnalysisDesktopStateStore;
 use App\Service\AnalysisWorkerTokenGuard;
 use App\Service\ChordTimelineResultService;
@@ -26,6 +27,7 @@ final class AnalysisDesktopController extends AbstractController
     public function __construct(
         private readonly AnalysisWorkerTokenGuard $guard,
         private readonly AnalysisDesktopStateStore $state,
+        private readonly AnalysisJobRepository $jobs,
         private readonly SongChordJobService $chordJobs,
         private readonly ChordTimelineStorage $chordStorage,
         private readonly ChordTimelineResultService $chordResults,
@@ -73,6 +75,29 @@ final class AnalysisDesktopController extends AbstractController
         $this->state->acknowledge($id);
 
         return $this->json(['ok' => true, 'id' => $id]);
+    }
+
+    #[Route('/jobs/queue', name: 'internal_analysis_desktop_job_queue', methods: ['GET'])]
+    public function queue(Request $request): JsonResponse
+    {
+        $this->guard->assertAuthorized($request);
+        $rows = [];
+        foreach ($this->jobs->findDesktopQueue() as $job) {
+            $song = $job->getSong();
+            $rows[] = [
+                'job_id' => $job->getId(),
+                'kind' => $job->getKind(),
+                'status' => $job->getStatus()->value,
+                'progress' => $job->getProgress(),
+                'song_id' => $song->getId(),
+                'title' => $song->getTitle(),
+                'artist' => $song->getArtist(),
+            ];
+        }
+        return $this->json([
+            'schema_version' => AnalysisDesktopStateStore::SCHEMA_VERSION,
+            'jobs' => $rows,
+        ]);
     }
 
     #[Route('/jobs/claim', name: 'internal_analysis_desktop_job_claim', methods: ['POST'])]

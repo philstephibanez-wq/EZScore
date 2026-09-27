@@ -14,6 +14,25 @@ final class AnalysisJobRepository extends ServiceEntityRepository
         parent::__construct($registry, AnalysisJob::class);
     }
 
+    /** @return list<AnalysisJob> */
+    public function findDesktopQueue(int $limit = 100): array
+    {
+        return $this->createQueryBuilder('job')
+            ->leftJoin('job.song', 'song')
+            ->addSelect('song')
+            ->andWhere('job.status IN (:statuses)')
+            ->setParameter('statuses', [
+                AnalysisJobStatus::Queued->value,
+                AnalysisJobStatus::Running->value,
+            ])
+            ->orderBy('job.status', 'DESC')
+            ->addOrderBy('job.createdAt', 'ASC')
+            ->addOrderBy('job.id', 'ASC')
+            ->setMaxResults(max(1, min(500, $limit)))
+            ->getQuery()
+            ->getResult();
+    }
+
     public function findNextQueued(): ?AnalysisJob
     {
         return $this->createQueryBuilder('job')

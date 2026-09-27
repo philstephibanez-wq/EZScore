@@ -183,9 +183,9 @@
                         <span>{{ 'song.editor'|trans }}</span>
                         <select name="editor_id">
                             {% if song.editor %}
-                                <option value="0">{{ 'catalog_admin.keep_editor'|trans({}, 'admin_catalog') }} — {{ song.editor.displayName }}</option>
+                                <option value="0">{{ song.editor.displayName }}</option>
                             {% else %}
-                                <option value="0">{{ 'catalog_admin.keep_no_editor'|trans({}, 'admin_catalog') }}</option>
+                                <option value="0">—</option>
                             {% endif %}
                             {% for editor in admin_editors %}
                                 <option value="{{ editor.id }}">{{ editor.displayName }}</option>

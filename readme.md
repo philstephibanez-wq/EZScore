@@ -1,66 +1,98 @@
-# EZScore_v1 — R34.6 tempo unique + typographie accords
+# EZScore_v1 — R35.2
 
-Corrections ciblées sur les deux dernières captures.
+**R35.2 remplace intégralement R35.1. Ne pas appliquer R35.1 avant.**
 
-## 1. Tempo affiché une seule fois
+Base corrigée pour ton dépôt actuel :
 
-Le doublon venait de deux renderers JavaScript successifs :
+`535ac59dbbb4797d41779ca0c36ba102d81712c2` (`EZScore_v1_R34_6_TEMPO_TYPOGRAPHY`)
 
-- ancien renderer R34.4 dans `public/assets/js/chordslab.js` ;
-- renderer R34.5 dans `public/assets/js/chordslab-r33-1.js`.
+## R35.2
 
-R34.6 supprime le renderer R34.4 et garde un seul propriétaire du tempo.
+### Analysis Worker
 
-Affichage attendu :
+- démarrage automatique du serveur local puis du Worker ;
+- `Démarrer Worker` lorsqu'il est arrêté ;
+- `Redémarrer Worker` lorsqu'il tourne ;
+- redémarrage interdit pendant un job actif ;
+- attente réelle (`join`) de l'ancien thread avant toute relance ;
+- commandes serveur indépendantes : `Démarrer serveur` / `Arrêter serveur` ;
+- nouvelle zone **Traitements en cours / à faire** ;
+- lecture toutes les 2 secondes de la file persistée dans `AnalysisJob` ;
+- colonnes : ID, état, type, chanson, progression ;
+- affichage des jobs `running` et `queued` : fermer l'UI n'efface donc pas cette liste côté serveur.
 
-```text
-TEMPO
-Tempo = 117
-```
+### Éditeur
 
-une seule fois dans le cartouche.
+Dans le sélecteur du répertoire admin :
 
-## 2. Accords un peu plus gros
+- suppression de `Conserver l'éditeur — ...` ;
+- l'éditeur courant est affiché uniquement par son nom ;
+- les autres choix restent uniquement les noms des éditeurs ;
+- si aucun éditeur n'est affecté : `—`.
 
-La fondamentale passe à 17 px.
+### R35.1 inclus
 
-Exemple :
+R35.2 reprend directement les fonctions prévues dans R35.1 :
 
-```text
-Eadd9
-^
-E plus gros
-add9 plus petit
-```
+- Auto métrique `2/4`, `3/4`, `4/4`, `6/8` ;
+- batterie prioritaire, basse et harmonie complémentaires ;
+- hypothèses signature × phase sur plusieurs mesures, sans assimiler l'accent maximal au temps 1 ;
+- réimport audio destructif des analyses dérivées avec retour à `Importée` ;
+- source audio identifiée par SHA, ce qui empêche la réutilisation des artefacts stems/accords de l'ancien audio.
 
-## 3. Petites lettres alignées en bas
-
-Les suffixes `maj`, `add9`, `sus2`, `m7`, etc. sont maintenant alignés sur la même ligne de base que la fondamentale.
-
-`maj` reste plus petit, mais n'est plus en exposant.
-
-## Installation
+## Installation — PowerShell
 
 ```powershell
 cd H:\EZScore_v1
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_v1_R34_6_TEMPO_TYPOGRAPHY.zip" -C H:\EZScore_v1
+git rev-parse HEAD
+# attendu :
+# 535ac59dbbb4797d41779ca0c36ba102d81712c2
 
-H:\EZScore_v1\.venv-py313\Scripts\python.exe .\scripts\apply_r34_6_tempo_typography.py
+# Décompresser R35.2 directement. NE PAS installer R35.1.
+tar -xf "$env:USERPROFILE\Downloads\EZScore_v1_R35_2.zip" -C H:\EZScore_v1
 
-node --check .\public\assets\js\chordslab.js
-node --check .\public\assets\js\chordslab-r33-1.js
-php .\tests\r34_6_contract.php
-php bin\console lint:twig templates
+# Appliquer
+python .\EZScore_v1_R35_2\scripts\apply_r35_2.py H:\EZScore_v1
+
+# Symfony
 php bin\console cache:clear
+php bin\console lint:container
+php bin\console lint:twig templates
+php bin\console debug:router | findstr /I "analysis desktop queue reimport"
+
+# Python
+python -m py_compile .\worker_app\ezscore_analysis_worker.pyw
+python -m py_compile .\analysis\meter_detection_r35_2.py
+python -m py_compile .\analysis\chord_timeline_analysis.py
+
+# Contrat R35.2
+php .\EZScore_v1_R35_2\tests\r35_2_contract.php H:\EZScore_v1
+
+# Avant TON push
+git status --short
+git diff --check
+git diff
 ```
 
-Attendu :
+Résultat attendu :
 
 ```text
-9 R34.6 checks passed.
+R35_2_CONTRACT_OK
 ```
 
-Puis `Ctrl+F5`.
+Le script ne committe et ne pousse rien. Il refuse de modifier une autre base Git que le commit prévu.
 
-Aucune migration et aucune réanalyse harmonique.
+
+## Correctif de packaging
+
+Cette reconstruction corrige l’erreur du premier ZIP R35.2 qui était verrouillé par erreur sur R34.5.
+Elle s’applique directement sur R34.6 (`535ac59`) et conserve toutes les corrections R34.6.
+
+Après application, `debug:router` DOIT afficher :
+
+```text
+/internal/analysis/desktop/jobs/queue
+```
+
+et la fenêtre Analysis doit contenir `Traitements en cours / à faire`.

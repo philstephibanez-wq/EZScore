@@ -5,19 +5,21 @@ $root = $argv[1] ?? dirname(__DIR__, 2);
 $checks = [
     'worker_app/ezscore_analysis_worker.pyw' => [
         'APP_VERSION = "R35.2"',
-        'Traitements en cours / à faire',
+        'Traitements en cours / Ã  faire',
         '/internal/analysis/desktop/jobs/queue',
-        'Redémarrer Worker',
-        'Démarrer serveur',
-        'Arrêter serveur',
+        'RedÃ©marrer Worker',
+        'DÃ©marrer serveur',
+        'ArrÃªter serveur',
         'stop_and_wait',
     ],
     'src/Controller/AnalysisDesktopController.php' => [
         "#[Route('/jobs/queue'",
         'findDesktopQueue',
+        "name: 'internal_analysis_desktop_job_queue'",
     ],
     'src/Domain/Analysis/AnalysisJobRepository.php' => [
         'findDesktopQueue',
+        "name: 'internal_analysis_desktop_job_queue'",
         'AnalysisJobStatus::Queued',
         'AnalysisJobStatus::Running',
     ],
@@ -36,12 +38,12 @@ $checks = [
         'markImported',
     ],
     'templates/song/workspace.html.twig' => [
-        'Réimporter',
+        'RÃ©importer',
         'invalide stems, accords, paroles, alignements',
     ],
     'templates/catalog/index.html.twig' => [
         '<option value="0">{{ song.editor.displayName }}</option>',
-        '<option value="0">—</option>',
+        '<option value="0">â€”</option>',
     ],
 ];
 foreach ($checks as $relative => $needles) {
@@ -57,3 +59,4 @@ foreach ($checks as $relative => $needles) {
     }
 }
 echo "R35_2_CONTRACT_OK\n";
+

@@ -20,7 +20,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 
-APP_VERSION = "R33.2"
+APP_VERSION = "R35.2"
 HEARTBEAT_SECONDS = 2.0
 CLAIM_SECONDS = 1.5
 
@@ -144,6 +144,7 @@ class WorkerEngine:
         self.running = False
         self.paused = False
         self.stop_event = threading.Event()
+        self.thread: threading.Thread | None = None
         self.current_process: subprocess.Popen | None = None
         self.current_job: dict | None = None
         self.engine_python: str | None = None
@@ -243,15 +244,36 @@ class WorkerEngine:
         return shutil.which(name)
 
     def start(self) -> None:
-        if self.running:
+        if self.running or (self.thread is not None and self.thread.is_alive()):
             return
         self.stop_event.clear()
         self.running = True
-        threading.Thread(target=self._loop, name="worker-loop", daemon=True).start()
+        self.thread = threading.Thread(target=self._loop, name="worker-loop", daemon=True)
+        self.thread.start()
 
     def request_stop(self) -> None:
         self.stop_event.set()
+
+    def stop_and_wait(self, timeout: float = 30.0) -> bool:
+        if self.current_job is not None:
+            return False
+        self.request_stop()
+        thread = self.thread
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=timeout)
+        if thread is not None and thread.is_alive():
+            return False
+        self.thread = None
         self.running = False
+        return True
+
+    def restart(self) -> bool:
+        if self.current_job is not None:
+            return False
+        if not self.stop_and_wait():
+            return False
+        self.start()
+        return True
 
     def pause(self, value: bool = True) -> None:
         self.paused = value
@@ -317,12 +339,21 @@ class WorkerEngine:
 
             last_heartbeat = 0.0
             last_claim = 0.0
+            last_queue_refresh = 0.0
 
             while not self.stop_event.is_set():
                 now = time.monotonic()
                 if now - last_heartbeat >= HEARTBEAT_SECONDS:
                     self._send_heartbeat("paused" if self.paused else ("busy" if self.current_job else "idle"))
                     last_heartbeat = now
+
+                if now - last_queue_refresh >= 2.0:
+                    try:
+                        queue_state = self.api.get("/internal/analysis/desktop/jobs/queue", timeout=10)
+                        self.app.events.put(("queue", (queue_state or {}).get("jobs", [])))
+                    except Exception as exc:
+                        self.log(f"Lecture file d'attente impossible: {exc}")
+                    last_queue_refresh = now
 
                 if not self.paused and self.current_job is None and now - last_claim >= CLAIM_SECONDS:
                     job = self.api.post("/internal/analysis/desktop/jobs/claim", {})
@@ -796,7 +827,12 @@ class WorkerWindow:
 
         buttons = ttk.Frame(top)
         buttons.grid(row=0, column=1, rowspan=2, sticky="e")
-        ttk.Button(buttons, text="Démarrer", command=self._start).pack(side="left", padx=4)
+        self.worker_button = ttk.Button(buttons, text="Démarrer Worker", command=self._worker_action)
+        self.worker_button.pack(side="left", padx=4)
+        self.server_start_button = ttk.Button(buttons, text="Démarrer serveur", command=self._start_server)
+        self.server_start_button.pack(side="left", padx=4)
+        self.server_stop_button = ttk.Button(buttons, text="Arrêter serveur", command=self._stop_server)
+        self.server_stop_button.pack(side="left", padx=4)
         ttk.Button(buttons, text="Pause / Reprendre", command=self._toggle_pause).pack(side="left", padx=4)
         ttk.Button(buttons, text="Annuler job", command=self.engine.cancel_current).pack(side="left", padx=4)
         ttk.Button(buttons, text="Ouvrir EZScore", command=self._open_ezscore).pack(side="left", padx=4)
@@ -828,6 +864,21 @@ class WorkerWindow:
         self.progress.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 2))
         job.columnconfigure(1, weight=1)
 
+        queue_box = ttk.LabelFrame(self.root, text="Traitements en cours / à faire", padding=8)
+        queue_box.pack(fill="x", padx=12, pady=(0, 10))
+        columns = ("id", "etat", "type", "chanson", "progression")
+        self.queue_tree = ttk.Treeview(queue_box, columns=columns, show="headings", height=6)
+        headings = {"id": "#", "etat": "État", "type": "Traitement", "chanson": "Chanson", "progression": "Progression"}
+        widths = {"id": 55, "etat": 95, "type": 95, "chanson": 560, "progression": 105}
+        for name in columns:
+            self.queue_tree.heading(name, text=headings[name])
+            self.queue_tree.column(name, width=widths[name], anchor="w")
+        queue_scroll = ttk.Scrollbar(queue_box, orient="vertical", command=self.queue_tree.yview)
+        self.queue_tree.configure(yscrollcommand=queue_scroll.set)
+        self.queue_tree.grid(row=0, column=0, sticky="nsew")
+        queue_scroll.grid(row=0, column=1, sticky="ns")
+        queue_box.columnconfigure(0, weight=1)
+
         console_box = ttk.LabelFrame(self.root, text="Console temps réel", padding=8)
         console_box.pack(fill="both", expand=True, padx=12, pady=(0, 12))
         self.console = tk.Text(
@@ -847,11 +898,79 @@ class WorkerWindow:
         console_box.rowconfigure(0, weight=1)
         console_box.columnconfigure(0, weight=1)
 
+    def _refresh_worker_button(self):
+        if self.engine.current_job is not None:
+            self.worker_button.configure(text="Worker occupé", state="disabled")
+        elif self.engine.running:
+            self.worker_button.configure(text="Redémarrer Worker", state="normal")
+        else:
+            self.worker_button.configure(text="Démarrer Worker", state="normal")
+
+    def _worker_action(self):
+        if self.engine.current_job is not None:
+            messagebox.showwarning("EZScore Analysis Worker", "Un traitement est actif. Redémarrage interdit.")
+            return
+        if self.engine.running:
+            self._append("Redémarrage Worker : attente de la fin réelle de l'ancien thread…")
+            if not self.engine.restart():
+                messagebox.showerror("EZScore Analysis Worker", "L'ancien Worker ne s'est pas arrêté. Relance annulée.")
+                return
+        else:
+            self._start()
+        self._refresh_worker_button()
+
     def _start(self):
         if self.engine.running:
             return
         self._append("Démarrage du worker desktop…")
         self.engine.start()
+        self._refresh_worker_button()
+
+    def _start_server(self):
+        alive, _ = local_server_alive()
+        if alive:
+            return
+        script = project_root() / "scripts" / "start_ezscore_web.ps1"
+        subprocess.Popen(
+            ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(script), "-Port", "8501"],
+            cwd=str(project_root()),
+            creationflags=WINDOWS_NO_WINDOW if os.name == "nt" else 0,
+        )
+        self._append("Démarrage du serveur local demandé.")
+
+    def _stop_server(self):
+        pid = local_server_pid(project_root())
+        if not pid:
+            return
+        subprocess.run(
+            ["powershell", "-NoProfile", "-Command", f"Stop-Process -Id {pid} -Force -ErrorAction SilentlyContinue"],
+            cwd=str(project_root()),
+            check=False,
+            creationflags=WINDOWS_NO_WINDOW if os.name == "nt" else 0,
+        )
+        self._append("Arrêt du serveur local demandé.")
+
+    def _ensure_server_then_start(self):
+        alive, _ = local_server_alive()
+        if not alive:
+            self._start_server()
+            for _ in range(40):
+                alive, _ = local_server_alive()
+                if alive:
+                    break
+                time.sleep(0.25)
+        self._start()
+
+    def _render_queue(self, jobs):
+        for item in self.queue_tree.get_children():
+            self.queue_tree.delete(item)
+        for job in jobs if isinstance(jobs, list) else []:
+            status = str(job.get("status") or "")
+            state = "EN COURS" if status == "running" else "À FAIRE"
+            kind = {"stems": "Stems", "chords": "Accords", "lyrics": "Paroles"}.get(str(job.get("kind") or ""), str(job.get("kind") or "—"))
+            song = f"{job.get('artist') or ''} — {job.get('title') or ''}".strip(" —")
+            progress = f"{int(job.get('progress') or 0)} %" if status == "running" else "—"
+            self.queue_tree.insert("", "end", values=(job.get("job_id"), state, kind, song, progress))
 
     def _toggle_pause(self):
         self.engine.pause(not self.engine.paused)
@@ -879,6 +998,7 @@ class WorkerWindow:
                 self._append(str(payload))
             elif kind == "status":
                 self.status_var.set(str(payload))
+                self._refresh_worker_button()
             elif kind == "txrx":
                 self.txrx_var.set(str(payload))
             elif kind == "server_status":
@@ -899,7 +1019,10 @@ class WorkerWindow:
                     self.cuda_var.set(str(caps.get("gpu") or "CUDA"))
                 else:
                     self.cuda_var.set("CUDA indisponible")
+            elif kind == "queue":
+                self._render_queue(payload)
             elif kind == "job":
+                self._refresh_worker_button()
                 if payload:
                     self.job_var.set(
                         f"#{payload.get('job_id')} · {payload.get('artist') or ''} — {payload.get('title') or ''}"
@@ -933,7 +1056,7 @@ class WorkerWindow:
         self.root.destroy()
 
     def run(self):
-        self.root.after(400, self._start)
+        self.root.after(250, self._ensure_server_then_start)
         self.root.mainloop()
 
 

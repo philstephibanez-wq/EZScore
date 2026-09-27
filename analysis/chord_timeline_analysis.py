@@ -5,6 +5,7 @@ import argparse, json, time
 from pathlib import Path
 import numpy as np
 import librosa
+from meter_detection_r35_2 import detect_meter
 
 NOTES=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"]
 MAJOR=np.array([6.35,2.23,3.48,2.33,4.38,4.09,2.52,5.19,2.39,3.66,2.29,2.88],float)
@@ -229,9 +230,23 @@ def analyse(source,stems,drums,requested_signature,progress_file=None):
         beat_times=np.arange(0.0,duration,step,float)
         beat_frames=librosa.time_to_frames(beat_times,sr=sr,hop_length=hop)
 
-    signature=detect_signature(onset,beat_frames) if requested_signature=="auto" else requested_signature
+    bass_y=None
+    bass_path=next((p for p in harmonic if "bass" in Path(p).stem.lower()),None)
+    if bass_path:
+        bass_y,_=librosa.load(str(bass_path),sr=sr,mono=True)
+        bass_y=librosa.util.normalize(bass_y)
+    if requested_signature=="auto":
+        metric=detect_meter(harmonic_y=yh,bass_y=bass_y,onset=onset,beat_frames=beat_frames,sr=sr,hop=hop)
+        signature=metric.signature
+        phase=metric.phase
+        phase_conf=metric.confidence
+        metric_scores=metric.scores
+    else:
+        signature=requested_signature
+        bpm_manual=numerator(signature)
+        phase,phase_conf=detect_downbeat_phase(onset,beat_frames,bpm_manual)
+        metric_scores={signature:1.0}
     bpm=numerator(signature)
-    phase,phase_conf=detect_downbeat_phase(onset,beat_frames,bpm)
 
     prog(progress_file,32,"chroma","Extraction de l’harmonie")
     chroma=librosa.feature.chroma_cqt(y=yh,sr=sr,hop_length=hop)
@@ -277,6 +292,7 @@ def analyse(source,stems,drums,requested_signature,progress_file=None):
         "rhythm_source":rhythm_source,
         "downbeat_phase":phase,
         "downbeat_confidence":round(float(phase_conf),4),
+        "meter_candidates":metric_scores,
         "beats":beats,
         "profiles":{
             "beginner":{"chords":beginner},

@@ -5,7 +5,10 @@ import shutil
 import subprocess
 import sys
 
-BASE_COMMIT = "d2a7dc22588044c81f67f8610f4b9820620e91c4"
+BASE_COMMITS = {
+    "535ac59dbbb4797d41779ca0c36ba102d81712c2",  # R34.6 TEMPO TYPOGRAPHY
+    "09cdb62ee2fab2defe65c214e2e32f038b57234d",  # accidental R35.2 bundle commit; source base still R34.6
+}
 
 
 def abort(message: str) -> None:
@@ -32,8 +35,8 @@ def assert_base(root: Path) -> None:
         head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
     except Exception as exc:
         abort(f"git rev-parse impossible: {exc}")
-    if head != BASE_COMMIT:
-        abort(f"HEAD={head}; R35.2 attend {BASE_COMMIT}")
+    if head not in BASE_COMMITS:
+        abort(f"HEAD={head}; R35.2 attend une base R34.6 connue: {sorted(BASE_COMMITS)}")
 
 
 def install_meter(root: Path, bundle: Path) -> None:
