@@ -10,6 +10,7 @@
     {% block stylesheets %}{% endblock %}
     <link rel="stylesheet" href="/assets/css/interactions.css?v=20260924f">
     <link rel="stylesheet" href="/assets/css/r21-admin.css?v=20260925r21">
+    <link rel="stylesheet" href="/assets/css/r35-4a-contact-header.css?v=20260927r35_4a">
     {% if app.user and is_granted('ROLE_EDITOR') %}
         <link rel="stylesheet" href="/assets/css/analysis-worker-status.css?v=20260926r24_16">
     {% endif %}
@@ -65,6 +66,7 @@
         </div>
         <div class="ez-topbar-right">
             {{ ui.language_select() }}
+            <a class="ez-contact-admin-link" href="{{ path('app_contact_admin', {'_locale': app.request.locale}) }}" title="Contacter l’administrateur" aria-label="Contacter l’administrateur">✉ <span>Contacter l’admin</span></a>
             <a class="ez-user-badge" href="{{ path('app_profile', {'_locale': app.request.locale}) }}" title="{{ app.user.email }}">
                 {% if app.user.avatarUrl %}<img src="{{ app.user.avatarUrl }}" alt="">{% else %}<span class="ez-user-avatar">{{ app.user.displayName|slice(0, 1)|upper }}</span>{% endif %}
                 <span class="ez-user-copy"><strong>{{ app.user.displayName }}</strong><small>{{ ('role.' ~ app.user.primaryRole)|trans }}</small></span>

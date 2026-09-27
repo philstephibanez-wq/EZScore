@@ -115,6 +115,12 @@ class AnalysisJob
         return $this;
     }
 
+    public function touchLease(): self
+    {
+        $this->updatedAt = new \DateTimeImmutable();
+        return $this;
+    }
+
     public function requeue(): self
     {
         $this->status = AnalysisJobStatus::Queued;

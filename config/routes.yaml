@@ -47,6 +47,20 @@ localized_song_labs:
         fr: /fr
         en: /en
 
+localized_song_collaboration:
+    resource: ../src/Controller/SongCollaborationController.php
+    type: attribute
+    prefix:
+        fr: /fr
+        en: /en
+
+localized_contact:
+    resource: ../src/Controller/ContactController.php
+    type: attribute
+    prefix:
+        fr: /fr
+        en: /en
+
 localized_groups:
     resource: ../src/Controller/GroupController.php
     type: attribute

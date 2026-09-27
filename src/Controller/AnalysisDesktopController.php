@@ -60,6 +60,16 @@ final class AnalysisDesktopController extends AbstractController
         $state = $this->state->updateHeartbeat($payload);
         $workerId = trim((string) ($payload['worker_id'] ?? ''));
 
+        $currentJob = $payload['current_job'] ?? null;
+        $currentJobId = is_array($currentJob) ? (int) ($currentJob['job_id'] ?? 0) : 0;
+        if ($currentJobId > 0) {
+            $activeJob = $this->jobs->find($currentJobId);
+            if ($activeJob instanceof AnalysisJob && $activeJob->getStatus() === AnalysisJobStatus::Running) {
+                $activeJob->touchLease();
+                $this->em->flush();
+            }
+        }
+
         return $this->json([
             'schema_version' => AnalysisDesktopStateStore::SCHEMA_VERSION,
             'server_time' => (new \DateTimeImmutable())->format(DATE_ATOM),

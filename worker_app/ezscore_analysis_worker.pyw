@@ -966,10 +966,16 @@ class WorkerWindow:
             self.queue_tree.delete(item)
         for job in jobs if isinstance(jobs, list) else []:
             status = str(job.get("status") or "")
-            state = "EN COURS" if status == "running" else "À FAIRE"
+            current_id = int((self.engine.current_job or {}).get("job_id") or 0)
+            job_id = int(job.get("job_id") or 0)
+            locally_running = current_id > 0 and current_id == job_id
+            state = "EN COURS" if status == "running" or locally_running else "À FAIRE"
             kind = {"stems": "Stems", "chords": "Accords", "lyrics": "Paroles"}.get(str(job.get("kind") or ""), str(job.get("kind") or "—"))
             song = f"{job.get('artist') or ''} — {job.get('title') or ''}".strip(" —")
-            progress = f"{int(job.get('progress') or 0)} %" if status == "running" else "—"
+            progress_value = int(job.get("progress") or 0)
+            if locally_running and self.engine.current_job:
+                progress_value = int(self.engine.current_job.get("progress") or progress_value)
+            progress = f"{progress_value} %" if status == "running" or locally_running else "—"
             self.queue_tree.insert("", "end", values=(job.get("job_id"), state, kind, song, progress))
 
     def _toggle_pause(self):
