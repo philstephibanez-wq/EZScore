@@ -141,36 +141,7 @@ final class CatalogController extends AbstractController
             throw $this->createAccessDeniedException();
         }
 
-        $editorId = (int) $request->request->get('editor_id');
-        $editor = null;
-
-        if ($editorId > 0) {
-            $editor = $users->find($editorId);
-
-            if (!$editor instanceof User
-                || !$editor->isActive()
-                || !in_array($editor->getPrimaryRole(), ['ROLE_EDITOR', 'ROLE_ADMIN'], true)) {
-                $this->addFlash('error', $translator->trans('catalog_admin.invalid_editor', [], 'admin_catalog'));
-                return $this->redirectToRoute('app_catalog', $this->catalogReturnParams($request));
-            }
-        }
-
-        $requestedStatus = SongStatus::tryFrom((string) $request->request->get('status', ''));
-        if (!$requestedStatus instanceof SongStatus) {
-            $this->addFlash('error', $translator->trans('catalog_admin.invalid_status', [], 'admin_catalog'));
-            return $this->redirectToRoute('app_catalog', $this->catalogReturnParams($request));
-        }
-
-        // "Analyzed" remains owned by the analysis pipeline. Admin may keep it,
-        // but cannot manufacture that state manually.
-        if ($requestedStatus === SongStatus::Analyzed && $song->getStatus() !== SongStatus::Analyzed) {
-            $this->addFlash('error', $translator->trans('catalog_admin.analyzed_pipeline_only', [], 'admin_catalog'));
-            return $this->redirectToRoute('app_catalog', $this->catalogReturnParams($request));
-        }
-
-        if ($editor instanceof User) {
-            $song->setEditor($editor);
-        }
+        // R35.5: propriétaire immuable; délégations via SongCollaborator.
 
         $wasPublished = $song->isPublished();
         $this->applyStatus($song, $requestedStatus);

@@ -10,6 +10,7 @@ use App\Domain\Song\SongStatus;
 use App\Domain\User\User;
 use App\Domain\User\UserRepository;
 use App\Service\SongImportStorage;
+use App\Service\SongAccessPolicy;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -20,6 +21,8 @@ use Symfony\Component\Routing\Attribute\Route;
 
 final class SongEditController extends AbstractController
 {
+    public function __construct(private readonly SongAccessPolicy $songAccess) {}
+
     #[Route('/song/{id}/edit', name: 'app_song_edit', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
     public function edit(
         Song $song,
@@ -57,14 +60,7 @@ final class SongEditController extends AbstractController
                     ->setStrummingAlternate((string) $request->request->get('strumming_alternate'))
                     ->setComment((string) $request->request->get('comment'));
 
-                if ($this->isGranted('ROLE_ADMIN')) {
-                    $editorId = (int) $request->request->get('editor_id');
-                    $editor = $editorId > 0 ? $users->find($editorId) : null;
-                    if (!$editor instanceof User) {
-                        throw new \InvalidArgumentException('song.edit.validation.editor');
-                    }
-                    $song->setEditor($editor);
-                }
+                // R35.5: propriétaire immuable après création.
 
                 $requestedStatus = SongStatus::tryFrom((string) $request->request->get('status', $song->getStatus()->value));
                 if (!$requestedStatus instanceof SongStatus) {
@@ -196,20 +192,8 @@ final class SongEditController extends AbstractController
 
     private function requireEditor(Song $song): User
     {
-        $user = $this->getUser();
-
-        $allowed = $user instanceof User && (
-            $this->isGranted('ROLE_ADMIN')
-            || (
-                $this->isGranted('ROLE_EDITOR')
-                && $song->getEditor()?->getId() === $user->getId()
-            )
-        );
-
-        if (!$allowed) {
-            throw $this->createAccessDeniedException();
-        }
-
+        $user=$this->getUser();
+        if(!$user instanceof User || !$this->songAccess->canEdit($song,$user,$this->isGranted('ROLE_ADMIN'))) throw $this->createAccessDeniedException();
         return $user;
     }
 

@@ -111,3 +111,7 @@ Jobs orphelins >120s requeue; propriétaire inchangé; délégations owner/admin
 - contact admin déplacé dans l’entête globale authentifiée ;
 - lease des jobs réellement rafraîchi par heartbeat Worker ;
 - queue desktop cohérente avec le job local réellement en cours.
+
+
+## R35.5 UX + COLLAB + MAIL
+Dashboard simplifié, Répertoire, délégations visibles et fonctionnelles, propriétaire explicite, contact admin corrigé.

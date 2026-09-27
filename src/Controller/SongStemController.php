@@ -13,6 +13,7 @@ use App\Service\AnalysisDesktopStateStore;
 use App\Service\SongStemJobService;
 use App\Service\SongStemStorage;
 use App\Service\SongStemPlaybackStorage;
+use App\Service\SongAccessPolicy;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -26,6 +27,8 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 #[Route('/song/{id}/stems', requirements: ['id' => '\d+'])]
 final class SongStemController extends AbstractController
 {
+    public function __construct(private readonly SongAccessPolicy $songAccess) {}
+
     #[Route('', name: 'app_song_stems', methods: ['GET'])]
     public function show(
         Song $song,
@@ -367,20 +370,8 @@ final class SongStemController extends AbstractController
 
     private function requireEditor(Song $song): User
     {
-        $user = $this->getUser();
-
-        $allowed = $user instanceof User && (
-            $this->isGranted('ROLE_ADMIN')
-            || (
-                $this->isGranted('ROLE_EDITOR')
-                && $song->getEditor()?->getId() === $user->getId()
-            )
-        );
-
-        if (!$allowed) {
-            throw $this->createAccessDeniedException();
-        }
-
+        $user=$this->getUser();
+        if(!$user instanceof User || !$this->songAccess->canEdit($song,$user,$this->isGranted('ROLE_ADMIN'))) throw $this->createAccessDeniedException();
         return $user;
     }
 }

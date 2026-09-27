@@ -146,7 +146,7 @@
                         <span class="song-status-badge status-{{ song.status.value }}">{{ ('song.status.' ~ song.status.value)|trans }}</span>
                     </div>
                     <span class="catalog-artist">{{ song.artist }}</span>
-                    <small>{{ 'song.editor'|trans }} · {{ song.editor ? song.editor.displayName : ('catalog_admin.no_editor'|trans({}, 'admin_catalog')) }}</small>
+                    <small>Propriétaire · {{ song.editor ? song.editor.displayName : '—' }}</small>
                     {% if song.comment %}<small>{{ song.comment }}</small>{% endif %}
                     <div class="catalog-rating-summary">
                         <span class="rating-stars-static" aria-hidden="true">{% for star in 1..5 %}<span class="{{ rating.average >= star - 0.5 ? 'filled' : '' }}">★</span>{% endfor %}</span>
@@ -179,19 +179,7 @@
                         </select>
                     </label>
 
-                    <label>
-                        <span>{{ 'song.editor'|trans }}</span>
-                        <select name="editor_id">
-                            {% if song.editor %}
-                                <option value="0">{{ song.editor.displayName }}</option>
-                            {% else %}
-                                <option value="0">—</option>
-                            {% endif %}
-                            {% for editor in admin_editors %}
-                                <option value="{{ editor.id }}">{{ editor.displayName }}</option>
-                            {% endfor %}
-                        </select>
-                    </label>
+                    <div class="admin-owner-readonly"><span>Propriétaire</span><strong>{{ song.editor ? song.editor.displayName : '—' }}</strong><a href="{{ path('app_song_collaborators', {'_locale':app.request.locale,id:song.id}) }}">Gérer les éditeurs</a></div>
 
                     <button type="submit">{{ 'catalog_admin.apply'|trans({}, 'admin_catalog') }}</button>
                 </form>
@@ -224,7 +212,7 @@
                     {% endif %}
                 </div>
                 <span class="catalog-artist">{{ song.artist }}</span>
-                {% if song.editor and app.user %}<small>{{ 'song.editor'|trans }} · {{ song.editor.displayName }}</small>{% endif %}
+                {% if song.editor and app.user %}<small>Propriétaire · {{ song.editor.displayName }}</small>{% endif %}
                 {% if song.comment and app.user %}<small>{{ song.comment }}</small>{% endif %}
                 <div class="catalog-rating-summary">
                     <span class="rating-stars-static" aria-hidden="true">{% for star in 1..5 %}<span class="{{ rating.average >= star - 0.5 ? 'filled' : '' }}">★</span>{% endfor %}</span>

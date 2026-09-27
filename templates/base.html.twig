@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="/assets/css/interactions.css?v=20260924f">
     <link rel="stylesheet" href="/assets/css/r21-admin.css?v=20260925r21">
     <link rel="stylesheet" href="/assets/css/r35-4a-contact-header.css?v=20260927r35_4a">
+    <link rel="stylesheet" href="/assets/css/r35-5-ux.css?v=20260927r35_5">
     {% if app.user and is_granted('ROLE_EDITOR') %}
         <link rel="stylesheet" href="/assets/css/analysis-worker-status.css?v=20260926r24_16">
     {% endif %}
@@ -111,7 +112,7 @@
 
     <main class="ez-main" id="main-content">
         {% if app.request.attributes.get('_route') not in ['app_catalog', 'app_dashboard'] %}
-            <a class="ez-back-link" href="{{ path('app_catalog', {'_locale': app.request.locale}) }}">← {{ 'common.back'|trans({}, 'navigation') }}</a>
+            <a class="ez-back-link" href="{{ path('app_catalog', {'_locale': app.request.locale}) }}">← {{ 'nav.catalog'|trans }}</a>
         {% endif %}
 {% else %}
 <main class="{{ public_catalog ? 'public-shell' : 'auth-shell' }}">

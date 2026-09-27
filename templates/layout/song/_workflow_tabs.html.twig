@@ -1,16 +1,6 @@
-{% set current = current|default('') %}
 {% set existing_song = song is defined and song and song.id %}
-{% set wf = existing_song ? song_workflow(song) : {} %}
-<nav class="workflow-tabs song-workflow-tabs" aria-label="Workflow chanson">
-{% if not existing_song %}
-<span class="workflow-tab disabled" aria-disabled="true">1 · ANALYSE</span><span class="workflow-tab active">2 · IMPORT</span><span class="workflow-tab disabled">3 · ÉDITION</span><span class="workflow-tab disabled">4 · STEMSLAB</span><span class="workflow-tab disabled">5 · CHORDSLAB</span><span class="workflow-tab disabled">6 · LYRICSLAB</span><span class="workflow-tab disabled">7 · PUBLICATION</span>
-{% else %}
-<a class="workflow-tab {{ current == 'analysis' ? 'active' : '' }}" href="{{ path('app_song_analysis_lab', {'_locale': app.request.locale, id: song.id}) }}">1 · ANALYSE</a>
-<span class="workflow-tab {{ wf.imported ? 'completed' : '' }}">2 · IMPORT</span>
-<a class="workflow-tab {{ current == 'edit' ? 'active' : '' }}" href="{{ path('app_song_edit', {'_locale': app.request.locale, id: song.id}) }}">3 · ÉDITION</a>
-{% if wf.can_stems %}<a class="workflow-tab {{ current == 'stems' ? 'active' : '' }} {{ wf.stems_ready ? 'completed' : '' }}" href="{{ path('app_song_stems', {'_locale': app.request.locale, id: song.id}) }}">4 · STEMSLAB</a>{% else %}<span class="workflow-tab disabled">4 · STEMSLAB</span>{% endif %}
-{% if wf.can_chords %}<a class="workflow-tab {{ current == 'chords' ? 'active' : '' }} {{ wf.chords_ready ? 'completed' : '' }}" href="{{ path('app_song_chordslab', {'_locale': app.request.locale, id: song.id}) }}">5 · CHORDSLAB</a>{% else %}<span class="workflow-tab disabled" title="Stems requis">5 · CHORDSLAB</span>{% endif %}
-{% if wf.can_lyrics %}<a class="workflow-tab {{ current == 'lyrics' ? 'active' : '' }} {{ wf.lyrics_ready ? 'completed' : '' }}" href="{{ path('app_song_lyricslab', {'_locale': app.request.locale, id: song.id}) }}">6 · LYRICSLAB</a>{% else %}<span class="workflow-tab disabled" title="Accords requis">6 · LYRICSLAB</span>{% endif %}
-{% if wf.can_publish %}<a class="workflow-tab {{ current == 'publication' ? 'active' : '' }} {{ wf.published ? 'completed' : '' }}" href="{{ path('app_song_publication_lab', {'_locale': app.request.locale, id: song.id}) }}">7 · PUBLICATION</a>{% else %}<span class="workflow-tab disabled" title="Paroles requises">7 · PUBLICATION</span>{% endif %}
-{% endif %}
+{% if existing_song %}
+<nav class="workflow-tabs song-workflow-tabs dashboard-only-tab" aria-label="Navigation chanson">
+<a class="workflow-tab {{ current|default('') == 'analysis' ? 'active' : '' }}" href="{{ path('app_song_analysis_lab', {'_locale':app.request.locale,id:song.id}) }}">Tableau de bord</a>
 </nav>
+{% endif %}

@@ -7,12 +7,14 @@ namespace App\Controller;
 use App\Domain\Song\Song;
 use App\Domain\Song\SongTimelineEvent;
 use App\Domain\Song\SongTimelineEventRepository;
+use App\Domain\Song\SongCollaboratorRepository;
 use App\Domain\Song\UserSongStemMixRepository;
 use App\Domain\User\User;
 use App\Service\ChordTimelineAnalysisService;
 use App\Service\SongChordJobService;
 use App\Service\SongStemPlaybackStorage;
 use App\Service\SongWorkflowState;
+use App\Service\SongAccessPolicy;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -23,6 +25,8 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/song/{id}/lab', requirements: ['id' => '\d+'])]
 final class SongLabController extends AbstractController
 {
+    public function __construct(private readonly SongAccessPolicy $songAccess) {}
+
     private const TIME_SIGNATURES = [
         'auto',
         '2/2', '2/4',
@@ -43,10 +47,10 @@ final class SongLabController extends AbstractController
     ];
 
     #[Route('/analysis', name: 'app_song_analysis_lab', methods: ['GET'])]
-    public function analysis(Song $song, SongWorkflowState $workflow): Response
+    public function analysis(Song $song, SongWorkflowState $workflow, SongCollaboratorRepository $collaborators): Response
     {
         $this->requireEditor($song);
-        return $this->render('song/analysis_dashboard.html.twig', ['song'=>$song,'workflow'=>$workflow->forSong($song)]);
+        return $this->render('song/analysis_dashboard.html.twig', ['song'=>$song,'workflow'=>$workflow->forSong($song),'collaborators'=>$collaborators->findForSong($song)]);
     }
 
     #[Route('/chords', name: 'app_song_chordslab', methods: ['GET'])]
@@ -366,20 +370,8 @@ final class SongLabController extends AbstractController
 
     private function requireEditor(Song $song): User
     {
-        $user = $this->getUser();
-
-        $allowed = $user instanceof User && (
-            $this->isGranted('ROLE_ADMIN')
-            || (
-                $this->isGranted('ROLE_EDITOR')
-                && $song->getEditor()?->getId() === $user->getId()
-            )
-        );
-
-        if (!$allowed) {
-            throw $this->createAccessDeniedException();
-        }
-
+        $user=$this->getUser();
+        if(!$user instanceof User || !$this->songAccess->canEdit($song,$user,$this->isGranted('ROLE_ADMIN'))) throw $this->createAccessDeniedException();
         return $user;
     }
 }
