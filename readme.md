@@ -119,3 +119,7 @@ Dashboard simplifié, Répertoire, délégations visibles et fonctionnelles, pro
 
 ## R35.5a WORKFLOW TABS FIX
 Restaure la navigation complète du workflow. Seul le premier onglet devient `TABLEAU DE BORD`; Import, Édition, StemsLab, ChordsLab, LyricsLab et Publication restent présents et gardent leur verrouillage par prérequis.
+
+
+## R35.8 TIMELINE / PERSIST / PRELOAD
+Timeline absolue depuis t=0, mesures sans harmonie en points, filtre live persisté, préchargement Opus à l’ouverture, reset uniquement si overrides, suppression des crochets.

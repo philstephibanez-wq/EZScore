@@ -20,23 +20,7 @@ final class ChordTimelineResultService
 
     public function apply(Song $song, array $result): array
     {
-        // Preserve manual corrections independently for each profile.
-        $overrides = [];
-        foreach ($this->timeline->findChordEvents($song) as $existing) {
-            if ($existing->getOverrideValue() === null) {
-                continue;
-            }
-
-            $payload = $existing->getPayload() ?? [];
-            $profile = (string) ($payload['profile'] ?? $payload['analysis_level'] ?? 'intermediate');
-            if (!in_array($profile, self::PROFILES, true)) {
-                $profile = 'intermediate';
-            }
-
-            $key = $profile.':'.($existing->getMeasureIndex() ?? -1).':'.($existing->getBeatIndex() ?? -1);
-            $overrides[$key] = $existing->getOverrideValue();
-        }
-
+        // R35.8a: fresh harmonic analysis is authoritative; old manual overrides are discarded.
         $this->timeline->deleteMusicalAnalysisForSong($song);
 
         // Beats are canonical and shared by all chord profiles.
@@ -85,11 +69,6 @@ final class ChordTimelineResultService
                         'analysis_version' => (string) ($result['version'] ?? 'r34-three-profiles'),
                         'downbeat_phase' => $result['downbeat_phase'] ?? null,
                     ]);
-
-                $overrideKey = $profile.':'.($measure ?? -1).':'.($beat ?? -1);
-                if (isset($overrides[$overrideKey])) {
-                    $event->setOverrideValue($this->normaliseMajorLabel($overrides[$overrideKey]));
-                }
 
                 $this->em->persist($event);
             }

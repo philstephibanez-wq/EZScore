@@ -5,7 +5,7 @@
 {% block stylesheets %}
 <link rel="stylesheet" href="/assets/css/workflow-tabs-r23-2.css?v=20260926r31">
 <link rel="stylesheet" href="/assets/css/stems.css?v=20260926r29">
-<link rel="stylesheet" href="/assets/css/chordslab.css?v=20260927r34_6">
+<link rel="stylesheet" href="/assets/css/chordslab.css?v=20260928r35_8a">
 {% endblock %}
 
 {% block body %}
@@ -99,7 +99,13 @@
                   action="{{ path('app_song_chordslab_analyze', {'_locale': app.request.locale, id: song.id}) }}"
                   data-chord-analyze-form>
                 <input type="hidden" name="_token" value="{{ csrf_token('song_chordslab_analyze_' ~ song.id) }}">
-                <label class="chord-analysis-noise-filter"><input type="checkbox" name="filter_noise" value="1"><span>Filtrer applaudissements / foule pour l’analyse</span></label>
+                <label class="chord-analysis-noise-filter">
+                    <input type="checkbox" name="filter_noise" value="1" data-noise-filter
+                           data-save-url="{{ path('app_song_chordslab_noise_filter', {'_locale': app.request.locale, id: song.id}) }}"
+                           data-save-token="{{ csrf_token('song_chordslab_noise_filter_' ~ song.id) }}"
+                           {{ song.chordNoiseFilterEnabled ? 'checked' : '' }}>
+                    <span>Filtrer applaudissements / foule pour l’analyse</span>
+                </label>
                 <button type="submit" class="primary">{{ (chord_events ? 'chordslab.analyze.again' : 'chordslab.analyze.button')|trans({}, 'chordslab') }}</button>
             </form>
             
@@ -114,7 +120,7 @@
         <progress max="100" value="0"></progress>
     </div>
 
-    {% if chord_events %}
+    {% if has_chord_overrides %}
             <form method="post"
                   action="{{ path('app_song_chordslab_reset', {'_locale': app.request.locale, id: song.id}) }}" data-chord-reset-form>
                 <input type="hidden" name="_token" value="{{ csrf_token('song_chordslab_reset_' ~ song.id) }}">
@@ -243,7 +249,7 @@
     <div class="ez-modal-card">
         <h3>Réanalyser les accords ?</h3>
         <p>Une nouvelle analyse harmonique va être lancée dans le Worker et recalculera les trois profils Débutant, Intermédiaire et Expert.</p>
-        <p>Les corrections manuelles déjà enregistrées seront conservées profil par profil lorsqu’elles peuvent être réancrées sur les mêmes beats.</p>
+        <p>La nouvelle analyse remplacera la grille automatique actuelle. Les corrections manuelles de l’ancienne analyse seront supprimées.</p>
         <div class="ez-modal-actions">
             <button type="button" data-chord-analyze-cancel>Annuler</button>
             <button type="button" class="primary" data-chord-analyze-confirm>Lancer la réanalyse</button>
@@ -265,9 +271,9 @@
 {% endblock %}
 
 {% block javascripts %}
-<script src="/assets/js/audio/ezscore-audio-engine.js?v=20260926r29"></script>
-<script src="/assets/js/stems-mixer.js?v=20260926r32"></script>
-<script src="/assets/js/chordslab.js?v=20260927r34_6"></script>
+<script src="/assets/js/audio/ezscore-audio-engine.js?v=20260928r35_8"></script>
+<script src="/assets/js/stems-mixer.js?v=20260928r35_8"></script>
+<script src="/assets/js/chordslab.js?v=20260928r35_8a"></script>
 <script src="/assets/js/chordslab-r33-2.js?v=20260926r33_2"></script>
 <script src="/assets/js/chordslab-r33-1.js?v=20260927r34_6"></script>
 {% endblock %}

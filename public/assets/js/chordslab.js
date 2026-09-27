@@ -21,6 +21,13 @@ const analyzeForm=document.querySelector('[data-chord-analyze-form]');
 const analyzeDialog=document.querySelector('[data-chord-analyze-dialog]');
 const analyzeCancel=analyzeDialog?.querySelector('[data-chord-analyze-cancel]');
 const analyzeConfirm=analyzeDialog?.querySelector('[data-chord-analyze-confirm]');
+const noiseFilter=document.querySelector('[data-noise-filter]');
+if(noiseFilter){
+ noiseFilter.addEventListener('change',async()=>{
+  const url=noiseFilter.dataset.saveUrl,token=noiseFilter.dataset.saveToken;if(!url||!token)return;
+  try{const response=await fetch(url,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({_token:token,enabled:noiseFilter.checked})});if(!response.ok)throw new Error(`noise_filter_http_${response.status}`)}catch(_){noiseFilter.checked=!noiseFilter.checked}
+ });
+}
 if(!measuresEl||!beats.length)return;
 
 const NOTE_TO_PC={C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
@@ -42,6 +49,7 @@ installR342Styles();
 
 function normaliseLabel(chord){
  if(!chord)return chord;
+ chord=String(chord).trim().replace(/^\[([^\]]+)\]$/,'$1');
  return chord.replace(/^([A-G](?:#|b)?)maj$/,'$1');
 }
 function parseSignature(value){const m=/^(\d+)\/(\d+)$/.exec(value);return m?{num:Math.max(1,Number(m[1])),den:Number(m[2])}:{num:4,den:4}}
@@ -103,6 +111,7 @@ function buildProjection(){
   const exact=eventStartingNear(beat.start_ms,nextMs), active=exact||activeEventAt(beat.start_ms);
   let text='-';
   if(exact)text=displayChord(exact.effective||exact.original||'.');
+  else if((active?.effective||active?.original||'')==='.')text='.';
   else if(beatIndex===0)text=displayChord(active?.effective||active?.original||'.');
   measure.slots.push({seq,beatIndex,startMs:beat.start_ms,text,eventId:active?.id||null,editable:text!=='-'&&text!=='.'&&!!active?.id});
  });

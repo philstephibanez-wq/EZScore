@@ -99,6 +99,10 @@ final class SongLabController extends AbstractController
             'time_signatures' => self::TIME_SIGNATURES,
             'stem_mix_settings' => $mixes->findForUserAndSong($user, $song)?->getSettings() ?? [],
             'playback_ready' => $playback->isReady($song),
+            'has_chord_overrides' => (bool) array_filter(
+                $profiles[$activeProfile] ?? [],
+                static fn (array $event): bool => ($event['override'] ?? null) !== null && trim((string) $event['override']) !== ''
+            ),
         ]);
     }
 
@@ -108,6 +112,7 @@ final class SongLabController extends AbstractController
         Request $request,
         SongChordJobService $chordJobs,
         SongWorkflowState $workflow,
+        EntityManagerInterface $em,
     ): Response {
         $user = $this->requireEditor($song);
 
@@ -122,12 +127,28 @@ final class SongLabController extends AbstractController
             $this->addFlash('error','Les stems doivent être terminés avant l’analyse des accords.');
             return $this->redirectToRoute('app_song_analysis_lab',['_locale'=>$request->getLocale(),'id'=>$song->getId()]);
         }
-        $chordJobs->queue($song, $user, $request->request->getBoolean('filter_noise'));
+        $filterNoise = $request->request->getBoolean('filter_noise');
+        $song->setChordNoiseFilterEnabled($filterNoise);
+        $em->flush();
+        $chordJobs->queue($song, $user, $song->isChordNoiseFilterEnabled());
 
         return $this->redirectToRoute('app_song_chordslab', [
             '_locale' => $request->getLocale(),
             'id' => $song->getId(),
         ]);
+    }
+
+    #[Route('/chords/noise-filter', name: 'app_song_chordslab_noise_filter', methods: ['POST'])]
+    public function saveChordNoiseFilter(Song $song, Request $request, EntityManagerInterface $em): JsonResponse
+    {
+        $this->requireEditor($song);
+        $payload = $request->toArray();
+        if (!$this->isCsrfTokenValid('song_chordslab_noise_filter_'.$song->getId(), (string) ($payload['_token'] ?? ''))) {
+            return $this->json(['error' => 'invalid_csrf'], Response::HTTP_FORBIDDEN);
+        }
+        $song->setChordNoiseFilterEnabled((bool) ($payload['enabled'] ?? false));
+        $em->flush();
+        return $this->json(['ok' => true, 'enabled' => $song->isChordNoiseFilterEnabled()]);
     }
 
     #[Route('/chords/status', name: 'app_song_chordslab_status', methods: ['GET'])]
@@ -290,6 +311,7 @@ final class SongLabController extends AbstractController
         }
 
         $chord = trim((string) ($payload['chord'] ?? ''));
+        $chord = preg_replace('/^\[([^\]]+)\]$/', '$1', $chord) ?? $chord;
         // Plain major triads use standard compact spelling: C, not redundant Cmaj.
         $chord = preg_replace('/^([A-G](?:#|b)?)maj$/', '$1', $chord) ?? $chord;
         if ($chord === '' || mb_strlen($chord) > 32 || !preg_match('/^[A-G](?:#|b)?[A-Za-z0-9()+#b°øΔ\/-]*$/u', $chord)) {

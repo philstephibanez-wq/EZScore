@@ -136,17 +136,23 @@ def suppress_crowd_noise(y,sr,hop=512):
     return librosa.util.normalize(cleaned),mask
 
 def extend_beats_to_zero(beat_times,duration,tempo):
+    """Preserve detected beats but guarantee that the prompter exists from MP3 t=0."""
     bt=np.asarray(beat_times,dtype=float)
     if bt.size==0:
         step=60.0/tempo if tempo>20 else .5
-        return np.arange(0.0,duration,step,float),0
+        return np.arange(0.0,max(duration,step)+step*.25,step,float),0
     diffs=np.diff(bt);positive=diffs[diffs>1e-4]
     step=float(np.median(positive)) if positive.size else (60.0/tempo if tempo>20 else .5)
+    step=max(.12,min(3.0,step))
+    if bt[0] <= max(.045,step*.10):
+        bt=bt.copy();bt[0]=0.0
+        return bt,0
     prepend=[];t=float(bt[0])-step
-    while t>0.04:prepend.append(t);t-=step
-    if bt[0]>step*.40:prepend.append(max(0.0,t))
-    prepend=sorted(set(round(max(0.0,x),6) for x in prepend))
-    return (np.concatenate([np.asarray(prepend,float),bt]),len(prepend)) if prepend else (bt,0)
+    while t>max(.045,step*.10):
+        prepend.append(t);t-=step
+    prepend.append(0.0)
+    prepend=np.asarray(sorted(set(round(max(0.0,x),6) for x in prepend)),dtype=float)
+    return np.concatenate([prepend,bt]),len(prepend)
 
 def load_mix(paths,sr=11025):
     signals=[];target=0
@@ -281,12 +287,18 @@ def analyse(source,stems,drums,requested_signature,progress_file=None,filter_noi
         metric_scores={signature:1.0}
     bpm=numerator(signature)
 
+    # R35.8a: timeline prompteur depuis t=0 du MP3.
+    beat_times,prepended_count=extend_beats_to_zero(beat_times,duration,tempo)
+    if prepended_count:
+        phase=(phase+prepended_count)%max(1,bpm)
+
     prog(progress_file,32,"chroma","Extraction de l’harmonie")
     chroma=librosa.feature.chroma_cqt(y=yh,sr=sr,hop_length=hop)
     chroma=np.maximum(chroma,0.0)
     key,key_info=detect_key(np.mean(chroma,axis=1));in_key=diatonic_roots(key_info)
     rms=librosa.feature.rms(y=yh,hop_length=hop)[0]
     floor=float(np.percentile(rms,12)) if rms.size else 0.0
+    spectral_flatness=librosa.feature.spectral_flatness(y=yh,hop_length=hop)[0]
 
     beat_vectors=[];silent=[]
     for i,start in enumerate(beat_times):
@@ -298,9 +310,18 @@ def analyse(source,stems,drums,requested_signature,progress_file=None,filter_noi
         segment=np.mean(chroma[:,f0:f1],axis=1)
         rr=rms[min(f0,len(rms)-1):min(max(f1,f0+1),len(rms))] if rms.size else np.array([1.0])
         local=float(np.mean(rr))
-        is_silent=local<=max(.0025,floor*.50) or float(np.sum(segment))<=1e-6
-        silent.append(is_silent)
-        beat_vectors.append(segment/max(float(np.linalg.norm(segment)),1e-9) if not is_silent else np.zeros(12))
+        energy_silent=local<=max(.0025,floor*.50) or float(np.sum(segment))<=1e-6
+        total=float(np.sum(segment))
+        if total>1e-9:
+            ordered=np.sort(segment);top3_ratio=float(np.sum(ordered[-3:])/total);peak_ratio=float(ordered[-1]/total)
+        else:
+            top3_ratio=0.0;peak_ratio=0.0
+        ff=spectral_flatness[min(f0,len(spectral_flatness)-1):min(max(f1,f0+1),len(spectral_flatness))] if spectral_flatness.size else np.array([0.0])
+        local_flatness=float(np.mean(ff))
+        has_harmony=(not energy_silent and top3_ratio>=0.36 and peak_ratio>=0.105 and local_flatness<=0.42)
+        no_harmony=not has_harmony
+        silent.append(no_harmony)
+        beat_vectors.append(segment/max(float(np.linalg.norm(segment)),1e-9) if has_harmony else np.zeros(12))
 
     prog(progress_file,50,"beginner","Construction du profil Débutant")
     beginner=decode_profile("beginner",beat_vectors,silent,in_key,beat_times,bpm,phase)
@@ -317,7 +338,7 @@ def analyse(source,stems,drums,requested_signature,progress_file=None,filter_noi
 
     return {
         "ok":True,
-        "version":"r34-three-profiles",
+        "version":"r35.8a-absolute-timeline",
         "tempo_bpm":round(tempo,3),
         "time_signature":signature,
         "key":key,

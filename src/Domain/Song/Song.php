@@ -48,6 +48,9 @@ class Song
     #[ORM\Column(name: 'chord_analysis_level', length: 16, options: ['default' => 'intermediate'])]
     private string $chordAnalysisLevel = 'intermediate';
 
+    #[ORM\Column(name: 'chord_noise_filter_enabled', options: ['default' => false])]
+    private bool $chordNoiseFilterEnabled = false;
+
     #[ORM\Column(length: 120, nullable: true)]
     private ?string $strummingPrimary = null;
 
@@ -164,6 +167,9 @@ class Song
         $this->keySignature = $keySignature;
         return $this->touch();
     }
+
+    public function isChordNoiseFilterEnabled(): bool { return $this->chordNoiseFilterEnabled; }
+    public function setChordNoiseFilterEnabled(bool $enabled): self { $this->chordNoiseFilterEnabled = $enabled; return $this->touch(); }
 
     public function getChordAnalysisLevel(): string { return $this->chordAnalysisLevel; }
 

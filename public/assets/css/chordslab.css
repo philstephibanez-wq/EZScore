@@ -16,7 +16,6 @@
 .chord-measure.is-current{border-color:#ef4b61;box-shadow:0 0 0 1px #ef4b61}
 .chord-measure-number{display:block;margin-bottom:4px;color:#71848f;font-size:9px}
 .chord-measure-notation{display:flex;align-items:center;gap:0;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:800}
-.chord-measure-notation::before{content:"[";margin-right:6px}.chord-measure-notation::after{content:"]";margin-left:6px}
 .chord-slot{appearance:none;border:0;background:transparent;color:#f1f5f7;padding:3px 1px;min-width:auto;font:inherit;line-height:1.2}
 .chord-slot.editable{cursor:text}.chord-slot.editable:hover{text-decoration:underline}.chord-slot.is-current{color:#ff6578;background:rgba(239,75,97,.14);border-radius:4px}
 .chord-inline-input{width:72px;min-width:0;padding:3px 5px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:800}.chord-inline-input.is-error{border-color:#ef4b61}
@@ -372,3 +371,6 @@
 }
 
 .chord-analysis-noise-filter{display:inline-flex;align-items:center;gap:.55rem;margin-right:.75rem;font-size:.9rem}.chord-analysis-noise-filter input{width:18px;height:18px}
+
+/* R35.8a framed cells: no square brackets */
+.chord-measure-notation::before,.chord-measure-notation::after{content:none!important;display:none!important}

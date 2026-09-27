@@ -180,6 +180,11 @@
         saveTimer = window.setTimeout(saveSettings, 450);
     }
 
+    // R35.8: prepare Opus immediately, without autoplay.
+    queueMicrotask(() => {
+        if (typeof engine.warmUp === 'function') engine.warmUp({enabledFirst: true}).catch?.(() => {});
+    });
+
     engine.setMasterVolume(Number(els.volume?.value || 1));
     engine.setPlaybackRate(Number(els.rate?.value || 1));
     applyMasterFx();
