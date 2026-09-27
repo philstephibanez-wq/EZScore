@@ -18,28 +18,32 @@ function installR345Styles(){
     style.id='ezscore-r34-5-style';
     style.textContent=`
 /* R34.5 — final high-priority ChordsLab visual corrections */
+/* R34.6 — single tempo + baseline chord suffixes */
 .chord-measure-notation .chord-slot.is-long,
 .chord-measure-notation .chord-slot.is-very-long{
     font-size:14px!important;
     letter-spacing:normal!important;
 }
+.chord-measure-notation .chord-slot{
+    align-items:baseline!important;
+}
 .chord-measure-notation .chord-slot .chord-label-root{
-    font-size:15px!important;
+    font-size:17px!important;
     font-weight:800!important;
     line-height:1!important;
     flex:0 0 auto!important;
 }
 .chord-measure-notation .chord-slot .chord-label-suffix{
-    font-size:11px!important;
+    font-size:12px!important;
     line-height:1!important;
     flex:0 0 auto!important;
     margin-left:1px!important;
 }
 .chord-measure-notation .chord-slot .chord-quality-maj{
     display:inline-block!important;
-    font-size:8px!important;
+    font-size:10px!important;
     line-height:1!important;
-    vertical-align:super!important;
+    vertical-align:baseline!important;
     margin:0 1px 0 0!important;
     letter-spacing:0!important;
 }
@@ -114,7 +118,12 @@ function installR345Styles(){
 
 function installTempo(){
     const card=document.querySelector('.chordslab-song-card');
-    if(!card||card.querySelector('[data-chordslab-tempo-runtime]'))return;
+    if(!card)return;
+    const existingTempo=card.querySelectorAll('.chordslab-tempo-value,[data-chordslab-tempo-runtime]');
+    if(existingTempo.length){
+        existingTempo.forEach((node,index)=>{if(index>0)node.remove()});
+        return;
+    }
 
     let beats=[];
     try{beats=JSON.parse(root.dataset.beats||'[]')}catch(_){beats=[]}

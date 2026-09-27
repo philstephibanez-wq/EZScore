@@ -339,3 +339,34 @@
     .chordslab-settings-grid .chordslab-diagram-toggle > span,
     .chordslab-settings-grid .chordslab-diagram-inline > span { white-space: normal !important; }
 }
+
+/* R34.6 — chord baseline final override */
+.chord-measure-notation .chord-slot{
+    align-items:baseline!important;
+}
+.chord-measure-notation .chord-slot.is-long,
+.chord-measure-notation .chord-slot.is-very-long{
+    font-size:16px!important;
+    letter-spacing:normal!important;
+}
+.chord-measure-notation .chord-slot .chord-label-root{
+    font-size:17px!important;
+    line-height:1!important;
+}
+.chord-measure-notation .chord-slot .chord-label-suffix{
+    font-size:12px!important;
+    line-height:1!important;
+    vertical-align:baseline!important;
+}
+.chord-measure-notation .chord-slot .chord-quality-maj{
+    font-size:10px!important;
+    line-height:1!important;
+    vertical-align:baseline!important;
+    position:relative!important;
+    top:0!important;
+}
+.chord-measure-notation .chord-slot .chord-label-bass{
+    font-size:11px!important;
+    line-height:1!important;
+    vertical-align:baseline!important;
+}
