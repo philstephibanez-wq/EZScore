@@ -1,0 +1,19 @@
+{
+  "release": "R35.2",
+  "supersedes": "R35.1",
+  "base_commit": "d2a7dc22588044c81f67f8610f4b9820620e91c4",
+  "new_files": [
+    "analysis/meter_detection_r35_2.py"
+  ],
+  "patched_files": [
+    "worker_app/ezscore_analysis_worker.pyw",
+    "src/Controller/AnalysisDesktopController.php",
+    "src/Domain/Analysis/AnalysisJobRepository.php",
+    "analysis/chord_timeline_analysis.py",
+    "src/Controller/SongImportController.php",
+    "src/Domain/Song/SongTimelineEventRepository.php",
+    "src/Service/ChordTimelineStorage.php",
+    "templates/song/workspace.html.twig",
+    "templates/catalog/index.html.twig"
+  ]
+}
