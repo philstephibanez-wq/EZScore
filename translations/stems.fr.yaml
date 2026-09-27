@@ -67,6 +67,7 @@ stems:
     mid: Médiums
     high: Aigus
     original: Original
+    reset: Réinitialiser
     reset_eq: Reset EQ
     master: Master
     saved: Mixage mémorisé

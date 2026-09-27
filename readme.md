@@ -1,57 +1,63 @@
-# EZScore_v1 — R34.4 correction réelle CSS + scroll pause + tempo
+# EZScore_v1 — R34.5 hard fix
 
-R34.4 corrige les régressions visibles dans les captures.
+R34.4 n'était pas un livrable source correct : le ZIP ne contenait que le script/test/readme alors que j'avais annoncé trois fichiers source. C'est la raison pour laquelle les captures ne montraient pratiquement aucun changement.
 
-## Pourquoi R34.3 n'a pas corrigé l'affichage
+R34.5 corrige ce point.
 
-La typographie et la grille de réglages sont définies dans `public/assets/css/chordslab.css`. Modifier uniquement le JS secondaire n'était pas suffisant / fiable.
+## Fichiers réellement livrés
 
-R34.4 modifie donc réellement trois fichiers suivis par Git :
+Le ZIP contient directement :
+
+```text
+public/assets/js/chordslab-r33-1.js
+translations/stems.fr.yaml
+```
+
+Puis le script modifie réellement :
 
 ```text
 public/assets/css/chordslab.css
-public/assets/js/chordslab.js
-public/assets/js/chordslab-r33-1.js
+templates/song/chordslab.html.twig
 ```
+
+Le template passe les versions d'assets à `r34_5`, afin d'éliminer l'ancien JS/CSS mis en cache.
 
 ## Corrections
 
-- fondamentale (`G`, `F`, `E`...) à taille fixe identique, même dans `Gmaj7`, `Fadd9`, `Esus2` ;
-- `maj` seul est petit dans `Gmaj7` ;
-- fin de la réduction globale `.is-long/.is-very-long` qui réduisait également la fondamentale ;
-- `Afficher les accords guitare` occupe une ligne complète et reste sur une seule ligne sur PC ;
-- en pause et à l'arrêt, aucun recentrage automatique du prompteur ;
-- en lecture, le beat courant reste centré sous le diagramme ;
-- ajout du tempo dans le cartouche sous la forme `Tempo = 60` (sans `BPM`).
-
-Le tempo est calculé à partir de la timeline canonique des beats déjà enregistrée. Aucune réanalyse n'est nécessaire.
+- fondamentale des accords riches : taille fixe ;
+- seul `maj` est très petit ;
+- `Afficher les accords guitare` sur une ligne sur PC ;
+- auto-scroll uniquement pendant Play ;
+- Pause / Stop : scroll manuel libre ;
+- affichage du tempo sous la forme `Tempo = 60` ;
+- correction de la traduction manquante `stems.mixer.reset`.
 
 ## Installation
 
 ```powershell
 cd H:\EZScore_v1
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_v1_R34_4_VISUAL_TEMPO_SCROLL.zip" -C H:\EZScore_v1
+tar -xf "$env:USERPROFILE\Downloads\EZScore_v1_R34_5_HARD_FIX.zip" -C H:\EZScore_v1
 
-H:\EZScore_v1\.venv-py313\Scripts\python.exe .\scripts\apply_r34_4_visual_tempo_scroll.py
+H:\EZScore_v1\.venv-py313\Scripts\python.exe .\scripts\apply_r34_5_hard_fix.py
 
-node --check .\public\assets\js\chordslab.js
 node --check .\public\assets\js\chordslab-r33-1.js
-php .\tests\r34_4_contract.php
+php .\tests\r34_5_contract.php
+php bin\console lint:yaml translations
+php bin\console lint:twig templates
 php bin\console cache:clear
 
-git status --short -- public\assets\css\chordslab.css public\assets\js\chordslab.js public\assets\js\chordslab-r33-1.js
+git status --short -- public\assets\css\chordslab.css public\assets\js\chordslab-r33-1.js templates\song\chordslab.html.twig translations\stems.fr.yaml
 ```
 
 Attendu :
 
 ```text
-8 R34.4 checks passed.
- M public/assets/css/chordslab.css
- M public/assets/js/chordslab.js
- M public/assets/js/chordslab-r33-1.js
+11 R34.5 checks passed.
 ```
 
-Puis `Ctrl+F5`.
+et Git doit montrer les quatre fichiers source modifiés.
 
-Aucune migration. Aucune réanalyse.
+Ensuite `Ctrl+F5`.
+
+Aucune migration et aucune réanalyse harmonique.
