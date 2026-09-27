@@ -17,7 +17,7 @@
         <h1>ChordsLab — {{ song.title }}</h1>
         <p class="page-note">{{ 'chordslab.lead'|trans({}, 'chordslab') }}</p>
     </div>
-    <a href="{{ path('app_song_workspace', {'_locale': app.request.locale, id: song.id}) }}">{{ 'chordslab.back'|trans({}, 'chordslab') }}</a>
+    <a href="{{ path('app_catalog', {'_locale': app.request.locale}) }}">Répertoire</a>
 </header>
 
 <section class="panel chordslab-song-card">

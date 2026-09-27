@@ -1,0 +1,13 @@
+{% extends 'base.html.twig' %}
+{% set wf = workflow %}
+{% block title %}Analyse — {{ song.title }} — EZScore_v1{% endblock %}
+{% block stylesheets %}<link rel="stylesheet" href="/assets/css/workflow-tabs-r23-2.css?v=20260927r35_3"><link rel="stylesheet" href="/assets/css/song-analysis-dashboard-r35-3.css?v=20260927r35_3">{% endblock %}
+{% block body %}
+{% include 'layout/song/_workflow_tabs.html.twig' with {current:'analysis', song:song} %}
+<header class="page-head analysis-dashboard-head"><div><div class="eyebrow">Tableau de bord de la chanson</div><h1>{{ song.title }}</h1><p class="page-note">{{ song.artist }} · Suivi du workflow d'analyse et d'édition.</p></div><a href="{{ path('app_catalog', {'_locale': app.request.locale}) }}">Répertoire</a></header>
+<section class="analysis-dashboard-grid">
+{% set stages=[{'label':'Import','route':null,'ready':wf.imported,'blocked':false},{'label':'Stems','route':'app_song_stems','ready':wf.stems_ready,'blocked':not wf.can_stems},{'label':'Accords','route':'app_song_chordslab','ready':wf.chords_ready,'blocked':not wf.can_chords},{'label':'Paroles','route':'app_song_lyricslab','ready':wf.lyrics_ready,'blocked':not wf.can_lyrics},{'label':'Publication','route':'app_song_publication_lab','ready':wf.published,'blocked':not wf.can_publish}] %}
+{% for stage in stages %}<article class="analysis-stage {{ stage.ready ? 'is-ready' : (stage.blocked ? 'is-blocked' : 'is-next') }}"><div class="analysis-stage-status">{{ stage.ready ? '✓' : (stage.blocked ? '•' : '→') }}</div><div><div class="eyebrow">Étape {{ loop.index }}</div><h2>{{ stage.label }}</h2><p>{{ stage.ready ? 'Prêt' : (stage.blocked ? 'En attente de l’étape précédente' : 'À faire') }}</p></div>{% if stage.route and not stage.blocked %}<a href="{{ path(stage.route, {'_locale': app.request.locale, id: song.id}) }}">Ouvrir</a>{% endif %}</article>{% endfor %}
+</section>
+<section class="panel analysis-summary"><div><span>État courant</span><strong>{{ wf.next == 'done' ? 'Terminé' : wf.next|upper }}</strong></div><div><span>Signature</span><strong>{{ song.timeSignature }}</strong></div><div><span>Capo</span><strong>{{ song.capo }}</strong></div><div><span>SHA audio</span><code>{{ song.audioSha256 ? song.audioSha256|slice(0,16) ~ '…' : '—' }}</code></div></section>
+{% endblock %}

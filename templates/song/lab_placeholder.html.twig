@@ -39,8 +39,8 @@
         <h1>{{ meta.title }}</h1>
         <p class="page-note">{{ meta.body }}</p>
     </div>
-    <a href="{{ path('app_song_workspace', {'_locale': app.request.locale, id: song.id}) }}">
-        {{ 'labs.back'|trans({}, 'labs') }}
+    <a href="{{ path('app_catalog', {'_locale': app.request.locale}) }}">
+        Répertoire
     </a>
 </header>
 

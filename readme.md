@@ -96,3 +96,7 @@ Après application, `debug:router` DOIT afficher :
 ```
 
 et la fenêtre Analysis doit contenir `Traitements en cours / à faire`.
+
+
+## R35.3 WORKFLOW DASHBOARD
+Analyse devient le tableau de bord chanson; workflow strict Import → Stems → Accords → Paroles → Publication.

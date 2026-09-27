@@ -138,7 +138,7 @@
 
         {% if is_granted('ROLE_ADMIN') %}
         <article class="catalog-song-card admin-catalog-song-card">
-            <a class="admin-catalog-song-main" href="{{ path('app_song_workspace', {'_locale': app.request.locale, id: song.id}) }}">
+            <a class="admin-catalog-song-main" href="{{ path('app_song_analysis_lab', {'_locale': app.request.locale, id: song.id}) }}">
                 <div class="catalog-cover">{% if song.coverPath %}<img src="{{ song.coverPath }}" alt="">{% else %}<span aria-hidden="true">♫</span>{% endif %}</div>
                 <div class="catalog-song-copy">
                     <div class="catalog-song-title-row">
@@ -211,7 +211,8 @@
             </div>
         </article>
         {% else %}
-        <a class="catalog-song-card" href="{{ path('app_song_workspace', {'_locale': app.request.locale, id: song.id}) }}">
+        {% set song_open_route = is_granted('ROLE_EDITOR') ? 'app_song_analysis_lab' : 'app_song_workspace' %}
+        <a class="catalog-song-card" href="{{ path(song_open_route, {'_locale': app.request.locale, id: song.id}) }}">
             <div class="catalog-cover">{% if song.coverPath %}<img src="{{ song.coverPath }}" alt="">{% else %}<span aria-hidden="true">♫</span>{% endif %}</div>
             <div class="catalog-song-copy">
                 <div class="catalog-song-title-row">

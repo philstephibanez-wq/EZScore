@@ -16,7 +16,7 @@
         <h1>{{ 'stems.title'|trans({'%title%': song.title}, 'stems') }}</h1>
         <p class="page-note">{{ 'stems.scope'|trans({}, 'stems') }}</p>
     </div>
-    <a href="{{ path('app_song_workspace', {'_locale': app.request.locale, id: song.id}) }}">{{ 'stems.back'|trans({}, 'stems') }}</a>
+    <a href="{{ path('app_catalog', {'_locale': app.request.locale}) }}">Répertoire</a>
 </header>
 
 <section class="panel stems-source">

@@ -12,6 +12,7 @@ use App\Domain\User\User;
 use App\Service\ChordTimelineAnalysisService;
 use App\Service\SongChordJobService;
 use App\Service\SongStemPlaybackStorage;
+use App\Service\SongWorkflowState;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -42,10 +43,10 @@ final class SongLabController extends AbstractController
     ];
 
     #[Route('/analysis', name: 'app_song_analysis_lab', methods: ['GET'])]
-    public function analysis(Song $song): Response
+    public function analysis(Song $song, SongWorkflowState $workflow): Response
     {
         $this->requireEditor($song);
-        return $this->renderLab($song, 'analysis');
+        return $this->render('song/analysis_dashboard.html.twig', ['song'=>$song,'workflow'=>$workflow->forSong($song)]);
     }
 
     #[Route('/chords', name: 'app_song_chordslab', methods: ['GET'])]
@@ -102,6 +103,7 @@ final class SongLabController extends AbstractController
         Song $song,
         Request $request,
         SongChordJobService $chordJobs,
+        SongWorkflowState $workflow,
     ): Response {
         $user = $this->requireEditor($song);
 
@@ -112,6 +114,10 @@ final class SongLabController extends AbstractController
             throw $this->createAccessDeniedException();
         }
 
+        if (!$workflow->forSong($song)['can_chords']) {
+            $this->addFlash('error','Les stems doivent être terminés avant l’analyse des accords.');
+            return $this->redirectToRoute('app_song_analysis_lab',['_locale'=>$request->getLocale(),'id'=>$song->getId()]);
+        }
         $chordJobs->queue($song, $user);
 
         return $this->redirectToRoute('app_song_chordslab', [
@@ -329,16 +335,24 @@ final class SongLabController extends AbstractController
     }
 
     #[Route('/lyrics', name: 'app_song_lyricslab', methods: ['GET'])]
-    public function lyrics(Song $song): Response
+    public function lyrics(Song $song, SongWorkflowState $workflow, Request $request): Response
     {
         $this->requireEditor($song);
+        if (!$workflow->forSong($song)['can_lyrics']) {
+            $this->addFlash('error','Les accords doivent être terminés avant les paroles.');
+            return $this->redirectToRoute('app_song_analysis_lab',['_locale'=>$request->getLocale(),'id'=>$song->getId()]);
+        }
         return $this->renderLab($song, 'lyrics');
     }
 
     #[Route('/publication', name: 'app_song_publication_lab', methods: ['GET'])]
-    public function publication(Song $song): Response
+    public function publication(Song $song, SongWorkflowState $workflow, Request $request): Response
     {
         $this->requireEditor($song);
+        if (!$workflow->forSong($song)['can_publish']) {
+            $this->addFlash('error','Les paroles doivent être terminées avant la publication.');
+            return $this->redirectToRoute('app_song_analysis_lab',['_locale'=>$request->getLocale(),'id'=>$song->getId()]);
+        }
         return $this->renderLab($song, 'publication');
     }
 

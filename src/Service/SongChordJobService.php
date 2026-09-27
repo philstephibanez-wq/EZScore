@@ -18,10 +18,12 @@ final class SongChordJobService
         private readonly EntityManagerInterface $em,
         private readonly AnalysisJobRepository $jobs,
         private readonly Connection $connection,
+        private readonly SongStemStorage $stems,
     ) {}
 
     public function queue(Song $song, User $user): AnalysisJob
     {
+        if (!$this->stems->hasCompleteStems($song)) throw new \DomainException('workflow.stems_required');
         if ($active = $this->findActive($song)) return $active;
 
         $job = new AnalysisJob($song, $user, self::KIND, [
