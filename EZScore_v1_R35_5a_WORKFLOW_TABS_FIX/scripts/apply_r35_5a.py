@@ -1,4 +1,16 @@
-{% set current = current|default('') %}
+#!/usr/bin/env python3
+from pathlib import Path
+import sys
+
+def die(msg):
+    raise SystemExit("R35.5a ABORT: " + msg)
+
+root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
+p = root / "templates/layout/song/_workflow_tabs.html.twig"
+if not p.is_file():
+    die("templates/layout/song/_workflow_tabs.html.twig absent")
+
+content = """{% set current = current|default('') %}
 {% set existing_song = song is defined and song and song.id %}
 {% set wf = existing_song ? song_workflow(song) : {} %}
 
@@ -50,3 +62,22 @@
     {% endif %}
 {% endif %}
 </nav>
+"""
+
+p.write_text(content, encoding="utf-8", newline="\n")
+
+# Remove the R35.5 "dashboard-only" CSS rule if present; it is no longer wanted.
+css = root / "public/assets/css/r35-5-ux.css"
+if css.is_file():
+    s = css.read_text(encoding="utf-8-sig")
+    s = s.replace(".dashboard-only-tab{display:flex;max-width:260px;margin-bottom:18px}.dashboard-only-tab .workflow-tab{width:100%;justify-content:center}", "")
+    css.write_text(s, encoding="utf-8", newline="\n")
+
+readme = root / "readme.md"
+if readme.is_file():
+    s = readme.read_text(encoding="utf-8-sig")
+    if "R35.5a WORKFLOW TABS FIX" not in s:
+        s += "\n\n## R35.5a WORKFLOW TABS FIX\nRestaure la navigation complète du workflow. Seul le premier onglet devient `TABLEAU DE BORD`; Import, Édition, StemsLab, ChordsLab, LyricsLab et Publication restent présents et gardent leur verrouillage par prérequis.\n"
+    readme.write_text(s, encoding="utf-8", newline="\n")
+
+print("R35_5A_APPLIED_OK")

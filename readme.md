@@ -115,3 +115,7 @@ Jobs orphelins >120s requeue; propriétaire inchangé; délégations owner/admin
 
 ## R35.5 UX + COLLAB + MAIL
 Dashboard simplifié, Répertoire, délégations visibles et fonctionnelles, propriétaire explicite, contact admin corrigé.
+
+
+## R35.5a WORKFLOW TABS FIX
+Restaure la navigation complète du workflow. Seul le premier onglet devient `TABLEAU DE BORD`; Import, Édition, StemsLab, ChordsLab, LyricsLab et Publication restent présents et gardent leur verrouillage par prérequis.
