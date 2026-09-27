@@ -45,7 +45,8 @@ final class SongRepository extends ServiceEntityRepository
     public function findForEditor(User $editor, ?string $query = null, string $sort = 'title', ?string $letter = null): array
     {
         $qb = $this->baseCatalogQuery()
-            ->andWhere('(s.status = :published OR s.editor = :editor)')
+            ->leftJoin('App\\Domain\\Song\\SongCollaborator','sc','WITH','sc.song = s AND sc.user = :editor')
+            ->andWhere('(s.status = :published OR s.editor = :editor OR sc.id IS NOT NULL)')
             ->setParameter('published', SongStatus::Published->value)
             ->setParameter('editor', $editor);
 
@@ -55,6 +56,9 @@ final class SongRepository extends ServiceEntityRepository
 
         return $qb->getQuery()->getResult();
     }
+
+    public function findByAudioSha256(string $sha256): ?Song { return $this->findOneBy(['audioSha256'=>$sha256]); }
+    public function findLikelyDuplicate(string $title,string $artist): array { return $this->createQueryBuilder('s')->andWhere('LOWER(TRIM(s.title)) = :title')->andWhere('LOWER(TRIM(s.artist)) = :artist')->setParameter('title',mb_strtolower(trim($title)))->setParameter('artist',mb_strtolower(trim($artist)))->orderBy('s.id','ASC')->getQuery()->getResult(); }
 
     private function baseCatalogQuery(): QueryBuilder
     {

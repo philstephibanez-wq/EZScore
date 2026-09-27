@@ -7,6 +7,7 @@ namespace App\Security\Acl;
 use App\Domain\Song\Song;
 use App\Domain\Song\SongStatus;
 use App\Domain\User\User;
+use App\Service\SongAccessPolicy;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\AccessDecisionManagerInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
@@ -28,6 +29,7 @@ final class SongVoter extends Voter
 
     public function __construct(
         private readonly AccessDecisionManagerInterface $accessDecisionManager,
+        private readonly SongAccessPolicy $songAccess,
     ) {
     }
 
@@ -56,8 +58,7 @@ final class SongVoter extends Voter
             return false;
         }
 
-        $ownsSong = $subject->getEditor() instanceof User
-            && $subject->getEditor()->getId() === $user->getId();
+        $ownsSong = $this->songAccess->canEdit($subject,$user,false);
 
         return match ($attribute) {
             AclPrivilege::SONG_VIEW,

@@ -20,7 +20,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 
-APP_VERSION = "R35.2"
+APP_VERSION = "R35.4"
 HEARTBEAT_SECONDS = 2.0
 CLAIM_SECONDS = 1.5
 

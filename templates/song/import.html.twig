@@ -13,6 +13,7 @@
     </div>
 </header>
 
+{% if duplicate_song is defined and duplicate_song %}<div class="flash flash-error"><strong>Doublon probable :</strong> {{ duplicate_song.artist }} — {{ duplicate_song.title }} (#{{ duplicate_song.id }}). Rechargez le fichier et confirmez seulement s’il s’agit d’une autre version.</div>{% endif %}
 <form method="post" enctype="multipart/form-data" class="song-import-form">
     <input type="hidden" name="_token" value="{{ csrf_token('song_import') }}">
 
@@ -51,6 +52,6 @@
         <a class="ez-back-link" href="{{ path('app_catalog', {'_locale': app.request.locale}) }}">{{ 'common.cancel'|trans }}</a>
         <button class="primary" type="submit">{{ 'catalog.import.submit'|trans }}</button>
     </div>
-</form>
+{% if duplicate_song is defined and duplicate_song %}<label><input type="checkbox" name="confirm_duplicate" value="1" required> Je confirme qu’il s’agit d’une autre version/interprétation.</label>{% endif %}</form>
 {% endblock %}
 {% block javascripts %}<script src="/assets/js/song-import.js?v=20260925r21"></script>{% endblock %}

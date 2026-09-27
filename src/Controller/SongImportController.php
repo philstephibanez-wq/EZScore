@@ -11,6 +11,8 @@ use App\Domain\User\UserRepository;
 use App\Service\SongImportStorage;
 use App\Service\SongStemStorage;
 use App\Service\ChordTimelineStorage;
+use App\Service\SongAccessPolicy;
+use App\Domain\Song\SongRepository;
 use App\Domain\Song\SongTimelineEventRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
@@ -28,6 +30,7 @@ final class SongImportController extends AbstractController
         Request $request,
         UserRepository $users,
         SongImportStorage $storage,
+        SongRepository $songs,
         EntityManagerInterface $em,
         LoggerInterface $logger,
         #[Autowire('%kernel.environment%')]
@@ -73,6 +76,14 @@ final class SongImportController extends AbstractController
                     throw new \InvalidArgumentException($errorKey);
                 }
 
+                $sha256=hash_file('sha256',$audio->getPathname());
+                $exact=is_string($sha256)?$songs->findByAudioSha256($sha256):null;
+                $likely=$songs->findLikelyDuplicate($song->getTitle(),$song->getArtist());
+                if(($exact||$likely) && !$request->request->getBoolean('confirm_duplicate')){
+                    $duplicate=$exact ?? $likely[0];
+                    $this->addFlash('error',sprintf('Doublon probable : %s — %s (#%d). Rechargez le fichier et confirmez seulement s’il s’agit réellement d’une autre version.',$duplicate->getArtist(),$duplicate->getTitle(),$duplicate->getId()));
+                    return $this->render('song/import.html.twig',['editors'=>$editors,'current_editor'=>$user,'status_choices'=>[SongStatus::Imported,SongStatus::Editing,SongStatus::Published],'duplicate_song'=>$duplicate]);
+                }
                 $audioData = $storage->storeAudio($audio);
                 $song->setImportedAudio(
                     $audioData['original_name'],
@@ -154,14 +165,11 @@ final class SongImportController extends AbstractController
         SongStemStorage $stems,
         ChordTimelineStorage $chords,
         SongTimelineEventRepository $timeline,
+        SongAccessPolicy $songAccess,
         EntityManagerInterface $em,
     ): Response {
         $user = $this->getUser();
-        $canEdit = $user instanceof User && (
-            $this->isGranted('ROLE_ADMIN')
-            || ($this->isGranted('ROLE_EDITOR') && $song->getEditor()?->getId() === $user->getId())
-        );
-        if (!$canEdit) throw $this->createAccessDeniedException();
+        if(!$user instanceof User || !$songAccess->canEdit($song,$user,$this->isGranted('ROLE_ADMIN'))) throw $this->createAccessDeniedException();
         if (!$this->isCsrfTokenValid('song_reimport_'.$song->getId(), (string) $request->request->get('_token'))) {
             throw $this->createAccessDeniedException();
         }

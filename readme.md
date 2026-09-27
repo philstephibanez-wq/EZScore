@@ -100,3 +100,7 @@ et la fenêtre Analysis doit contenir `Traitements en cours / à faire`.
 
 ## R35.3 WORKFLOW DASHBOARD
 Analyse devient le tableau de bord chanson; workflow strict Import → Stems → Accords → Paroles → Publication.
+
+
+## R35.4 RECOVERY + COLLAB + CONTACT
+Jobs orphelins >120s requeue; propriétaire inchangé; délégations owner/admin; doublons import; contact admin indirect.

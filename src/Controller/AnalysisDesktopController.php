@@ -81,6 +81,7 @@ final class AnalysisDesktopController extends AbstractController
     public function queue(Request $request): JsonResponse
     {
         $this->guard->assertAuthorized($request);
+        $this->recoverStaleJobs();
         $rows = [];
         foreach ($this->jobs->findDesktopQueue() as $job) {
             $song = $job->getSong();
@@ -104,6 +105,7 @@ final class AnalysisDesktopController extends AbstractController
     public function claim(Request $request): Response
     {
         $this->guard->assertAuthorized($request);
+        $this->recoverStaleJobs();
 
         $job = $this->chordJobs->claimNext() ?? $this->stemJobs->claimNext();
         if (!$job instanceof AnalysisJob) {
@@ -205,6 +207,14 @@ final class AnalysisDesktopController extends AbstractController
         }
 
         return $this->json(['job_id' => $job->getId(), 'status' => 'failed']);
+    }
+
+    private function recoverStaleJobs(): int
+    {
+        $count=0; $cutoff=(new \DateTimeImmutable())->modify('-120 seconds');
+        foreach($this->jobs->findStaleRunning($cutoff) as $job){$job->requeue();++$count;}
+        if($count>0)$this->em->flush();
+        return $count;
     }
 
     /**

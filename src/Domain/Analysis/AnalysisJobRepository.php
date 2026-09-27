@@ -33,6 +33,11 @@ final class AnalysisJobRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    public function findStaleRunning(\DateTimeImmutable $cutoff): array
+    {
+        return $this->createQueryBuilder('job')->andWhere('job.status = :status')->andWhere('job.updatedAt < :cutoff')->setParameter('status', AnalysisJobStatus::Running->value)->setParameter('cutoff',$cutoff)->orderBy('job.updatedAt','ASC')->getQuery()->getResult();
+    }
+
     public function findNextQueued(): ?AnalysisJob
     {
         return $this->createQueryBuilder('job')
