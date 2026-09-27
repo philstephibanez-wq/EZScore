@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="/assets/css/workflow-tabs-r23-2.css?v=20260926r32_3">
     {% block stylesheets %}{% endblock %}
     <link rel="stylesheet" href="/assets/css/interactions.css?v=20260924f">
+    <link rel="stylesheet" href="/assets/css/ez-modal.css?v=20260928r35_7">
     <link rel="stylesheet" href="/assets/css/r21-admin.css?v=20260925r21">
     <link rel="stylesheet" href="/assets/css/r35-4a-contact-header.css?v=20260927r35_4a">
     <link rel="stylesheet" href="/assets/css/r35-5-ux.css?v=20260927r35_5">
@@ -142,9 +143,16 @@
     </main>
 
 {% if app.user %}</div>{% endif %}
+<div class="ez-modal-backdrop" data-ez-confirm-modal hidden>
+<section class="ez-modal" role="dialog" aria-modal="true" aria-labelledby="ez-confirm-title">
+<div class="ez-modal-icon" aria-hidden="true">!</div>
+<div class="ez-modal-copy"><div class="eyebrow">Confirmation</div><h2 id="ez-confirm-title">Confirmer l’action</h2><p data-ez-confirm-message></p></div>
+<div class="ez-modal-actions"><button type="button" data-ez-confirm-cancel>Annuler</button><button type="button" class="danger-soft" data-ez-confirm-ok>Confirmer</button></div>
+</section></div>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="/assets/js/app.js?v=20260924f"></script>
 <script src="/assets/js/dirty-tracker.js?v=20260924"></script>
+<script src="/assets/js/ez-modal.js?v=20260928r35_7"></script>
 {% if app.user and is_granted('ROLE_EDITOR') %}
 <script src="/assets/js/analysis-worker-status.js?v=20260926r24_16"></script>
 {% endif %}

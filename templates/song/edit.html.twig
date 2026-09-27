@@ -59,7 +59,7 @@
           class="song-audio-replace-form">
         <input type="hidden" name="_token" value="{{ csrf_token('song_audio_' ~ song.id) }}">
         <input type="file" name="audio" accept=".mp3,.wav,.flac,.m4a,.ogg,.aac,audio/*" required>
-        <button class="danger-soft" type="submit" onclick="return confirm('{{ 'song.edit.audio.confirm'|trans|e('js') }}')">{{ 'song.edit.audio.replace'|trans }}</button>
+        <button class="danger-soft" type="submit" data-ez-confirm="{{ 'song.edit.audio.confirm'|trans|e('html_attr') }}">{{ 'song.edit.audio.replace'|trans }}</button>
     </form>
 </section>
 {% endblock %}

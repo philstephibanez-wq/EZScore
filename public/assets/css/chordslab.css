@@ -370,3 +370,5 @@
     line-height:1!important;
     vertical-align:baseline!important;
 }
+
+.chord-analysis-noise-filter{display:inline-flex;align-items:center;gap:.55rem;margin-right:.75rem;font-size:.9rem}.chord-analysis-noise-filter input{width:18px;height:18px}

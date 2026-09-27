@@ -73,7 +73,7 @@
             }
 
             const media = document.createElement('audio');
-            media.preload = 'none';
+            media.preload = 'auto';
             media.playsInline = true;
             media.controls = false;
             media.loop = false;
@@ -160,7 +160,41 @@
             this.tracks.set(track.key, track);
             this._setTrackState(track, 'idle');
 
+            // Start network/media warm-up without playback. Browser cache then
+            // serves the first Play immediately or nearly immediately.
+            queueMicrotask(() => {
+                if (!this.disposed) this._ensureTrackReady(track).catch((error) => this._trackFailure(track, error));
+            });
+
             return track;
+        }
+
+        warmUp(options = {}) {
+            if (this.disposed) return Promise.resolve([]);
+            const enabledFirst = options.enabledFirst !== false;
+            const tracks = Array.from(this.tracks.values());
+            const ordered = enabledFirst
+                ? [...tracks.filter((t) => t.enabled), ...tracks.filter((t) => !t.enabled)]
+                : tracks;
+            this.dispatchEvent(new CustomEvent('statechange', {detail: {state: 'preloading'}}));
+            return Promise.allSettled(
+                ordered.map((track, index) => new Promise((resolve) => {
+                    const delay = track.enabled ? 0 : Math.min(1200, 120 * index);
+                    setTimeout(() => {
+                        this._ensureTrackReady(track)
+                            .then(resolve)
+                            .catch((error) => {
+                                this._trackFailure(track, error);
+                                resolve(track);
+                            });
+                    }, delay);
+                }))
+            ).then((result) => {
+                if (!this.disposed && !this.playing) {
+                    this.dispatchEvent(new CustomEvent('statechange', {detail: {state: 'ready'}}));
+                }
+                return result;
+            });
         }
 
         setTrackEnabled(key, enabled) {

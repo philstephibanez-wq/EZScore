@@ -21,7 +21,7 @@ final class SongChordJobService
         private readonly SongStemStorage $stems,
     ) {}
 
-    public function queue(Song $song, User $user): AnalysisJob
+    public function queue(Song $song, User $user, bool $filterNoise = false): AnalysisJob
     {
         if (!$this->stems->hasCompleteStems($song)) throw new \DomainException('workflow.stems_required');
         if ($active = $this->findActive($song)) return $active;
@@ -31,6 +31,7 @@ final class SongChordJobService
             'scope' => 'chords',
             'level' => $song->getChordAnalysisLevel(),
             'time_signature' => $song->getTimeSignature(),
+            'filter_noise' => $filterNoise,
         ]);
         $this->em->persist($job);
         $this->em->flush();

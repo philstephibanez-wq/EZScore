@@ -632,6 +632,8 @@ class WorkerEngine:
                 command.extend(["--stem", str(stem_path)])
         if paths.get("drums"):
             command.extend(["--drums", str(paths["drums"])])
+        if bool(request.get("filter_noise")):
+            command.append("--filter-noise")
 
         progress_path = Path(str(paths["progress_file"]))
         result_path = Path(str(paths["result_file"]))

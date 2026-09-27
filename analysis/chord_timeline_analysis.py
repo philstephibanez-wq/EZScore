@@ -119,6 +119,35 @@ def position(i,phase,bpm):
     shifted=i-phase
     return 1+shifted//bpm,shifted%bpm
 
+def suppress_crowd_noise(y,sr,hop=512):
+    if y is None or len(y)<hop*4:return y,None
+    harmonic,_=librosa.effects.hpss(y)
+    flat=librosa.feature.spectral_flatness(y=y,hop_length=hop)[0]
+    onset=librosa.onset.onset_strength(y=y,sr=sr,hop_length=hop)
+    n=min(len(flat),len(onset))
+    if n==0:return harmonic,None
+    f=flat[:n];o=onset[:n]
+    fz=(f-np.median(f))/(np.std(f)+1e-9);oz=(o-np.median(o))/(np.std(o)+1e-9)
+    contaminated=(fz>0.85)&(oz>0.55)
+    mask=np.ones(n,float);mask[contaminated]=0.18
+    if len(mask)>=5:
+        mask=np.clip(np.convolve(mask,np.ones(5)/5.0,mode="same"),.18,1.0)
+    cleaned=.82*harmonic+.18*y
+    return librosa.util.normalize(cleaned),mask
+
+def extend_beats_to_zero(beat_times,duration,tempo):
+    bt=np.asarray(beat_times,dtype=float)
+    if bt.size==0:
+        step=60.0/tempo if tempo>20 else .5
+        return np.arange(0.0,duration,step,float),0
+    diffs=np.diff(bt);positive=diffs[diffs>1e-4]
+    step=float(np.median(positive)) if positive.size else (60.0/tempo if tempo>20 else .5)
+    prepend=[];t=float(bt[0])-step
+    while t>0.04:prepend.append(t);t-=step
+    if bt[0]>step*.40:prepend.append(max(0.0,t))
+    prepend=sorted(set(round(max(0.0,x),6) for x in prepend))
+    return (np.concatenate([np.asarray(prepend,float),bt]),len(prepend)) if prepend else (bt,0)
+
 def load_mix(paths,sr=11025):
     signals=[];target=0
     for path in paths:
@@ -170,7 +199,7 @@ def decode_profile(level,beat_vectors,silent,in_key,beat_times,bpm,phase):
     labels=[];confs=[];last="."
     for i,state in enumerate(states):
         if silent[i]:
-            labels.append(last);confs.append(0.0);continue
+            labels.append(".");confs.append(0.0);last=".";continue
         c=cs[state];ordered=np.sort(scores[i]);margin=float(ordered[-1]-ordered[-2]) if len(ordered)>1 else 0.0
         label=c["label"]
 
@@ -204,7 +233,7 @@ def decode_profile(level,beat_vectors,silent,in_key,beat_times,bpm,phase):
         previous=label
     return chords
 
-def analyse(source,stems,drums,requested_signature,progress_file=None):
+def analyse(source,stems,drums,requested_signature,progress_file=None,filter_noise=False):
     prog(progress_file,5,"load","Chargement des sources audio")
     harmonic=[p for p in stems if p and Path(p).is_file()]
     if harmonic:
@@ -212,8 +241,12 @@ def analyse(source,stems,drums,requested_signature,progress_file=None):
     else:
         yh,sr=load_mix([source]);harmonic_source="original"
 
+    noise_mask=None
+    if filter_noise:
+        yh,noise_mask=suppress_crowd_noise(yh,sr)
     if drums and Path(drums).is_file():
         yr,_=librosa.load(str(drums),sr=sr,mono=True);yr=librosa.util.normalize(yr);rhythm_source="drums"
+        if filter_noise:yr,_=suppress_crowd_noise(yr,sr)
     else:
         yr=yh;rhythm_source=harmonic_source
 
@@ -290,6 +323,8 @@ def analyse(source,stems,drums,requested_signature,progress_file=None):
         "key":key,
         "harmony_source":harmonic_source,
         "rhythm_source":rhythm_source,
+        "noise_filter_enabled":bool(filter_noise),
+        "harmonic_goal":"guitar_accompaniment_from_full_harmony",
         "downbeat_phase":phase,
         "downbeat_confidence":round(float(phase_conf),4),
         "meter_candidates":metric_scores,
@@ -309,11 +344,12 @@ def main():
     # Kept for backward compatibility with R33 worker command; R34 always computes all profiles.
     p.add_argument("--level",choices=PROFILES,default="intermediate")
     p.add_argument("--time-signature",default="auto")
+    p.add_argument("--filter-noise",action="store_true")
     p.add_argument("--progress-file")
     p.add_argument("--output")
     a=p.parse_args()
     try:
-        result=analyse(Path(a.audio),a.stem,a.drums,a.time_signature,a.progress_file)
+        result=analyse(Path(a.audio),a.stem,a.drums,a.time_signature,a.progress_file,a.filter_noise)
         prog(a.progress_file,96,"write","Écriture des trois profils")
         if a.output:
             write_json(a.output,result)

@@ -122,7 +122,7 @@ final class SongLabController extends AbstractController
             $this->addFlash('error','Les stems doivent être terminés avant l’analyse des accords.');
             return $this->redirectToRoute('app_song_analysis_lab',['_locale'=>$request->getLocale(),'id'=>$song->getId()]);
         }
-        $chordJobs->queue($song, $user);
+        $chordJobs->queue($song, $user, $request->request->getBoolean('filter_noise'));
 
         return $this->redirectToRoute('app_song_chordslab', [
             '_locale' => $request->getLocale(),
