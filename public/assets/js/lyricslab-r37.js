@@ -1,214 +1,32 @@
 (() => {
 'use strict';
-
-const root=document.querySelector('[data-lyricslab]');
-if(!root)return;
-
-const parse=value=>{try{return JSON.parse(value||'[]')}catch(_){return[]}};
-const beats=parse(root.dataset.beats).sort((a,b)=>a.start_ms-b.start_ms);
-const chords=parse(root.dataset.chords).sort((a,b)=>(a.start_ms-b.start_ms)||(a.id-b.id));
-const lyrics=parse(root.dataset.lyrics).sort((a,b)=>(a.start_ms-b.start_ms)||(a.id-b.id));
-const measuresEl=root.querySelector('[data-lyrics-measures]');
-const capo=Number(root.dataset.capo||0);
-if(!measuresEl)return;
-
+const root=document.querySelector('[data-lyricslab]');if(!root)return;
+const parse=v=>{try{return JSON.parse(v||'[]')}catch(_){return[]}};
+const beats=parse(root.dataset.beats).sort((a,b)=>Number(a.start_ms)-Number(b.start_ms));
+const chords=parse(root.dataset.chords).sort((a,b)=>(Number(a.start_ms)-Number(b.start_ms))||(Number(a.id)-Number(b.id)));
+const lyrics=parse(root.dataset.lyrics).sort((a,b)=>(Number(a.start_ms)-Number(b.start_ms))||(Number(a.id)-Number(b.id)));
+const host=root.querySelector('[data-lyrics-measures]');const capo=Number(root.dataset.capo||0);if(!host||!beats.length)return;
 const NOTE_TO_PC={C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
-const SHARP=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-const FLAT=['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
-
-function displayChord(value){
- const chord=String(value||'').trim().replace(/^\[([^\]]+)\]$/,'$1');
- if(!chord||chord==='.')return chord||'.';
- const m=/^([A-G](?:#|b)?)(.*)$/.exec(chord);if(!m)return chord;
- const pc=NOTE_TO_PC[m[1]];if(pc===undefined)return chord;
- const names=m[1].includes('b')?FLAT:SHARP;
- return names[(pc-capo+120)%12]+m[2];
-}
-function activeChord(ms){
- let current=null;
- for(const e of chords){if(e.start_ms<=ms)current=e;else break}
- return current;
-}
-function nextBeatStart(index){
- if(index+1<beats.length)return beats[index+1].start_ms;
- const delta=index>0?beats[index].start_ms-beats[index-1].start_ms:500;
- return beats[index].start_ms+Math.max(250,delta);
-}
-function build(){
- const measures=new Map();
- beats.forEach((beat,index)=>{
-  const measureIndex=Number.isInteger(beat.measure_index)?beat.measure_index:0;
-  if(!measures.has(measureIndex))measures.set(measureIndex,[]);
-  const end=nextBeatStart(index);
-  const exact=chords.find(e=>e.start_ms>=beat.start_ms&&e.start_ms<end);
-  const active=exact||activeChord(beat.start_ms);
-  let chordText='-';
-  if(exact)chordText=displayChord(exact.effective||exact.original||'.');
-  else if((active?.effective||active?.original||'')==='.')chordText='.';
-  else if(Number(beat.beat_index||0)===0)chordText=displayChord(active?.effective||active?.original||'.');
-  const words=lyrics.filter(w=>w.start_ms>=beat.start_ms&&w.start_ms<end);
-  measures.get(measureIndex).push({beat,index,chordText,words});
- });
- measuresEl.innerHTML='';
- for(const [measureIndex,slots] of measures){
-  const measure=document.createElement('div');
-  measure.className='chord-measure';
-  measure.dataset.measure=String(measureIndex);
-  const number=document.createElement('small');
-  number.className='chord-measure-number';
-  number.textContent=String(Number(measureIndex)+1);
-  measure.appendChild(number);
-  const notation=document.createElement('div');
-  notation.className='chord-measure-notation lyricslab-notation';
-  for(const slot of slots){
-   const cell=document.createElement('div');
-   cell.className='chord-slot lyricslab-beat';
-   cell.dataset.beatSeq=String(slot.index);
-   cell.dataset.startMs=String(slot.beat.start_ms);
-   cell.dataset.beat=String(slot.beat.beat_index??0);
-
-   const chord=document.createElement('div');
-   chord.className='lyricslab-chord';
-   chord.textContent=slot.chordText;
-   cell.appendChild(chord);
-
-   const words=document.createElement('div');
-   words.className='lyricslab-words';
-   for(const word of slot.words){
-    const b=document.createElement('button');
-    b.type='button';
-    b.className='lyricslab-word';
-    b.textContent=word.effective||word.original||'';
-    b.dataset.eventId=String(word.id);
-    b.dataset.startMs=String(word.start_ms);
-    b.dataset.endMs=String(word.end_ms||word.start_ms+160);
-    words.appendChild(b);
-   }
-   cell.appendChild(words);
-   notation.appendChild(cell);
-  }
-  measure.appendChild(notation);
-  measuresEl.appendChild(measure);
- }
-}
-async function editWord(button){
- const id=button.dataset.eventId;if(!id)return;
- const input=document.createElement('input');
- input.className='lyricslab-word-input';
- input.value=button.textContent||'';
- button.replaceWith(input);input.focus();input.select();
- let done=false;
- const restore=()=>{if(done)return;done=true;build()};
- const save=async()=>{
-  if(done)return;
-  const text=input.value.trim();if(!text){restore();return}
-  const url=root.dataset.editUrlTemplate.replace('__EVENT__',id);
-  const response=await fetch(url,{
-   method:'POST',credentials:'same-origin',
-   headers:{'Content-Type':'application/json','Accept':'application/json'},
-   body:JSON.stringify({_token:root.dataset.editToken,text})
-  });
-  if(!response.ok){input.classList.add('is-error');return}
-  const data=await response.json();
-  const event=lyrics.find(row=>String(row.id)===String(id));
-  if(event){event.override=data.override;event.effective=data.effective}
-  done=true;build();
- };
- input.addEventListener('keydown',e=>{
-  if(e.key==='Enter'){e.preventDefault();save()}
-  else if(e.key==='Escape'){e.preventDefault();restore()}
- });
- input.addEventListener('blur',save,{once:true});
-}
-measuresEl.addEventListener('click',e=>{
- const b=e.target.closest('.lyricslab-word[data-event-id]');
- if(b)editWord(b);
-});
-
-document.querySelector('[data-stem-mixer]')?.addEventListener('ezscore:audio-timeupdate',e=>{
- const ms=Number(e.detail?.time||0)*1000;
- let seq=-1;
- for(let i=0;i<beats.length;i++){if(beats[i].start_ms<=ms)seq=i;else break}
- measuresEl.querySelectorAll('.is-current').forEach(el=>el.classList.remove('is-current'));
- if(seq>=0){
-  const cell=measuresEl.querySelector(`.chord-slot[data-beat-seq="${seq}"]`);
-  cell?.classList.add('is-current');
-  cell?.closest('.chord-measure')?.classList.add('is-current');
- }
- let currentWord=null;
- measuresEl.querySelectorAll('.lyricslab-word').forEach(word=>{
-  const start=Number(word.dataset.startMs||0);
-  const end=Number(word.dataset.endMs||start+160);
-  const on=ms>=start&&ms<Math.max(end,start+120);
-  word.classList.toggle('is-current',on);
-  if(on)currentWord=word;
- });
- currentWord?.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'});
-});
-
-build();
-
-const source=document.querySelector('[data-lyrics-source]');
-const saveState=document.querySelector('[data-lyrics-save-state]');
-let timer=null;
-async function saveSource(){
- if(!source)return true;
- try{
-  const response=await fetch(source.dataset.saveUrl,{
-   method:'POST',credentials:'same-origin',
-   headers:{'Content-Type':'application/json','Accept':'application/json'},
-   body:JSON.stringify({_token:source.dataset.saveToken,text:source.value})
-  });
-  if(!response.ok)throw new Error(`source_http_${response.status}`);
-  if(saveState)saveState.textContent='Enregistré';
-  return true;
- }catch(_){
-  if(saveState)saveState.textContent='Échec enregistrement';
-  return false;
- }
-}
-source?.addEventListener('input',()=>{
- if(saveState)saveState.textContent='Modifié…';
- clearTimeout(timer);
- timer=setTimeout(saveSource,450);
-});
-
-const progress=document.querySelector('[data-lyrics-progress]');
-const statusUrl=progress?.dataset.statusUrl||'';
-const bar=progress?.querySelector('progress');
-const label=progress?.querySelector('[data-lyrics-progress-text]');
-const percent=progress?.querySelector('[data-lyrics-progress-percent]');
-async function poll(){
- if(!statusUrl)return;
- try{
-  const response=await fetch(statusUrl,{headers:{Accept:'application/json'},cache:'no-store',credentials:'same-origin'});
-  if(response.ok){
-   const data=await response.json();
-   const status=String(data.status||'');
-   const pct=Number(data.progress||0);
-   if(status==='queued'||status==='running'){
-    progress.hidden=false;
-    if(bar)bar.value=pct;
-    if(percent)percent.textContent=`${pct}%`;
-    if(label)label.textContent=status==='queued'
-      ? 'En attente du Worker…'
-      : (data.mode==='extract'?'Extraction automatique des paroles…':'Ancrage des paroles sur la timeline…');
-   }else if(status==='failed'){
-    progress.hidden=false;
-    if(percent)percent.textContent='Erreur';
-    if(label)label.textContent=data.error||'Analyse des paroles en échec.';
-   }else if(status==='completed'){
-    const key=`ezscore.lyrics.job.reloaded.${data.job_id}`;
-    if(data.job_id&&sessionStorage.getItem(key)!=='1'){
-     sessionStorage.setItem(key,'1');
-     location.reload();
-     return;
-    }
-    progress.hidden=true;
-   }else progress.hidden=true;
-  }
- }catch(_){}
- setTimeout(poll,900);
-}
-poll();
+const SHARP=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];const FLAT=['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+function displayChord(v){const c=String(v||'').trim().replace(/^\[([^\]]+)\]$/,'$1');if(!c||c==='.')return c||'.';const m=/^([A-G](?:#|b)?)(.*)$/.exec(c);if(!m)return c;const pc=NOTE_TO_PC[m[1]];if(pc===undefined)return c;const n=m[1].includes('b')?FLAT:SHARP;return n[(pc-capo+120)%12]+m[2]}
+function activeChordAt(ms){let c=null;for(const e of chords){if(Number(e.start_ms)<=ms)c=e;else break}return c}
+const starts=beats.map(b=>Number(b.start_ms||0)/1000);const gaps=[];for(let i=1;i<starts.length;i++){const g=starts[i]-starts[i-1];if(Number.isFinite(g)&&g>.02)gaps.push(g)}gaps.sort((a,b)=>a-b);
+const nominal=gaps.length?gaps[Math.floor(gaps.length/2)]:.5;const spacing=156;const firstStart=Math.max(0,starts[0]||0);const firstX=firstStart/Math.max(.02,nominal)*spacing;const xBeat=i=>firstX+i*spacing;
+function beatIndex(t){if(!beats.length||Number(t)<starts[0])return-1;let lo=0,hi=starts.length-1,a=-1;while(lo<=hi){const m=(lo+hi)>>1;if(starts[m]<=t){a=m;lo=m+1}else hi=m-1}return a}
+function metricX(t){t=Math.max(0,Number(t)||0);if(!starts.length)return t/Math.max(.02,nominal)*spacing;if(t<=starts[0])return firstStart>.001?firstX*(t/firstStart):0;const i=beatIndex(t);if(i<0)return 0;if(i>=starts.length-1)return xBeat(i)+(t-starts[i])/Math.max(.02,nominal)*spacing;const t0=starts[i],t1=Math.max(t0+.02,starts[i+1]);const p=Math.max(0,Math.min(1,(t-t0)/(t1-t0)));return xBeat(i)+p*spacing}
+function fallbackSyllables(text){const raw=String(text||'').trim();if(!raw)return[];if(raw.includes('·'))return raw.split('·').map(x=>x.trim()).filter(Boolean);if(raw.includes('-'))return raw.split('-').map(x=>x.trim()).filter(Boolean);const ap=raw.match(/^(.+[’'])(.+)$/u);if(ap)return[ap[1],...fallbackSyllables(ap[2])];const clean=raw.replace(/[^\p{L}\p{M}]+/gu,'');if(!clean)return[raw];const vowels='aeiouyàâäéèêëîïôöùûüÿœæ';const re=new RegExp(`[^${vowels}]*[${vowels}]+(?:[^${vowels}](?=[^${vowels}]*[${vowels}]|$))*`,'giu');const parts=clean.match(re);return parts&&parts.length?parts:[raw]}
+function syllablesForEvent(ev){const start=Number(ev.start_ms||0),end=Math.max(Number(ev.end_ms||start+180),start+180),word=String(ev.effective||ev.original||'').trim();if(!word)return[];if(Array.isArray(ev.syllables)&&ev.syllables.length){const x=ev.syllables.map((s,i)=>typeof s==='string'?{text:s,index:i}:{text:String(s.text||''),index:i,start_ms:Number(s.start_ms??s.start??start),end_ms:Number(s.end_ms??s.end??end)}).filter(s=>s.text);if(x.every(s=>Number.isFinite(s.start_ms)&&Number.isFinite(s.end_ms)))return x.map(s=>({...s,eventId:ev.id,word}))}const parts=fallbackSyllables(word);if(parts.length<=1)return[{text:word,eventId:ev.id,word,start_ms:start,end_ms:end,index:0,count:1}];const weights=parts.map(p=>Math.max(1,[...p].length)),total=weights.reduce((a,b)=>a+b,0),duration=end-start;let cursor=start;return parts.map((part,i)=>{const segEnd=i===parts.length-1?end:cursor+duration*(weights[i]/total);const r={text:part,eventId:ev.id,word,start_ms:cursor,end_ms:segEnd,index:i,count:parts.length};cursor=segEnd;return r})}
+const syllables=lyrics.flatMap(syllablesForEvent);
+host.innerHTML='<div class="ez-karaoke-viewport" data-karaoke-viewport><div class="ez-karaoke-track" data-karaoke-track><div class="ez-karaoke-chords" data-karaoke-chords></div><div class="ez-karaoke-lyrics" data-karaoke-lyrics></div></div></div>';
+const viewport=host.querySelector('[data-karaoke-viewport]'),track=host.querySelector('[data-karaoke-track]'),chordsLane=host.querySelector('[data-karaoke-chords]'),lyricsLane=host.querySelector('[data-karaoke-lyrics]');
+const lastT=Math.max(starts.at(-1)||0,Number(syllables.at(-1)?.end_ms||0)/1000);track.style.width=`${Math.max(2200,metricX(lastT)+spacing*8)}px`;
+beats.forEach((beat,index)=>{const startMs=Number(beat.start_ms||0),nextMs=index+1<beats.length?Number(beats[index+1].start_ms):startMs+nominal*1000,exact=chords.find(e=>Number(e.start_ms)>=startMs&&Number(e.start_ms)<nextMs),active=exact||activeChordAt(startMs),beatNo=Number(beat.beat_index||0);let text='-';if(exact)text=displayChord(exact.effective||exact.original||'.');else if((active?.effective||active?.original||'')==='.')text='.';else if(beatNo===0)text=displayChord(active?.effective||active?.original||'.');const cell=document.createElement('div');cell.className='ez-karaoke-beat';if(beatNo===0)cell.classList.add('measure-start');cell.dataset.beatSeq=String(index);cell.style.left=`${xBeat(index)}px`;cell.style.width=`${spacing}px`;const chord=document.createElement('strong');chord.className='ez-karaoke-chord';chord.textContent=text;cell.appendChild(chord);if(beatNo===0){const n=document.createElement('small');n.className='ez-karaoke-measure';n.textContent=`#${Number(beat.measure_index||0)+1}`;cell.appendChild(n)}chordsLane.appendChild(cell)});
+syllables.forEach((syl,index)=>{const el=document.createElement('button');el.type='button';el.className='ez-karaoke-syllable';el.textContent=syl.text;el.dataset.eventId=String(syl.eventId||'');el.dataset.word=String(syl.word||'');el.dataset.startMs=String(Math.round(syl.start_ms));el.dataset.endMs=String(Math.round(syl.end_ms));el.dataset.syllableIndex=String(index);el.style.left=`${metricX(Number(syl.start_ms||0)/1000)}px`;lyricsLane.appendChild(el)});
+async function editWordFromSyllable(button){const id=button.dataset.eventId;if(!id)return;const value=window.prompt('Corriger le mot',button.dataset.word||button.textContent||'');if(value===null)return;const text=value.trim();if(!text)return;const url=root.dataset.editUrlTemplate.replace('__EVENT__',id);const response=await fetch(url,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({_token:root.dataset.editToken,text})});if(response.ok)location.reload()}
+lyricsLane.addEventListener('click',e=>{const b=e.target.closest('.ez-karaoke-syllable[data-event-id]');if(b)editWordFromSyllable(b)});
+let lastMs=0,lastBeat=-2,lastSyllable=-2;const focusX=()=>Math.max(96,viewport.clientWidth*.38);
+function renderAt(ms){lastMs=Math.max(0,Number(ms)||0);const t=lastMs/1000;track.style.transform=`translate3d(${focusX()-metricX(t)}px,0,0)`;const bi=beatIndex(t);if(bi!==lastBeat){lastBeat=bi;chordsLane.querySelectorAll('.is-current').forEach(el=>el.classList.remove('is-current'));if(bi>=0)chordsLane.querySelector(`.ez-karaoke-beat[data-beat-seq="${bi}"]`)?.classList.add('is-current')}let si=-1;for(let i=0;i<syllables.length;i++){const s=syllables[i],st=Number(s.start_ms||0),en=Math.max(Number(s.end_ms||st+120),st+120);if(lastMs>=st&&lastMs<en){si=i;break}}if(si!==lastSyllable){lastSyllable=si;lyricsLane.querySelectorAll('.is-current,.is-word-current').forEach(el=>el.classList.remove('is-current','is-word-current'));if(si>=0){const current=lyricsLane.querySelector(`.ez-karaoke-syllable[data-syllable-index="${si}"]`);current?.classList.add('is-current');const id=current?.dataset.eventId;if(id)lyricsLane.querySelectorAll(`.ez-karaoke-syllable[data-event-id="${CSS.escape(id)}"]`).forEach(el=>el.classList.add('is-word-current'))}}}
+document.querySelector('[data-stem-mixer]')?.addEventListener('ezscore:audio-timeupdate',e=>renderAt(Number(e.detail?.time||0)*1000));window.addEventListener('resize',()=>renderAt(lastMs));renderAt(0);
+const source=document.querySelector('[data-lyrics-source]'),saveState=document.querySelector('[data-lyrics-save-state]');let timer=null;async function saveSource(){if(!source)return true;try{const response=await fetch(source.dataset.saveUrl,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({_token:source.dataset.saveToken,text:source.value})});if(!response.ok)throw new Error(`source_http_${response.status}`);if(saveState)saveState.textContent='Enregistré';return true}catch(_){if(saveState)saveState.textContent='Échec enregistrement';return false}}source?.addEventListener('input',()=>{if(saveState)saveState.textContent='Modifié…';clearTimeout(timer);timer=setTimeout(saveSource,450)});
+const progress=document.querySelector('[data-lyrics-progress]'),statusUrl=progress?.dataset.statusUrl||'',bar=progress?.querySelector('progress'),label=progress?.querySelector('[data-lyrics-progress-text]'),percent=progress?.querySelector('[data-lyrics-progress-percent]');async function poll(){if(!statusUrl)return;try{const response=await fetch(statusUrl,{headers:{Accept:'application/json'},cache:'no-store',credentials:'same-origin'});if(response.ok){const data=await response.json(),status=String(data.status||''),pct=Number(data.progress||0);if(status==='queued'||status==='running'){progress.hidden=false;if(bar)bar.value=pct;if(percent)percent.textContent=`${pct}%`;if(label)label.textContent=status==='queued'?'En attente du Worker…':(data.mode==='extract'?'Extraction automatique des paroles…':'Ancrage des paroles sur la timeline…')}else if(status==='failed'){progress.hidden=false;if(percent)percent.textContent='Erreur';if(label)label.textContent=data.error||'Analyse des paroles en échec.'}else if(status==='completed'){const key=`ezscore.lyrics.job.reloaded.${data.job_id}`;if(data.job_id&&sessionStorage.getItem(key)!=='1'){sessionStorage.setItem(key,'1');location.reload();return}progress.hidden=true}else progress.hidden=true}}catch(_){}setTimeout(poll,900)}poll();
 })();

@@ -1,77 +1,11 @@
-/* LyricsLab R37: ChordsLab is the visual source of truth. */
-.lyricslab-source-panel textarea[data-lyrics-source]{
-    box-sizing:border-box;
-    width:100%;
-    min-height:220px;
-    resize:vertical;
-    font:inherit;
-    line-height:1.5;
-}
-.lyricslab-actions{align-items:center}
-.lyricslab-source-footer{
-    display:flex;
-    gap:16px;
-    align-items:center;
-    justify-content:space-between;
-    margin-top:8px;
-}
-.lyricslab-source-footer .page-note{margin:0}
-.lyricslab-beat{
-    min-height:82px;
-    height:auto;
-    display:grid!important;
-    grid-template-rows:28px minmax(34px,auto);
-    align-items:start!important;
-    justify-items:stretch!important;
-    padding:0!important;
-}
-.lyricslab-chord{
-    width:100%;
-    min-width:0;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    min-height:28px;
-    font-weight:800;
-    line-height:1;
-    border-bottom:1px solid rgba(127,127,127,.16);
-    overflow:hidden;
-}
-.lyricslab-words{
-    width:100%;
-    min-width:0;
-    min-height:34px;
-    display:flex;
-    align-items:flex-start;
-    justify-content:center;
-    gap:3px;
-    flex-wrap:wrap;
-    padding:6px 3px;
-    box-sizing:border-box;
-}
-.lyricslab-word{
-    appearance:none;
-    border:0;
-    background:transparent;
-    color:inherit;
-    font:inherit;
-    line-height:1.15;
-    padding:2px 1px;
-    cursor:text;
-    border-radius:3px;
-}
-.lyricslab-word.is-current{
-    font-weight:800;
-    background:rgba(255,210,0,.30);
-    outline:2px solid currentColor;
-    outline-offset:1px;
-}
-.lyricslab-word-input{
-    width:100%;
-    min-width:0;
-    box-sizing:border-box;
-}
-.chord-slot.lyricslab-beat.is-current{
-    outline:2px solid currentColor;
-    outline-offset:-2px;
-}
+/* R37.2 — EZScore historical metric, single synchronized ribbon. */
+.lyricslab-source-panel textarea[data-lyrics-source]{box-sizing:border-box;width:100%;min-height:220px;resize:vertical;font:inherit;line-height:1.5}.lyricslab-actions{align-items:center}.lyricslab-source-footer{display:flex;gap:16px;align-items:center;justify-content:space-between;margin-top:8px}.lyricslab-source-footer .page-note{margin:0}
+[data-lyricslab] .chordslab-stage{position:relative!important;display:block!important;overflow:hidden!important;padding:0!important;min-height:238px!important}
+[data-lyricslab] [data-lyrics-measures]{display:block!important;position:relative!important;width:100%!important;overflow:hidden!important;overflow-x:hidden!important;overflow-y:hidden!important;padding:0!important;margin:0!important;gap:0!important;scroll-snap-type:none!important;scroll-behavior:auto!important;scrollbar-width:none!important}
+[data-lyricslab] [data-lyrics-measures]::-webkit-scrollbar{display:none!important}
+.ez-karaoke-viewport{position:relative;width:100%;height:226px;overflow:hidden;overscroll-behavior:none;touch-action:pan-y;border:1px solid #33424d;border-radius:12px;background:#111920;box-sizing:border-box}
+.ez-karaoke-track{position:absolute;left:0;top:0;height:100%;will-change:transform;transform:translate3d(0,0,0);transition:none!important;pointer-events:none}
+.ez-karaoke-chords{position:absolute;left:0;right:0;top:20px;height:94px;white-space:nowrap}.ez-karaoke-beat{position:absolute;top:0;height:92px;display:flex;align-items:center;justify-content:center;box-sizing:border-box;border-left:1px solid rgba(90,170,235,.24);border-top:1px solid rgba(90,170,235,.18);border-bottom:1px solid rgba(90,170,235,.18);background:rgba(24,40,56,.55)}.ez-karaoke-beat.measure-start{border-left:3px solid rgba(125,190,245,.55)}.ez-karaoke-chord{font-size:30px;line-height:1;font-weight:900;color:#72baff;white-space:nowrap}.ez-karaoke-measure{position:absolute;top:6px;left:8px;font-size:11px;font-weight:800;opacity:.60}.ez-karaoke-beat.is-current{background:rgba(49,95,144,.72);box-shadow:inset 0 0 0 2px rgba(167,213,255,.55)}.ez-karaoke-beat.is-current .ez-karaoke-chord{color:#fff}
+.ez-karaoke-lyrics{position:absolute;left:0;right:0;top:134px;height:72px;white-space:nowrap;border-top:1px solid rgba(145,155,170,.12)}.ez-karaoke-syllable{position:absolute;top:15px;transform:translateX(-50%);appearance:none;border:0;background:transparent;color:#d8e0e5;opacity:.48;font-family:inherit;font-size:29px;line-height:1.2;font-weight:760;padding:3px 5px;border-radius:6px;white-space:nowrap;cursor:text;pointer-events:auto;transition:none!important}.ez-karaoke-syllable.is-word-current{opacity:.78;color:#eef6fa}.ez-karaoke-syllable.is-current{opacity:1;color:#fff;font-weight:950;background:rgba(77,163,255,.24);box-shadow:inset 0 0 0 1px rgba(130,205,255,.42)}
+[data-lyricslab]{overflow:hidden!important}
+@media(max-width:900px){.ez-karaoke-chord{font-size:26px}.ez-karaoke-syllable{font-size:25px}}
