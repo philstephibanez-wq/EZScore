@@ -60,6 +60,9 @@ class Song
     #[ORM\Column(length: 1000, nullable: true)]
     private ?string $comment = null;
 
+    #[ORM\Column(name: 'lyrics_source_text', type: 'text', nullable: true)]
+    private ?string $lyricsSourceText = null;
+
     #[ORM\Column(length: 500, nullable: true)]
     private ?string $coverPath = null;
 
@@ -198,6 +201,13 @@ class Song
     public function setStrummingPrimary(?string $value): self { $this->strummingPrimary = $this->normaliseNullable($value); return $this->touch(); }
     public function getStrummingAlternate(): ?string { return $this->strummingAlternate; }
     public function setStrummingAlternate(?string $value): self { $this->strummingAlternate = $this->normaliseNullable($value); return $this->touch(); }
+    public function getLyricsSourceText(): ?string { return $this->lyricsSourceText; }
+    public function setLyricsSourceText(?string $value): self
+    {
+        $this->lyricsSourceText = $value === null ? null : str_replace(["\r\n","\r"],"\n",$value);
+        return $this->touch();
+    }
+
     public function getComment(): ?string { return $this->comment; }
     public function setComment(?string $comment): self { $this->comment = $this->normaliseNullable($comment); return $this->touch(); }
     public function getCoverPath(): ?string { return $this->coverPath; }

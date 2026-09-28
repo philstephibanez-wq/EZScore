@@ -1,0 +1,81 @@
+#[Route('/lyrics', name: 'app_song_lyricslab', methods: ['GET'])]
+public function lyrics(
+    Song $song,
+    SongWorkflowState $workflow,
+    Request $request,
+    SongTimelineEventRepository $timeline,
+    UserSongStemMixRepository $mixes,
+    SongStemPlaybackStorage $playback,
+): Response {
+    $user=$this->requireEditor($song);
+    if (!$workflow->forSong($song)['can_lyrics']) {
+        $this->addFlash('error','Les accords doivent être terminés avant les paroles.');
+        return $this->redirectToRoute('app_song_analysis_lab',['_locale'=>$request->getLocale(),'id'=>$song->getId()]);
+    }
+
+    $chords=array_map(static fn(SongTimelineEvent $event):array=>[
+        'id'=>$event->getId(),'start_ms'=>$event->getStartMs(),'end_ms'=>$event->getEndMs(),
+        'measure_index'=>$event->getMeasureIndex(),'beat_index'=>$event->getBeatIndex(),
+        'original'=>$event->getOriginalValue(),'override'=>$event->getOverrideValue(),'effective'=>$event->getEffectiveValue(),
+    ],$timeline->findChordEventsForProfile($song,$song->getChordAnalysisLevel()));
+
+    $lyrics=array_map(static fn(SongTimelineEvent $event):array=>[
+        'id'=>$event->getId(),'start_ms'=>$event->getStartMs(),'end_ms'=>$event->getEndMs(),
+        'measure_index'=>$event->getMeasureIndex(),'beat_index'=>$event->getBeatIndex(),
+        'original'=>$event->getOriginalValue(),'override'=>$event->getOverrideValue(),'effective'=>$event->getEffectiveValue(),
+        'payload'=>$event->getPayload(),
+    ],$timeline->findForSongAndType($song,SongTimelineEvent::TYPE_LYRIC));
+
+    return $this->render('song/lyricslab.html.twig',[
+        'song'=>$song,
+        'beat_events'=>array_map(static fn(SongTimelineEvent $event):array=>[
+            'id'=>$event->getId(),'start_ms'=>$event->getStartMs(),'measure_index'=>$event->getMeasureIndex(),'beat_index'=>$event->getBeatIndex(),
+        ],$timeline->findBeatEvents($song)),
+        'chord_events'=>$chords,'lyric_events'=>$lyrics,
+        'stem_mix_settings'=>$mixes->findForUserAndSong($user,$song)?->getSettings()??[],
+        'playback_ready'=>$playback->isReady($song),
+    ]);
+}
+
+#[Route('/lyrics/source', name: 'app_song_lyricslab_source', methods: ['POST'])]
+public function saveLyricsSource(Song $song,Request $request,EntityManagerInterface $em): JsonResponse
+{
+    $this->requireEditor($song);$payload=$request->toArray();
+    if(!$this->isCsrfTokenValid('song_lyricslab_source_'.$song->getId(),(string)($payload['_token']??'')))return $this->json(['error'=>'invalid_csrf'],Response::HTTP_FORBIDDEN);
+    $song->setLyricsSourceText((string)($payload['text']??''));$em->flush();return $this->json(['ok'=>true]);
+}
+
+#[Route('/lyrics/analyze', name: 'app_song_lyricslab_analyze', methods: ['POST'])]
+public function analyzeLyrics(Song $song,Request $request,\App\Service\SongLyricsJobService $jobs): Response
+{
+    $user=$this->requireEditor($song);
+    if(!$this->isCsrfTokenValid('song_lyricslab_analyze_'.$song->getId(),(string)$request->request->get('_token')))throw $this->createAccessDeniedException();
+    if(trim((string)$song->getLyricsSourceText())===''){
+        $this->addFlash('error','Collez les paroles avant de lancer l’analyse.');
+        return $this->redirectToRoute('app_song_lyricslab',['_locale'=>$request->getLocale(),'id'=>$song->getId()]);
+    }
+    $jobs->queue($song,$user);
+    return $this->redirectToRoute('app_song_lyricslab',['_locale'=>$request->getLocale(),'id'=>$song->getId()]);
+}
+
+#[Route('/lyrics/status', name: 'app_song_lyricslab_status', methods: ['GET'])]
+public function lyricsStatus(Song $song,\App\Service\SongLyricsJobService $jobs): JsonResponse
+{
+    $this->requireEditor($song);$job=$jobs->latest($song);
+    if(!$job)return $this->json(['status'=>'none','progress'=>0]);
+    return $this->json(['job_id'=>$job->getId(),'status'=>$job->getStatus()->value,'progress'=>$job->getProgress(),'error'=>$job->getErrorCode()]);
+}
+
+#[Route('/lyrics/word/{eventId}', name: 'app_song_lyricslab_word', requirements: ['eventId'=>'\\d+'], methods: ['POST'])]
+public function saveLyricsWord(Song $song,int $eventId,Request $request,SongTimelineEventRepository $timeline,EntityManagerInterface $em): JsonResponse
+{
+    $this->requireEditor($song);$payload=$request->toArray();
+    if(!$this->isCsrfTokenValid('song_lyricslab_word_'.$song->getId(),(string)($payload['_token']??'')))return $this->json(['error'=>'invalid_csrf'],Response::HTTP_FORBIDDEN);
+    $event=$timeline->find($eventId);
+    if(!$event instanceof SongTimelineEvent||$event->getSong()->getId()!==$song->getId()||$event->getEventType()!==SongTimelineEvent::TYPE_LYRIC)return $this->json(['error'=>'not_found'],Response::HTTP_NOT_FOUND);
+    $text=trim((string)($payload['text']??''));
+    if($text===''||mb_strlen($text)>80)return $this->json(['error'=>'invalid_text'],Response::HTTP_UNPROCESSABLE_ENTITY);
+    $event->setOverrideValue($text);$em->flush();
+    return $this->json(['ok'=>true,'override'=>$event->getOverrideValue(),'effective'=>$event->getEffectiveValue()]);
+}
+
