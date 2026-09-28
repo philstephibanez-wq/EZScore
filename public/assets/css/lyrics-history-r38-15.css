@@ -1,0 +1,116 @@
+.lyrics-history {
+    margin-top: 14px;
+    border-top: 1px solid rgba(255,255,255,.10);
+    padding-top: 12px;
+}
+.lyrics-history > summary {
+    cursor: pointer;
+    font-weight: 700;
+    user-select: none;
+}
+.lyrics-history-editor {
+    display: grid;
+    grid-template-columns: minmax(150px, .6fr) minmax(260px, 1.8fr) auto;
+    gap: 10px;
+    align-items: end;
+    margin: 12px 0;
+}
+.lyrics-history-editor label {
+    display: grid;
+    gap: 5px;
+    font-size: .84rem;
+}
+.lyrics-history-editor select,
+.lyrics-history-editor input {
+    min-height: 38px;
+}
+.lyrics-history-list {
+    display: grid;
+    gap: 8px;
+    max-height: 360px;
+    overflow: auto;
+    padding-right: 4px;
+}
+.lyrics-history-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+    border: 1px solid rgba(255,255,255,.09);
+    border-radius: 8px;
+    padding: 9px 10px;
+}
+.lyrics-history-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 9px;
+    align-items: baseline;
+    min-width: 0;
+}
+.lyrics-history-meta > span {
+    opacity: .72;
+    font-size: .82rem;
+}
+.lyrics-history-comment {
+    width: 100%;
+    opacity: .92;
+    font-size: .9rem;
+    overflow-wrap: anywhere;
+}
+.lyrics-history-current {
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    padding: 1px 7px;
+    font-size: .72rem !important;
+    opacity: .9 !important;
+}
+.lyrics-history-row-actions {
+    display: flex;
+    gap: 6px;
+    flex: 0 0 auto;
+}
+.lyrics-history-trash {
+    min-width: 40px;
+}
+.lyrics-history-feedback {
+    min-height: 1.2em;
+    margin: 4px 0 10px;
+    font-size: .86rem;
+}
+.lyrics-history-feedback.is-error {
+    font-weight: 700;
+}
+@media (max-width: 760px) {
+    .lyrics-history-editor {
+        grid-template-columns: 1fr;
+    }
+    .lyrics-history-row {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
+
+
+.ez-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: rgba(0, 0, 0, .62);
+}
+.ez-modal {
+    width: min(480px, 100%);
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 14px;
+    padding: 20px;
+    background: #151a20;
+    box-shadow: 0 24px 80px rgba(0,0,0,.5);
+}
+.ez-modal p { margin: 0 0 18px; line-height: 1.45; }
+.ez-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}

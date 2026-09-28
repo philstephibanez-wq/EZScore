@@ -47,6 +47,13 @@ localized_song_labs:
         fr: /fr
         en: /en
 
+localized_lyrics_history:
+    resource: ../src/Controller/LyricsHistoryController.php
+    type: attribute
+    prefix:
+        fr: /fr
+        en: /en
+
 localized_song_collaboration:
     resource: ../src/Controller/SongCollaborationController.php
     type: attribute

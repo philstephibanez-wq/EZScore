@@ -519,6 +519,7 @@ public function extractLyrics(
     Song $song,
     Request $request,
     \App\Service\SongLyricsJobService $jobs,
+    \App\Service\LyricsSourceHistoryService $lyricsHistory,
 ): Response {
     $user = $this->requireEditor($song);
 
@@ -528,6 +529,13 @@ public function extractLyrics(
     )) {
         throw $this->createAccessDeniedException();
     }
+
+    $lyricsHistory->archiveCurrentIfChanged(
+        $song,
+        $user,
+        'manual',
+        'Sauvegarde automatique avant extraction Whisper.',
+    );
 
     $jobs->queue($song, $user, 'extract');
 
