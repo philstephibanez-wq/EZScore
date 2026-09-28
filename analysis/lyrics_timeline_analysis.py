@@ -277,6 +277,19 @@ def interpolate_unmatched(rows: list[dict]) -> list[dict]:
     if not known:
         return rows
 
+    first_known = known[0]
+    if first_known > 0:
+        anchor = int(rows[first_known]['start_ms'])
+        # Prefix words are packed immediately before the first acoustic anchor.
+        # Never spread them all the way back to MP3 t=0 through long intros.
+        window = min(1800, max(320, first_known * 190))
+        base = max(0, anchor - window)
+        step = max(80, (anchor - base) // max(1, first_known))
+        for i in range(first_known):
+            start = base + i * step
+            end = min(anchor, start + max(100, step - 10))
+            rows[i].update(start_ms=start, end_ms=end, confidence=0.18)
+
     for i, row in enumerate(rows):
         if row.get('start_ms') is not None:
             continue
@@ -293,9 +306,6 @@ def interpolate_unmatched(rows: list[dict]) -> list[dict]:
         elif left is not None:
             t = rows[left]['end_ms'] + max(80, (i - left - 1) * 180)
             row.update(start_ms=t, end_ms=t + 160, confidence=0.25)
-        elif right is not None:
-            t = max(0, rows[right]['start_ms'] - max(160, (right - i) * 180))
-            row.update(start_ms=t, end_ms=min(rows[right]['start_ms'], t + 160), confidence=0.25)
 
     return rows
 

@@ -3,10 +3,14 @@
 const root=document.querySelector('[data-lyricslab]'); if(!root)return;
 const parse=v=>{try{return JSON.parse(v||'[]')}catch(_){return[]}};
 const beats=parse(root.dataset.beats).sort((a,b)=>Number(a.start_ms)-Number(b.start_ms));
-const chords=parse(root.dataset.chords).sort((a,b)=>Number(a.start_ms)-Number(b.start_ms));
+let chords=parse(root.dataset.chords).sort((a,b)=>Number(a.start_ms)-Number(b.start_ms));
 const words=parse(root.dataset.lyrics).sort((a,b)=>Number(a.start_ms)-Number(b.start_ms));
 const host=root.querySelector('[data-lyrics-measures]'); if(!host||!beats.length)return;
 const capo=Number(root.dataset.capo||0);
+const profileSelect=root.querySelector('[data-lyrics-profile]');
+const profileDataUrlTemplate=root.dataset.profileDataUrlTemplate||'';
+const profileSaveUrl=root.dataset.profileSaveUrl||'';
+const profileToken=root.dataset.profileToken||'';
 const NOTE={C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
 const SH=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'],FL=['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
 const SHAPES={C:'x32010',Cm:'x35543',C7:'x32310',Cmaj7:'x32000',D:'xx0232',Dm:'xx0231',D7:'xx0212',E:'022100',Em:'022000',E7:'020100',F:'133211',Fmaj7:'xx3210',G:'320003',G7:'320001',A:'x02220',Am:'x02210',A7:'x02020',B:'x24442',Bm:'x24432',B7:'x21202'};
@@ -48,7 +52,106 @@ function renderAt(sec,force=false){lastTime=Math.max(0,Number(sec)||0);const x=f
 document.querySelector('[data-stem-mixer]')?.addEventListener('ezscore:audio-timeupdate',e=>renderAt(e.detail?.time||0));
 window.addEventListener('resize',buildWarp);requestAnimationFrame(buildWarp);document.fonts?.ready?.then(()=>requestAnimationFrame(buildWarp));setTimeout(buildWarp,150);
 
+
+async function loadChordProfile(profile){
+ if(!profileDataUrlTemplate)return;
+ const url=profileDataUrlTemplate.replace('__PROFILE__',encodeURIComponent(profile));
+ const response=await fetch(url,{headers:{Accept:'application/json'},credentials:'same-origin',cache:'no-store'});
+ if(!response.ok)throw new Error(`profile_http_${response.status}`);
+ const data=await response.json();
+ if(!Array.isArray(data.events))throw new Error('invalid_profile_payload');
+ chords=data.events.slice().sort((a,b)=>Number(a.start_ms)-Number(b.start_ms));
+ buildChords();
+ renderAt(lastTime,true);
+}
+profileSelect?.addEventListener('change',async()=>{
+ const profile=String(profileSelect.value||'intermediate');
+ profileSelect.disabled=true;
+ try{
+   if(profileSaveUrl&&profileToken){
+     const saved=await fetch(profileSaveUrl,{
+       method:'POST',credentials:'same-origin',
+       headers:{'Content-Type':'application/json','Accept':'application/json'},
+       body:JSON.stringify({_token:profileToken,profile})
+     });
+     if(!saved.ok)throw new Error(`profile_save_http_${saved.status}`);
+   }
+   await loadChordProfile(profile);
+ }catch(error){
+   console.error('LyricsLab profile switch failed',error);
+   location.reload();
+   return;
+ }finally{
+   profileSelect.disabled=false;
+ }
+});
+
 const source=document.querySelector('[data-lyrics-source]'),state=document.querySelector('[data-lyrics-save-state]');let timer=null;
 async function save(){if(!source)return;try{const r=await fetch(source.dataset.saveUrl,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({_token:source.dataset.saveToken,text:source.value})});if(!r.ok)throw 0;if(state)state.textContent='Enregistré'}catch(_){if(state)state.textContent='Échec enregistrement'}}
 source?.addEventListener('input',()=>{if(state)state.textContent='Modifié…';clearTimeout(timer);timer=setTimeout(save,450)});
+
+/* R38.2A — restore async Lyrics analysis progress UI */
+const progress=document.querySelector('[data-lyrics-progress]');
+const statusUrl=progress?.dataset.statusUrl||'';
+const progressBar=progress?.querySelector('progress');
+const progressLabel=progress?.querySelector('[data-lyrics-progress-text]');
+const progressPercent=progress?.querySelector('[data-lyrics-progress-percent]');
+
+async function pollLyricsProgress(){
+ if(!statusUrl)return;
+
+ try{
+   const response=await fetch(statusUrl,{
+     headers:{Accept:'application/json'},
+     cache:'no-store',
+     credentials:'same-origin'
+   });
+
+   if(response.ok){
+     const data=await response.json();
+     const status=String(data.status||'');
+     const pct=Math.max(0,Math.min(100,Number(data.progress||0)));
+
+     if(status==='queued'||status==='running'){
+       progress.hidden=false;
+       if(progressBar)progressBar.value=pct;
+       if(progressPercent)progressPercent.textContent=`${Math.round(pct)}%`;
+       if(progressLabel){
+         progressLabel.textContent=
+           status==='queued'
+             ? 'En attente du Worker…'
+             : (data.mode==='extract'
+                 ? 'Extraction automatique des paroles…'
+                 : 'Analyse / ancrage des paroles sur la timeline…');
+       }
+     }else if(status==='failed'){
+       progress.hidden=false;
+       if(progressPercent)progressPercent.textContent='Erreur';
+       if(progressLabel)progressLabel.textContent=data.error||'Analyse des paroles en échec.';
+     }else if(status==='completed'){
+       if(progressBar)progressBar.value=100;
+       if(progressPercent)progressPercent.textContent='100%';
+       if(progressLabel)progressLabel.textContent='Analyse terminée';
+
+       const key=`ezscore.lyrics.job.reloaded.${data.job_id}`;
+       if(data.job_id&&sessionStorage.getItem(key)!=='1'){
+         sessionStorage.setItem(key,'1');
+         setTimeout(()=>location.reload(),180);
+         return;
+       }
+
+       setTimeout(()=>{progress.hidden=true},700);
+     }else{
+       progress.hidden=true;
+     }
+   }
+ }catch(_){
+   /* A transient status request failure must not hide an active job permanently. */
+ }
+
+ setTimeout(pollLyricsProgress,900);
+}
+
+pollLyricsProgress();
+
 })();

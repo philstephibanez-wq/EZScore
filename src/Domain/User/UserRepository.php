@@ -32,6 +32,17 @@ final class UserRepository extends ServiceEntityRepository
         ));
     }
 
+    public function findFirstAdmin(): ?User
+    {
+        foreach ($this->findBy([], ['id' => 'ASC']) as $user) {
+            if ($user instanceof User && in_array('ROLE_ADMIN', $user->getRoles(), true)) {
+                return $user;
+            }
+        }
+
+        return null;
+    }
+
     public function findByGoogleSub(string $sub): ?User
     {
         return $this->findOneBy(['googleSub' => $sub]);

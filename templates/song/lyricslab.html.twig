@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="/assets/css/workflow-tabs-r23-2.css?v=20260926r31">
 <link rel="stylesheet" href="/assets/css/stems.css?v=20260926r29">
 <link rel="stylesheet" href="/assets/css/chordslab.css?v=20260928r35_10">
-<link rel="stylesheet" href="/assets/css/lyricslab-r37.css?v=20260928r38_1a">
+<link rel="stylesheet" href="/assets/css/lyricslab-r37.css?v=20260928r38_2">
 {% endblock %}
 
 {% block body %}
@@ -85,6 +85,9 @@
          data-lyrics="{{ lyric_events|json_encode|e('html_attr') }}"
          data-capo="{{ song.capo }}"
          data-time-signature="{{ song.timeSignature }}"
+         data-profile-data-url-template="{{ path('app_song_chordslab_profile_data', {'_locale': app.request.locale, id: song.id, profile:'__PROFILE__'}) }}"
+         data-profile-save-url="{{ path('app_song_chordslab_profile', {'_locale': app.request.locale, id: song.id}) }}"
+         data-profile-token="{{ csrf_token('song_chordslab_profile_' ~ song.id) }}"
          data-edit-url-template="{{ path('app_song_lyricslab_word', {'_locale': app.request.locale, id: song.id, eventId:999999})|replace({'999999':'__EVENT__'}) }}"
          data-edit-token="{{ csrf_token('song_lyricslab_word_' ~ song.id) }}">
     <div class="chordslab-prompter-head">
@@ -95,6 +98,11 @@
         <div class="chord-profile-status">
             <span>Profil affiché</span>
             <strong>{{ ('chordslab.level.' ~ song.chordAnalysisLevel)|trans({}, 'chordslab') }}</strong>
+            <select class="lyrics-profile-select" data-lyrics-profile aria-label="Profil d’accords">
+                <option value="beginner" {% if song.chordAnalysisLevel == 'beginner' %}selected{% endif %}>Débutant</option>
+                <option value="intermediate" {% if song.chordAnalysisLevel == 'intermediate' %}selected{% endif %}>Intermédiaire</option>
+                <option value="expert" {% if song.chordAnalysisLevel == 'expert' %}selected{% endif %}>Expert</option>
+            </select>
             <small>{{ lyric_events|length }} mots ancrés</small>
         </div>
     </div>
@@ -119,5 +127,5 @@
 {% block javascripts %}
 <script src="/assets/js/audio/ezscore-audio-engine.js?v=20260928r35_10"></script>
 <script src="/assets/js/stems-mixer.js?v=20260928r35_10"></script>
-<script src="/assets/js/lyricslab-r37.js?v=20260928r38_1a"></script>
+<script src="/assets/js/lyricslab-r37.js?v=20260928r38_2a"></script>
 {% endblock %}
