@@ -113,7 +113,16 @@ function buildProjection(){
   if(exact)text=displayChord(exact.effective||exact.original||'.');
   else if((active?.effective||active?.original||'')==='.')text='.';
   else if(beatIndex===0)text=displayChord(active?.effective||active?.original||'.');
-  measure.slots.push({seq,beatIndex,startMs:beat.start_ms,text,eventId:active?.id||null,editable:text!=='-'&&text!=='.'&&!!active?.id});
+  measure.slots.push({
+   seq,
+   beatIndex,
+   startMs:beat.start_ms,
+   text,
+   beatId:beat.id||null,
+   eventId:exact?.id||null,
+   activeEventId:active?.id||null,
+   editable:!!beat.id
+  });
  });
  return measures;
 }
@@ -173,6 +182,8 @@ function render(){
    const b=document.createElement('button');b.type='button';b.className='chord-slot';
    b.dataset.beatSeq=String(slot.seq);b.dataset.startMs=String(slot.startMs);b.dataset.beat=String(slot.beatIndex);
    if(slot.eventId)b.dataset.eventId=String(slot.eventId);
+   if(slot.beatId)b.dataset.beatId=String(slot.beatId);
+   if(slot.activeEventId)b.dataset.activeEventId=String(slot.activeEventId);
    b.innerHTML=formatChordHtml(slot.text); b.setAttribute('aria-label', slot.text);
    if(String(slot.text).length>=5)b.classList.add('is-long');
    if(String(slot.text).length>=7)b.classList.add('is-very-long');
@@ -203,19 +214,30 @@ function updateDiagram(chord){
 }
 function escapeHtml(v){return String(v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]))}
 
-async function editEvent(eventId,button){
- const event=events.find(e=>String(e.id)===String(eventId));if(!event)return;
- const input=document.createElement('input');input.className='chord-inline-input';input.value=event.effective||event.original||'';input.maxLength=32;button.replaceWith(input);input.focus();input.select();
+async function editSlot(button){
+ const beatId=button.dataset.beatId;
+ const activeEventId=button.dataset.activeEventId||'';
+ if(!beatId)return;
+ const active=activeEventId?events.find(e=>String(e.id)===String(activeEventId)):null;
+ const input=document.createElement('input');
+ input.className='chord-inline-input';
+ const shown=button.getAttribute('aria-label')||'.';
+ input.value=shown==='-' ? displayChord(active?.effective||active?.original||'') : shown;
+ input.maxLength=32;
+ button.replaceWith(input);input.focus();input.select();
  let finished=false;
  const restore=()=>{if(finished)return;finished=true;render()};
  const save=async()=>{
   if(finished)return;
-  let chord=normaliseLabel(input.value.trim()),current=normaliseLabel(event.effective||event.original||'');
-  if(!chord||chord===current){restore();return}
-  const url=root.dataset.editUrlTemplate.replace('__EVENT__',String(eventId));
+  let chord=normaliseLabel(input.value.trim());
+  if(!chord)chord='.';
+  if(chord==='-'){restore();return}
+  const url=(root.dataset.beatEditUrlTemplate||'').replace('__BEAT__',String(beatId));
+  if(!url){input.classList.add('is-error');return}
   const response=await fetch(url,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({_token:root.dataset.editToken,chord,profile:currentProfile})});
   if(!response.ok){input.classList.add('is-error');return}
-  const data=await response.json();event.override=data.override;event.effective=data.effective;finished=true;render();
+  finished=true;
+  window.location.reload();
  };
  input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();save()}if(e.key==='Escape'){e.preventDefault();restore()}});
  input.addEventListener('blur',save,{once:true});
@@ -229,7 +251,10 @@ async function persistProfile(profile){
  }catch(_){}
 }
 
-measuresEl.addEventListener('click',e=>{const b=e.target.closest('.chord-slot.editable[data-event-id]');if(b)editEvent(b.dataset.eventId,b)});
+measuresEl.addEventListener('click',e=>{
+ const b=e.target.closest('.chord-slot.editable[data-beat-id]');
+ if(b)editSlot(b);
+});
 document.querySelector('[data-stem-mixer]')?.addEventListener('ezscore:audio-timeupdate',e=>highlightAt(Number(e.detail?.time||0)));
 capoSelect?.addEventListener('change',()=>{capo=Number(capoSelect.value||0);render();autoSaveSettings()});
 timeSigSelect?.addEventListener('change',()=>{signature=timeSigSelect.value||'4/4';render();autoSaveSettings()});

@@ -10,9 +10,6 @@ const quickVolume=document.querySelector('[data-chordslab-quick-volume]');
 const quickVolumeOut=document.querySelector('[data-chordslab-quick-volume-output]');
 const masterVolume=document.querySelector('[data-master-volume]');
 const resetForm=document.querySelector('[data-chord-reset-form]');
-const resetDialog=document.querySelector('[data-chord-reset-dialog]');
-const resetCancel=resetDialog?.querySelector('[data-chord-reset-cancel]');
-const resetConfirm=resetDialog?.querySelector('[data-chord-reset-confirm]');
 const levelSelect=document.querySelector('[name="chord_analysis_level"]');
 const levelHelp=document.querySelector('[data-analysis-level-help]');
 
@@ -56,21 +53,6 @@ async function pollStatus(){
 }
 pollStatus();
 
-if(resetForm&&resetDialog){
- resetForm.addEventListener('submit',e=>{
-  if(resetForm.dataset.confirmed==='1')return;
-  e.preventDefault();
-  if(typeof resetDialog.showModal==='function')resetDialog.showModal();
-  else{resetForm.dataset.confirmed='1';resetForm.submit();}
- });
- resetCancel?.addEventListener('click',()=>resetDialog.close());
- resetConfirm?.addEventListener('click',()=>{
-  resetForm.dataset.confirmed='1';
-  resetDialog.close();
-  resetForm.submit();
- });
- resetDialog.addEventListener('click',e=>{if(e.target===resetDialog)resetDialog.close()});
-}
 
 function updateQuickOutput(){
  if(quickVolumeOut&&quickVolume)quickVolumeOut.textContent=`${Math.round(Number(quickVolume.value)*100)}%`;

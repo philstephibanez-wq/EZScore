@@ -285,6 +285,89 @@ final class SongLabController extends AbstractController
         ]);
     }
 
+    #[Route('/chords/beat/{beatId}', name: 'app_song_chordslab_beat_override', requirements: ['beatId' => '\d+'], methods: ['POST'])]
+    public function saveChordAtBeat(
+        Song $song,
+        int $beatId,
+        Request $request,
+        SongTimelineEventRepository $timeline,
+        EntityManagerInterface $em,
+    ): JsonResponse {
+        $this->requireEditor($song);
+        $payload = $request->toArray();
+
+        if (!$this->isCsrfTokenValid(
+            'song_chordslab_edit_'.$song->getId(),
+            (string) ($payload['_token'] ?? ''),
+        )) {
+            return $this->json(['error' => 'invalid_csrf'], Response::HTTP_FORBIDDEN);
+        }
+
+        $profile = trim((string) ($payload['profile'] ?? $song->getChordAnalysisLevel()));
+        if (!in_array($profile, ['beginner', 'intermediate', 'expert'], true)) {
+            return $this->json(['error' => 'invalid_profile'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $beat = $timeline->find($beatId);
+        if (!$beat instanceof SongTimelineEvent
+            || $beat->getSong()->getId() !== $song->getId()
+            || $beat->getEventType() !== SongTimelineEvent::TYPE_BEAT) {
+            return $this->json(['error' => 'beat_not_found'], Response::HTTP_NOT_FOUND);
+        }
+
+        $chord = trim((string) ($payload['chord'] ?? ''));
+        $chord = preg_replace('/^\\[([^\\]]+)\\]$/', '$1', $chord) ?? $chord;
+        $chord = preg_replace('/^([A-G](?:#|b)?)maj$/', '$1', $chord) ?? $chord;
+
+        if ($chord === '-') {
+            return $this->json(['error' => 'continuation_is_display_only'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+        if ($chord !== '.'
+            && ($chord === '' || mb_strlen($chord) > 32
+                || !preg_match('/^[A-G](?:#|b)?[A-Za-z0-9()+#b°øΔ\\/-]*$/u', $chord))) {
+            return $this->json(['error' => 'invalid_chord'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $event = null;
+        foreach ($timeline->findChordEventsForProfile($song, $profile) as $candidate) {
+            if ($candidate->getStartMs() === $beat->getStartMs()) {
+                $event = $candidate;
+                break;
+            }
+        }
+
+        if (!$event instanceof SongTimelineEvent) {
+            $event = (new SongTimelineEvent($song, SongTimelineEvent::TYPE_CHORD, $beat->getStartMs()))
+                ->setPosition($beat->getMeasureIndex(), $beat->getBeatIndex(), $beat->getSubdivisionIndex())
+                ->setOriginalValue('.')
+                ->setPayload([
+                    'confidence' => 0.0,
+                    'profile' => $profile,
+                    'analysis_level' => $profile,
+                    'analysis_version' => 'manual-beat-r35.9',
+                ]);
+            $em->persist($event);
+        }
+
+        if ($chord === '.') {
+            $event->resetOverride();
+        } else {
+            $event->setOverrideValue($chord);
+        }
+        $em->flush();
+
+        return $this->json([
+            'ok' => true,
+            'id' => $event->getId(),
+            'start_ms' => $event->getStartMs(),
+            'measure_index' => $event->getMeasureIndex(),
+            'beat_index' => $event->getBeatIndex(),
+            'original' => $event->getOriginalValue(),
+            'override' => $event->getOverrideValue(),
+            'effective' => $event->getEffectiveValue(),
+        ]);
+    }
+
     #[Route('/chords/event/{eventId}', name: 'app_song_chordslab_event', requirements: ['eventId' => '\d+'], methods: ['POST'])]
     public function saveChordOverride(
         Song $song,

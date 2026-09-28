@@ -114,10 +114,9 @@ def detect_downbeat_phase(onset,beat_frames,bpm):
     return (0,conf) if conf<.12 else (int(phase),conf)
 
 def position(i,phase,bpm):
-    if phase<=0:return i//bpm,i%bpm
-    if i<phase:return 0,bpm-phase+i
-    shifted=i-phase
-    return 1+shifted//bpm,shifted%bpm
+    # R35.10: absolute prompter grid. Measure 1 always contains exactly bpm beats
+    # from MP3 t=0. Downbeat phase is preserved as analysis metadata only.
+    return i//bpm,i%bpm
 
 def suppress_crowd_noise(y,sr,hop=512):
     if y is None or len(y)<hop*4:return y,None
@@ -338,7 +337,7 @@ def analyse(source,stems,drums,requested_signature,progress_file=None,filter_noi
 
     return {
         "ok":True,
-        "version":"r35.8a-absolute-timeline",
+        "version":"r35.10-absolute-full-measures",
         "tempo_bpm":round(tempo,3),
         "time_signature":signature,
         "key":key,

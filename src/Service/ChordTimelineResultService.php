@@ -20,8 +20,15 @@ final class ChordTimelineResultService
 
     public function apply(Song $song, array $result): array
     {
-        // R35.8a: fresh harmonic analysis is authoritative; old manual overrides are discarded.
-        $this->timeline->deleteMusicalAnalysisForSong($song);
+        // R35.9: fresh harmonic analysis is authoritative.
+        // Explicit ORM removal avoids stale managed overrides surviving a reanalysis.
+        foreach ($this->timeline->findBeatEvents($song) as $existingBeat) {
+            $this->em->remove($existingBeat);
+        }
+        foreach ($this->timeline->findChordEvents($song) as $existingChord) {
+            $this->em->remove($existingChord);
+        }
+        $this->em->flush();
 
         // Beats are canonical and shared by all chord profiles.
         foreach (($result['beats'] ?? []) as $beat) {
