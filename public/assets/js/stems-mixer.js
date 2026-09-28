@@ -240,7 +240,7 @@
         if (duration) engine.seek((Number(els.seek.value) / 1000) * duration);
     });
 
-    engine.addEventListener('statechange', (event) => {
+    root.addEventListener('ezscore:request-seek', (event) => {\n        const time=Math.max(0,Number(event.detail?.time||0));\n        engine.seek(time);\n        const duration=engine.duration();\n        if(els.seek&&duration>0) els.seek.value=String(Math.round((time/duration)*1000));\n    });\n\n    engine.addEventListener('statechange', (event) => {
         if (!els.state) return;
         const state = event.detail?.state;
         if (state === 'playing') els.state.textContent = i18n.playing;
