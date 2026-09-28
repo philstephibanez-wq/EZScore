@@ -20,7 +20,19 @@ def _read_progress(path: Path) -> dict | None:
     except Exception:
         return None
 
-def _discover_lyrics_python(engine) -> str:
+def _discover_lyrics_python(engine, force: bool = False) -> str:
+    # R38.13a: cache validated Lyrics Python for the whole Worker lifetime.
+    # Do not re-import torch/whisper/CUDA before every lyrics job.
+    cached = getattr(engine, "_lyrics_python_cache", None)
+    if not force and isinstance(cached, dict):
+        cached_python = str(cached.get("python") or "")
+        if cached_python and Path(cached_python).is_file():
+            engine.log(
+                f"Python Lyrics (cache): {cached_python}"
+                + (f" · {cached.get('gpu')}" if cached.get("gpu") else "")
+            )
+            return cached_python
+        engine._lyrics_python_cache = None
     env={}
     try:
         env=engine.root.joinpath(".env.local").read_text(encoding="utf-8",errors="replace")
@@ -59,7 +71,7 @@ def _discover_lyrics_python(engine) -> str:
                 [candidate,"-c",probe],
                 stdout=subprocess.PIPE,stderr=subprocess.PIPE,
                 text=True,encoding="utf-8",errors="replace",
-                timeout=20,check=False,
+                timeout=60,check=False,
                 creationflags=WINDOWS_NO_WINDOW if os.name=="nt" else 0,
             )
             if p.returncode!=0:
@@ -69,8 +81,14 @@ def _discover_lyrics_python(engine) -> str:
             if not data.get("cuda"):
                 failures.append(f"{candidate}: CUDA indisponible")
                 continue
-            engine.log(f"Python Lyrics: {data.get('python')} · {data.get('gpu')}")
-            return str(data["python"])
+            resolved_python = str(data["python"])
+            engine._lyrics_python_cache = {
+                "python": resolved_python,
+                "gpu": data.get("gpu"),
+                "validated_at": time.time(),
+            }
+            engine.log(f"Python Lyrics: {resolved_python} · {data.get('gpu')}")
+            return resolved_python
         except Exception as exc:
             failures.append(f"{candidate}: {exc}")
 
@@ -156,12 +174,25 @@ def run_lyrics_job(engine,job:dict)->None:
     result_path.unlink(missing_ok=True)
 
     engine.log("Commande LYRICS lancée.")
-    proc=subprocess.Popen(
-        command,cwd=str(engine.root),env=env,
-        stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
-        text=True,encoding="utf-8",errors="replace",bufsize=1,
-        creationflags=WINDOWS_NO_WINDOW if os.name=="nt" else 0,
-    )
+    try:
+        proc=subprocess.Popen(
+            command,cwd=str(engine.root),env=env,
+            stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+            text=True,encoding="utf-8",errors="replace",bufsize=1,
+            creationflags=WINDOWS_NO_WINDOW if os.name=="nt" else 0,
+        )
+    except (FileNotFoundError, OSError) as exc:
+        # Invalidate only when the interpreter itself can no longer be launched.
+        engine.log(f"Python Lyrics cache invalidé au lancement: {exc}")
+        engine._lyrics_python_cache = None
+        python = _discover_lyrics_python(engine, force=True)
+        command[0] = python
+        proc=subprocess.Popen(
+            command,cwd=str(engine.root),env=env,
+            stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
+            text=True,encoding="utf-8",errors="replace",bufsize=1,
+            creationflags=WINDOWS_NO_WINDOW if os.name=="nt" else 0,
+        )
     engine.current_process=proc
 
     outq:queue.Queue[str|None]=queue.Queue()

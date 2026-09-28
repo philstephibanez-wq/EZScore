@@ -1,0 +1,15 @@
+        for pos, source_index in enumerate(gap_sources, start=1):
+            t = _r3810_curve_sample(
+                left_time,
+                right_time,
+                recognized_times,
+                pos,
+                len(gap_sources),
+            )
+            rows[source_index].update(
+                start_ms=max(acoustic_t0, t),
+                end_ms=max(acoustic_t0, t) + 120,
+                confidence=0.22,
+                language=None,
+                alignment="acoustic_resample",
+            )

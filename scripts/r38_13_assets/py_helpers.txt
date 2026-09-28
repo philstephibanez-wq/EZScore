@@ -1,0 +1,88 @@
+# R38.13 syllabic vocal timeline.
+# Orthographic French syllables + local Whisper cadence. This is not yet phoneme recognition.
+_R3813_VOWELS = set("aeiouyàâäéèêëîïôöùûüÿœæ")
+
+def _r3813_letters(text: str) -> str:
+    return "".join(ch for ch in str(text or "").lower() if ch.isalpha() or ch in "'’")
+
+def _r3813_syllabify_french(text: str) -> list[str]:
+    raw = _r3813_letters(text)
+    if not raw:
+        return []
+    raw = raw.replace("'", "").replace("’", "")
+    nuclei: list[tuple[int, int]] = []
+    i = 0
+    while i < len(raw):
+        if raw[i] not in _R3813_VOWELS:
+            i += 1
+            continue
+        j = i + 1
+        while j < len(raw) and raw[j] in _R3813_VOWELS:
+            j += 1
+        nuclei.append((i, j))
+        i = j
+    if not nuclei:
+        return [raw]
+    if len(nuclei) > 1:
+        a, b = nuclei[-1]
+        if raw[a:b] == "e" and b == len(raw):
+            nuclei.pop()
+    if len(nuclei) <= 1:
+        return [raw]
+    boundaries = [0]
+    common = {"ch", "ph", "th", "gn", "tr", "dr", "cr", "gr", "fr", "vr", "pl", "bl", "cl", "gl", "fl"}
+    for idx in range(len(nuclei) - 1):
+        _a, left_end = nuclei[idx]
+        right_start, _b = nuclei[idx + 1]
+        consonants = raw[left_end:right_start]
+        if len(consonants) <= 1:
+            cut = right_start
+        else:
+            keep = 2 if consonants[-2:] in common else 1
+            cut = max(left_end, right_start - keep)
+        boundaries.append(cut)
+    boundaries.append(len(raw))
+    result = [raw[boundaries[k]:boundaries[k + 1]] for k in range(len(boundaries) - 1)]
+    return [s for s in result if s] or [raw]
+
+def _r3813_syllable_count(text: str) -> int:
+    return max(1, len(_r3813_syllabify_french(text)))
+
+def _r3813_attach_syllables(rows: list[dict], acoustic_t0: int) -> list[dict]:
+    previous_start = acoustic_t0 - 1
+    for word_index, row in enumerate(rows):
+        syllables = _r3813_syllabify_french(row.get("text") or "")
+        if not syllables:
+            row["syllables"] = []
+            continue
+        word_start = max(acoustic_t0, int(row.get("start_ms") or acoustic_t0))
+        word_end = max(word_start + max(60, 45 * len(syllables)), int(row.get("end_ms") or word_start + 120))
+        duration = max(len(syllables), word_end - word_start)
+        weights = [max(1, len(s)) for s in syllables]
+        total = sum(weights)
+        cursor = word_start
+        consumed = 0
+        items = []
+        for syllable_index, (syl, weight) in enumerate(zip(syllables, weights)):
+            consumed += weight
+            end = word_end if syllable_index == len(syllables) - 1 else word_start + int(round(duration * consumed / total))
+            start = max(cursor, acoustic_t0 if word_index == 0 and syllable_index == 0 else previous_start + 1)
+            end = max(start + 1, end)
+            nucleus = start + (end - start) // 2
+            items.append({
+                "text": syl,
+                "syllable_index": syllable_index,
+                "start_ms": start,
+                "nucleus_ms": min(end, max(start, nucleus)),
+                "end_ms": end,
+                "confidence": round(float(row.get("confidence", 0.0) or 0.0), 4),
+                "alignment": row.get("alignment"),
+                "nucleus_method": "interval_center",
+            })
+            previous_start = start
+            cursor = end
+        row["syllables"] = items
+        row["start_ms"] = items[0]["start_ms"]
+        row["end_ms"] = items[-1]["end_ms"]
+    return rows
+

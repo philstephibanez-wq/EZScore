@@ -2,7 +2,52 @@
 'use strict';
 const root=document.querySelector('[data-lyricslab]'); if(!root)return;
 const parse=v=>{try{return JSON.parse(v||'[]')}catch(_){return[]}};
-const beats=parse(root.dataset.beats).sort((a,b)=>Number(a.start_ms)-Number(b.start_ms));
+const sourceBeats=parse(root.dataset.beats).sort((a,b)=>Number(a.start_ms)-Number(b.start_ms));
+// R38.13 canonical ChordsLab projection.
+// Same projection policy as ChordsLab: signature numerator = visible slots per measure.
+function medianDiffMs(values,fallback=500){
+ const sorted=(values||[]).map(Number).filter(Number.isFinite).sort((a,b)=>a-b),diffs=[];
+ for(let i=1;i<sorted.length;i++){const d=sorted[i]-sorted[i-1];if(d>20)diffs.push(d)}
+ diffs.sort((a,b)=>a-b);
+ return diffs.length?diffs[Math.floor(diffs.length/2)]:fallback;
+}
+function buildCanonicalProjection(inputBeats){
+ // R38.13b: time-signature agnostic continuous projection.
+ // The display measure is representation only: never rebuild/synthesize timing
+ // from stale source measure_index / beat_index values.
+ const timeSignature=String(root.dataset.timeSignature||'4/4');
+ const beatsPerMeasure=Math.max(1,Number(timeSignature.split('/')[0])||4);
+ const ordered=(inputBeats||[])
+  .map((event,sourceSeq)=>({event,sourceSeq,startMs:Number(event.start_ms??0)}))
+  .filter(row=>Number.isFinite(row.startMs))
+  .sort((a,b)=>a.startMs-b.startMs||a.sourceSeq-b.sourceSeq);
+
+ const projectionBeats=ordered.map((row,displaySeq)=>{
+  const displayMeasureIndex=Math.floor(displaySeq/beatsPerMeasure);
+  const displayBeatIndex=displaySeq%beatsPerMeasure;
+  return {
+   ...row.event,
+   display_seq:displaySeq,
+   display_measure_index:displayMeasureIndex,
+   display_beat_index:displayBeatIndex,
+   display_start_ms:row.startMs,
+   displaySynthetic:false
+  };
+ });
+
+ const projectionMeasures=[];
+ for(let first=0;first<projectionBeats.length;first+=beatsPerMeasure){
+  projectionMeasures.push({
+   source_measure_index:Number(projectionBeats[first]?.measure_index??projectionMeasures.length),
+   first_display_beat_index:first,
+   beats_per_measure:beatsPerMeasure
+  });
+ }
+
+ return {beats:projectionBeats,measures:projectionMeasures,beatsPerMeasure};
+}
+const canonicalProjection=buildCanonicalProjection(sourceBeats);
+const beats=canonicalProjection.beats;
 let chords=parse(root.dataset.chords).sort((a,b)=>Number(a.start_ms)-Number(b.start_ms));
 const words=parse(root.dataset.lyrics).sort((a,b)=>Number(a.start_ms)-Number(b.start_ms));
 const host=root.querySelector('[data-lyrics-measures]'); if(!host||!beats.length)return;
@@ -167,7 +212,7 @@ let anchors=[{raw:0,shift:0}];
 function shiftFor(raw){if(raw<=anchors[0].raw)return anchors[0].shift;let lo=0,hi=anchors.length-1,left=0;while(lo<=hi){const m=(lo+hi)>>1;if(anchors[m].raw<=raw){left=m;lo=m+1}else hi=m-1}if(left>=anchors.length-1)return anchors[left].shift;const a=anchors[left],b=anchors[left+1],p=(raw-a.raw)/Math.max(.001,b.raw-a.raw);return a.shift+(b.shift-a.shift)*Math.max(0,Math.min(1,p))}
 const visRaw=r=>r+shiftFor(r),visMetric=t=>visRaw(rawMetric(t));
 function buildWarp(){let prevRight=-Infinity,shift=0;const a=[{raw:0,shift:0}];wordNodes.forEach(n=>{const raw=Number(n.dataset.rawX||0),w=Math.max(20,n.getBoundingClientRect().width||20),left=raw-w/2;if(Number.isFinite(prevRight))shift=Math.max(shift,prevRight+18-left);const center=raw+shift;n.style.left=center+'px';prevRight=center+w/2;a.push({raw,shift})});anchors=a;buildChords();const end=Math.max(starts.at(-1)||0,Number(words.at(-1)?.end_ms||0)/1000);track.style.width=Math.max(2600,rawMetric(end)+spacing*8,visMetric(end)+spacing*8)+'px';renderAt(lastTime,true)}
-function buildChords(){chordLane.innerHTML='';beats.forEach((b,i)=>{const s=Number(b.start_ms||0),n=i+1<beats.length?Number(beats[i+1].start_ms):s+nominal*1000,ex=exactChord(s,n),ac=ex||activeChord(s),bn=Number(b.beat_index||0);let text='-';if(ex)text=shown(ex.effective||ex.original||'.');else if((ac?.effective||ac?.original||'')==='.')text='.';else if(bn===0)text=shown(ac?.effective||ac?.original||'.');const left=xBeat(i),next=i+1<beats.length?xBeat(i+1):left+spacing,cell=document.createElement('div');cell.className='lyrics-ribbon-beat'+(bn===0?' measure-start':'');cell.dataset.beatSeq=String(i);cell.style.left=left+'px';cell.style.width=Math.max(74,next-left)+'px';const c=document.createElement('strong');c.className='lyrics-ribbon-chord';c.textContent=text;cell.appendChild(c);if(bn===0){const m=document.createElement('small');m.className='lyrics-ribbon-measure';m.textContent='#'+(Number(b.measure_index||0)+1);cell.appendChild(m)}chordLane.appendChild(cell)})}
+function buildChords(){chordLane.innerHTML='';beats.forEach((b,i)=>{const s=Number(b.start_ms||0),n=i+1<beats.length?Number(beats[i+1].start_ms):s+nominal*1000,ex=exactChord(s,n),ac=ex||activeChord(s),bn=Number(b.beat_index||0);let text='-';if(ex)text=shown(ex.effective||ex.original||'.');else if((ac?.effective||ac?.original||'')==='.')text='.';const displayBeatIndex=Number(b.display_beat_index??bn);if(!ex&&(ac?.effective||ac?.original||'')!=='.'&&displayBeatIndex===0)text=shown(ac?.effective||ac?.original||'.');/* R38.13c: restore chord lane runtime declaration */const left=xBeat(i),next=i+1<beats.length?xBeat(i+1):left+spacing,cell=document.createElement('div');cell.className='lyrics-ribbon-beat'+(displayBeatIndex===0?' measure-start':'');cell.dataset.beatSeq=String(i);cell.style.left=left+'px';cell.style.width=Math.max(74,next-left)+'px';const c=document.createElement('strong');c.className='lyrics-ribbon-chord';c.textContent=text;cell.appendChild(c);if(displayBeatIndex===0){const m=document.createElement('small');m.className='lyrics-ribbon-measure';m.textContent='#'+(Number(b.display_measure_index??b.measure_index??0)+1);cell.appendChild(m)}chordLane.appendChild(cell)})}
 function focusX(){return Math.max(105,stage.clientWidth*.30)}
 let lastTime=0,lastBeat=-2,lastWord=-2,lastSection=-2,lastChord='';
 function renderAt(sec,force=false){lastTime=Math.max(0,Number(sec)||0);const x=focusX();zone.style.left=x+'px';diagram.style.left=x+'px';track.style.transform='none';chordLane.style.transform=`translate3d(${x-rawMetric(lastTime)}px,0,0)`;wordLane.style.transform=`translate3d(${x-visMetric(lastTime)}px,0,0)`;const bi=beatIndex(lastTime);if(force||bi!==lastBeat){lastBeat=bi;chordLane.querySelectorAll('.current').forEach(e=>e.classList.remove('current'));chordLane.querySelector(`.lyrics-ribbon-beat[data-beat-seq="${bi}"]`)?.classList.add('current')}const wi=activeWord(lastTime*1000);if(force||wi!==lastWord){lastWord=wi;wordNodes.forEach((e,i)=>{e.classList.toggle('past',wi>=0&&i<wi);e.classList.toggle('current',i===wi)})}const si=sections.reduce((a,s,i)=>s.start<=lastTime?i:a,-1);if(force||si!==lastSection){lastSection=si;panel?.querySelectorAll('.lyrics-section-chip.current').forEach(e=>e.classList.remove('current'));panel?.querySelector(`.lyrics-section-chip[data-section-index="${si}"]`)?.classList.add('current')}const ev=activeChord(lastTime*1000),ch=shown(ev?.effective||ev?.original||'.');if(force||ch!==lastChord){lastChord=ch;drawDiagram(ch)}}

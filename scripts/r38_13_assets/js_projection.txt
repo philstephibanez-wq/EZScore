@@ -1,0 +1,61 @@
+const sourceBeats=parse(root.dataset.beats).sort((a,b)=>Number(a.start_ms)-Number(b.start_ms));
+// R38.13 canonical ChordsLab projection.
+// Same projection policy as ChordsLab: signature numerator = visible slots per measure.
+function medianDiffMs(values,fallback=500){
+ const sorted=(values||[]).map(Number).filter(Number.isFinite).sort((a,b)=>a-b),diffs=[];
+ for(let i=1;i<sorted.length;i++){const d=sorted[i]-sorted[i-1];if(d>20)diffs.push(d)}
+ diffs.sort((a,b)=>a-b);
+ return diffs.length?diffs[Math.floor(diffs.length/2)]:fallback;
+}
+function buildCanonicalProjection(inputBeats){
+ const timeSignature=String(root.dataset.timeSignature||'4/4');
+ const beatsPerMeasure=Math.max(1,Number(timeSignature.split('/')[0])||4);
+ const byMeasure=new Map();
+ inputBeats.forEach((event)=>{
+  const sourceMeasureIndex=Math.max(0,Number(event.measure_index??0));
+  const sourceBeatIndex=Math.max(0,Number(event.beat_index??0));
+  if(!byMeasure.has(sourceMeasureIndex))byMeasure.set(sourceMeasureIndex,new Map());
+  const beatMap=byMeasure.get(sourceMeasureIndex);
+  if(!beatMap.has(sourceBeatIndex))beatMap.set(sourceBeatIndex,event);
+ });
+ const measureKeys=Array.from(byMeasure.keys()).sort((a,b)=>a-b);
+ const projectionBeats=[],projectionMeasures=[],seenSourceBeats=new Set();
+ const inferredStepMs=medianDiffMs(inputBeats.map((event)=>Number(event.start_ms??0)));
+ measureKeys.forEach((sourceMeasureIndex)=>{
+  const beatMap=byMeasure.get(sourceMeasureIndex);
+  const measureEvents=Array.from(beatMap.values()).sort((a,b)=>Number(a.start_ms??0)-Number(b.start_ms??0));
+  if(!measureEvents.length)return;
+  const lastSlots=measureEvents.slice(-beatsPerMeasure);
+  const slotsByBeatIndex=new Map(lastSlots.map((event)=>[Math.max(0,Number(event.beat_index??0)),event]));
+  const hasCompleteBeatIndexes=Array.from({length:beatsPerMeasure},(_unused,beatIndex)=>slotsByBeatIndex.has(beatIndex)).every(Boolean);
+  const selected=hasCompleteBeatIndexes
+   ?Array.from({length:beatsPerMeasure},(_unused,beatIndex)=>slotsByBeatIndex.get(beatIndex))
+   :lastSlots;
+  if(!selected.length)return;
+  const selectedStartMs=Number(selected[0].start_ms??0);
+  const slotStepMs=Math.max(1,medianDiffMs(selected.map((event)=>Number(event.start_ms??0)),inferredStepMs));
+  const firstIndex=projectionBeats.length;
+  for(let slot=0;slot<beatsPerMeasure;slot+=1){
+   const source=selected[slot]||null;
+   if(source){
+    seenSourceBeats.add(String(source.id??`${sourceMeasureIndex}:${slot}`));
+    projectionBeats.push({...source,display_measure_index:projectionMeasures.length,display_beat_index:slot,display_start_ms:Number(source.start_ms??(selectedStartMs+slot*slotStepMs)),displaySynthetic:false});
+   }else{
+    projectionBeats.push({id:`synthetic:${sourceMeasureIndex}:${slot}`,event_type:'beat',start_ms:Math.round(selectedStartMs+slot*slotStepMs),display_start_ms:Math.round(selectedStartMs+slot*slotStepMs),measure_index:sourceMeasureIndex,beat_index:slot,subdivision_index:0,original_value:'.',override_value:null,payload:{},presentation:'empty',effective:'.',hasManualOverride:false,editable:false,display_measure_index:projectionMeasures.length,display_beat_index:slot,displaySynthetic:true});
+   }
+  }
+  projectionMeasures.push({source_measure_index:sourceMeasureIndex,first_display_beat_index:firstIndex,beats_per_measure:beatsPerMeasure});
+ });
+ const unassignedBeats=inputBeats.filter((event)=>!seenSourceBeats.has(String(event.id??''))).sort((a,b)=>Number(a.start_ms??0)-Number(b.start_ms??0));
+ const tailStartMeasure=projectionMeasures.length;
+ unassignedBeats.forEach((event,localIndex)=>{
+  const displayMeasureIndex=tailStartMeasure+Math.floor(localIndex/beatsPerMeasure);
+  const displayBeatIndex=localIndex%beatsPerMeasure;
+  const firstIndex=projectionBeats.length;
+  projectionBeats.push({...event,display_measure_index:displayMeasureIndex,display_beat_index:displayBeatIndex,display_start_ms:Number(event.start_ms??0),displaySynthetic:false});
+  if(displayBeatIndex===0)projectionMeasures.push({source_measure_index:Number(event.measure_index??displayMeasureIndex),first_display_beat_index:firstIndex,beats_per_measure:beatsPerMeasure});
+ });
+ return {beats:projectionBeats,measures:projectionMeasures,beatsPerMeasure};
+}
+const canonicalProjection=buildCanonicalProjection(sourceBeats);
+const beats=canonicalProjection.beats;

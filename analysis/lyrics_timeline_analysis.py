@@ -127,7 +127,23 @@ def source_tokens(text: str) -> list[dict]:
             continue
         if is_chord_line(line):
             continue
-        words=re.findall(r'\S+',line)
+        raw_words=re.findall(r'\S+',line)
+        words=[]
+        leading_punctuation=''
+        for token in raw_words:
+            token_norm=normalise_token(token)
+            if token_norm:
+                if leading_punctuation:
+                    token=leading_punctuation+token
+                    leading_punctuation=''
+                words.append(token)
+            elif words:
+                # Editorial punctuation stays attached to the preceding word.
+                words[-1]+=token
+            else:
+                leading_punctuation+=token
+        if leading_punctuation and words:
+            words[-1]+=leading_punctuation
         for i,word in enumerate(words):
             rows.append({
                 'text':word,
@@ -564,6 +580,94 @@ def _r3810_sequential_mapping(provided: list[dict], recognized: list[dict], acou
     return mapping, rec
 
 
+# R38.13 syllabic vocal timeline.
+# Orthographic French syllables + local Whisper cadence. This is not yet phoneme recognition.
+_R3813_VOWELS = set("aeiouyàâäéèêëîïôöùûüÿœæ")
+
+def _r3813_letters(text: str) -> str:
+    return "".join(ch for ch in str(text or "").lower() if ch.isalpha() or ch in "'’")
+
+def _r3813_syllabify_french(text: str) -> list[str]:
+    raw = _r3813_letters(text)
+    if not raw:
+        return []
+    raw = raw.replace("'", "").replace("’", "")
+    nuclei: list[tuple[int, int]] = []
+    i = 0
+    while i < len(raw):
+        if raw[i] not in _R3813_VOWELS:
+            i += 1
+            continue
+        j = i + 1
+        while j < len(raw) and raw[j] in _R3813_VOWELS:
+            j += 1
+        nuclei.append((i, j))
+        i = j
+    if not nuclei:
+        return [raw]
+    if len(nuclei) > 1:
+        a, b = nuclei[-1]
+        if raw[a:b] == "e" and b == len(raw):
+            nuclei.pop()
+    if len(nuclei) <= 1:
+        return [raw]
+    boundaries = [0]
+    common = {"ch", "ph", "th", "gn", "tr", "dr", "cr", "gr", "fr", "vr", "pl", "bl", "cl", "gl", "fl"}
+    for idx in range(len(nuclei) - 1):
+        _a, left_end = nuclei[idx]
+        right_start, _b = nuclei[idx + 1]
+        consonants = raw[left_end:right_start]
+        if len(consonants) <= 1:
+            cut = right_start
+        else:
+            keep = 2 if consonants[-2:] in common else 1
+            cut = max(left_end, right_start - keep)
+        boundaries.append(cut)
+    boundaries.append(len(raw))
+    result = [raw[boundaries[k]:boundaries[k + 1]] for k in range(len(boundaries) - 1)]
+    return [s for s in result if s] or [raw]
+
+def _r3813_syllable_count(text: str) -> int:
+    return max(1, len(_r3813_syllabify_french(text)))
+
+def _r3813_attach_syllables(rows: list[dict], acoustic_t0: int) -> list[dict]:
+    previous_start = acoustic_t0 - 1
+    for word_index, row in enumerate(rows):
+        syllables = _r3813_syllabify_french(row.get("text") or "")
+        if not syllables:
+            row["syllables"] = []
+            continue
+        word_start = max(acoustic_t0, int(row.get("start_ms") or acoustic_t0))
+        word_end = max(word_start + max(60, 45 * len(syllables)), int(row.get("end_ms") or word_start + 120))
+        duration = max(len(syllables), word_end - word_start)
+        weights = [max(1, len(s)) for s in syllables]
+        total = sum(weights)
+        cursor = word_start
+        consumed = 0
+        items = []
+        for syllable_index, (syl, weight) in enumerate(zip(syllables, weights)):
+            consumed += weight
+            end = word_end if syllable_index == len(syllables) - 1 else word_start + int(round(duration * consumed / total))
+            start = max(cursor, acoustic_t0 if word_index == 0 and syllable_index == 0 else previous_start + 1)
+            end = max(start + 1, end)
+            nucleus = start + (end - start) // 2
+            items.append({
+                "text": syl,
+                "syllable_index": syllable_index,
+                "start_ms": start,
+                "nucleus_ms": min(end, max(start, nucleus)),
+                "end_ms": end,
+                "confidence": round(float(row.get("confidence", 0.0) or 0.0), 4),
+                "alignment": row.get("alignment"),
+                "nucleus_method": "interval_center",
+            })
+            previous_start = start
+            cursor = end
+        row["syllables"] = items
+        row["start_ms"] = items[0]["start_ms"]
+        row["end_ms"] = items[-1]["end_ms"]
+    return rows
+
 def _r3810_curve_sample(left_time: int, right_time: int, recognized_times: list[int], position: int, count: int) -> int:
     if count <= 0:
         return left_time
@@ -666,21 +770,37 @@ def _r3810_apply_mapping(provided: list[dict], mapping: dict[int, tuple[int, int
         ]
         recognized_times = [int(rec[k]["start_ms"]) for k in candidate_rec]
 
-        for pos, source_index in enumerate(gap_sources, start=1):
+        total_syllables = sum(
+            _r3813_syllable_count(provided[i].get("text") or "")
+            for i in gap_sources
+        )
+        syllable_offset = 0
+        for source_index in gap_sources:
+            syllable_count = _r3813_syllable_count(provided[source_index].get("text") or "")
+            start_position = syllable_offset + 1
+            end_position = min(max(1, total_syllables), syllable_offset + syllable_count + 1)
             t = _r3810_curve_sample(
                 left_time,
                 right_time,
                 recognized_times,
-                pos,
-                len(gap_sources),
+                start_position,
+                max(1, total_syllables),
+            )
+            t2 = _r3810_curve_sample(
+                left_time,
+                right_time,
+                recognized_times,
+                end_position,
+                max(1, total_syllables),
             )
             rows[source_index].update(
                 start_ms=max(acoustic_t0, t),
-                end_ms=max(acoustic_t0, t) + 120,
+                end_ms=max(max(acoustic_t0, t) + 60, t2),
                 confidence=0.22,
                 language=None,
-                alignment="acoustic_resample",
+                alignment="syllabic_acoustic_resample",
             )
+            syllable_offset += syllable_count
 
     rows[0]["start_ms"] = acoustic_t0
     previous = acoustic_t0
@@ -729,8 +849,9 @@ def align_provided_text(provided: list[dict], recognized: list[dict], first_voca
     mapping, rec = _r3810_sequential_mapping(provided, recognized, acoustic_t0)
     rows = _r3810_apply_mapping(provided, mapping, rec, acoustic_t0)
 
+    rows = _r3813_attach_syllables(rows, acoustic_t0)
     lexical = sum(1 for row in rows if row.get("alignment") == "lexical_anchor")
-    resampled = sum(1 for row in rows if row.get("alignment") == "acoustic_resample")
+    resampled = sum(1 for row in rows if row.get("alignment") in {"acoustic_resample", "syllabic_acoustic_resample"})
     print(
         f"[LYRICS] Sequential timeline: trigger={acoustic_t0} ms; "
         f"source={len(provided)}; recognized={len(rec)}; "
@@ -826,16 +947,31 @@ def main() -> None:
         'language': row.get('language'),
         'alignment': row.get('alignment'),
         'recognized_index': row.get('recognized_index'),
+        'syllables': row.get('syllables') or [],
     } for row in anchored_rows]
+    payload_syllables = [
+        dict(
+            syllable,
+            word_index=word_index,
+            word_text=row['text'],
+            line_break_after=(bool(row.get('line_break_after')) and syllable_index == len(row.get('syllables') or []) - 1),
+            section_label=row.get('section_label'),
+            section_type=row.get('section_type'),
+        )
+        for word_index, row in enumerate(anchored_rows)
+        for syllable_index, syllable in enumerate(row.get('syllables') or [])
+    ]
 
     write_json(args.output, {
         'ok': True,
         'mode': 'align',
-        'version': 'r38.10-sequential-variable-timeline',
+        'version': 'r38.13-canonical-grid-syllabic-timeline',
         'model': Path(model_path).name,
         'languages': languages,
         'provided_words': len(provided),
         'recognized_words': len(words),
+        'syllables_count': len(payload_syllables),
+        'syllables': payload_syllables,
         'words': payload_words,
     })
     progress(
