@@ -38,17 +38,69 @@ def normalise_token(value: str) -> str:
     value = ''.join(c for c in value if not unicodedata.combining(c))
     return re.sub(r"[^a-z0-9'’-]+", '', value)
 
+def normalise_section_type(label: str) -> str:
+    value=unicodedata.normalize('NFKD',label.lower())
+    value=''.join(c for c in value if not unicodedata.combining(c))
+    value=re.sub(r'\s+\d+\s*$','',value).strip()
+    aliases={'intro':'intro','introduction':'intro','couplet':'verse','verse':'verse','refrain':'chorus','chorus':'chorus','pont':'bridge','bridge':'bridge','pre-refrain':'prechorus','pre chorus':'prechorus','prechorus':'prechorus','instrumental':'instrumental','solo':'solo','final':'final','outro':'outro','coda':'coda'}
+    return aliases.get(value,'section')
+
+def section_label(line: str) -> str | None:
+    s=line.strip()
+    if not s:
+        return None
+    m=re.fullmatch(r'\[([^\[\]\r\n]{1,80})\]',s)
+    if m:
+        return m.group(1).strip()
+    m=re.fullmatch(r'([^\r\n:]{1,48}):',s)
+    if m:
+        candidate=m.group(1).strip()
+        if normalise_section_type(candidate)!='section':
+            return candidate
+    return None
+
+_CHORD_TOKEN_RE=re.compile(r'^(?:[A-G](?:#|b|♭)?(?:maj|min|m|dim|aug|sus|add|M)?(?:\d{0,2})?(?:\([^)]*\))?(?:/[A-G](?:#|b|♭)?)?|[._|-]|\([xX0-9]{4,8}\))$')
+
+def is_chord_line(line: str) -> bool:
+    tokens=re.findall(r'\S+',line.strip())
+    if not tokens:
+        return False
+    ok=0
+    musical=0
+    for token in tokens:
+        c=token.strip().strip('|')
+        if not c:
+            ok+=1
+            continue
+        if _CHORD_TOKEN_RE.fullmatch(c):
+            ok+=1
+            if re.match(r'^[A-G]',c):
+                musical+=1
+    return musical>0 and ok/max(1,len(tokens))>=0.72
+
 def source_tokens(text: str) -> list[dict]:
-    rows = []
-    lines = text.replace('\r\n', '\n').replace('\r', '\n').split('\n')
-    for line_index, line in enumerate(lines):
-        words = re.findall(r'\S+', line)
-        for word_index, word in enumerate(words):
+    rows=[]
+    current_section=None
+    current_section_type=None
+    for line in text.replace('\r\n','\n').replace('\r','\n').split('\n'):
+        label=section_label(line)
+        if label is not None:
+            current_section=label
+            current_section_type=normalise_section_type(label)
+            continue
+        if is_chord_line(line):
+            continue
+        words=re.findall(r'\S+',line)
+        for i,word in enumerate(words):
             rows.append({
-                'text': word,
-                'norm': normalise_token(word),
-                'line_break_after': word_index == len(words) - 1 and line_index < len(lines) - 1,
+                'text':word,
+                'norm':normalise_token(word),
+                'line_break_after':i==len(words)-1,
+                'section_label':current_section,
+                'section_type':current_section_type,
             })
+    if rows:
+        rows[-1]['line_break_after']=False
     return rows
 
 def choose_model_path() -> str:
@@ -317,6 +369,8 @@ def main() -> None:
         'start_ms': int(row.get('start_ms') or 0),
         'end_ms': int(row.get('end_ms') or (row.get('start_ms') or 0) + 120),
         'line_break_after': bool(row.get('line_break_after')),
+        'section_label': row.get('section_label'),
+        'section_type': row.get('section_type'),
         'confidence': round(float(row.get('confidence', 0.0)), 4),
         'language': row.get('language'),
     } for row in rows]

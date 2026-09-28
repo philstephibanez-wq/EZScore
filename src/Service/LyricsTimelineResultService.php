@@ -24,6 +24,8 @@ final class LyricsTimelineResultService
             foreach($rows as $row){if($row['start']>$start)break;$measure=$row['measure'];$beat=$row['beat'];}
             $event=(new SongTimelineEvent($song,SongTimelineEvent::TYPE_LYRIC,$start))->setEndMs($end)->setPosition($measure,$beat,null)->setOriginalValue($text)->setPayload([
                 'line_break_after'=>(bool)($word['line_break_after']??false),
+                'section_label'=>isset($word['section_label'])&&is_string($word['section_label'])?trim($word['section_label']):null,
+                'section_type'=>isset($word['section_type'])&&is_string($word['section_type'])?trim($word['section_type']):null,
                 'confidence'=>isset($word['confidence'])?(float)$word['confidence']:null,
                 'analysis_version'=>(string)($result['version']??'r36.0'),
             ]);
