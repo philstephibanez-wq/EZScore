@@ -1,0 +1,52 @@
+/* ChordsLab remains the visual source of truth. LyricsLab only adds a second row per beat. */
+.lyricslab-source-panel{display:grid;gap:14px}
+.lyricslab-source-panel textarea{
+    width:100%;
+    min-height:260px;
+    resize:vertical;
+    font:15px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;
+}
+.lyricslab-source-footer{display:flex;justify-content:space-between;align-items:center;gap:16px}
+.lyricslab-beat{
+    display:grid!important;
+    grid-template-rows:26px minmax(28px,auto)!important;
+    align-items:start!important;
+    min-height:68px!important;
+    height:auto!important;
+    padding:4px!important;
+}
+.lyricslab-chord{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:24px;
+    font-weight:800;
+    font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
+}
+.lyricslab-words{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+    align-content:flex-start;
+    gap:2px 4px;
+    min-height:24px;
+    font-size:12px;
+    line-height:1.15;
+}
+.lyricslab-word{
+    appearance:none;
+    border:0;
+    background:transparent;
+    color:#aebdc5;
+    padding:1px 2px;
+    border-radius:4px;
+    cursor:text;
+    font:inherit;
+}
+.lyricslab-word.is-current{
+    color:#fff;
+    background:#b3293f;
+    font-weight:800;
+}
+.lyricslab-word-input{width:90px;min-width:0;padding:2px 4px}
+.chord-slot.lyricslab-beat.is-current{background:rgba(239,75,97,.10)}
