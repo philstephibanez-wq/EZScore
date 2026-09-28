@@ -425,92 +425,318 @@ def _r388_fill_unmatched(rows: list[dict]) -> list[dict]:
 
 
 
-def _r389_legacy_interpolate(rows: list[dict]) -> list[dict]:
-    known=[i for i,row in enumerate(rows) if row.get("start_ms") is not None]
-    if not known:
-        raise RuntimeError("No reliable legacy lyric/audio anchor found")
-    first_known=known[0]
-    if first_known>0:
-        anchor=int(rows[first_known]["start_ms"])
-        word_ms=190
-        base=max(0,anchor-first_known*word_ms)
-        for i in range(first_known):
-            start=base+i*word_ms
-            rows[i].update(start_ms=start,end_ms=min(anchor,start+150),confidence=0.12,language=None)
-    known=[i for i,row in enumerate(rows) if row.get("start_ms") is not None]
-    for i,row in enumerate(rows):
-        if row.get("start_ms") is not None:
+
+
+
+
+
+
+def _r3810_similarity(a: str, b: str) -> float:
+    if not a or not b:
+        return 0.0
+    if a == b:
+        return 1.0
+    return difflib.SequenceMatcher(a=a, b=b, autojunk=False).ratio()
+
+
+def _r3810_match_score(source_norm: str, recognized_norm: str, confidence: float, source_pos: float, recognized_pos: float) -> float:
+    sim = _r3810_similarity(source_norm, recognized_norm)
+    if sim >= 0.999:
+        lexical = 6.0
+    elif sim >= 0.90:
+        lexical = 5.0
+    elif sim >= 0.78:
+        lexical = 3.2
+    elif sim >= 0.64:
+        lexical = 1.2
+    else:
+        lexical = -3.0
+    positional_penalty = abs(source_pos - recognized_pos) * 2.0
+    confidence_bonus = max(0.0, min(1.0, float(confidence or 0.0))) * 0.55
+    return lexical + confidence_bonus - positional_penalty
+
+
+def _r3810_sequential_mapping(provided: list[dict], recognized: list[dict], acoustic_t0: int) -> tuple[dict[int, tuple[int, int]], list[dict]]:
+    rec = [
+        row for row in recognized
+        if int(row.get("end_ms", row.get("start_ms", 0)) or 0) >= acoustic_t0 - 250
+    ]
+    if not rec:
+        raise RuntimeError("No recognized vocal words at or after acoustic T0")
+
+    src = provided[1:]
+    n = len(src)
+    m = len(rec)
+    if n == 0:
+        return {}, rec
+
+    neg = -10**15
+    dp = [[neg] * (m + 1) for _ in range(n + 1)]
+    back: list[list[tuple[int, int, str] | None]] = [[None] * (m + 1) for _ in range(n + 1)]
+    dp[0][0] = 0.0
+    SOURCE_GAP = -1.35
+    RECOGNIZED_GAP = -1.05
+
+    for i in range(n + 1):
+        for j in range(m + 1):
+            current = dp[i][j]
+            if current <= neg / 2:
+                continue
+
+            if i < n:
+                cand = current + SOURCE_GAP
+                if cand > dp[i + 1][j]:
+                    dp[i + 1][j] = cand
+                    back[i + 1][j] = (i, j, "skip_source")
+
+            if j < m:
+                cand = current + RECOGNIZED_GAP
+                if cand > dp[i][j + 1]:
+                    dp[i][j + 1] = cand
+                    back[i][j + 1] = (i, j, "skip_recognized")
+
+            if i < n and j < m:
+                source_pos = (i + 1) / max(1, n)
+                recognized_pos = (j + 1) / max(1, m)
+                score = _r3810_match_score(
+                    src[i].get("norm") or "",
+                    rec[j].get("norm") or "",
+                    float(rec[j].get("confidence", 0.0) or 0.0),
+                    source_pos,
+                    recognized_pos,
+                )
+                cand = current + score
+                if cand > dp[i + 1][j + 1]:
+                    dp[i + 1][j + 1] = cand
+                    back[i + 1][j + 1] = (i, j, "match11")
+
+            if i + 1 < n and j < m:
+                joined_source = (src[i].get("norm") or "") + (src[i + 1].get("norm") or "")
+                sim = _r3810_similarity(joined_source, rec[j].get("norm") or "")
+                if sim >= 0.72:
+                    source_pos = (i + 1.5) / max(1, n)
+                    recognized_pos = (j + 1) / max(1, m)
+                    score = 4.8 * sim + min(0.5, float(rec[j].get("confidence", 0.0) or 0.0) * 0.5)
+                    score -= abs(source_pos - recognized_pos) * 2.0
+                    cand = current + score
+                    if cand > dp[i + 2][j + 1]:
+                        dp[i + 2][j + 1] = cand
+                        back[i + 2][j + 1] = (i, j, "match21")
+
+            if i < n and j + 1 < m:
+                joined_rec = (rec[j].get("norm") or "") + (rec[j + 1].get("norm") or "")
+                sim = _r3810_similarity(src[i].get("norm") or "", joined_rec)
+                if sim >= 0.72:
+                    source_pos = (i + 1) / max(1, n)
+                    recognized_pos = (j + 1.5) / max(1, m)
+                    conf = (
+                        float(rec[j].get("confidence", 0.0) or 0.0)
+                        + float(rec[j + 1].get("confidence", 0.0) or 0.0)
+                    ) / 2.0
+                    score = 4.8 * sim + min(0.5, conf * 0.5)
+                    score -= abs(source_pos - recognized_pos) * 2.0
+                    cand = current + score
+                    if cand > dp[i + 1][j + 2]:
+                        dp[i + 1][j + 2] = cand
+                        back[i + 1][j + 2] = (i, j, "match12")
+
+    i, j = n, m
+    operations: list[tuple[int, int, int, int, str]] = []
+    while i > 0 or j > 0:
+        step = back[i][j]
+        if step is None:
+            raise RuntimeError(f"Sequential alignment traceback failed at source={i}, recognized={j}")
+        pi, pj, op = step
+        operations.append((pi, pj, i, j, op))
+        i, j = pi, pj
+    operations.reverse()
+
+    mapping: dict[int, tuple[int, int]] = {}
+    for pi, pj, ni, nj, op in operations:
+        if op == "match11":
+            mapping[pi + 1] = (pj, pj)
+        elif op == "match21":
+            mapping[pi + 1] = (pj, pj)
+            mapping[pi + 2] = (pj, pj)
+        elif op == "match12":
+            mapping[pi + 1] = (pj, pj + 1)
+
+    return mapping, rec
+
+
+def _r3810_curve_sample(left_time: int, right_time: int, recognized_times: list[int], position: int, count: int) -> int:
+    if count <= 0:
+        return left_time
+    controls: list[tuple[float, float]] = [(0.0, float(left_time))]
+    q = len(recognized_times)
+    for idx, value in enumerate(recognized_times):
+        controls.append(((idx + 1) / (q + 1), float(value)))
+    controls.append((1.0, float(right_time)))
+    x = position / (count + 1)
+    for idx in range(1, len(controls)):
+        x1, y1 = controls[idx]
+        x0, y0 = controls[idx - 1]
+        if x <= x1:
+            if x1 <= x0:
+                return int(round(y1))
+            p = (x - x0) / (x1 - x0)
+            return int(round(y0 + (y1 - y0) * p))
+    return int(round(right_time))
+
+
+def _r3810_apply_mapping(provided: list[dict], mapping: dict[int, tuple[int, int]], rec: list[dict], acoustic_t0: int) -> list[dict]:
+    rows = [
+        dict(row, start_ms=None, end_ms=None, confidence=0.0, language=None)
+        for row in provided
+    ]
+    rows[0].update(
+        start_ms=acoustic_t0,
+        end_ms=acoustic_t0 + 160,
+        confidence=1.0,
+        language=None,
+        alignment="acoustic_trigger",
+    )
+
+    grouped: dict[int, list[int]] = {}
+    for source_index, (r0, r1) in mapping.items():
+        grouped.setdefault(r0, []).append(source_index)
+        start = max(acoustic_t0, int(rec[r0]["start_ms"]))
+        end = max(start + 60, int(rec[r1].get("end_ms", start + 120)))
+        conf = min(
+            float(rec[k].get("confidence", 0.0) or 0.0)
+            for k in range(r0, r1 + 1)
+        )
+        rows[source_index].update(
+            start_ms=start,
+            end_ms=end,
+            confidence=conf,
+            language=rec[r0].get("language"),
+            recognized_index=r0,
+            alignment="lexical_anchor",
+        )
+
+    for r0, source_indexes in grouped.items():
+        same = sorted(i for i in source_indexes if mapping[i] == (r0, r0))
+        if len(same) < 2:
             continue
-        left=max((k for k in known if k<i),default=None)
-        right=min((k for k in known if k>i),default=None)
-        if left is not None and right is not None:
-            span=max(1,right-left)
-            ratio=(i-left)/span
-            a=int(rows[left]["end_ms"]); b=int(rows[right]["start_ms"])
-            t=int(round(a+(b-a)*ratio))
-            row.update(start_ms=t,end_ms=t+120,confidence=0.30)
-        elif left is not None:
-            t=int(rows[left]["end_ms"])+max(80,(i-left-1)*180)
-            row.update(start_ms=t,end_ms=t+160,confidence=0.20)
+        start = max(acoustic_t0, int(rec[r0]["start_ms"]))
+        end = max(start + 80, int(rec[r0].get("end_ms", start + 160)))
+        span = max(80, end - start)
+        weights = [max(1, len(provided[i].get("norm") or "")) for i in same]
+        total = sum(weights)
+        cursor = start
+        consumed = 0
+        for pos, source_index in enumerate(same):
+            consumed += weights[pos]
+            next_time = end if pos == len(same) - 1 else start + int(round(span * consumed / total))
+            rows[source_index]["start_ms"] = cursor
+            rows[source_index]["end_ms"] = max(cursor + 40, next_time)
+            cursor = next_time
+
+    real_anchors = [0] + sorted(mapping)
+    for anchor_pos, left_source in enumerate(real_anchors):
+        right_source = real_anchors[anchor_pos + 1] if anchor_pos + 1 < len(real_anchors) else len(rows)
+        gap_sources = [
+            i for i in range(left_source + 1, right_source)
+            if rows[i].get("start_ms") is None
+        ]
+        if not gap_sources:
+            continue
+
+        if left_source == 0:
+            left_rec_end = -1
+            left_time = acoustic_t0
+        else:
+            left_rec_end = mapping[left_source][1]
+            left_time = int(rows[left_source].get("end_ms") or rows[left_source]["start_ms"])
+
+        if right_source < len(rows):
+            right_rec_start = mapping[right_source][0]
+            right_time = int(rows[right_source]["start_ms"])
+        else:
+            right_rec_start = len(rec)
+            right_time = max(
+                left_time + 120,
+                int(rec[-1].get("end_ms", rec[-1]["start_ms"] + 120)),
+            )
+
+        candidate_rec = [
+            k for k in range(left_rec_end + 1, right_rec_start)
+            if int(rec[k].get("start_ms", 0)) >= acoustic_t0
+        ]
+        recognized_times = [int(rec[k]["start_ms"]) for k in candidate_rec]
+
+        for pos, source_index in enumerate(gap_sources, start=1):
+            t = _r3810_curve_sample(
+                left_time,
+                right_time,
+                recognized_times,
+                pos,
+                len(gap_sources),
+            )
+            rows[source_index].update(
+                start_ms=max(acoustic_t0, t),
+                end_ms=max(acoustic_t0, t) + 120,
+                confidence=0.22,
+                language=None,
+                alignment="acoustic_resample",
+            )
+
+    rows[0]["start_ms"] = acoustic_t0
+    previous = acoustic_t0
+    for idx, row in enumerate(rows):
+        if row.get("start_ms") is None:
+            row["start_ms"] = previous
+            row["end_ms"] = previous + 120
+            row["alignment"] = "monotonic_fallback"
+        start = max(acoustic_t0, int(row["start_ms"]))
+        if idx > 0:
+            start = max(previous + 1, start)
+        row["start_ms"] = start
+        row["end_ms"] = max(start + 40, int(row.get("end_ms") or start + 120))
+        previous = start
+
+    for idx in range(len(rows) - 1):
+        next_start = int(rows[idx + 1]["start_ms"])
+        rows[idx]["end_ms"] = max(
+            int(rows[idx]["start_ms"]) + 40,
+            min(int(rows[idx]["end_ms"]), next_start),
+        )
+
     return rows
 
-def _r389_legacy_align(provided: list[dict], recognized: list[dict]) -> list[dict]:
-    a=[row["norm"] for row in provided]
-    b=[row["norm"] for row in recognized]
-    matcher=difflib.SequenceMatcher(a=a,b=b,autojunk=False)
-    rows=[dict(row,start_ms=None,end_ms=None,confidence=0.0,language=None) for row in provided]
-    reliable=[block for block in matcher.get_matching_blocks() if block.size>=2]
-    if not reliable:
-        singles=[
-            block for block in matcher.get_matching_blocks()
-            if block.size==1 and float(recognized[block.b].get("confidence",0.0) or 0.0)>=0.80
-        ]
-        if not singles:
-            raise RuntimeError("No reliable exact lyric/audio anchor found")
-        singles.sort(key=lambda block:(float(recognized[block.b].get("confidence",0.0) or 0.0),-int(recognized[block.b].get("start_ms",0))),reverse=True)
-        reliable=[singles[0]]
-    for block in reliable:
-        for off in range(block.size):
-            pi=block.a+off; ri=block.b+off; src=recognized[ri]
-            rows[pi].update(start_ms=src["start_ms"],end_ms=src["end_ms"],confidence=src.get("confidence",0.0),language=src.get("language"))
-    return _r389_legacy_interpolate(rows)
-
 def align_provided_text(provided: list[dict], recognized: list[dict], first_vocal_onset_ms: int | None = None) -> list[dict]:
+    """
+    One absolute t0→tn sequence.
+
+    - source word 0 is immutable at the acoustic onset;
+    - source and Whisper words are globally aligned in monotonic order;
+    - no sections participate in timing;
+    - unmatched words inherit the variable acoustic cadence from Whisper onsets;
+    - no fixed ms/word spacing and no global timeline offset.
+    """
     if not provided:
         return []
     if not recognized:
         raise RuntimeError("Whisper returned no timed words")
-    rows=_r389_legacy_align(provided,recognized)
-    if first_vocal_onset_ms is None:
-        first_vocal_onset_ms=int(recognized[0]["start_ms"])
-    first_index=next((i for i,row in enumerate(rows) if row.get("start_ms") is not None),None)
-    if first_index is None:
-        raise RuntimeError("Legacy alignment produced no timed lyric row")
-    legacy_t0=int(rows[first_index]["start_ms"])
-    acoustic_t0=max(0,int(first_vocal_onset_ms))
-    offset_ms=acoustic_t0-legacy_t0
-    for row in rows:
-        if row.get("start_ms") is None:
-            continue
-        old_start=int(row["start_ms"])
-        old_end=int(row.get("end_ms") or old_start+120)
-        start=max(acoustic_t0,old_start+offset_ms)
-        end=max(start+40,old_end+offset_ms)
-        row["start_ms"]=start
-        row["end_ms"]=end
-        row["timeline_offset_ms"]=offset_ms
-    rows[0]["start_ms"]=acoustic_t0
-    rows[0]["end_ms"]=max(acoustic_t0+80,int(rows[0].get("end_ms") or acoustic_t0+160))
-    rows[0]["anchor"]="acoustic_trigger_global_offset"
-    prev=acoustic_t0
-    for row in rows:
-        if row.get("start_ms") is None:
-            continue
-        if int(row["start_ms"])<prev:
-            delta=prev-int(row["start_ms"])
-            row["start_ms"]=prev
-            row["end_ms"]=max(prev+40,int(row.get("end_ms") or prev+120)+delta)
-        prev=int(row["start_ms"])
+
+    acoustic_t0 = (
+        max(0, int(first_vocal_onset_ms))
+        if first_vocal_onset_ms is not None
+        else max(0, int(recognized[0]["start_ms"]))
+    )
+
+    mapping, rec = _r3810_sequential_mapping(provided, recognized, acoustic_t0)
+    rows = _r3810_apply_mapping(provided, mapping, rec, acoustic_t0)
+
+    lexical = sum(1 for row in rows if row.get("alignment") == "lexical_anchor")
+    resampled = sum(1 for row in rows if row.get("alignment") == "acoustic_resample")
+    print(
+        f"[LYRICS] Sequential timeline: trigger={acoustic_t0} ms; "
+        f"source={len(provided)}; recognized={len(rec)}; "
+        f"lexical={lexical}; acoustic_resample={resampled}",
+        flush=True,
+    )
     return rows
 
 def main() -> None:
@@ -555,7 +781,7 @@ def main() -> None:
         write_json(args.output, {
             'ok': True,
             'mode': 'extract',
-            'version': 'r38.9-legacy-plus-acoustic-offset',
+            'version': 'r38.10-sequential-variable-timeline',
             'model': Path(model_path).name,
             'languages': languages,
             'text': text,
@@ -588,8 +814,6 @@ def main() -> None:
     print(f"[LYRICS] First vocal onset: {vocal_onset_ms} ms ({onset_meta.get('method')})", flush=True)
     progress(args.progress_file, 84, 'align', f'Ancrage initial à {vocal_onset_ms / 1000:.3f}s')
     rows = align_provided_text(provided, words, vocal_onset_ms)
-    if rows:
-        print(f"[LYRICS] Global lyric offset: {rows[0].get('timeline_offset_ms', 0)} ms; trigger={rows[0].get('start_ms')} ms", flush=True)
     anchored_rows = [row for row in rows if row.get('start_ms') is not None]
     payload_words = [{
         'text': row['text'],
@@ -600,12 +824,14 @@ def main() -> None:
         'section_type': row.get('section_type'),
         'confidence': round(float(row.get('confidence', 0.0)), 4),
         'language': row.get('language'),
+        'alignment': row.get('alignment'),
+        'recognized_index': row.get('recognized_index'),
     } for row in anchored_rows]
 
     write_json(args.output, {
         'ok': True,
         'mode': 'align',
-        'version': 'r38.9-legacy-plus-acoustic-offset',
+        'version': 'r38.10-sequential-variable-timeline',
         'model': Path(model_path).name,
         'languages': languages,
         'provided_words': len(provided),
