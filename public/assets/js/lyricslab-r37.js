@@ -255,7 +255,7 @@ async function pollLyricsProgress(){
      }else if(status==='failed'){
        progress.hidden=false;
        if(progressPercent)progressPercent.textContent='Erreur';
-       if(progressLabel)progressLabel.textContent=data.error||'Analyse des paroles en échec.';
+       if(progressLabel)progressLabel.textContent='Analyse des paroles en échec. Voir le journal du Worker.';
      }else if(status==='completed'){
        if(progressBar)progressBar.value=100;
        if(progressPercent)progressPercent.textContent='100%';

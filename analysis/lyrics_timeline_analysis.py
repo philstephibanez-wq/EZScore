@@ -423,74 +423,94 @@ def _r388_fill_unmatched(rows: list[dict]) -> list[dict]:
             row.update(start_ms=t,end_ms=t+160,confidence=0.20)
     return rows
 
+
+
+def _r389_legacy_interpolate(rows: list[dict]) -> list[dict]:
+    known=[i for i,row in enumerate(rows) if row.get("start_ms") is not None]
+    if not known:
+        raise RuntimeError("No reliable legacy lyric/audio anchor found")
+    first_known=known[0]
+    if first_known>0:
+        anchor=int(rows[first_known]["start_ms"])
+        word_ms=190
+        base=max(0,anchor-first_known*word_ms)
+        for i in range(first_known):
+            start=base+i*word_ms
+            rows[i].update(start_ms=start,end_ms=min(anchor,start+150),confidence=0.12,language=None)
+    known=[i for i,row in enumerate(rows) if row.get("start_ms") is not None]
+    for i,row in enumerate(rows):
+        if row.get("start_ms") is not None:
+            continue
+        left=max((k for k in known if k<i),default=None)
+        right=min((k for k in known if k>i),default=None)
+        if left is not None and right is not None:
+            span=max(1,right-left)
+            ratio=(i-left)/span
+            a=int(rows[left]["end_ms"]); b=int(rows[right]["start_ms"])
+            t=int(round(a+(b-a)*ratio))
+            row.update(start_ms=t,end_ms=t+120,confidence=0.30)
+        elif left is not None:
+            t=int(rows[left]["end_ms"])+max(80,(i-left-1)*180)
+            row.update(start_ms=t,end_ms=t+160,confidence=0.20)
+    return rows
+
+def _r389_legacy_align(provided: list[dict], recognized: list[dict]) -> list[dict]:
+    a=[row["norm"] for row in provided]
+    b=[row["norm"] for row in recognized]
+    matcher=difflib.SequenceMatcher(a=a,b=b,autojunk=False)
+    rows=[dict(row,start_ms=None,end_ms=None,confidence=0.0,language=None) for row in provided]
+    reliable=[block for block in matcher.get_matching_blocks() if block.size>=2]
+    if not reliable:
+        singles=[
+            block for block in matcher.get_matching_blocks()
+            if block.size==1 and float(recognized[block.b].get("confidence",0.0) or 0.0)>=0.80
+        ]
+        if not singles:
+            raise RuntimeError("No reliable exact lyric/audio anchor found")
+        singles.sort(key=lambda block:(float(recognized[block.b].get("confidence",0.0) or 0.0),-int(recognized[block.b].get("start_ms",0))),reverse=True)
+        reliable=[singles[0]]
+    for block in reliable:
+        for off in range(block.size):
+            pi=block.a+off; ri=block.b+off; src=recognized[ri]
+            rows[pi].update(start_ms=src["start_ms"],end_ms=src["end_ms"],confidence=src.get("confidence",0.0),language=src.get("language"))
+    return _r389_legacy_interpolate(rows)
+
 def align_provided_text(provided: list[dict], recognized: list[dict], first_vocal_onset_ms: int | None = None) -> list[dict]:
     if not provided:
         return []
-    if not recognized and first_vocal_onset_ms is None:
-        raise RuntimeError("No timed words or vocal onset available")
-
-    rows=[dict(row,start_ms=None,end_ms=None,confidence=0.0,language=None) for row in provided]
+    if not recognized:
+        raise RuntimeError("Whisper returned no timed words")
+    rows=_r389_legacy_align(provided,recognized)
     if first_vocal_onset_ms is None:
         first_vocal_onset_ms=int(recognized[0]["start_ms"])
-        anchor_method="whisper_first_word_fallback"
-    else:
-        anchor_method="vocal_stem_acoustic_onset"
-
-    onset=max(0,int(first_vocal_onset_ms))
-    first_end=onset+160
-    first_lang=None
-    cursor=0
-
-    for ri,src in enumerate(recognized):
-        if int(src.get("end_ms",0)) < onset-350:
-            continue
-        cursor=ri
-        if int(src.get("start_ms",0)) <= onset+1800:
-            first_end=max(onset+100,int(src.get("end_ms",onset+160)))
-            first_lang=src.get("language")
-        break
-
-    rows[0].update(start_ms=onset,end_ms=first_end,confidence=1.0,language=first_lang,anchor=anchor_method)
-
-    last_time=onset
-    search_from=cursor
-    for pi in range(1,len(provided)):
-        target=provided[pi].get("norm") or ""
-        if not target:
-            continue
-        best=None
-        stop=min(len(recognized),search_from+40)
-        same_section=provided[pi].get("section_label")==provided[pi-1].get("section_label")
-        max_start=last_time+(20000 if same_section else 10**12)
-        for ri in range(search_from,stop):
-            src=recognized[ri]
-            s=int(src.get("start_ms",0))
-            if int(src.get("end_ms",0)) < last_time-120:
-                continue
-            if s>max_start:
-                break
-            score=_r388_similarity(target,src.get("norm") or "")
-            if score>=0.94:
-                best=(ri,src,score); break
-            if score>=0.80 and (best is None or score>best[2]):
-                best=(ri,src,score)
-        if best is None:
-            continue
-        ri,src,score=best
-        start=max(last_time,int(src["start_ms"]))
-        end=max(start+80,int(src.get("end_ms",start+120)))
-        rows[pi].update(start_ms=start,end_ms=end,confidence=min(float(src.get("confidence",0.0) or 0.0),score),language=src.get("language"))
-        last_time=start
-        search_from=ri+1
-
-    rows=_r388_fill_unmatched(rows)
-    prev=-1
+    first_index=next((i for i,row in enumerate(rows) if row.get("start_ms") is not None),None)
+    if first_index is None:
+        raise RuntimeError("Legacy alignment produced no timed lyric row")
+    legacy_t0=int(rows[first_index]["start_ms"])
+    acoustic_t0=max(0,int(first_vocal_onset_ms))
+    offset_ms=acoustic_t0-legacy_t0
     for row in rows:
         if row.get("start_ms") is None:
             continue
-        s=max(prev,int(row["start_ms"]))
-        e=max(s+40,int(row.get("end_ms") or s+120))
-        row["start_ms"]=s; row["end_ms"]=e; prev=s
+        old_start=int(row["start_ms"])
+        old_end=int(row.get("end_ms") or old_start+120)
+        start=max(acoustic_t0,old_start+offset_ms)
+        end=max(start+40,old_end+offset_ms)
+        row["start_ms"]=start
+        row["end_ms"]=end
+        row["timeline_offset_ms"]=offset_ms
+    rows[0]["start_ms"]=acoustic_t0
+    rows[0]["end_ms"]=max(acoustic_t0+80,int(rows[0].get("end_ms") or acoustic_t0+160))
+    rows[0]["anchor"]="acoustic_trigger_global_offset"
+    prev=acoustic_t0
+    for row in rows:
+        if row.get("start_ms") is None:
+            continue
+        if int(row["start_ms"])<prev:
+            delta=prev-int(row["start_ms"])
+            row["start_ms"]=prev
+            row["end_ms"]=max(prev+40,int(row.get("end_ms") or prev+120)+delta)
+        prev=int(row["start_ms"])
     return rows
 
 def main() -> None:
@@ -535,7 +555,7 @@ def main() -> None:
         write_json(args.output, {
             'ok': True,
             'mode': 'extract',
-            'version': 'r38.8-acoustic-anchor',
+            'version': 'r38.9-legacy-plus-acoustic-offset',
             'model': Path(model_path).name,
             'languages': languages,
             'text': text,
@@ -568,6 +588,8 @@ def main() -> None:
     print(f"[LYRICS] First vocal onset: {vocal_onset_ms} ms ({onset_meta.get('method')})", flush=True)
     progress(args.progress_file, 84, 'align', f'Ancrage initial à {vocal_onset_ms / 1000:.3f}s')
     rows = align_provided_text(provided, words, vocal_onset_ms)
+    if rows:
+        print(f"[LYRICS] Global lyric offset: {rows[0].get('timeline_offset_ms', 0)} ms; trigger={rows[0].get('start_ms')} ms", flush=True)
     anchored_rows = [row for row in rows if row.get('start_ms') is not None]
     payload_words = [{
         'text': row['text'],
@@ -583,7 +605,7 @@ def main() -> None:
     write_json(args.output, {
         'ok': True,
         'mode': 'align',
-        'version': 'r38.8-acoustic-anchor',
+        'version': 'r38.9-legacy-plus-acoustic-offset',
         'model': Path(model_path).name,
         'languages': languages,
         'provided_words': len(provided),
