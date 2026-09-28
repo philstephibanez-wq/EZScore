@@ -17,9 +17,43 @@ OVERLAP_SECONDS = 2.0
 def write_json(path: str | Path, payload: dict) -> None:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    tmp = p.with_suffix(p.suffix + '.tmp')
-    tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding='utf-8')
-    tmp.replace(p)
+    data = json.dumps(payload, ensure_ascii=False)
+
+    import tempfile
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=p.name + '.',
+        suffix='.tmp',
+        dir=str(p.parent),
+        text=True,
+    )
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8', newline='') as handle:
+            handle.write(data)
+            handle.flush()
+            try:
+                os.fsync(handle.fileno())
+            except OSError:
+                pass
+
+        last_error = None
+        for attempt in range(20):
+            try:
+                os.replace(tmp, p)
+                return
+            except PermissionError as exc:
+                last_error = exc
+                time.sleep(0.025 * (attempt + 1))
+
+        try:
+            p.write_text(data, encoding='utf-8')
+            return
+        except Exception:
+            if last_error is not None:
+                raise last_error
+            raise
+    finally:
+        tmp.unlink(missing_ok=True)
 
 def progress(path: str | None, percent: int, stage: str, message: str, **extra) -> None:
     if not path:
