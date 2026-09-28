@@ -80,17 +80,20 @@ def normalise_section_type(label: str) -> str:
     return aliases.get(value,'section')
 
 def section_label(line: str) -> str | None:
-    s=line.strip()
+    s = line.strip()
     if not s:
         return None
-    m=re.fullmatch(r'\[([^\[\]\r\n]{1,80})\]',s)
+
+    m = re.fullmatch(r'\[([^\[\]\r\n]{1,120})\]', s)
     if m:
-        return m.group(1).strip()
-    m=re.fullmatch(r'([^\r\n:]{1,48}):',s)
+        label = m.group(1).strip()
+        return label or None
+
+    m = re.fullmatch(r'([^\r\n:]{1,120}):', s)
     if m:
-        candidate=m.group(1).strip()
-        if normalise_section_type(candidate)!='section':
-            return candidate
+        label = m.group(1).strip()
+        return label or None
+
     return None
 
 _CHORD_TOKEN_RE=re.compile(r'^(?:[A-G](?:#|b|♭)?(?:maj|min|m|dim|aug|sus|add|M)?(?:\d{0,2})?(?:\([^)]*\))?(?:/[A-G](?:#|b|♭)?)?|[._|-]|\([xX0-9]{4,8}\))$')
@@ -272,85 +275,228 @@ def extracted_text(segments: list[dict]) -> str:
         previous_language = language
     return '\n'.join(rows).strip()
 
-def interpolate_unmatched(rows: list[dict]) -> list[dict]:
+def _r386_similarity(a: str, b: str) -> float:
+    if not a or not b:
+        return 0.0
+    if a == b:
+        return 1.0
+    return difflib.SequenceMatcher(a=a, b=b, autojunk=False).ratio()
+
+
+def _r386_first_phrase(provided: list[dict], recognized: list[dict]) -> tuple[int, int, int] | None:
+    """Earliest chronological local phrase compatible with source start."""
+    if not provided or not recognized:
+        return None
+    max_source_skip = min(3, max(0, len(provided) - 1))
+    for ri in range(len(recognized)):
+        for pi in range(max_source_skip + 1):
+            max_len = min(6, len(provided) - pi, len(recognized) - ri)
+            if max_len < 2:
+                continue
+            consecutive = 0
+            best_run = 0
+            strong = 0
+            for off in range(max_len):
+                sim = _r386_similarity(provided[pi + off]['norm'], recognized[ri + off]['norm'])
+                if sim >= 0.80:
+                    strong += 1
+                    consecutive += 1
+                    best_run = max(best_run, consecutive)
+                else:
+                    consecutive = 0
+            if best_run >= 2 and strong >= min(3, max_len):
+                seed = 0
+                for off in range(max_len):
+                    if _r386_similarity(provided[pi + off]['norm'], recognized[ri + off]['norm']) >= 0.72:
+                        seed += 1
+                    else:
+                        break
+                if seed >= 2:
+                    return pi, ri, seed
+    return None
+
+
+def _r386_forward_candidate(provided: list[dict], recognized: list[dict], pi: int, cursor: int, lookahead: int = 18) -> int | None:
+    """Find one source word only in a bounded FORWARD acoustic window."""
+    if cursor >= len(recognized):
+        return None
+    end = min(len(recognized), cursor + lookahead)
+    best = None
+    best_score = 0.0
+    for ri in range(cursor, end):
+        sim = _r386_similarity(provided[pi]['norm'], recognized[ri]['norm'])
+        if sim < 0.78:
+            continue
+        score = sim
+        if pi + 1 < len(provided) and ri + 1 < len(recognized):
+            score += 0.55 * _r386_similarity(provided[pi + 1]['norm'], recognized[ri + 1]['norm'])
+        conf = float(recognized[ri].get('confidence', 0.0) or 0.0)
+        score += min(0.15, max(0.0, conf) * 0.15)
+        if score > best_score + 0.04:
+            best_score = score
+            best = ri
+    return best
+
+
+def _r386_interpolate_small_gaps(rows: list[dict]) -> list[dict]:
     known = [i for i, row in enumerate(rows) if row.get('start_ms') is not None]
     if not known:
         raise RuntimeError('No reliable acoustic anchor found in provided lyrics')
-
-    for i, row in enumerate(rows):
-        if row.get('start_ms') is not None:
+    for left_pos in range(len(known) - 1):
+        left = known[left_pos]
+        right = known[left_pos + 1]
+        missing = right - left - 1
+        if missing <= 0 or missing > 4:
             continue
-
-        left = max((k for k in known if k < i), default=None)
-        right = min((k for k in known if k > i), default=None)
-
-        # No left anchor = instrumental/pickup prefix. Do not invent a timestamp.
-        # Keeping start_ms=None prevents any word from being serialized at t=0.
-        if left is None:
+        a = int(rows[left]['end_ms'])
+        b = int(rows[right]['start_ms'])
+        if b <= a or b - a > 8000:
             continue
-
-        if right is not None:
-            span = max(1, right - left)
-            ratio = (i - left) / span
-            a = int(rows[left]['end_ms'])
-            b = int(rows[right]['start_ms'])
+        for n in range(1, missing + 1):
+            i = left + n
+            ratio = n / (missing + 1)
             t = int(round(a + (b - a) * ratio))
-            row.update(start_ms=t, end_ms=t + 120, confidence=0.30)
-        else:
-            t = int(rows[left]['end_ms']) + max(80, (i - left - 1) * 180)
-            row.update(start_ms=t, end_ms=t + 160, confidence=0.20)
-
+            rows[i].update(start_ms=t, end_ms=min(b, t + 140), confidence=0.18, language=None)
     return rows
 
 
-def align_provided_text(provided: list[dict], recognized: list[dict]) -> list[dict]:
-    a = [row['norm'] for row in provided]
-    b = [row['norm'] for row in recognized]
-    matcher = difflib.SequenceMatcher(a=a, b=b, autojunk=False)
+def detect_first_vocal_onset(audio_path: str | None) -> tuple[int | None, dict]:
+    if not audio_path or not Path(audio_path).is_file():
+        return None, {"method": "unavailable", "found": False}
+    import numpy as np
+    import whisper
+    audio = whisper.load_audio(audio_path)
+    if audio is None or len(audio) < SAMPLE_RATE // 4:
+        return None, {"method": "empty", "found": False}
+    frame = max(1, int(SAMPLE_RATE * 0.030))
+    hop = max(1, int(SAMPLE_RATE * 0.010))
+    if len(audio) < frame:
+        return None, {"method": "too_short", "found": False}
+    sq = np.asarray(audio, dtype=np.float32) ** 2
+    kernel = np.ones(frame, dtype=np.float32) / float(frame)
+    rms = np.sqrt(np.convolve(sq, kernel, mode="valid")[::hop] + 1e-12)
+    db = 20.0 * np.log10(rms + 1e-9)
+    p20 = float(np.percentile(db, 20))
+    p90 = float(np.percentile(db, 90))
+    spread = max(6.0, p90 - p20)
+    threshold = min(p90 - 5.0, p20 + max(10.0, spread * 0.38))
+    active = db >= threshold
+    win = max(1, int(round(0.180 / (hop / SAMPLE_RATE))))
+    need = max(1, int(round(0.120 / (hop / SAMPLE_RATE))))
+    counts = np.convolve(active.astype(np.int16), np.ones(win, dtype=np.int16), mode="same")
+    candidates = np.flatnonzero(counts >= need)
+    if candidates.size == 0:
+        return None, {"method":"rms_sustained","found":False,"threshold_db":round(threshold,2)}
+    idx = int(candidates[0])
+    shoulder = threshold - 6.0
+    while idx > 0 and db[idx - 1] >= shoulder:
+        idx -= 1
+    onset_ms = max(0, int(round((idx * hop) * 1000.0 / SAMPLE_RATE)))
+    return onset_ms, {"method":"rms_sustained","found":True,"threshold_db":round(threshold,2)}
 
-    rows = [dict(row, start_ms=None, end_ms=None, confidence=0.0, language=None) for row in provided]
+def _r388_similarity(a: str, b: str) -> float:
+    if not a or not b:
+        return 0.0
+    if a == b:
+        return 1.0
+    return difflib.SequenceMatcher(a=a,b=b,autojunk=False).ratio()
 
-    reliable_blocks = [
-        block
-        for block in matcher.get_matching_blocks()
-        if block.size >= 2
-    ]
+def _r388_fill_unmatched(rows: list[dict]) -> list[dict]:
+    known=[i for i,r in enumerate(rows) if r.get("start_ms") is not None]
+    if not known:
+        raise RuntimeError("No acoustic anchor available")
+    for i,row in enumerate(rows):
+        if row.get("start_ms") is not None:
+            continue
+        left=max((k for k in known if k<i),default=None)
+        right=min((k for k in known if k>i),default=None)
+        if left is None:
+            continue
+        if right is not None:
+            a=int(rows[left]["end_ms"]); b=int(rows[right]["start_ms"])
+            ratio=(i-left)/max(1,right-left)
+            t=int(round(a+(b-a)*ratio))
+            t=max(a,min(b,t))
+            row.update(start_ms=t,end_ms=max(t+40,min(b,t+140)),confidence=0.30)
+        else:
+            t=int(rows[left]["end_ms"])+max(80,(i-left-1)*180)
+            row.update(start_ms=t,end_ms=t+160,confidence=0.20)
+    return rows
 
-    if not reliable_blocks:
-        singles = [
-            block
-            for block in matcher.get_matching_blocks()
-            if block.size == 1
-            and float(recognized[block.b].get('confidence', 0.0) or 0.0) >= 0.80
-        ]
-        if not singles:
-            raise RuntimeError('No reliable exact lyric/audio anchor found')
+def align_provided_text(provided: list[dict], recognized: list[dict], first_vocal_onset_ms: int | None = None) -> list[dict]:
+    if not provided:
+        return []
+    if not recognized and first_vocal_onset_ms is None:
+        raise RuntimeError("No timed words or vocal onset available")
 
-        singles.sort(
-            key=lambda block: (
-                float(recognized[block.b].get('confidence', 0.0) or 0.0),
-                -int(recognized[block.b].get('start_ms', 0)),
-            ),
-            reverse=True,
-        )
-        reliable_blocks = [singles[0]]
+    rows=[dict(row,start_ms=None,end_ms=None,confidence=0.0,language=None) for row in provided]
+    if first_vocal_onset_ms is None:
+        first_vocal_onset_ms=int(recognized[0]["start_ms"])
+        anchor_method="whisper_first_word_fallback"
+    else:
+        anchor_method="vocal_stem_acoustic_onset"
 
-    for block in reliable_blocks:
-        for off in range(block.size):
-            pi = block.a + off
-            ri = block.b + off
-            src = recognized[ri]
-            rows[pi].update(
-                start_ms=src['start_ms'],
-                end_ms=src['end_ms'],
-                confidence=src.get('confidence', 0.0),
-                language=src.get('language'),
-            )
+    onset=max(0,int(first_vocal_onset_ms))
+    first_end=onset+160
+    first_lang=None
+    cursor=0
 
-    return interpolate_unmatched(rows)
+    for ri,src in enumerate(recognized):
+        if int(src.get("end_ms",0)) < onset-350:
+            continue
+        cursor=ri
+        if int(src.get("start_ms",0)) <= onset+1800:
+            first_end=max(onset+100,int(src.get("end_ms",onset+160)))
+            first_lang=src.get("language")
+        break
+
+    rows[0].update(start_ms=onset,end_ms=first_end,confidence=1.0,language=first_lang,anchor=anchor_method)
+
+    last_time=onset
+    search_from=cursor
+    for pi in range(1,len(provided)):
+        target=provided[pi].get("norm") or ""
+        if not target:
+            continue
+        best=None
+        stop=min(len(recognized),search_from+40)
+        same_section=provided[pi].get("section_label")==provided[pi-1].get("section_label")
+        max_start=last_time+(20000 if same_section else 10**12)
+        for ri in range(search_from,stop):
+            src=recognized[ri]
+            s=int(src.get("start_ms",0))
+            if int(src.get("end_ms",0)) < last_time-120:
+                continue
+            if s>max_start:
+                break
+            score=_r388_similarity(target,src.get("norm") or "")
+            if score>=0.94:
+                best=(ri,src,score); break
+            if score>=0.80 and (best is None or score>best[2]):
+                best=(ri,src,score)
+        if best is None:
+            continue
+        ri,src,score=best
+        start=max(last_time,int(src["start_ms"]))
+        end=max(start+80,int(src.get("end_ms",start+120)))
+        rows[pi].update(start_ms=start,end_ms=end,confidence=min(float(src.get("confidence",0.0) or 0.0),score),language=src.get("language"))
+        last_time=start
+        search_from=ri+1
+
+    rows=_r388_fill_unmatched(rows)
+    prev=-1
+    for row in rows:
+        if row.get("start_ms") is None:
+            continue
+        s=max(prev,int(row["start_ms"]))
+        e=max(s+40,int(row.get("end_ms") or s+120))
+        row["start_ms"]=s; row["end_ms"]=e; prev=s
+    return rows
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('--audio', required=True)
+    parser.add_argument('--vocal-audio')
     parser.add_argument('--lyrics-file')
     parser.add_argument('--output', required=True)
     parser.add_argument('--progress-file')
@@ -389,7 +535,7 @@ def main() -> None:
         write_json(args.output, {
             'ok': True,
             'mode': 'extract',
-            'version': 'r36.1-large-v3-multilingual',
+            'version': 'r38.8-acoustic-anchor',
             'model': Path(model_path).name,
             'languages': languages,
             'text': text,
@@ -415,8 +561,13 @@ def main() -> None:
         raise RuntimeError('Whisper returned no timed words')
 
     progress(args.progress_file, 82, 'align', 'Ancrage du texte fourni sur la timeline')
-    rows = align_provided_text(provided, words)
-
+    vocal_onset_ms, onset_meta = detect_first_vocal_onset(args.vocal_audio)
+    if vocal_onset_ms is None:
+        vocal_onset_ms = int(words[0]['start_ms'])
+        onset_meta = {'method':'whisper_first_word_fallback','found':True}
+    print(f"[LYRICS] First vocal onset: {vocal_onset_ms} ms ({onset_meta.get('method')})", flush=True)
+    progress(args.progress_file, 84, 'align', f'Ancrage initial à {vocal_onset_ms / 1000:.3f}s')
+    rows = align_provided_text(provided, words, vocal_onset_ms)
     anchored_rows = [row for row in rows if row.get('start_ms') is not None]
     payload_words = [{
         'text': row['text'],
@@ -432,7 +583,7 @@ def main() -> None:
     write_json(args.output, {
         'ok': True,
         'mode': 'align',
-        'version': 'r36.1-large-v3-multilingual',
+        'version': 'r38.8-acoustic-anchor',
         'model': Path(model_path).name,
         'languages': languages,
         'provided_words': len(provided),

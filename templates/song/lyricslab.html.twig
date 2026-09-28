@@ -21,7 +21,7 @@
     <a href="{{ path('app_catalog', {'_locale': app.request.locale}) }}">Répertoire</a>
 </header>
 
-{% include 'song/components/_lab_song_card.html.twig' with {song:song} %}
+{% include 'song/components/_lab_song_card.html.twig' with {song:song, beat_events:beat_events} %}
 
 <section class="panel chordslab-settings lyricslab-source-panel">
     <div class="chordslab-prompter-head">
@@ -80,6 +80,7 @@
 
 <section class="panel chordslab-prompter"
          data-lyricslab
+         data-song-id="{{ song.id }}"
          data-beats="{{ beat_events|json_encode|e('html_attr') }}"
          data-chords="{{ chord_events|json_encode|e('html_attr') }}"
          data-lyrics="{{ lyric_events|json_encode|e('html_attr') }}"
@@ -125,7 +126,9 @@
 {% endblock %}
 
 {% block javascripts %}
+<script src="/assets/js/lab-song-card.js?v=20260928r38_8"></script>
 <script src="/assets/js/audio/ezscore-audio-engine.js?v=20260928r35_10"></script>
 <script src="/assets/js/stems-mixer.js?v=20260928r38_3"></script>
-<script src="/assets/js/lyricslab-r37.js?v=20260928r38_3"></script>
+<script src="/assets/js/lyricslab-r37.js?v=20260928r38_8"></script>
+<script src="/assets/js/lyricslab-r38-6-fix.js?v=20260928r38_6"></script>
 {% endblock %}

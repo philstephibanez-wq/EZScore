@@ -133,6 +133,12 @@ def run_lyrics_job(engine,job:dict)->None:
     ]
 
     if mode=="align":
+        vocal_audio=paths.get("lead_vocals")
+        if vocal_audio and Path(str(vocal_audio)).is_file():
+            command += ["--vocal-audio",str(vocal_audio)]
+            engine.log(f"Détection onset vocal: lead_vocals -> {vocal_audio}")
+
+    if mode=="align":
         lyrics_file=paths.get("lyrics_file")
         if not lyrics_file or not Path(str(lyrics_file)).is_file():
             raise RuntimeError("lyrics_file_missing")
@@ -169,6 +175,7 @@ def run_lyrics_job(engine,job:dict)->None:
             outq.put(None)
     threading.Thread(target=reader,daemon=True).start()
 
+    lyrics_output_tail=[]
     last_progress=-1
     last_db_update=0.0
     last_heartbeat=0.0
@@ -185,6 +192,8 @@ def run_lyrics_job(engine,job:dict)->None:
                 except queue.Empty:
                     break
                 if line:
+                    lyrics_output_tail.append(line)
+                    lyrics_output_tail=lyrics_output_tail[-12:]
                     engine.log("[LYRICS] "+line)
 
             current=_read_progress(progress_path)
@@ -219,6 +228,16 @@ def run_lyrics_job(engine,job:dict)->None:
             time.sleep(0.25)
 
         rc=proc.wait()
+
+        while True:
+            try:
+                line=outq.get_nowait()
+            except queue.Empty:
+                break
+            if line:
+                lyrics_output_tail.append(line)
+                lyrics_output_tail=lyrics_output_tail[-12:]
+                engine.log("[LYRICS] "+line)
     finally:
         engine.current_process=None
 
@@ -234,7 +253,8 @@ def run_lyrics_job(engine,job:dict)->None:
             except Exception:
                 pass
     else:
-        error=f"lyrics_python_exit_{rc}"
+        tail=" | ".join(lyrics_output_tail[-6:]).strip()
+        error=(f"lyrics_python_exit_{rc}: {tail}" if tail else f"lyrics_python_exit_{rc}")[:400]
         engine.log(f"Job paroles #{job_id} en échec: {error}")
         try:
             api.post(f"/internal/analysis/desktop/jobs/{job_id}/fail",{"error":error},timeout=10)

@@ -30,13 +30,126 @@ function rawMetric(t){t=Math.max(0,Number(t)||0);if(t<=starts[0])return firstSta
 host.innerHTML='<div class="lyrics-ribbon-stage" data-stage><div class="lyrics-fixed-diagram" data-diagram hidden></div><div class="lyrics-reading-zone" data-reading-zone></div><div class="lyrics-ribbon-track" data-track><div class="lyrics-ribbon-chords" data-chords-lane></div><div class="lyrics-ribbon-words" data-words-lane></div></div></div>';
 const stage=host.querySelector('[data-stage]'),zone=host.querySelector('[data-reading-zone]'),diagram=host.querySelector('[data-diagram]'),track=host.querySelector('[data-track]'),chordLane=host.querySelector('[data-chords-lane]'),wordLane=host.querySelector('[data-words-lane]');
 
-const panel=root.closest('section'),title=panel?.querySelector('.chordslab-prompter-head h2'),sections=[];
-words.forEach((w,i)=>{const l=String(payload(w).section_label||'').trim(),p=i?String(payload(words[i-1]).section_label||'').trim():'';if(l&&l!==p)sections.push({label:l,start:Number(w.start_ms||0)/1000})});
-if(title){let nav=panel.querySelector('[data-section-nav]');if(!nav){nav=document.createElement('div');nav.className='lyrics-section-nav';nav.dataset.sectionNav='';title.insertAdjacentElement('afterend',nav)}nav.innerHTML='';sections.forEach((s,i)=>{const b=document.createElement('button');b.type='button';b.className='lyrics-section-chip';b.dataset.sectionIndex=String(i);b.textContent=s.label;b.onclick=()=>{renderAt(s.start,true);document.querySelector('[data-stem-mixer]')?.dispatchEvent(new CustomEvent('ezscore:request-seek',{detail:{time:s.start}}))};nav.appendChild(b)})}
+const panel=root.closest('section'),title=panel?.querySelector('.chordslab-prompter-head h2');
+const sourceBox=document.querySelector('[data-lyrics-source]');
+
+function declaredSections(text){
+ const result=[];
+ String(text||'').replace(/\r\n?/g,'\n').split('\n').forEach(line=>{
+   const s=line.trim();
+   if(!s)return;
+   let m=/^\[([^\[\]\r\n]{1,120})\]$/.exec(s);
+   if(!m)m=/^([^\r\n:]{1,120}):$/.exec(s);
+   if(m&&m[1].trim())result.push({label:m[1].trim(),start:null});
+ });
+ return result;
+}
+
+function nextBeatAtOrAfter(sec){
+ const ms=Math.max(0,Number(sec||0)*1000);
+ for(const b of beats){
+   if(Number(b.start_ms)>=ms)return Number(b.start_ms)/1000;
+ }
+ return Number(sec||0);
+}
+
+function buildSections(){
+ const declared=declaredSections(sourceBox?.value||'');
+ if(!declared.length)return[];
+
+ // Timed section transitions carried by anchored lyric words.
+ const transitions=[];
+ let previous='';
+ words.forEach((w,i)=>{
+   const label=String(payload(w).section_label||'').trim();
+   if(label&&label!==previous){
+     transitions.push({label,start:Number(w.start_ms||0)/1000,index:i});
+     previous=label;
+   }
+ });
+
+ let cursor=0;
+
+ declared.forEach((section,index)=>{
+   // Match in declaration order, not globally by label. Repeated labels remain valid.
+   for(let j=cursor;j<transitions.length;j++){
+     if(transitions[j].label===section.label){
+       section.start=transitions[j].start;
+       cursor=j+1;
+       break;
+     }
+   }
+
+   // A declared instrumental section has no lyric event. Infer only its temporal
+   // boundary; never invent the section itself.
+   if(section.start==null){
+     if(index===0){
+       section.start=0;
+     }else{
+       const previousSection=declared[index-1];
+       let previousEnd=Number(previousSection.start||0);
+
+       for(const w of words){
+         if(String(payload(w).section_label||'').trim()===previousSection.label){
+           previousEnd=Math.max(
+             previousEnd,
+             Number(w.end_ms||w.start_ms||0)/1000
+           );
+         }
+       }
+
+       section.start=nextBeatAtOrAfter(previousEnd);
+     }
+   }
+ });
+
+ for(let i=1;i<declared.length;i++){
+   declared[i].start=Math.max(
+     Number(declared[i-1].start||0),
+     Number(declared[i].start||0)
+   );
+ }
+
+ return declared;
+}
+
+let sections=buildSections();
+
+function renderSectionNav(){
+ if(!title)return;
+
+ let nav=panel.querySelector('[data-section-nav]');
+ if(!nav){
+   nav=document.createElement('div');
+   nav.className='lyrics-section-nav';
+   nav.dataset.sectionNav='';
+   title.insertAdjacentElement('afterend',nav);
+ }
+
+ nav.innerHTML='';
+
+ sections.forEach((s,i)=>{
+   const b=document.createElement('button');
+   b.type='button';
+   b.className='lyrics-section-chip';
+   b.dataset.sectionIndex=String(i);
+   b.textContent=s.label;
+   b.onclick=()=>{
+     renderAt(s.start,true);
+     document.querySelector('[data-stem-mixer]')?.dispatchEvent(
+       new CustomEvent('ezscore:request-seek',{detail:{time:s.start}})
+     );
+   };
+   nav.appendChild(b);
+ });
+}
+
+renderSectionNav();
+
 
 const header=root.querySelector('.chordslab-prompter-head');let toggle=root.querySelector('[data-lyrics-diagram-toggle]');
 if(!toggle&&header){const l=document.createElement('label');l.className='lyrics-diagram-toggle';l.innerHTML='<input type="checkbox" data-lyrics-diagram-toggle> Diagramme d’accord';header.appendChild(l);toggle=l.querySelector('input')}
-const diagramStorageKey=`ezscore:lyricslab:diagram:${location.pathname}`;
+const diagramStorageKey=`ezscore:lyricslab:diagram:${root.dataset.songId||location.pathname}`;
 let showDiagram=false;
 try{showDiagram=localStorage.getItem(diagramStorageKey)==='1'}catch(_){}
 if(toggle)toggle.checked=showDiagram;
@@ -96,7 +209,14 @@ profileSelect?.addEventListener('change',async()=>{
 
 const source=document.querySelector('[data-lyrics-source]'),state=document.querySelector('[data-lyrics-save-state]');let timer=null;
 async function save(){if(!source)return;try{const r=await fetch(source.dataset.saveUrl,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({_token:source.dataset.saveToken,text:source.value})});if(!r.ok)throw 0;if(state)state.textContent='Enregistré'}catch(_){if(state)state.textContent='Échec enregistrement'}}
-source?.addEventListener('input',()=>{if(state)state.textContent='Modifié…';clearTimeout(timer);timer=setTimeout(save,450)});
+source?.addEventListener('input',()=>{
+ if(state)state.textContent='Modifié…';
+ clearTimeout(timer);
+ timer=setTimeout(save,450);
+ sections=buildSections();
+ renderSectionNav();
+ renderAt(lastTime,true);
+});
 
 /* R38.2A — restore async Lyrics analysis progress UI */
 const progress=document.querySelector('[data-lyrics-progress]');

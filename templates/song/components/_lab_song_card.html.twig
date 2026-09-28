@@ -1,7 +1,8 @@
-<section class="panel chordslab-song-card">
+<section class="panel chordslab-song-card" data-lab-song-card data-lab-beats="{{ (beat_events|default([]))|json_encode|e('html_attr') }}">
     <div><span>{{ 'song.title'|trans }}</span><strong>{{ song.title }}</strong></div>
     <div><span>{{ 'song.artist'|trans }}</span><strong>{{ song.artist }}</strong></div>
     <div><span>{{ 'chordslab.key'|trans({}, 'chordslab') }}</span><strong>{{ song.keySignature ?: '—' }}</strong></div>
     <div><span>{{ 'song.time_signature'|trans }}</span><strong>{{ song.timeSignature }}</strong></div>
     <div><span>{{ 'song.capo'|trans }}</span><strong>{{ song.capo }}</strong></div>
+    <div class="chordslab-tempo-value"><span>Tempo</span><strong data-lab-tempo>Tempo = —</strong></div>
 </section>

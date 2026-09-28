@@ -20,13 +20,7 @@
     <a href="{{ path('app_catalog', {'_locale': app.request.locale}) }}">Répertoire</a>
 </header>
 
-<section class="panel chordslab-song-card">
-    <div><span>{{ 'song.title'|trans }}</span><strong>{{ song.title }}</strong></div>
-    <div><span>{{ 'song.artist'|trans }}</span><strong>{{ song.artist }}</strong></div>
-    <div><span>{{ 'chordslab.key'|trans({}, 'chordslab') }}</span><strong>{{ song.keySignature ?: '—' }}</strong></div>
-    <div><span>{{ 'song.time_signature'|trans }}</span><strong>{{ song.timeSignature }}</strong></div>
-    <div><span>{{ 'song.capo'|trans }}</span><strong>{{ song.capo }}</strong></div>
-</section>
+{% include 'song/components/_lab_song_card.html.twig' with {song:song, beat_events:beat_events} %}
 
 <section class="panel chordslab-settings">
     <form method="post" action="{{ path('app_song_chordslab_settings', {'_locale': app.request.locale, id: song.id}) }}" class="chordslab-settings-grid" data-chord-settings-form>
@@ -264,6 +258,7 @@
 {% endblock %}
 
 {% block javascripts %}
+<script src="/assets/js/lab-song-card.js?v=20260928r38_8"></script>
 <script src="/assets/js/audio/ezscore-audio-engine.js?v=20260928r35_8"></script>
 <script src="/assets/js/stems-mixer.js?v=20260928r35_8"></script>
 <script src="/assets/js/chordslab.js?v=20260928r35_10"></script>
