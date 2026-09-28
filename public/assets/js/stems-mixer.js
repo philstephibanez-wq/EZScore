@@ -40,6 +40,8 @@
         compression: q('[data-master-compression]'),
         compressionOut: q('[data-master-compression-output]'),
         reset: q('[data-master-fx-reset]'),
+        quickVolume: q('[data-chordslab-quick-volume]'),
+        quickVolumeOut: q('[data-chordslab-quick-volume-output]'),
     };
 
     const i18n = {
@@ -118,10 +120,19 @@
         );
     }
 
+    const syncQuickVolume = () => {
+        if (!els.volume || !els.quickVolume) return;
+        els.quickVolume.value = els.volume.value;
+        if (els.quickVolumeOut) {
+            els.quickVolumeOut.textContent = `${Math.round(Number(els.volume.value) * 100)}%`;
+        }
+    };
+
     const syncMasterOutputs = () => {
         if (els.volume && els.volumeOut) {
             els.volumeOut.textContent = `${Math.round(Number(els.volume.value) * 100)}%`;
         }
+        syncQuickVolume();
         if (els.lowOut) els.lowOut.textContent = dbText(els.low.value);
         if (els.midOut) els.midOut.textContent = dbText(els.mid.value);
         if (els.highOut) els.highOut.textContent = dbText(els.high.value);
@@ -195,6 +206,13 @@
         syncMasterOutputs();
         scheduleSave();
     });
+    els.quickVolume?.addEventListener('input', () => {
+        const value = Number(els.quickVolume.value);
+        if (els.volume) els.volume.value = String(value);
+        engine.setMasterVolume(value);
+        syncMasterOutputs();
+        scheduleSave();
+    });
     [els.low, els.mid, els.high].forEach((input) => {
         input?.addEventListener('input', () => {
             applyMasterFx();
@@ -240,7 +258,16 @@
         if (duration) engine.seek((Number(els.seek.value) / 1000) * duration);
     });
 
-    root.addEventListener('ezscore:request-seek', (event) => {\n        const time=Math.max(0,Number(event.detail?.time||0));\n        engine.seek(time);\n        const duration=engine.duration();\n        if(els.seek&&duration>0) els.seek.value=String(Math.round((time/duration)*1000));\n    });\n\n    engine.addEventListener('statechange', (event) => {
+    root.addEventListener('ezscore:request-seek', (event) => {
+        const time = Math.max(0, Number(event.detail?.time || 0));
+        engine.seek(time);
+        const duration = engine.duration();
+        if (els.seek && duration > 0) {
+            els.seek.value = String(Math.round((time / duration) * 1000));
+        }
+    });
+
+    engine.addEventListener('statechange', (event) => {
         if (!els.state) return;
         const state = event.detail?.state;
         if (state === 'playing') els.state.textContent = i18n.playing;

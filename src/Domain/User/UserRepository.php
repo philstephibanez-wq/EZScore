@@ -32,7 +32,7 @@ final class UserRepository extends ServiceEntityRepository
         ));
     }
 
-    public function findFirstAdmin(): ?User
+    public function findFirstCreatedAdmin(): ?User
     {
         foreach ($this->findBy([], ['id' => 'ASC']) as $user) {
             if ($user instanceof User && in_array('ROLE_ADMIN', $user->getRoles(), true)) {

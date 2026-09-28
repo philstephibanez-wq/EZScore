@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+from pathlib import Path
+import sys
+repo=Path(sys.argv[1] if len(sys.argv)>1 else '.').resolve()
+analysis=repo/'analysis'/'lyrics_timeline_analysis.py'
+if not analysis.is_file(): raise SystemExit(f'ABSENT: {analysis}')
+txt=analysis.read_text(encoding='utf-8')
+replacement="def interpolate_unmatched(rows: list[dict]) -> list[dict]:\n    known = [i for i, row in enumerate(rows) if row.get('start_ms') is not None]\n    if not known:\n        raise RuntimeError('No reliable acoustic anchor found in provided lyrics')\n\n    for i, row in enumerate(rows):\n        if row.get('start_ms') is not None:\n            continue\n\n        left = max((k for k in known if k < i), default=None)\n        right = min((k for k in known if k > i), default=None)\n\n        # No left anchor = instrumental/pickup prefix. Do not invent a timestamp.\n        # Keeping start_ms=None prevents any word from being serialized at t=0.\n        if left is None:\n            continue\n\n        if right is not None:\n            span = max(1, right - left)\n            ratio = (i - left) / span\n            a = int(rows[left]['end_ms'])\n            b = int(rows[right]['start_ms'])\n            t = int(round(a + (b - a) * ratio))\n            row.update(start_ms=t, end_ms=t + 120, confidence=0.30)\n        else:\n            t = int(rows[left]['end_ms']) + max(80, (i - left - 1) * 180)\n            row.update(start_ms=t, end_ms=t + 160, confidence=0.20)\n\n    return rows\n\n\ndef align_provided_text(provided: list[dict], recognized: list[dict]) -> list[dict]:\n    a = [row['norm'] for row in provided]\n    b = [row['norm'] for row in recognized]\n    matcher = difflib.SequenceMatcher(a=a, b=b, autojunk=False)\n\n    rows = [dict(row, start_ms=None, end_ms=None, confidence=0.0, language=None) for row in provided]\n\n    reliable_blocks = [\n        block\n        for block in matcher.get_matching_blocks()\n        if block.size >= 2\n    ]\n\n    if not reliable_blocks:\n        singles = [\n            block\n            for block in matcher.get_matching_blocks()\n            if block.size == 1\n            and float(recognized[block.b].get('confidence', 0.0) or 0.0) >= 0.80\n        ]\n        if not singles:\n            raise RuntimeError('No reliable exact lyric/audio anchor found')\n\n        singles.sort(\n            key=lambda block: (\n                float(recognized[block.b].get('confidence', 0.0) or 0.0),\n                -int(recognized[block.b].get('start_ms', 0)),\n            ),\n            reverse=True,\n        )\n        reliable_blocks = [singles[0]]\n\n    for block in reliable_blocks:\n        for off in range(block.size):\n            pi = block.a + off\n            ri = block.b + off\n            src = recognized[ri]\n            rows[pi].update(\n                start_ms=src['start_ms'],\n                end_ms=src['end_ms'],\n                confidence=src.get('confidence', 0.0),\n                language=src.get('language'),\n            )\n\n    return interpolate_unmatched(rows)\n"
+start=txt.find('def interpolate_unmatched(rows: list[dict]) -> list[dict]:')
+align=txt.find('def align_provided_text(provided: list[dict], recognized: list[dict]) -> list[dict]:')
+main=txt.find('\ndef main() -> None:', align)
+if start<0 or align<0 or main<0: raise SystemExit('Lyrics alignment block not found')
+txt=txt[:start]+replacement.rstrip()+'\n'+txt[main+1:]
+# Prevent null/unanchored prefix words from being coerced to time 0 in result JSON.
+old="    payload_words = [{\n        'text': row['text'],\n        'start_ms': int(row.get('start_ms') or 0),\n        'end_ms': int(row.get('end_ms') or (row.get('start_ms') or 0) + 120),"
+new="    anchored_rows = [row for row in rows if row.get('start_ms') is not None]\n    payload_words = [{\n        'text': row['text'],\n        'start_ms': int(row['start_ms']),\n        'end_ms': int(row.get('end_ms') or int(row['start_ms']) + 120),"
+if old not in txt: raise SystemExit('payload_words block not found')
+txt=txt.replace(old,new,1)
+txt=txt.replace("    } for row in rows]\n\n    write_json(args.output, {", "    } for row in anchored_rows]\n\n    write_json(args.output, {", 1)
+analysis.write_text(txt,encoding='utf-8',newline='\n')
+print('R38_2C_INSTALL_OK')

@@ -32,11 +32,19 @@ const stage=host.querySelector('[data-stage]'),zone=host.querySelector('[data-re
 
 const panel=root.closest('section'),title=panel?.querySelector('.chordslab-prompter-head h2'),sections=[];
 words.forEach((w,i)=>{const l=String(payload(w).section_label||'').trim(),p=i?String(payload(words[i-1]).section_label||'').trim():'';if(l&&l!==p)sections.push({label:l,start:Number(w.start_ms||0)/1000})});
-if(title){let nav=panel.querySelector('[data-section-nav]');if(!nav){nav=document.createElement('div');nav.className='lyrics-section-nav';nav.dataset.sectionNav='';title.insertAdjacentElement('afterend',nav)}nav.innerHTML='';sections.forEach((s,i)=>{const b=document.createElement('button');b.type='button';b.className='lyrics-section-chip';b.dataset.sectionIndex=String(i);b.textContent=s.label;b.onclick=()=>document.querySelector('[data-stem-mixer]')?.dispatchEvent(new CustomEvent('ezscore:request-seek',{detail:{time:s.start}}));nav.appendChild(b)})}
+if(title){let nav=panel.querySelector('[data-section-nav]');if(!nav){nav=document.createElement('div');nav.className='lyrics-section-nav';nav.dataset.sectionNav='';title.insertAdjacentElement('afterend',nav)}nav.innerHTML='';sections.forEach((s,i)=>{const b=document.createElement('button');b.type='button';b.className='lyrics-section-chip';b.dataset.sectionIndex=String(i);b.textContent=s.label;b.onclick=()=>{renderAt(s.start,true);document.querySelector('[data-stem-mixer]')?.dispatchEvent(new CustomEvent('ezscore:request-seek',{detail:{time:s.start}}))};nav.appendChild(b)})}
 
 const header=root.querySelector('.chordslab-prompter-head');let toggle=root.querySelector('[data-lyrics-diagram-toggle]');
 if(!toggle&&header){const l=document.createElement('label');l.className='lyrics-diagram-toggle';l.innerHTML='<input type="checkbox" data-lyrics-diagram-toggle> Diagramme d’accord';header.appendChild(l);toggle=l.querySelector('input')}
-let showDiagram=Boolean(toggle?.checked);toggle?.addEventListener('change',()=>{showDiagram=toggle.checked;renderAt(lastTime,true)});
+const diagramStorageKey=`ezscore:lyricslab:diagram:${location.pathname}`;
+let showDiagram=false;
+try{showDiagram=localStorage.getItem(diagramStorageKey)==='1'}catch(_){}
+if(toggle)toggle.checked=showDiagram;
+toggle?.addEventListener('change',()=>{
+ showDiagram=toggle.checked;
+ try{localStorage.setItem(diagramStorageKey,showDiagram?'1':'0')}catch(_){}
+ renderAt(lastTime,true)
+});
 function esc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
 function drawDiagram(ch){if(!showDiagram||!ch||ch==='.'){diagram.hidden=true;diagram.innerHTML='';return}const base=String(ch).split('/')[0],shape=SHAPES[base];diagram.hidden=false;if(!shape){diagram.innerHTML='<strong>'+esc(ch)+'</strong><small>Diagramme non disponible</small>';return}let marks='';shape.split('').forEach((f,i)=>{const x=18+i*18;if(f==='x')marks+=`<text x="${x}" y="12" text-anchor="middle" font-size="10">×</text>`;else if(f==='0')marks+=`<circle cx="${x}" cy="10" r="4" fill="none" stroke="currentColor"/>`;else marks+=`<circle cx="${x}" cy="${27+(Number(f)-1)*18}" r="5" fill="currentColor"/>`});diagram.innerHTML=`<strong>${esc(ch)}</strong><svg viewBox="0 0 120 105"><g stroke="currentColor" fill="none"><path d="M18 18V90M36 18V90M54 18V90M72 18V90M90 18V90M108 18V90"/><path d="M18 18H108M18 36H108M18 54H108M18 72H108M18 90H108"/></g>${marks}</svg>`}
 

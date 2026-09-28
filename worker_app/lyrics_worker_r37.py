@@ -103,11 +103,20 @@ def run_lyrics_job(engine,job:dict)->None:
     engine.app.events.put(("job",engine.current_job.copy()))
     engine.log(f"Job paroles #{job_id} pris ({mode}): {song.get('artist')} — {song.get('title')}")
 
-    audio=paths.get("lead_vocals")
-    if not audio or not Path(str(audio)).is_file():
+    # R38.3: extraction may use the isolated lead vocal, but alignment must use
+    # the original source so timestamps share the exact playback clock.
+    if mode=="align":
         audio=paths.get("source")
+        audio_kind="source"
+    else:
+        audio=paths.get("lead_vocals")
+        audio_kind="lead_vocals"
+        if not audio or not Path(str(audio)).is_file():
+            audio=paths.get("source")
+            audio_kind="source"
     if not audio or not Path(str(audio)).is_file():
         raise RuntimeError("lyrics_audio_source_missing")
+    engine.log(f"Audio Lyrics ({mode}): {audio_kind} -> {audio}")
 
     result_file=paths.get("result_file")
     progress_file=paths.get("progress_file")

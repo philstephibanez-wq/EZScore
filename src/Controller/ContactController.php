@@ -7,7 +7,7 @@ use App\Domain\Contact\ContactMessage;
 use App\Domain\Contact\ContactMessageRepository;
 use App\Domain\Song\SongRepository;
 use App\Domain\User\User;
-use App\Domain\User\UserRepository;
+use App\Service\AdminRecipientResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -24,7 +24,7 @@ final class ContactController extends AbstractController
         Request $request,
         SongRepository $songs,
         ContactMessageRepository $messages,
-        UserRepository $users,
+        AdminRecipientResolver $adminRecipient,
         EntityManagerInterface $em,
         MailerInterface $mailer,
         #[Autowire('%env(MAILER_FROM)%')] string $fromEmail,
@@ -32,11 +32,6 @@ final class ContactController extends AbstractController
         $user = $this->getUser();
         if (!$user instanceof User) {
             throw $this->createAccessDeniedException();
-        }
-
-        $admin = $users->findFirstAdmin();
-        if (!$admin instanceof User || !filter_var($admin->getEmail(), FILTER_VALIDATE_EMAIL)) {
-            throw new \RuntimeException('No first-run administrator email is available.');
         }
 
         $songId = (int) $request->query->get('song', $request->request->get('song_id', 0));
@@ -62,6 +57,8 @@ final class ContactController extends AbstractController
                     $em->flush();
 
                     try {
+                        $admin = $adminRecipient->resolve();
+
                         $mail = (new Email())
                             ->from($fromEmail)
                             ->to($admin->getEmail())
@@ -72,9 +69,11 @@ final class ContactController extends AbstractController
                                 ($song ? "Chanson: {$song->getArtist()} — {$song->getTitle()} (#{$song->getId()})\n" : '').
                                 "\n".$body
                             );
+
                         $mailer->send($mail);
                         $record->markSent();
                         $em->flush();
+
                         $this->addFlash('success', 'Message transmis à l’administrateur.');
                         return $this->redirectToRoute('app_contact_admin', ['_locale' => $request->getLocale()]);
                     } catch (\Throwable) {

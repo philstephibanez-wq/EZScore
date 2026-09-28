@@ -275,39 +275,33 @@ def extracted_text(segments: list[dict]) -> str:
 def interpolate_unmatched(rows: list[dict]) -> list[dict]:
     known = [i for i, row in enumerate(rows) if row.get('start_ms') is not None]
     if not known:
-        return rows
-
-    first_known = known[0]
-    if first_known > 0:
-        anchor = int(rows[first_known]['start_ms'])
-        # Prefix words are packed immediately before the first acoustic anchor.
-        # Never spread them all the way back to MP3 t=0 through long intros.
-        window = min(1800, max(320, first_known * 190))
-        base = max(0, anchor - window)
-        step = max(80, (anchor - base) // max(1, first_known))
-        for i in range(first_known):
-            start = base + i * step
-            end = min(anchor, start + max(100, step - 10))
-            rows[i].update(start_ms=start, end_ms=end, confidence=0.18)
+        raise RuntimeError('No reliable acoustic anchor found in provided lyrics')
 
     for i, row in enumerate(rows):
         if row.get('start_ms') is not None:
             continue
+
         left = max((k for k in known if k < i), default=None)
         right = min((k for k in known if k > i), default=None)
 
-        if left is not None and right is not None:
+        # No left anchor = instrumental/pickup prefix. Do not invent a timestamp.
+        # Keeping start_ms=None prevents any word from being serialized at t=0.
+        if left is None:
+            continue
+
+        if right is not None:
             span = max(1, right - left)
             ratio = (i - left) / span
-            a = rows[left]['end_ms']
-            b = rows[right]['start_ms']
+            a = int(rows[left]['end_ms'])
+            b = int(rows[right]['start_ms'])
             t = int(round(a + (b - a) * ratio))
-            row.update(start_ms=t, end_ms=t + 120, confidence=0.35)
-        elif left is not None:
-            t = rows[left]['end_ms'] + max(80, (i - left - 1) * 180)
-            row.update(start_ms=t, end_ms=t + 160, confidence=0.25)
+            row.update(start_ms=t, end_ms=t + 120, confidence=0.30)
+        else:
+            t = int(rows[left]['end_ms']) + max(80, (i - left - 1) * 180)
+            row.update(start_ms=t, end_ms=t + 160, confidence=0.20)
 
     return rows
+
 
 def align_provided_text(provided: list[dict], recognized: list[dict]) -> list[dict]:
     a = [row['norm'] for row in provided]
@@ -316,29 +310,44 @@ def align_provided_text(provided: list[dict], recognized: list[dict]) -> list[di
 
     rows = [dict(row, start_ms=None, end_ms=None, confidence=0.0, language=None) for row in provided]
 
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-        if tag == 'equal':
-            for di, dj in zip(range(i1, i2), range(j1, j2)):
-                src = recognized[dj]
-                rows[di].update(
-                    start_ms=src['start_ms'],
-                    end_ms=src['end_ms'],
-                    confidence=src.get('confidence', 0.0),
-                    language=src.get('language'),
-                )
-        elif tag == 'replace':
-            n = min(i2 - i1, j2 - j1)
-            for off in range(n):
-                src = recognized[j1 + off]
-                rows[i1 + off].update(
-                    start_ms=src['start_ms'],
-                    end_ms=src['end_ms'],
-                    confidence=max(0.2, src.get('confidence', 0.0) * 0.60),
-                    language=src.get('language'),
-                )
+    reliable_blocks = [
+        block
+        for block in matcher.get_matching_blocks()
+        if block.size >= 2
+    ]
+
+    if not reliable_blocks:
+        singles = [
+            block
+            for block in matcher.get_matching_blocks()
+            if block.size == 1
+            and float(recognized[block.b].get('confidence', 0.0) or 0.0) >= 0.80
+        ]
+        if not singles:
+            raise RuntimeError('No reliable exact lyric/audio anchor found')
+
+        singles.sort(
+            key=lambda block: (
+                float(recognized[block.b].get('confidence', 0.0) or 0.0),
+                -int(recognized[block.b].get('start_ms', 0)),
+            ),
+            reverse=True,
+        )
+        reliable_blocks = [singles[0]]
+
+    for block in reliable_blocks:
+        for off in range(block.size):
+            pi = block.a + off
+            ri = block.b + off
+            src = recognized[ri]
+            rows[pi].update(
+                start_ms=src['start_ms'],
+                end_ms=src['end_ms'],
+                confidence=src.get('confidence', 0.0),
+                language=src.get('language'),
+            )
 
     return interpolate_unmatched(rows)
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('--audio', required=True)
@@ -408,16 +417,17 @@ def main() -> None:
     progress(args.progress_file, 82, 'align', 'Ancrage du texte fourni sur la timeline')
     rows = align_provided_text(provided, words)
 
+    anchored_rows = [row for row in rows if row.get('start_ms') is not None]
     payload_words = [{
         'text': row['text'],
-        'start_ms': int(row.get('start_ms') or 0),
-        'end_ms': int(row.get('end_ms') or (row.get('start_ms') or 0) + 120),
+        'start_ms': int(row['start_ms']),
+        'end_ms': int(row.get('end_ms') or int(row['start_ms']) + 120),
         'line_break_after': bool(row.get('line_break_after')),
         'section_label': row.get('section_label'),
         'section_type': row.get('section_type'),
         'confidence': round(float(row.get('confidence', 0.0)), 4),
         'language': row.get('language'),
-    } for row in rows]
+    } for row in anchored_rows]
 
     write_json(args.output, {
         'ok': True,
