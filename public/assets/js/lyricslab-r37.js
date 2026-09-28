@@ -172,12 +172,6 @@ source?.addEventListener('input',()=>{
  clearTimeout(timer);
  timer=setTimeout(saveSource,450);
 });
-document.querySelector('[data-lyrics-analyze-form]')?.addEventListener('submit',async e=>{
- if(!source)return;
- e.preventDefault();
- clearTimeout(timer);
- if(await saveSource())e.currentTarget.submit();
-});
 
 const progress=document.querySelector('[data-lyrics-progress]');
 const statusUrl=progress?.dataset.statusUrl||'';

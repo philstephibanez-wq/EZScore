@@ -491,9 +491,19 @@ public function saveLyricsSource(Song $song,Request $request,EntityManagerInterf
 }
 
 #[Route('/lyrics/analyze', name: 'app_song_lyricslab_analyze', methods: ['POST'])]
-public function analyzeLyrics(Song $song,Request $request,\App\Service\SongLyricsJobService $jobs): Response
+public function analyzeLyrics(
+    Song $song,
+    Request $request,
+    \App\Service\SongLyricsJobService $jobs,
+    EntityManagerInterface $em,
+): Response
 {
     $user=$this->requireEditor($song);
+    $postedText = (string) $request->request->get('lyrics_source', '');
+    if ($postedText !== '') {
+        $song->setLyricsSourceText($postedText);
+        $em->flush();
+    }
     if(!$this->isCsrfTokenValid('song_lyricslab_analyze_'.$song->getId(),(string)$request->request->get('_token')))throw $this->createAccessDeniedException();
     if(trim((string)$song->getLyricsSourceText())===''){
         $this->addFlash('error','Collez les paroles avant de lancer l’analyse.');

@@ -42,7 +42,7 @@
 
             <form method="post"
                   action="{{ path('app_song_lyricslab_analyze', {'_locale': app.request.locale, id: song.id}) }}"
-                  data-lyrics-analyze-form>
+                  id="lyrics-analyze-form">
                 <input type="hidden" name="_token" value="{{ csrf_token('song_lyricslab_analyze_' ~ song.id) }}">
                 <button type="submit" class="primary">Analyser les paroles</button>
             </form>
@@ -50,6 +50,8 @@
     </div>
 
     <textarea data-lyrics-source
+              name="lyrics_source"
+              form="lyrics-analyze-form"
               data-save-url="{{ path('app_song_lyricslab_source', {'_locale': app.request.locale, id: song.id}) }}"
               data-save-token="{{ csrf_token('song_lyricslab_source_' ~ song.id) }}"
               rows="10"
