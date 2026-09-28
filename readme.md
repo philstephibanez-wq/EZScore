@@ -1,125 +1,71 @@
-# EZScore_v1 — R35.2
+# EZScore_v1 — R36.0a LyricsLab Worker + ChordsLab UI HOTFIX
 
-**R35.2 remplace intégralement R35.1. Ne pas appliquer R35.1 avant.**
+Ce hotfix corrige les deux problèmes visibles du premier test R36.0.
 
-Base corrigée pour ton dépôt actuel :
+## 1. Worker
 
-`535ac59dbbb4797d41779ca0c36ba102d81712c2` (`EZScore_v1_R34_6_TEMPO_TYPOGRAPHY`)
+Erreur observée :
 
-## R35.2
+```text
+AttributeError: 'WorkerEngine' object has no attribute '_run_lyrics_job'
+```
 
-### Analysis Worker
+Le dispatch `kind=lyrics` avait bien été ajouté, mais la méthode `_run_lyrics_job()` n’était pas réellement disponible dans `WorkerEngine`.
 
-- démarrage automatique du serveur local puis du Worker ;
-- `Démarrer Worker` lorsqu'il est arrêté ;
-- `Redémarrer Worker` lorsqu'il tourne ;
-- redémarrage interdit pendant un job actif ;
-- attente réelle (`join`) de l'ancien thread avant toute relance ;
-- commandes serveur indépendantes : `Démarrer serveur` / `Arrêter serveur` ;
-- nouvelle zone **Traitements en cours / à faire** ;
-- lecture toutes les 2 secondes de la file persistée dans `AnalysisJob` ;
-- colonnes : ID, état, type, chanson, progression ;
-- affichage des jobs `running` et `queued` : fermer l'UI n'efface donc pas cette liste côté serveur.
+R36.0a insère explicitement cette méthode dans `WorkerEngine`, juste avant `_read_progress()`, et le contrat vérifie qu’elle existe une seule fois.
 
-### Éditeur
+Après application, **redémarrer le Worker**, puis relancer `Analyser les paroles`. L’ancien job en échec reste historique ; un nouveau job `lyrics` sera créé.
 
-Dans le sélecteur du répertoire admin :
+## 2. Présentation LyricsLab
 
-- suppression de `Conserver l'éditeur — ...` ;
-- l'éditeur courant est affiché uniquement par son nom ;
-- les autres choix restent uniquement les noms des éditeurs ;
-- si aucun éditeur n'est affecté : `—`.
+LyricsLab réutilise désormais explicitement la présentation ChordsLab :
 
-### R35.1 inclus
+- `chordslab.css` chargé directement ;
+- même carte chanson ;
+- même `chordslab-prompter` ;
+- mêmes `chordslab-stage` / `chordslab-measures` ;
+- mêmes `chord-measure`, `chord-measure-number`, `chord-measure-notation`, `chord-slot` ;
+- même player `chordslab-player` / `chordslab-transport` / pistes ;
+- seuls les mots ajoutent une seconde ligne dans chaque cellule beat.
 
-R35.2 reprend directement les fonctions prévues dans R35.1 :
+Donc le bandeau conserve exactement la géométrie visuelle de ChordsLab ; les paroles apparaissent **sous le beat/accord correspondant**, dans la même cellule.
 
-- Auto métrique `2/4`, `3/4`, `4/4`, `6/8` ;
-- batterie prioritaire, basse et harmonie complémentaires ;
-- hypothèses signature × phase sur plusieurs mesures, sans assimiler l'accent maximal au temps 1 ;
-- réimport audio destructif des analyses dérivées avec retour à `Importée` ;
-- source audio identifiée par SHA, ce qui empêche la réutilisation des artefacts stems/accords de l'ancien audio.
+## Installation
 
-## Installation — PowerShell
+À appliquer **après R36.0** :
 
 ```powershell
 cd H:\EZScore_v1
 
-git rev-parse HEAD
-# attendu :
-# 535ac59dbbb4797d41779ca0c36ba102d81712c2
+tar -xf "$env:USERPROFILE\Downloads\EZScore_v1_R36_0a_LYRICSLAB_WORKER_UI_HOTFIX.zip" -C H:\EZScore_v1
 
-# Décompresser R35.2 directement. NE PAS installer R35.1.
-tar -xf "$env:USERPROFILE\Downloads\EZScore_v1_R35_2.zip" -C H:\EZScore_v1
+python .\EZScore_v1_R36_0a_LYRICSLAB_WORKER_UI_HOTFIX\scripts\apply_r36_0a.py H:\EZScore_v1
 
-# Appliquer
-python .\EZScore_v1_R35_2\scripts\apply_r35_2.py H:\EZScore_v1
-
-# Symfony
 php bin\console cache:clear
 php bin\console lint:container
 php bin\console lint:twig templates
-php bin\console debug:router | findstr /I "analysis desktop queue reimport"
 
-# Python
 python -m py_compile .\worker_app\ezscore_analysis_worker.pyw
-python -m py_compile .\analysis\meter_detection_r35_2.py
-python -m py_compile .\analysis\chord_timeline_analysis.py
+python -m py_compile .\analysis\lyrics_timeline_analysis.py
 
-# Contrat R35.2
-php .\EZScore_v1_R35_2\tests\r35_2_contract.php H:\EZScore_v1
+php .\EZScore_v1_R36_0a_LYRICSLAB_WORKER_UI_HOTFIX\tests\r36_0a_contract.php H:\EZScore_v1
 
-# Avant TON push
-git status --short
 git diff --check
-git diff
+git status --short
 ```
 
-Résultat attendu :
+Attendu :
 
 ```text
-R35_2_CONTRACT_OK
+R36_0A_APPLIED_OK
+R36_0A_CONTRACT_OK
 ```
 
-Le script ne committe et ne pousse rien. Il refuse de modifier une autre base Git que le commit prévu.
+Puis :
+1. fermer/redémarrer `EZScore Analysis Worker` ;
+2. retourner dans LyricsLab ;
+3. cliquer `Analyser les paroles` ;
+4. vérifier le job `lyrics` et la progression ;
+5. à la fin, tester la synchro mot / beat / accord avec le player.
 
-
-## Correctif de packaging
-
-Cette reconstruction corrige l’erreur du premier ZIP R35.2 qui était verrouillé par erreur sur R34.5.
-Elle s’applique directement sur R34.6 (`535ac59`) et conserve toutes les corrections R34.6.
-
-Après application, `debug:router` DOIT afficher :
-
-```text
-/internal/analysis/desktop/jobs/queue
-```
-
-et la fenêtre Analysis doit contenir `Traitements en cours / à faire`.
-
-
-## R35.3 WORKFLOW DASHBOARD
-Analyse devient le tableau de bord chanson; workflow strict Import → Stems → Accords → Paroles → Publication.
-
-
-## R35.4 RECOVERY + COLLAB + CONTACT
-Jobs orphelins >120s requeue; propriétaire inchangé; délégations owner/admin; doublons import; contact admin indirect.
-
-
-## R35.4a HOTFIX
-- routes Contact/Collaborateurs enregistrées ;
-- contact admin déplacé dans l’entête globale authentifiée ;
-- lease des jobs réellement rafraîchi par heartbeat Worker ;
-- queue desktop cohérente avec le job local réellement en cours.
-
-
-## R35.5 UX + COLLAB + MAIL
-Dashboard simplifié, Répertoire, délégations visibles et fonctionnelles, propriétaire explicite, contact admin corrigé.
-
-
-## R35.5a WORKFLOW TABS FIX
-Restaure la navigation complète du workflow. Seul le premier onglet devient `TABLEAU DE BORD`; Import, Édition, StemsLab, ChordsLab, LyricsLab et Publication restent présents et gardent leur verrouillage par prérequis.
-
-
-## R35.8 TIMELINE / PERSIST / PRELOAD
-Timeline absolue depuis t=0, mesures sans harmonie en points, filtre live persisté, préchargement Opus à l’ouverture, reset uniquement si overrides, suppression des crochets.
+Aucune modification de ChordsLab lui-même ni du workflow stable antérieur.

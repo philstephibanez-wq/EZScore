@@ -1,0 +1,173 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}LyricsLab — {{ song.title }} — EZScore_v1{% endblock %}
+
+{% block stylesheets %}
+<link rel="stylesheet" href="/assets/css/workflow-tabs-r23-2.css?v=20260926r31">
+<link rel="stylesheet" href="/assets/css/stems.css?v=20260926r29">
+<link rel="stylesheet" href="/assets/css/chordslab.css?v=20260928r35_10">
+<link rel="stylesheet" href="/assets/css/lyricslab-r36-0a.css?v=20260928r36_0a">
+{% endblock %}
+
+{% block body %}
+{% include 'layout/song/_workflow_tabs.html.twig' with {current:'lyrics', song:song} %}
+
+<header class="page-head chordslab-head">
+    <div>
+        <div class="eyebrow">LyricsLab</div>
+        <h1>LyricsLab — {{ song.title }}</h1>
+        <p class="page-note">Paroles fournies par l’éditeur, ancrées sur la timeline stable de ChordsLab.</p>
+    </div>
+    <a href="{{ path('app_catalog', {'_locale': app.request.locale}) }}">Répertoire</a>
+</header>
+
+<section class="panel chordslab-song-card">
+    <div><span>{{ 'song.title'|trans }}</span><strong>{{ song.title }}</strong></div>
+    <div><span>{{ 'song.artist'|trans }}</span><strong>{{ song.artist }}</strong></div>
+    <div><span>{{ 'chordslab.key'|trans({}, 'chordslab') }}</span><strong>{{ song.keySignature ?: '—' }}</strong></div>
+    <div><span>{{ 'song.time_signature'|trans }}</span><strong>{{ song.timeSignature }}</strong></div>
+    <div><span>{{ 'song.capo'|trans }}</span><strong>{{ song.capo }}</strong></div>
+</section>
+
+<section class="panel lyrics-source-panel">
+    <div class="chordslab-prompter-head">
+        <div>
+            <div class="eyebrow">Paroles source</div>
+            <h2>Texte éditable</h2>
+        </div>
+        <span class="chordslab-settings-save-state" data-lyrics-save-state>Enregistré</span>
+    </div>
+
+    <textarea data-lyrics-source
+              data-save-url="{{ path('app_song_lyricslab_source', {'_locale': app.request.locale, id: song.id}) }}"
+              data-save-token="{{ csrf_token('song_lyricslab_source_' ~ song.id) }}"
+              rows="10"
+              placeholder="Collez ici les paroles exactes…">{{ song.lyricsSourceText }}</textarea>
+
+    <p class="page-note">Les sauts de ligne servent à l’impression et au futur karaoké vertical. Ils ne cassent pas le prompteur bandeau.</p>
+
+    <div class="chordslab-prompter-actions">
+        <form method="post"
+              action="{{ path('app_song_lyricslab_analyze', {'_locale': app.request.locale, id: song.id}) }}"
+              data-lyrics-analyze-form>
+            <input type="hidden" name="_token" value="{{ csrf_token('song_lyricslab_analyze_' ~ song.id) }}">
+            <button type="submit" class="primary">Analyser les paroles</button>
+        </form>
+    </div>
+
+    <div class="chord-analysis-progress"
+         data-lyrics-progress
+         data-status-url="{{ path('app_song_lyricslab_status', {'_locale': app.request.locale, id: song.id}) }}"
+         hidden>
+        <div class="chord-analysis-progress-head">
+            <span data-lyrics-progress-text>Analyse des paroles…</span>
+            <strong data-lyrics-progress-percent>0%</strong>
+        </div>
+        <progress max="100" value="0"></progress>
+    </div>
+</section>
+
+<section class="panel chordslab-prompter"
+         data-lyricslab
+         data-beats="{{ beat_events|json_encode|e('html_attr') }}"
+         data-chords="{{ chord_events|json_encode|e('html_attr') }}"
+         data-lyrics="{{ lyric_events|json_encode|e('html_attr') }}"
+         data-capo="{{ song.capo }}"
+         data-time-signature="{{ song.timeSignature }}"
+         data-edit-url-template="{{ path('app_song_lyricslab_word', {'_locale': app.request.locale, id: song.id, eventId:999999})|replace({'999999':'__EVENT__'}) }}"
+         data-edit-token="{{ csrf_token('song_lyricslab_word_' ~ song.id) }}">
+    <div class="chordslab-prompter-head">
+        <div>
+            <div class="eyebrow">Prompteur</div>
+            <h2>Timeline harmonique + paroles</h2>
+        </div>
+        <div class="chord-profile-status">
+            <span>Profil affiché</span>
+            <strong>{{ ('chordslab.level.' ~ song.chordAnalysisLevel)|trans({}, 'chordslab') }}</strong>
+            <small>{{ lyric_events|length }} mots ancrés</small>
+        </div>
+    </div>
+
+    <div class="chordslab-stage">
+        <div class="chordslab-measures" data-lyrics-measures></div>
+    </div>
+
+    <p class="page-note chordslab-edit-help">Cliquez sur un mot du prompteur pour le corriger. Le mot courant s’allume pendant la lecture.</p>
+</section>
+
+{% if playback_ready %}
+<section class="panel stem-mixer-panel chordslab-player"
+         data-stem-mixer
+         data-mix-save-url="{{ path('app_song_stems_mix', {'_locale': app.request.locale, id: song.id}) }}"
+         data-mix-token="{{ csrf_token('song_stems_mix_' ~ song.id) }}"
+         data-mix-settings="{{ stem_mix_settings|json_encode|e('html_attr') }}">
+    <div class="chordslab-transport">
+        <button type="button" data-mixer-play>▶ Lecture</button>
+        <button type="button" data-mixer-pause>Ⅱ Pause</button>
+        <button type="button" data-mixer-stop>■ Stop</button>
+
+        <label class="chordslab-quick-volume">
+            <span>Volume</span>
+            <input type="range" min="0" max="1.25" step="0.01" value="1" data-master-volume>
+            <output>100%</output>
+        </label>
+
+        <input type="range" min="0" max="1000" value="0" data-mixer-seek aria-label="Seek">
+        <span data-mixer-time>0:00 / 0:00</span>
+
+        <select data-mixer-rate>
+            <option value=".75">0.75×</option>
+            <option value=".9">0.9×</option>
+            <option value="1" selected>1×</option>
+            <option value="1.1">1.1×</option>
+            <option value="1.25">1.25×</option>
+        </select>
+
+        <span class="stem-mixer-state" data-mixer-state>Prêt</span>
+    </div>
+
+    <details class="chordslab-collapse">
+        <summary>Pistes</summary>
+        <div class="stem-mixer-tracks">
+        {% set mix_tracks = [
+            {'key':'original','label':'Original','enabled':1,'volume':1.00},
+            {'key':'lead_vocals','label':'Lead vocals','enabled':0,'volume':0.82},
+            {'key':'backing_vocals','label':'Backing vocals','enabled':0,'volume':0.72},
+            {'key':'drums','label':'Drums','enabled':0,'volume':0.72},
+            {'key':'bass','label':'Bass','enabled':0,'volume':0.72},
+            {'key':'guitar','label':'Guitar','enabled':0,'volume':0.72},
+            {'key':'piano','label':'Piano','enabled':0,'volume':0.72},
+            {'key':'other','label':'Other','enabled':0,'volume':0.72}
+        ] %}
+
+        {% for track in mix_tracks %}
+            <div class="stem-mixer-grid stem-mixer-row"
+                 data-mixer-track
+                 data-track-key="{{ track.key }}"
+                 data-track-url="{{ path('app_song_stems_playback_audio', {'_locale': app.request.locale, id: song.id, name:track.key}) }}">
+                <div class="stem-track-title">
+                    <strong>{{ track.label }}</strong>
+                    <span class="stem-track-loader" data-track-loader hidden></span>
+                    <small data-track-load-status></small>
+                </div>
+                <label class="stem-mixer-toggle">
+                    <input type="checkbox" data-track-enabled {{ track.enabled ? 'checked' : '' }}>
+                    <span>Actif</span>
+                </label>
+                <label class="stem-mixer-slider">
+                    <input type="range" min="0" max="1.25" step="0.01" value="{{ track.volume }}" data-track-volume>
+                    <output data-track-volume-output>{{ (track.volume*100)|round }}%</output>
+                </label>
+            </div>
+        {% endfor %}
+        </div>
+    </details>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block javascripts %}
+<script src="/assets/js/audio/ezscore-audio-engine.js?v=20260928r35_10"></script>
+<script src="/assets/js/stems-mixer.js?v=20260928r35_10"></script>
+<script src="/assets/js/lyricslab-r36-0a.js?v=20260928r36_0a"></script>
+{% endblock %}
