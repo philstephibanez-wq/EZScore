@@ -32,6 +32,12 @@ final class RegistrationController extends AbstractController
             return $this->redirectToRoute('app_dashboard');
         }
 
+        // R38.14 PUBLIC DEVELOPMENT MODE: public registrations are temporarily closed.
+        $this->addFlash('info', $request->getLocale() === 'en'
+            ? 'Registrations will open soon.'
+            : 'Les inscriptions ouvriront prochainement.');
+        return $this->redirectToRoute('app_login', ['_locale' => $request->getLocale()]);
+
         $errors = [];
 
         if ($request->isMethod('POST')) {

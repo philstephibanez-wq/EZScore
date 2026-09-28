@@ -27,8 +27,7 @@
     </form>
 
     <div class="auth-secondary-action">
-        <span>{{ 'registration.login_prompt'|trans({}, 'registration') }}</span>
-        <a href="{{ path('app_register', {'_locale': app.request.locale}) }}">{{ 'registration.register_link'|trans({}, 'registration') }}</a>
+        <span>{{ app.request.locale == 'en' ? 'Registrations coming soon' : 'Inscriptions prochainement' }}</span>
     </div>
 
     <div class="oauth-sep"><span>{{ 'auth.login.or'|trans }}</span></div>

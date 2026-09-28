@@ -5,17 +5,24 @@
 <link rel="stylesheet" href="/assets/css/catalog.css?v=20260925r21">
 <link rel="stylesheet" href="/assets/css/import-cta.css?v=20260925r105">
 <link rel="stylesheet" href="/assets/css/catalog-r13.css?v=20260925r21">
+<link rel="stylesheet" href="/assets/css/r38-14-public-development.css?v=20260928r38_14">
 {% endblock %}
 
 {% block body %}
 {% if is_public_catalog %}
 <section class="catalog-hero">
+    <div class="public-development-banner" data-public-development-banner>
+        <strong>{{ app.request.locale == 'en' ? 'Site under development' : 'Site en développement' }}</strong>
+        <span>{{ app.request.locale == 'en'
+            ? 'EZScore is currently being finalized. Existing accounts can sign in; new registrations will open soon.'
+            : 'EZScore est actuellement en cours de finalisation. Les comptes existants peuvent se connecter ; les nouvelles inscriptions ouvriront prochainement.' }}</span>
+    </div>
     <div class="catalog-hero-copy">
         <div class="eyebrow">{{ 'catalog.public.eyebrow'|trans }}</div>
         <h1>{{ 'catalog.public.heading'|trans }}</h1>
         <p>{{ 'catalog.public.lead'|trans }}</p>
         <div class="catalog-hero-actions">
-            <a class="catalog-cta primary-cta" href="{{ path('app_register', {'_locale': app.request.locale}) }}">{{ 'catalog.public.register'|trans }}</a>
+            <span class="catalog-cta primary-cta registration-disabled" aria-disabled="true">{{ app.request.locale == 'en' ? 'Registrations coming soon' : 'Inscriptions prochainement' }}</span>
             <a class="catalog-cta secondary-cta" href="{{ path('app_login', {'_locale': app.request.locale}) }}">{{ 'auth.login.submit'|trans }}</a>
         </div>
         <p class="catalog-free-note">{{ 'catalog.public.free_note'|trans }}</p>
@@ -131,6 +138,8 @@
     <a href="{{ path('app_catalog', {'_locale': app.request.locale, sort: sort, letter: letter, status: admin_filters.status ?: null, editor: admin_filters.editor ?: null}) }}">{{ 'catalog.search.clear'|trans }}</a>
 </div>
 {% endif %}
+
+
 
 <div class="catalog-song-grid">
     {% for song in songs %}

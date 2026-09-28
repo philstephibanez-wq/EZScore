@@ -121,8 +121,10 @@
         <a class="ez-brand" href="{{ path('app_home') }}"><strong>EZSCORE</strong><small>v1</small></a>
         <div class="public-topbar-actions">
             {% if public_catalog %}
+                {# R38.14a public contact header #}
+                <a class="public-login-link" href="{{ path('app_public_contact', {'_locale': app.request.locale}) }}">{{ app.request.locale == 'en' ? 'Contact LogAndPlay' : 'Contacter LogAndPlay' }}</a>
                 <a class="public-login-link" href="{{ path('app_login', {'_locale': app.request.locale}) }}">{{ 'auth.login.submit'|trans }}</a>
-                <a class="public-register-link" href="{{ path('app_register', {'_locale': app.request.locale}) }}">{{ 'registration.register_link'|trans }}</a>
+                <span class="public-register-link registration-disabled" aria-disabled="true">{{ app.request.locale == 'en' ? 'Registrations coming soon' : 'Inscriptions prochainement' }}</span>
             {% endif %}
             {{ ui.language_select() }}
         </div>

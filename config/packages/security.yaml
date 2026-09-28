@@ -43,6 +43,9 @@ security:
         - { path: ^/(fr|en)/?$, roles: PUBLIC_ACCESS, methods: [GET] }
         - { path: ^/assets/, roles: PUBLIC_ACCESS }
         - { path: ^/locale/, roles: PUBLIC_ACCESS }
+        # R38.14b public contact
+        - { path: ^/contact-public$, roles: PUBLIC_ACCESS, methods: [GET, POST] }
+        - { path: ^/(fr|en)/contact-public$, roles: PUBLIC_ACCESS, methods: [GET, POST] }
         - { path: ^/connect/google/check$, roles: PUBLIC_ACCESS }
         - { path: ^/(fr|en)/catalog$, roles: PUBLIC_ACCESS, methods: [GET] }
         - { path: ^/(fr|en)/song/\d+$, roles: PUBLIC_ACCESS, methods: [GET] }

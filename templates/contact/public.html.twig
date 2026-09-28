@@ -1,0 +1,52 @@
+{% extends 'base.html.twig' %}
+{% block title %}{{ app.request.locale == 'en' ? 'Contact LogAndPlay' : 'Contacter LogAndPlay' }} — EZScore_v1{% endblock %}
+{% block stylesheets %}
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<link rel="stylesheet" href="/assets/css/authentication.css?v=20260925r94">
+<link rel="stylesheet" href="/assets/css/r38-14-public-development.css?v=20260928r38_14a">
+{% endblock %}
+
+{% block body %}
+<section class="auth-card public-contact-page">
+    <div class="eyebrow">LOGANDPLAY</div>
+    <h1>{{ app.request.locale == 'en' ? 'Contact LogAndPlay' : 'Contacter LogAndPlay' }}</h1>
+    <p>{{ app.request.locale == 'en'
+        ? 'A question about EZScore or the project? Send a message to the administrator.'
+        : 'Une question sur EZScore ou le projet ? Envoyez un message à l’administrateur.' }}</p>
+
+    <form method="post" action="{{ path('app_public_contact', {'_locale': app.request.locale}) }}" class="form-grid" data-public-contact-form>
+        <input type="hidden" name="_token" value="{{ csrf_token('public_contact') }}">
+        <label>{{ app.request.locale == 'en' ? 'Name' : 'Nom' }}
+            <input type="text" name="name" maxlength="120" required autocomplete="name">
+        </label>
+        <label>E-mail
+            <input type="email" name="email" maxlength="180" required autocomplete="email">
+        </label>
+        <label>{{ app.request.locale == 'en' ? 'Subject' : 'Sujet' }}
+            <input type="text" name="subject" maxlength="180" required>
+        </label>
+        <label>Message
+            <textarea name="message" rows="6" maxlength="10000" required></textarea>
+        </label>
+
+        <label class="public-contact-honeypot" aria-hidden="true">
+            Website
+            <input type="text" name="website" tabindex="-1" autocomplete="off">
+        </label>
+
+        {% if turnstile_configured %}
+            <div class="cf-turnstile" data-sitekey="{{ turnstile_site_key }}" data-theme="dark"></div>
+        {% else %}
+            <div class="flash flash-error">{{ app.request.locale == 'en'
+                ? 'Anti-spam protection is not configured yet.'
+                : 'La protection anti-spam n’est pas encore configurée.' }}</div>
+        {% endif %}
+
+        <button class="primary" type="submit" {{ not turnstile_configured ? 'disabled' : '' }}>{{ app.request.locale == 'en' ? 'Send message' : 'Envoyer le message' }}</button>
+    </form>
+
+    <div class="auth-secondary-action" style="margin-top:16px">
+        <a href="{{ path('app_catalog', {'_locale': app.request.locale}) }}">← {{ app.request.locale == 'en' ? 'Back to catalogue' : 'Retour au Répertoire' }}</a>
+    </div>
+</section>
+{% endblock %}
