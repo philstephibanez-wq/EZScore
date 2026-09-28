@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="/assets/css/workflow-tabs-r23-2.css?v=20260926r31">
 <link rel="stylesheet" href="/assets/css/stems.css?v=20260926r29">
 <link rel="stylesheet" href="/assets/css/chordslab.css?v=20260928r35_10">
-<link rel="stylesheet" href="/assets/css/lyricslab-r36-1.css?v=20260928r36_1">
+<link rel="stylesheet" href="/assets/css/lyricslab-r37.css?v=20260928r37_0">
 {% endblock %}
 
 {% block body %}
@@ -16,18 +16,12 @@
     <div>
         <div class="eyebrow">LyricsLab</div>
         <h1>LyricsLab — {{ song.title }}</h1>
-        <p class="page-note">Même timeline que ChordsLab : accords au-dessus, mots ancrés dessous.</p>
+        <p class="page-note">Timeline ChordsLab conservée : accords au-dessus, paroles ancrées exactement sur les beats.</p>
     </div>
     <a href="{{ path('app_catalog', {'_locale': app.request.locale}) }}">Répertoire</a>
 </header>
 
-<section class="panel chordslab-song-card">
-    <div><span>{{ 'song.title'|trans }}</span><strong>{{ song.title }}</strong></div>
-    <div><span>{{ 'song.artist'|trans }}</span><strong>{{ song.artist }}</strong></div>
-    <div><span>{{ 'chordslab.key'|trans({}, 'chordslab') }}</span><strong>{{ song.keySignature ?: '—' }}</strong></div>
-    <div><span>{{ 'song.time_signature'|trans }}</span><strong>{{ song.timeSignature }}</strong></div>
-    <div><span>{{ 'song.capo'|trans }}</span><strong>{{ song.capo }}</strong></div>
-</section>
+{% include 'song/components/_lab_song_card.html.twig' with {song:song} %}
 
 <section class="panel chordslab-settings lyricslab-source-panel">
     <div class="chordslab-prompter-head">
@@ -36,11 +30,11 @@
             <h2>Texte éditable</h2>
         </div>
 
-        <div class="chordslab-prompter-actions">
+        <div class="chordslab-prompter-actions lyricslab-actions">
             <form method="post"
                   action="{{ path('app_song_lyricslab_extract', {'_locale': app.request.locale, id: song.id}) }}"
                   {% if song.lyricsSourceText %}
-                  data-ez-confirm="Extraire les paroles ? Le texte actuel sera remplacé par la transcription proposée."
+                  data-ez-confirm="Extraire automatiquement les paroles ? Le texte actuel de la box sera remplacé par la proposition Whisper."
                   {% endif %}>
                 <input type="hidden" name="_token" value="{{ csrf_token('song_lyricslab_extract_' ~ song.id) }}">
                 <button type="submit">Extraire les paroles</button>
@@ -59,10 +53,14 @@
               data-save-url="{{ path('app_song_lyricslab_source', {'_locale': app.request.locale, id: song.id}) }}"
               data-save-token="{{ csrf_token('song_lyricslab_source_' ~ song.id) }}"
               rows="10"
-              placeholder="Collez ici les paroles exactes…">{{ song.lyricsSourceText }}</textarea>
+              spellcheck="true"
+              placeholder="Collez ici les paroles exactes, ou utilisez « Extraire les paroles »…">{{ song.lyricsSourceText }}</textarea>
 
     <div class="lyricslab-source-footer">
-        <p class="page-note">Les sauts de ligne servent à l’impression et au karaoké vertical ; ils ne cassent pas le prompteur bandeau.</p>
+        <p class="page-note">
+            Les sauts de ligne restent des métadonnées éditoriales pour l’impression / futur karaoké vertical.
+            Ils ne décalent jamais la timeline horizontale.
+        </p>
         <span class="chordslab-settings-save-state" data-lyrics-save-state>Enregistré</span>
     </div>
 
@@ -71,7 +69,7 @@
          data-status-url="{{ path('app_song_lyricslab_status', {'_locale': app.request.locale, id: song.id}) }}"
          hidden>
         <div class="chord-analysis-progress-head">
-            <span data-lyrics-progress-text>Analyse des paroles…</span>
+            <span data-lyrics-progress-text>Paroles…</span>
             <strong data-lyrics-progress-percent>0%</strong>
         </div>
         <progress max="100" value="0"></progress>
@@ -92,7 +90,6 @@
             <div class="eyebrow">Prompteur</div>
             <h2>Timeline harmonique + paroles</h2>
         </div>
-
         <div class="chord-profile-status">
             <span>Profil affiché</span>
             <strong>{{ ('chordslab.level.' ~ song.chordAnalysisLevel)|trans({}, 'chordslab') }}</strong>
@@ -100,12 +97,13 @@
         </div>
     </div>
 
-    <div class="chordslab-stage">
-        <div class="chordslab-measures" data-lyrics-measures></div>
-    </div>
+    {% include 'song/components/_timeline_stage.html.twig' with {
+        mode: 'lyrics',
+        show_diagram: false
+    } %}
 
     <p class="page-note chordslab-edit-help">
-        Cliquez sur un mot pour le corriger. Le mot courant s’allume sous le beat / accord joué.
+        Le mot courant s’allume dans la cellule du beat joué. Cliquez sur un mot pour le corriger.
     </p>
 </section>
 
@@ -114,11 +112,10 @@
     stem_mix_settings: stem_mix_settings,
     playback_ready: playback_ready
 } %}
-
 {% endblock %}
 
 {% block javascripts %}
 <script src="/assets/js/audio/ezscore-audio-engine.js?v=20260928r35_10"></script>
 <script src="/assets/js/stems-mixer.js?v=20260928r35_10"></script>
-<script src="/assets/js/lyricslab-r36-1.js?v=20260928r36_1"></script>
+<script src="/assets/js/lyricslab-r37.js?v=20260928r37_0"></script>
 {% endblock %}

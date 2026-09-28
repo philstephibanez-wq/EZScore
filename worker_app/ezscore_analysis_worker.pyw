@@ -381,6 +381,11 @@ class WorkerEngine:
             self._run_chord_job(job)
             return
 
+        if job.get("kind") == "lyrics":
+            from lyrics_worker_r37 import run_lyrics_job
+            run_lyrics_job(self, job)
+            return
+
         if job.get("kind") != "stems":
             self.log(f"Job #{job.get('job_id')} ignoré: kind={job.get('kind')}")
             self.api.post(f"/internal/analysis/desktop/jobs/{job['job_id']}/fail", {"error": "unsupported_job_kind"})

@@ -499,8 +499,32 @@ public function analyzeLyrics(Song $song,Request $request,\App\Service\SongLyric
         $this->addFlash('error','Collez les paroles avant de lancer l’analyse.');
         return $this->redirectToRoute('app_song_lyricslab',['_locale'=>$request->getLocale(),'id'=>$song->getId()]);
     }
-    $jobs->queue($song,$user);
+    $jobs->queue($song,$user,'align');
     return $this->redirectToRoute('app_song_lyricslab',['_locale'=>$request->getLocale(),'id'=>$song->getId()]);
+}
+
+
+#[Route('/lyrics/extract', name: 'app_song_lyricslab_extract', methods: ['POST'])]
+public function extractLyrics(
+    Song $song,
+    Request $request,
+    \App\Service\SongLyricsJobService $jobs,
+): Response {
+    $user = $this->requireEditor($song);
+
+    if (!$this->isCsrfTokenValid(
+        'song_lyricslab_extract_'.$song->getId(),
+        (string) $request->request->get('_token'),
+    )) {
+        throw $this->createAccessDeniedException();
+    }
+
+    $jobs->queue($song, $user, 'extract');
+
+    return $this->redirectToRoute('app_song_lyricslab', [
+        '_locale' => $request->getLocale(),
+        'id' => $song->getId(),
+    ]);
 }
 
 #[Route('/lyrics/status', name: 'app_song_lyricslab_status', methods: ['GET'])]
@@ -508,7 +532,7 @@ public function lyricsStatus(Song $song,\App\Service\SongLyricsJobService $jobs)
 {
     $this->requireEditor($song);$job=$jobs->latest($song);
     if(!$job)return $this->json(['status'=>'none','progress'=>0]);
-    return $this->json(['job_id'=>$job->getId(),'status'=>$job->getStatus()->value,'progress'=>$job->getProgress(),'error'=>$job->getErrorCode()]);
+    return $this->json(['job_id'=>$job->getId(),'status'=>$job->getStatus()->value,'progress'=>$job->getProgress(),'error'=>$job->getErrorCode(),'mode'=>(string)($job->getRequestData()['mode']??'align')]);
 }
 
 #[Route('/lyrics/word/{eventId}', name: 'app_song_lyricslab_word', requirements: ['eventId'=>'\\d+'], methods: ['POST'])]

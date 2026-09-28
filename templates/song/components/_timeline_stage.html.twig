@@ -1,0 +1,7 @@
+<div class="chordslab-stage">
+    {% if show_diagram|default(false) %}
+        <div class="chord-diagram" data-chord-diagram hidden></div>
+    {% endif %}
+    <div class="chordslab-measures"
+         {% if mode|default('chords') == 'lyrics' %}data-lyrics-measures{% else %}data-chordslab-measures{% endif %}></div>
+</div>

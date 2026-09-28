@@ -1,0 +1,7 @@
+<section class="panel chordslab-song-card">
+    <div><span>{{ 'song.title'|trans }}</span><strong>{{ song.title }}</strong></div>
+    <div><span>{{ 'song.artist'|trans }}</span><strong>{{ song.artist }}</strong></div>
+    <div><span>{{ 'chordslab.key'|trans({}, 'chordslab') }}</span><strong>{{ song.keySignature ?: '—' }}</strong></div>
+    <div><span>{{ 'song.time_signature'|trans }}</span><strong>{{ song.timeSignature }}</strong></div>
+    <div><span>{{ 'song.capo'|trans }}</span><strong>{{ song.capo }}</strong></div>
+</section>
