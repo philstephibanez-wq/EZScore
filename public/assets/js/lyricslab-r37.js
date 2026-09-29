@@ -49,7 +49,8 @@ function buildCanonicalProjection(inputBeats){
 const canonicalProjection=buildCanonicalProjection(sourceBeats);
 const beats=canonicalProjection.beats;
 let chords=parse(root.dataset.chords).sort((a,b)=>Number(a.start_ms)-Number(b.start_ms));
-const words=parse(root.dataset.lyrics).sort((a,b)=>Number(a.start_ms)-Number(b.start_ms));
+const wordCueMs=w=>{const p=payload(w),s=Array.isArray(p.syllables)?p.syllables:[];const n=Number(p.cue_ms??s[0]?.nucleus_ms??w.start_ms??0);return Number.isFinite(n)?n:Number(w.start_ms||0)};
+const words=parse(root.dataset.lyrics).sort((a,b)=>wordCueMs(a)-wordCueMs(b));
 const host=root.querySelector('[data-lyrics-measures]'); if(!host||!beats.length)return;
 const capo=Number(root.dataset.capo||0);
 const profileSelect=root.querySelector('[data-lyrics-profile]');
@@ -63,7 +64,7 @@ function shown(v){let c=String(v||'.').trim().replace(/^\[([^\]]+)\]$/,'$1').rep
 function payload(w){return w&&typeof w.payload==='object'&&w.payload?w.payload:{}}
 function activeChord(ms){let x=null;for(const e of chords){if(Number(e.start_ms)<=ms)x=e;else break}return x}
 function exactChord(a,b){return chords.find(e=>Number(e.start_ms)>=a&&Number(e.start_ms)<b)||null}
-function activeWord(ms){let i=-1;for(let k=0;k<words.length;k++){if(Number(words[k].start_ms)<=ms)i=k;else break}return i}
+function activeWord(ms){let i=-1;for(let k=0;k<words.length;k++){if(wordCueMs(words[k])<=ms)i=k;else break}return i}
 const starts=beats.map(b=>Number(b.start_ms||0)/1000),gaps=[];
 for(let i=1;i<starts.length;i++){const g=starts[i]-starts[i-1];if(g>.02)gaps.push(g)}
 gaps.sort((a,b)=>a-b);const nominal=gaps.length?gaps[Math.floor(gaps.length/2)]:.5,spacing=166;
@@ -207,11 +208,11 @@ toggle?.addEventListener('change',()=>{
 function esc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
 function drawDiagram(ch){if(!showDiagram||!ch||ch==='.'){diagram.hidden=true;diagram.innerHTML='';return}const base=String(ch).split('/')[0],shape=SHAPES[base];diagram.hidden=false;if(!shape){diagram.innerHTML='<strong>'+esc(ch)+'</strong><small>Diagramme non disponible</small>';return}let marks='';shape.split('').forEach((f,i)=>{const x=18+i*18;if(f==='x')marks+=`<text x="${x}" y="12" text-anchor="middle" font-size="10">×</text>`;else if(f==='0')marks+=`<circle cx="${x}" cy="10" r="4" fill="none" stroke="currentColor"/>`;else marks+=`<circle cx="${x}" cy="${27+(Number(f)-1)*18}" r="5" fill="currentColor"/>`});diagram.innerHTML=`<strong>${esc(ch)}</strong><svg viewBox="0 0 120 105"><g stroke="currentColor" fill="none"><path d="M18 18V90M36 18V90M54 18V90M72 18V90M90 18V90M108 18V90"/><path d="M18 18H108M18 36H108M18 54H108M18 72H108M18 90H108"/></g>${marks}</svg>`}
 
-const wordNodes=[];words.forEach((w,i)=>{const e=document.createElement('span');e.className='lyrics-ribbon-word';e.dataset.wordIndex=String(i);e.dataset.rawX=String(rawMetric(Number(w.start_ms||0)/1000));e.textContent=String(w.effective||w.original||'');wordLane.appendChild(e);wordNodes.push(e)});
+const wordNodes=[];words.forEach((w,i)=>{const e=document.createElement('span');e.className='lyrics-ribbon-word';e.dataset.wordIndex=String(i);e.dataset.rawX=String(rawMetric(wordCueMs(w)/1000));e.textContent=String(w.effective||w.original||'');wordLane.appendChild(e);wordNodes.push(e)});
 let anchors=[{raw:0,shift:0}];
 function shiftFor(raw){if(raw<=anchors[0].raw)return anchors[0].shift;let lo=0,hi=anchors.length-1,left=0;while(lo<=hi){const m=(lo+hi)>>1;if(anchors[m].raw<=raw){left=m;lo=m+1}else hi=m-1}if(left>=anchors.length-1)return anchors[left].shift;const a=anchors[left],b=anchors[left+1],p=(raw-a.raw)/Math.max(.001,b.raw-a.raw);return a.shift+(b.shift-a.shift)*Math.max(0,Math.min(1,p))}
 const visRaw=r=>r+shiftFor(r),visMetric=t=>visRaw(rawMetric(t));
-function buildWarp(){let prevRight=-Infinity,shift=0;const a=[{raw:0,shift:0}];wordNodes.forEach(n=>{const raw=Number(n.dataset.rawX||0),w=Math.max(20,n.getBoundingClientRect().width||20),left=raw-w/2;if(Number.isFinite(prevRight))shift=Math.max(shift,prevRight+18-left);const center=raw+shift;n.style.left=center+'px';prevRight=center+w/2;a.push({raw,shift})});anchors=a;buildChords();const end=Math.max(starts.at(-1)||0,Number(words.at(-1)?.end_ms||0)/1000);track.style.width=Math.max(2600,rawMetric(end)+spacing*8,visMetric(end)+spacing*8)+'px';renderAt(lastTime,true)}
+function buildWarp(){let prevRight=-Infinity,shift=0;const a=[{raw:0,shift:0}];wordNodes.forEach(n=>{const raw=Number(n.dataset.rawX||0),w=Math.max(20,n.getBoundingClientRect().width||20),left=raw-w/2;if(Number.isFinite(prevRight))shift=Math.max(shift,prevRight+18-left);const center=raw+shift;n.style.left=center+'px';prevRight=center+w/2;a.push({raw,shift})});anchors=a;buildChords();const end=Math.max(starts.at(-1)||0,Number(words.at(-1)?.end_ms||wordCueMs(words.at(-1)||{}))/1000);track.style.width=Math.max(2600,rawMetric(end)+spacing*8,visMetric(end)+spacing*8)+'px';renderAt(lastTime,true)}
 function buildChords(){chordLane.innerHTML='';beats.forEach((b,i)=>{const s=Number(b.start_ms||0),n=i+1<beats.length?Number(beats[i+1].start_ms):s+nominal*1000,ex=exactChord(s,n),ac=ex||activeChord(s),bn=Number(b.beat_index||0);let text='-';if(ex)text=shown(ex.effective||ex.original||'.');else if((ac?.effective||ac?.original||'')==='.')text='.';const displayBeatIndex=Number(b.display_beat_index??bn);if(!ex&&(ac?.effective||ac?.original||'')!=='.'&&displayBeatIndex===0)text=shown(ac?.effective||ac?.original||'.');/* R38.13c: restore chord lane runtime declaration */const left=xBeat(i),next=i+1<beats.length?xBeat(i+1):left+spacing,cell=document.createElement('div');cell.className='lyrics-ribbon-beat'+(displayBeatIndex===0?' measure-start':'');cell.dataset.beatSeq=String(i);cell.style.left=left+'px';cell.style.width=Math.max(74,next-left)+'px';const c=document.createElement('strong');c.className='lyrics-ribbon-chord';c.textContent=text;cell.appendChild(c);if(displayBeatIndex===0){const m=document.createElement('small');m.className='lyrics-ribbon-measure';m.textContent='#'+(Number(b.display_measure_index??b.measure_index??0)+1);cell.appendChild(m)}chordLane.appendChild(cell)})}
 function focusX(){return Math.max(105,stage.clientWidth*.30)}
 let lastTime=0,lastBeat=-2,lastWord=-2,lastSection=-2,lastChord='';

@@ -860,6 +860,600 @@ def align_provided_text(provided: list[dict], recognized: list[dict], first_voca
     )
     return rows
 
+# R38.17A acoustic syllabic alignment correction
+# Vocal timeline only. Harmonic beat/chord timestamps are not modified.
+
+def _r3817a_median(values, fallback):
+    xs = sorted(float(v) for v in values if v is not None)
+    return xs[len(xs)//2] if xs else float(fallback)
+
+
+def _r3817a_cadence_ms(recognized):
+    starts = [int(r.get("start_ms", 0) or 0) for r in recognized]
+    diffs = [b-a for a,b in zip(starts, starts[1:]) if 90 <= b-a <= 1800]
+    return max(220.0, min(950.0, _r3817a_median(diffs, 480.0)))
+
+
+def _r3810_sequential_mapping(provided, recognized, acoustic_t0):
+    # IMPORTANT R38.17A:
+    # all source words participate. The old code used provided[1:] and therefore
+    # forced source word 0 to the RMS trigger even when that trigger was not speech.
+    rec = [
+        row for row in recognized
+        if int(row.get("end_ms", row.get("start_ms", 0)) or 0) >= acoustic_t0 - 350
+    ]
+    if not rec:
+        raise RuntimeError("No recognized vocal words at or after acoustic lower bound")
+
+    src = provided
+    n, m = len(src), len(rec)
+    if n == 0:
+        return {}, rec
+
+    neg = -10**15
+    dp = [[neg] * (m + 1) for _ in range(n + 1)]
+    back = [[None] * (m + 1) for _ in range(n + 1)]
+    dp[0][0] = 0.0
+    SOURCE_GAP = -1.35
+    RECOGNIZED_GAP = -1.05
+
+    for i in range(n + 1):
+        for j in range(m + 1):
+            cur = dp[i][j]
+            if cur <= neg / 2:
+                continue
+
+            if i < n and cur + SOURCE_GAP > dp[i+1][j]:
+                dp[i+1][j] = cur + SOURCE_GAP
+                back[i+1][j] = (i, j, "skip_source")
+
+            if j < m and cur + RECOGNIZED_GAP > dp[i][j+1]:
+                dp[i][j+1] = cur + RECOGNIZED_GAP
+                back[i][j+1] = (i, j, "skip_recognized")
+
+            if i < n and j < m:
+                score = _r3810_match_score(
+                    src[i].get("norm") or "",
+                    rec[j].get("norm") or "",
+                    float(rec[j].get("confidence", 0.0) or 0.0),
+                    (i + 0.5) / max(1, n),
+                    (j + 0.5) / max(1, m),
+                )
+                cand = cur + score
+                if cand > dp[i+1][j+1]:
+                    dp[i+1][j+1] = cand
+                    back[i+1][j+1] = (i, j, "match11")
+
+            if i + 1 < n and j < m:
+                joined = (src[i].get("norm") or "") + (src[i+1].get("norm") or "")
+                sim = _r3810_similarity(joined, rec[j].get("norm") or "")
+                if sim >= 0.72:
+                    cand = cur + 4.8 * sim + min(
+                        0.5, float(rec[j].get("confidence", 0.0) or 0.0) * 0.5
+                    )
+                    if cand > dp[i+2][j+1]:
+                        dp[i+2][j+1] = cand
+                        back[i+2][j+1] = (i, j, "match21")
+
+            if i < n and j + 1 < m:
+                joined = (rec[j].get("norm") or "") + (rec[j+1].get("norm") or "")
+                sim = _r3810_similarity(src[i].get("norm") or "", joined)
+                if sim >= 0.72:
+                    conf = (
+                        float(rec[j].get("confidence", 0.0) or 0.0)
+                        + float(rec[j+1].get("confidence", 0.0) or 0.0)
+                    ) / 2.0
+                    cand = cur + 4.8 * sim + min(0.5, conf * 0.5)
+                    if cand > dp[i+1][j+2]:
+                        dp[i+1][j+2] = cand
+                        back[i+1][j+2] = (i, j, "match12")
+
+    i, j = n, m
+    ops = []
+    while i > 0 or j > 0:
+        step = back[i][j]
+        if step is None:
+            raise RuntimeError(f"R38.17A traceback failed at source={i}, recognized={j}")
+        pi, pj, op = step
+        ops.append((pi, pj, i, j, op))
+        i, j = pi, pj
+    ops.reverse()
+
+    mapping = {}
+    for pi, pj, ni, nj, op in ops:
+        if op == "match11":
+            mapping[pi] = (pj, pj)
+        elif op == "match21":
+            mapping[pi] = (pj, pj)
+            mapping[pi+1] = (pj, pj)
+        elif op == "match12":
+            mapping[pi] = (pj, pj+1)
+
+    return mapping, rec
+
+
+def _r3817a_effective_t0(provided, mapping, rec, raw_t0):
+    # RMS is a lower search bound, not automatically the timestamp of word 0.
+    if not mapping:
+        return raw_t0, {
+            "raw_t0_ms": raw_t0,
+            "effective_t0_ms": raw_t0,
+            "method": "rms_lower_bound_no_anchor",
+        }
+
+    first_source = min(mapping)
+    first_rec = mapping[first_source][0]
+    first_anchor = max(raw_t0, int(rec[first_rec]["start_ms"]))
+    cadence = _r3817a_cadence_ms(rec)
+
+    if first_source == 0:
+        effective = first_anchor
+        method = "first_word_lexical_anchor"
+    else:
+        expected = cadence * first_source
+        observed = max(0, first_anchor - raw_t0)
+        if observed > expected * 1.85 + 900:
+            effective = max(raw_t0, int(round(first_anchor - expected * 1.35)))
+            method = "lexical_anchor_calibrated_lower_bound"
+        else:
+            effective = raw_t0
+            method = "rms_lower_bound_consistent"
+
+    return effective, {
+        "raw_t0_ms": raw_t0,
+        "effective_t0_ms": effective,
+        "first_lexical_source_index": first_source,
+        "first_lexical_recognized_index": first_rec,
+        "first_lexical_anchor_ms": first_anchor,
+        "median_word_cadence_ms": round(cadence, 2),
+        "method": method,
+    }
+
+
+def _r3810_apply_mapping(provided, mapping, rec, acoustic_t0):
+    rows = [
+        dict(row, start_ms=None, end_ms=None, confidence=0.0, language=None)
+        for row in provided
+    ]
+
+    for source_index, (r0, r1) in mapping.items():
+        start = max(acoustic_t0, int(rec[r0]["start_ms"]))
+        end = max(start + 60, int(rec[r1].get("end_ms", start + 120)))
+        conf = min(
+            float(rec[k].get("confidence", 0.0) or 0.0)
+            for k in range(r0, r1 + 1)
+        )
+        rows[source_index].update(
+            start_ms=start,
+            end_ms=end,
+            confidence=conf,
+            language=rec[r0].get("language"),
+            recognized_index=r0,
+            alignment="lexical_anchor",
+        )
+
+    # Split one recognized token shared by several source words.
+    grouped = {}
+    for source_index, span in mapping.items():
+        grouped.setdefault(span, []).append(source_index)
+    for (r0, r1), indexes in grouped.items():
+        indexes = sorted(indexes)
+        if len(indexes) < 2:
+            continue
+        start = max(acoustic_t0, int(rec[r0]["start_ms"]))
+        end = max(start + 100, int(rec[r1].get("end_ms", start + 180)))
+        weights = [max(1, _r3813_syllable_count(provided[i].get("text") or "")) for i in indexes]
+        total = sum(weights)
+        consumed = 0
+        cursor = start
+        for pos, source_index in enumerate(indexes):
+            consumed += weights[pos]
+            nxt = end if pos == len(indexes)-1 else start + int(round((end-start)*consumed/total))
+            rows[source_index]["start_ms"] = cursor
+            rows[source_index]["end_ms"] = max(cursor + 45, nxt)
+            cursor = nxt
+
+    anchors = sorted(mapping)
+    boundaries = [-1] + anchors + [len(rows)]
+
+    for pos in range(len(boundaries)-1):
+        left_source = boundaries[pos]
+        right_source = boundaries[pos+1]
+        gap = [i for i in range(left_source+1, right_source) if rows[i].get("start_ms") is None]
+        if not gap:
+            continue
+
+        if left_source >= 0:
+            left_time = int(rows[left_source]["end_ms"])
+            left_rec_end = mapping[left_source][1]
+        else:
+            left_time = acoustic_t0
+            left_rec_end = -1
+
+        if right_source < len(rows):
+            right_time = int(rows[right_source]["start_ms"])
+            right_rec_start = mapping[right_source][0]
+        else:
+            right_rec_start = len(rec)
+            right_time = max(
+                left_time + 160 * len(gap),
+                int(rec[-1].get("end_ms", rec[-1]["start_ms"] + 160)),
+            )
+
+        if right_time <= left_time:
+            right_time = left_time + max(120, 80 * len(gap))
+
+        recognized_times = [
+            int(rec[k]["start_ms"])
+            for k in range(left_rec_end+1, right_rec_start)
+            if left_time <= int(rec[k].get("start_ms", 0)) <= right_time
+        ]
+
+        counts = [
+            max(1, _r3813_syllable_count(provided[i].get("text") or ""))
+            for i in gap
+        ]
+        total_syllables = max(1, sum(counts))
+        consumed = 0
+        for gpos, source_index in enumerate(gap):
+            start_pos = consumed + 1
+            consumed += counts[gpos]
+            end_pos = min(total_syllables + 1, consumed + 1)
+            start = _r3810_curve_sample(
+                left_time, right_time, recognized_times, start_pos, total_syllables
+            )
+            end = _r3810_curve_sample(
+                left_time, right_time, recognized_times, end_pos, total_syllables
+            )
+            start = max(left_time, min(right_time-1, start))
+            end = max(start+45, min(right_time, end))
+            rows[source_index].update(
+                start_ms=start,
+                end_ms=end,
+                confidence=0.24 if recognized_times else 0.18,
+                language=None,
+                alignment="syllabic_acoustic_resample",
+            )
+
+    # Prevent the former +1ms cascade.
+    previous = acoustic_t0 - 35
+    for row in rows:
+        start = int(row.get("start_ms") if row.get("start_ms") is not None else previous + 35)
+        start = max(acoustic_t0, start, previous + 35)
+        row["start_ms"] = start
+        row["end_ms"] = max(start + 45, int(row.get("end_ms") or start + 120))
+        previous = start
+
+    for idx in range(len(rows)-1):
+        here = int(rows[idx]["start_ms"])
+        nxt = int(rows[idx+1]["start_ms"])
+        rows[idx]["end_ms"] = max(here+35, min(int(rows[idx]["end_ms"]), max(here+35, nxt)))
+
+    return rows
+
+
+def align_provided_text(provided, recognized, first_vocal_onset_ms=None):
+    if not provided:
+        return []
+    if not recognized:
+        raise RuntimeError("Whisper returned no timed words")
+
+    raw_t0 = (
+        max(0, int(first_vocal_onset_ms))
+        if first_vocal_onset_ms is not None
+        else max(0, int(recognized[0]["start_ms"]))
+    )
+
+    mapping, rec = _r3810_sequential_mapping(provided, recognized, raw_t0)
+    effective_t0, timing = _r3817a_effective_t0(provided, mapping, rec, raw_t0)
+    rows = _r3810_apply_mapping(provided, mapping, rec, effective_t0)
+    rows = _r3813_attach_syllables(rows, effective_t0)
+
+    lexical = sum(1 for row in rows if row.get("alignment") == "lexical_anchor")
+    resampled = sum(1 for row in rows if row.get("alignment") == "syllabic_acoustic_resample")
+    print(
+        f"[LYRICS] R38.17A vocal timeline: raw_trigger={raw_t0} ms; "
+        f"effective_trigger={effective_t0} ms; source={len(provided)}; "
+        f"recognized={len(rec)}; lexical={lexical}; resampled={resampled}; "
+        f"method={timing.get('method')}",
+        flush=True,
+    )
+    for row in rows:
+        row["_r3817_timing"] = timing
+    return rows
+
+
+def _r3817_refine_syllable_nuclei(rows, vocal_audio_path):
+    # Replace synthetic interval centers by a local energy maximum on lead_vocals.
+    if not vocal_audio_path or not Path(vocal_audio_path).is_file():
+        for row in rows:
+            for syl in row.get("syllables") or []:
+                syl["nucleus_method"] = "interval_center_fallback"
+        return
+
+    try:
+        import numpy as np
+        import whisper
+        audio = whisper.load_audio(vocal_audio_path)
+    except Exception:
+        for row in rows:
+            for syl in row.get("syllables") or []:
+                syl["nucleus_method"] = "interval_center_fallback"
+        return
+
+    n = len(audio)
+    frame = max(1, int(SAMPLE_RATE * 0.024))
+    hop = max(1, int(SAMPLE_RATE * 0.008))
+
+    for row in rows:
+        for syl in row.get("syllables") or []:
+            a_ms = int(syl.get("start_ms", 0) or 0)
+            b_ms = int(syl.get("end_ms", a_ms+1) or (a_ms+1))
+            a = max(0, int(a_ms * SAMPLE_RATE / 1000))
+            b = min(n, int(b_ms * SAMPLE_RATE / 1000))
+            if b-a < frame:
+                syl["nucleus_ms"] = a_ms + max(0, b_ms-a_ms)//2
+                syl["nucleus_method"] = "interval_center_short"
+                continue
+
+            best_score = -1.0
+            best_center = (a+b)//2
+            center = (a+b)/2.0
+            half = max(1.0, (b-a)/2.0)
+            for s in range(a, b-frame+1, hop):
+                chunk = np.asarray(audio[s:s+frame], dtype=np.float32)
+                rms = float(np.sqrt(np.mean(chunk*chunk) + 1e-12))
+                c = s + frame/2.0
+                score = rms * (1.0 - min(0.55, 0.16*abs(c-center)/half))
+                if score > best_score:
+                    best_score = score
+                    best_center = int(round(c))
+            nucleus_ms = int(round(best_center * 1000.0 / SAMPLE_RATE))
+            syl["nucleus_ms"] = max(a_ms, min(b_ms, nucleus_ms))
+            syl["nucleus_method"] = "local_vocal_rms_peak"
+
+# R38.17C — leading-prefix-only lyric repair
+# Post-anchor lyric timings are deliberately preserved byte-for-byte by this repair.
+
+def _r3817c_prefix_syllables(rows, stop_index):
+    previous_start = None
+    for word_index in range(max(0, int(stop_index))):
+        row = rows[word_index]
+        syllables = _r3813_syllabify_french(row.get("text") or "")
+        if not syllables:
+            row["syllables"] = []
+            continue
+        word_start = int(row.get("start_ms") or 0)
+        word_end = max(word_start + max(60, 45 * len(syllables)), int(row.get("end_ms") or word_start + 120))
+        weights = [max(1, len(s)) for s in syllables]
+        total = sum(weights)
+        consumed = 0
+        cursor = word_start
+        items = []
+        for syllable_index, (syl, weight) in enumerate(zip(syllables, weights)):
+            consumed += weight
+            end = word_end if syllable_index == len(syllables)-1 else word_start + int(round((word_end-word_start) * consumed / total))
+            start = cursor
+            end = max(start + 1, end)
+            items.append({
+                "text": syl,
+                "syllable_index": syllable_index,
+                "start_ms": start,
+                "nucleus_ms": start + (end-start)//2,
+                "end_ms": end,
+                "confidence": round(float(row.get("confidence", 0.0) or 0.0), 4),
+                "alignment": row.get("alignment"),
+                "nucleus_method": "interval_center_pending_acoustic_refine",
+            })
+            cursor = end
+            previous_start = start
+        row["syllables"] = items
+
+
+def _r3817c_strict_vocal_start(vocal_audio_path, lower_ms, upper_ms):
+    if not vocal_audio_path or not Path(vocal_audio_path).is_file() or upper_ms <= lower_ms:
+        return None
+    try:
+        import numpy as np
+        import whisper
+        audio = whisper.load_audio(vocal_audio_path)
+    except Exception:
+        return None
+
+    a = max(0, int(lower_ms * SAMPLE_RATE / 1000))
+    b = min(len(audio), int(upper_ms * SAMPLE_RATE / 1000))
+    if b-a < int(0.30*SAMPLE_RATE):
+        return None
+
+    x = np.asarray(audio[a:b], dtype=np.float32)
+    frame = max(1, int(0.030*SAMPLE_RATE))
+    hop = max(1, int(0.010*SAMPLE_RATE))
+    if len(x) < frame:
+        return None
+    sq = x*x
+    kernel = np.ones(frame, dtype=np.float32)/float(frame)
+    rms = np.sqrt(np.convolve(sq, kernel, mode="valid")[::hop] + 1e-12)
+    db = 20.0*np.log10(rms + 1e-9)
+    p35 = float(np.percentile(db, 35))
+    p90 = float(np.percentile(db, 90))
+    threshold = p35 + max(8.0, (p90-p35)*0.52)
+    active = db >= threshold
+    # Require a real sustained phrase, not one leakage spike.
+    win = max(1, int(round(0.28/(hop/SAMPLE_RATE))))
+    need = max(1, int(round(0.18/(hop/SAMPLE_RATE))))
+    counts = np.convolve(active.astype(np.int16), np.ones(win,dtype=np.int16), mode="same")
+    candidates = np.flatnonzero(counts >= need)
+    if candidates.size == 0:
+        return None
+    idx = int(candidates[0])
+    return int(round(lower_ms + idx*hop*1000.0/SAMPLE_RATE))
+
+
+def _r3817c_repair_leading_prefix(rows, recognized, raw_vocal_onset_ms, vocal_audio_path):
+    if not rows or not recognized:
+        return None
+
+    first_anchor = next(
+        (i for i,row in enumerate(rows) if row.get("alignment") == "lexical_anchor"),
+        None,
+    )
+    # Nothing useful to repair, or only one word before the first anchor.
+    if first_anchor is None or first_anchor <= 1:
+        return None
+
+    anchor_ms = int(rows[first_anchor]["start_ms"])
+    raw_t0 = max(0, int(raw_vocal_onset_ms or rows[0].get("start_ms") or 0))
+
+    # Use Whisper timings as acoustic controls even when their text did not
+    # lexically match the source.  These are far safer than stretching the
+    # prefix from a possibly leaked RMS onset.
+    controls = sorted({
+        int(w.get("start_ms", 0) or 0)
+        for w in recognized
+        if raw_t0 <= int(w.get("start_ms", 0) or 0) < anchor_ms
+        and float(w.get("confidence", 0.0) or 0.0) >= 0.10
+    })
+
+    strict_start = _r3817c_strict_vocal_start(
+        vocal_audio_path,
+        raw_t0,
+        anchor_ms,
+    )
+
+    first_control = controls[0] if controls else None
+    candidates = [v for v in (strict_start, first_control) if v is not None]
+    if not candidates:
+        # No objective evidence: do not alter the existing timeline.
+        return None
+
+    prefix_start = max(raw_t0, min(candidates))
+    # Reject corrections that would not materially change the pathological
+    # leading stretch.
+    old_span = anchor_ms - int(rows[0].get("start_ms") or raw_t0)
+    new_span = anchor_ms - prefix_start
+    if new_span <= 0 or old_span <= 0:
+        return None
+
+    prefix = rows[:first_anchor]
+    syllable_counts = [
+        max(1, _r3813_syllable_count(row.get("text") or ""))
+        for row in prefix
+    ]
+    total_syllables = max(1, sum(syllable_counts))
+
+    # Controls strictly inside the repaired span.  The lexical anchor itself
+    # remains immutable and is used only as the right boundary.
+    acoustic_controls = [t for t in controls if prefix_start < t < anchor_ms]
+
+    consumed = 0
+    starts = []
+    ends = []
+    for idx, count in enumerate(syllable_counts):
+        start_pos = consumed + 1
+        consumed += count
+        end_pos = min(total_syllables + 1, consumed + 1)
+        start = _r3810_curve_sample(
+            prefix_start, anchor_ms, acoustic_controls,
+            start_pos, total_syllables,
+        )
+        end = _r3810_curve_sample(
+            prefix_start, anchor_ms, acoustic_controls,
+            end_pos, total_syllables,
+        )
+        starts.append(int(start))
+        ends.append(int(end))
+
+    # Guarantee meaningful monotonic spacing, but NEVER move the first lexical
+    # anchor or anything after it.
+    min_gap = 45
+    for i in range(len(starts)):
+        if i == 0:
+            starts[i] = max(prefix_start, starts[i])
+        else:
+            starts[i] = max(starts[i], starts[i-1] + min_gap)
+
+    # If controls were too compressed, backfill from the fixed anchor.
+    latest_allowed = anchor_ms - min_gap
+    for i in range(len(starts)-1, -1, -1):
+        starts[i] = min(starts[i], latest_allowed)
+        latest_allowed = starts[i] - min_gap
+
+    if starts and starts[0] < prefix_start:
+        shift = prefix_start - starts[0]
+        starts = [s + shift for s in starts]
+
+    for i,row in enumerate(prefix):
+        start = starts[i]
+        next_start = anchor_ms if i == len(prefix)-1 else starts[i+1]
+        end = max(start + 35, min(max(start + 45, ends[i]), next_start))
+        row["start_ms"] = start
+        row["end_ms"] = end
+        row["alignment"] = "leading_prefix_acoustic_repair"
+        row["prefix_repair"] = {
+            "raw_vocal_onset_ms": raw_t0,
+            "prefix_start_ms": prefix_start,
+            "fixed_anchor_index": first_anchor,
+            "fixed_anchor_ms": anchor_ms,
+            "whisper_controls": len(acoustic_controls),
+            "strict_vocal_start_ms": strict_start,
+        }
+
+    _r3817c_prefix_syllables(rows, first_anchor)
+
+    print(
+        f"[LYRICS] R38.17C prefix repair: words={first_anchor}; "
+        f"raw={raw_t0} ms; repaired_start={prefix_start} ms; "
+        f"fixed_anchor={anchor_ms} ms; controls={len(acoustic_controls)}",
+        flush=True,
+    )
+    return {
+        "words_repaired": first_anchor,
+        "raw_vocal_onset_ms": raw_t0,
+        "repaired_start_ms": prefix_start,
+        "fixed_anchor_ms": anchor_ms,
+        "whisper_controls": len(acoustic_controls),
+        "strict_vocal_start_ms": strict_start,
+    }
+
+
+def _r3817c_refine_syllable_nuclei(rows, vocal_audio_path):
+    if not vocal_audio_path or not Path(vocal_audio_path).is_file():
+        return
+    try:
+        import numpy as np
+        import whisper
+        audio = whisper.load_audio(vocal_audio_path)
+    except Exception:
+        return
+
+    frame = max(1, int(SAMPLE_RATE*0.024))
+    hop = max(1, int(SAMPLE_RATE*0.008))
+    n = len(audio)
+
+    for row in rows:
+        for syl in row.get("syllables") or []:
+            a_ms = int(syl.get("start_ms",0) or 0)
+            b_ms = int(syl.get("end_ms",a_ms+1) or (a_ms+1))
+            a = max(0, int(a_ms*SAMPLE_RATE/1000))
+            b = min(n, int(b_ms*SAMPLE_RATE/1000))
+            if b-a < frame:
+                continue
+            best_score = -1.0
+            best_center = (a+b)//2
+            center = (a+b)/2.0
+            half = max(1.0,(b-a)/2.0)
+            for s in range(a,b-frame+1,hop):
+                chunk = np.asarray(audio[s:s+frame],dtype=np.float32)
+                rms = float(np.sqrt(np.mean(chunk*chunk)+1e-12))
+                c = s+frame/2.0
+                score = rms*(1.0-min(0.50,0.14*abs(c-center)/half))
+                if score > best_score:
+                    best_score = score
+                    best_center = int(round(c))
+            nucleus_ms = int(round(best_center*1000.0/SAMPLE_RATE))
+            syl["nucleus_ms"] = max(a_ms,min(b_ms,nucleus_ms))
+            syl["nucleus_method"] = "local_vocal_rms_peak"
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('--audio', required=True)
@@ -935,6 +1529,10 @@ def main() -> None:
     print(f"[LYRICS] First vocal onset: {vocal_onset_ms} ms ({onset_meta.get('method')})", flush=True)
     progress(args.progress_file, 84, 'align', f'Ancrage initial à {vocal_onset_ms / 1000:.3f}s')
     rows = align_provided_text(provided, words, vocal_onset_ms)
+    prefix_diagnostics = _r3817c_repair_leading_prefix(
+        rows, words, vocal_onset_ms, args.vocal_audio
+    )
+    _r3817c_refine_syllable_nuclei(rows, args.vocal_audio)
     anchored_rows = [row for row in rows if row.get('start_ms') is not None]
     payload_words = [{
         'text': row['text'],
@@ -965,7 +1563,7 @@ def main() -> None:
     write_json(args.output, {
         'ok': True,
         'mode': 'align',
-        'version': 'r38.13-canonical-grid-syllabic-timeline',
+        'version': 'r38.17c-leading-prefix-acoustic-repair',
         'model': Path(model_path).name,
         'languages': languages,
         'provided_words': len(provided),
@@ -973,6 +1571,8 @@ def main() -> None:
         'syllables_count': len(payload_syllables),
         'syllables': payload_syllables,
         'words': payload_words,
+        'prefix_repair': prefix_diagnostics,
+        'timing_diagnostics': (rows[0].get('_r3817_timing') if rows else None),
     })
     progress(
         args.progress_file,

@@ -27,6 +27,10 @@ final class LyricsTimelineResultService
                 'section_label'=>isset($word['section_label'])&&is_string($word['section_label'])?trim($word['section_label']):null,
                 'section_type'=>isset($word['section_type'])&&is_string($word['section_type'])?trim($word['section_type']):null,
                 'confidence'=>isset($word['confidence'])?(float)$word['confidence']:null,
+                'alignment'=>isset($word['alignment'])&&is_string($word['alignment'])?$word['alignment']:null,
+                'recognized_index'=>isset($word['recognized_index'])?(int)$word['recognized_index']:null,
+                'syllables'=>isset($word['syllables'])&&is_array($word['syllables'])?$word['syllables']:[],
+                'cue_ms'=>isset($word['syllables'][0]['nucleus_ms'])?(int)$word['syllables'][0]['nucleus_ms']:$start,
                 'analysis_version'=>(string)($result['version']??'r36.0'),
             ]);
             $this->em->persist($event);++$count;
