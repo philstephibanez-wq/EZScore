@@ -7,6 +7,8 @@ let currentProfile=root.dataset.profile||'intermediate';
 let events=(profiles[currentProfile]||parse(root.dataset.events)).sort((a,b)=>(a.start_ms-b.start_ms)||(a.id-b.id));
 const beats=parse(root.dataset.beats).sort((a,b)=>a.start_ms-b.start_ms);
 let capo=Number(root.dataset.capo||0), signature=root.dataset.timeSignature||'4/4';
+const canonicalSignature=signature;
+const timelineCore=()=>window.EZScoreTimelineCoreR39?.create({beats,timeSignature:signature,spacing:44,preserveSourcePosition:signature===canonicalSignature})||null;
 const measuresEl=root.querySelector('[data-chordslab-measures]');
 const diagramEl=root.querySelector('[data-chord-diagram]');
 const diagramToggle=document.querySelector('[data-chordslab-diagram]');
@@ -99,32 +101,19 @@ function installR342Styles(){
 function activeEventAt(ms){let current=null;for(const e of events){if(e.start_ms<=ms)current=e;else break}return current}
 function eventStartingNear(ms,nextMs){return events.find(e=>e.start_ms>=ms&&e.start_ms<nextMs)||null}
 
-const canonicalSignature=signature;
 function buildProjection(){
- const sig=parseSignature(signature), measures=[]; let measure=null;
- const useCanonical=signature===canonicalSignature;
- beats.forEach((beat,seq)=>{
-  const measureIndex=useCanonical&&Number.isInteger(beat.measure_index)?beat.measure_index:Math.floor(seq/sig.num);
-  const beatIndex=useCanonical&&Number.isInteger(beat.beat_index)?beat.beat_index:seq%sig.num;
-  if(!measure||measure.index!==measureIndex){measure={index:measureIndex,slots:[]};measures.push(measure)}
-  const nextMs=seq+1<beats.length?beats[seq+1].start_ms:beat.start_ms+1000;
-  const exact=eventStartingNear(beat.start_ms,nextMs), active=exact||activeEventAt(beat.start_ms);
-  let text='-';
-  if(exact)text=displayChord(exact.effective||exact.original||'.');
-  else if((active?.effective||active?.original||'')==='.')text='.';
-  else if(beatIndex===0)text=displayChord(active?.effective||active?.original||'.');
-  measure.slots.push({
-   seq,
-   beatIndex,
-   startMs:beat.start_ms,
-   text,
-   beatId:beat.id||null,
-   eventId:exact?.id||null,
-   activeEventId:active?.id||null,
-   editable:!!beat.id
-  });
- });
- return measures;
+ const core=timelineCore();
+ if(core){
+  const slots=core.chordProjection(events,displayChord),measures=[];
+  for(const slot of slots){
+   const measureIndex=Number(slot.beat.display_measure_index);
+   let measure=measures.at(-1);
+   if(!measure||measure.index!==measureIndex){measure={index:measureIndex,slots:[]};measures.push(measure)}
+   measure.slots.push({seq:slot.seq,beatIndex:Number(slot.beat.display_beat_index),startMs:slot.startMs,text:slot.text,beatId:slot.beatId,eventId:slot.eventId,activeEventId:slot.activeEventId,editable:slot.editable});
+  }
+  return measures;
+ }
+ throw new Error('EZScore canonical timeline engine missing');
 }
 
 function profileLabel(profile){
@@ -195,8 +184,7 @@ function render(){
 }
 
 function highlightAt(seconds){
- const ms=seconds*1000;let seq=-1;
- for(let i=0;i<beats.length;i++){if(beats[i].start_ms<=ms)seq=i;else break}
+ const ms=seconds*1000;const core=timelineCore();let seq=core?core.beatIndexAtMs(ms):-1;
  measuresEl.querySelectorAll('.is-current').forEach(el=>el.classList.remove('is-current'));
  if(seq<0){updateDiagram(null);return}
  const slot=measuresEl.querySelector(`.chord-slot[data-beat-seq="${seq}"]`);

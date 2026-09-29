@@ -1,0 +1,14 @@
+/* R39 canonical shared timeline — no lyric-specific time warp. */
+[data-lyricslab] .r39-shared-timeline{height:330px}
+[data-lyricslab] .r39-shared-timeline .lyrics-ribbon-track{position:absolute;left:0;top:0;height:100%;will-change:transform;transition:none!important;pointer-events:auto}
+[data-lyricslab] .r39-shared-timeline .lyrics-ribbon-chords{top:112px;height:92px}
+[data-lyricslab] .r39-shared-timeline .lyrics-ribbon-beat{appearance:none;cursor:default;color:inherit;padding:0}
+[data-lyricslab] .r39-shared-timeline .lyrics-ribbon-beat.editable{cursor:text}
+[data-lyricslab] .r39-shared-timeline .lyrics-ribbon-beat.editable:hover .lyrics-ribbon-chord{text-decoration:underline}
+[data-lyricslab] .lyrics-ribbon-syllables{position:absolute;left:0;right:0;top:222px;height:82px;white-space:nowrap;border-top:1px solid rgba(145,155,170,.13);pointer-events:none}
+[data-lyricslab] .lyrics-ribbon-syllable{position:absolute;top:17px;transform:translateX(-50%);color:#d8e1e6;opacity:.56;font-size:24px;line-height:1.15;font-weight:760;white-space:nowrap;padding:4px 1px;border-radius:6px}
+[data-lyricslab] .lyrics-ribbon-syllable.past{opacity:.25}
+[data-lyricslab] .lyrics-ribbon-syllable.current{opacity:1;color:#fff;font-weight:950;background:rgba(77,163,255,.25);box-shadow:inset 0 0 0 1px rgba(130,205,255,.42)}
+[data-lyricslab] .lyrics-ribbon-syllable.is-word-fallback{font-style:italic;text-decoration:underline dotted rgba(255,255,255,.35)}
+[data-lyricslab] .lyrics-chord-inline-input{position:absolute;z-index:80;width:76px;transform:translateY(24px)}
+@media(max-width:760px){[data-lyricslab] .lyrics-ribbon-syllable{font-size:21px}}

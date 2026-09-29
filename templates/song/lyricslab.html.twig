@@ -6,7 +6,7 @@
 <link rel="stylesheet" href="/assets/css/workflow-tabs-r23-2.css?v=20260926r31">
 <link rel="stylesheet" href="/assets/css/stems.css?v=20260926r29">
 <link rel="stylesheet" href="/assets/css/chordslab.css?v=20260928r35_10">
-<link rel="stylesheet" href="/assets/css/lyricslab-r37.css?v=20260928r38_2">
+<link rel="stylesheet" href="/assets/css/lyricslab-r37.css?v=20260929r39_0">
 <link rel="stylesheet" href="/assets/css/lyrics-ovh-r38-16.css?v=20260929r38_16h">
 <link rel="stylesheet" href="/assets/css/lyrics-history-r38-15.css?v=20260929r38_16b">
 <link rel="stylesheet" href="/assets/css/lyrics-dirty-guard-r38-16j.css?v=20260929r38_16j">
@@ -151,7 +151,9 @@
          data-profile-save-url="{{ path('app_song_chordslab_profile', {'_locale': app.request.locale, id: song.id}) }}"
          data-profile-token="{{ csrf_token('song_chordslab_profile_' ~ song.id) }}"
          data-edit-url-template="{{ path('app_song_lyricslab_word', {'_locale': app.request.locale, id: song.id, eventId:999999})|replace({'999999':'__EVENT__'}) }}"
-         data-edit-token="{{ csrf_token('song_lyricslab_word_' ~ song.id) }}">
+         data-edit-token="{{ csrf_token('song_lyricslab_word_' ~ song.id) }}"
+         data-chord-beat-edit-url-template="{{ path('app_song_chordslab_beat_override', {'_locale': app.request.locale, id: song.id, beatId: 999999})|replace({'999999':'__BEAT__'}) }}"
+         data-chord-edit-token="{{ csrf_token('song_chordslab_edit_' ~ song.id) }}">
     <div class="chordslab-prompter-head">
         <div>
             <div class="eyebrow">Prompteur</div>
@@ -165,7 +167,7 @@
                 <option value="intermediate" {% if song.chordAnalysisLevel == 'intermediate' %}selected{% endif %}>Intermédiaire</option>
                 <option value="expert" {% if song.chordAnalysisLevel == 'expert' %}selected{% endif %}>Expert</option>
             </select>
-            <small>{{ lyric_events|length }} mots ancrés</small>
+            <small>{{ lyric_events|length }} mots · rendu syllabique</small>
         </div>
     </div>
 
@@ -175,7 +177,7 @@
     } %}
 
     <p class="page-note chordslab-edit-help">
-        Prompteur en lecture seule : accords et paroles défilent sous une zone de lecture fixe.
+        Timeline musicale commune : cliquez un accord pour le modifier ; syllabes et accords partagent exactement le même axe temporel.
     </p>
 </section>
 
@@ -190,7 +192,9 @@
 <script src="/assets/js/lab-song-card.js?v=20260928r38_8"></script>
 <script src="/assets/js/audio/ezscore-audio-engine.js?v=20260928r35_10"></script>
 <script src="/assets/js/stems-mixer.js?v=20260928r38_3"></script>
-<script src="/assets/js/lyricslab-r37.js?v=20260929r38_17c"></script>
+<script src="/assets/js/ezscore-timeline-core-r39.js?v=20260929r39_0"></script>
+<script src="/assets/js/lyricslab-timeline-r39.js?v=20260929r39_0"></script>
+<script src="/assets/js/lyricslab-r37.js?v=20260929r39_0"></script>
 <script src="/assets/js/lyricslab-r38-6-fix.js?v=20260928r38_6"></script>
 <script src="/assets/js/lyrics-history-r38-15.js?v=20260929r38_16j"></script>
 <script src="/assets/js/lyrics-ovh-r38-16.js?v=20260929r38_16i"></script>

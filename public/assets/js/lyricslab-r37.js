@@ -1,6 +1,7 @@
 (() => {
 'use strict';
 const root=document.querySelector('[data-lyricslab]'); if(!root)return;
+if(window.EZScoreLyricsTimelineR39){window.EZScoreLyricsTimelineR39.mount(root);return;}
 const parse=v=>{try{return JSON.parse(v||'[]')}catch(_){return[]}};
 const sourceBeats=parse(root.dataset.beats).sort((a,b)=>Number(a.start_ms)-Number(b.start_ms));
 // R38.13 canonical ChordsLab projection.
