@@ -63,6 +63,9 @@ class Song
     #[ORM\Column(name: 'lyrics_source_text', type: 'text', nullable: true)]
     private ?string $lyricsSourceText = null;
 
+    #[ORM\Column(name: 'lyrics_current_revision_id', nullable: true)]
+    private ?int $lyricsCurrentRevisionId = null;
+
     #[ORM\Column(length: 500, nullable: true)]
     private ?string $coverPath = null;
 
@@ -205,6 +208,13 @@ class Song
     public function setLyricsSourceText(?string $value): self
     {
         $this->lyricsSourceText = $value === null ? null : str_replace(["\r\n","\r"],"\n",$value);
+        return $this->touch();
+    }
+
+    public function getLyricsCurrentRevisionId(): ?int { return $this->lyricsCurrentRevisionId; }
+    public function setLyricsCurrentRevisionId(?int $revisionId): self
+    {
+        $this->lyricsCurrentRevisionId = $revisionId;
         return $this->touch();
     }
 

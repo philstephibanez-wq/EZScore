@@ -34,6 +34,7 @@ final class LyricsSourceHistoryService
         if ($latest instanceof LyricsSourceRevision && $latest->getContent() === $content) {
             $latest->updateMetadata($sourceType, $comment, $user);
             $song->setLyricsSourceText($content);
+            $song->setLyricsCurrentRevisionId($latest->getId());
             $this->em->flush();
             return $latest;
         }
@@ -41,6 +42,9 @@ final class LyricsSourceHistoryService
         $revision = new LyricsSourceRevision($song, $content, $sourceType, $comment, $user);
         $this->em->persist($revision);
         $song->setLyricsSourceText($content);
+        $this->em->flush();
+
+        $song->setLyricsCurrentRevisionId($revision->getId());
         $this->em->flush();
 
         return $revision;
@@ -81,20 +85,11 @@ final class LyricsSourceHistoryService
             throw new \InvalidArgumentException('Revision does not belong to this song.');
         }
 
-        $this->archiveCurrentIfChanged(
-            $song,
-            $user,
-            'manual',
-            'Sauvegarde automatique avant restauration.',
-        );
+        $song->setLyricsSourceText($target->getContent());
+        $song->setLyricsCurrentRevisionId($target->getId());
+        $this->em->flush();
 
-        $origin = sprintf(
-            'Restauration de la sauvegarde #%d%s',
-            (int) $target->getId(),
-            $target->getComment() ? ' — '.$target->getComment() : '',
-        );
-
-        return $this->saveVersion($song, $target->getContent(), $user, 'restore', $origin);
+        return $target;
     }
 
     public function delete(Song $song, LyricsSourceRevision $revision): void
@@ -103,11 +98,7 @@ final class LyricsSourceHistoryService
             throw new \InvalidArgumentException('Revision does not belong to this song.');
         }
 
-        $currentRevision = $this->revisions->findCurrentForSong($song);
-        if (
-            $currentRevision instanceof LyricsSourceRevision
-            && $currentRevision->getId() === $revision->getId()
-        ) {
+        if ($song->getLyricsCurrentRevisionId() === $revision->getId()) {
             throw new \LogicException('current_revision');
         }
 

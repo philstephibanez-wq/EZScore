@@ -26,8 +26,7 @@ final class LyricsHistoryController extends AbstractController
     public function list(Song $song, LyricsSourceRevisionRepository $revisions): JsonResponse
     {
         $this->requireEditor($song);
-        $currentRevision = $revisions->findCurrentForSong($song);
-        $currentRevisionId = $currentRevision?->getId();
+        $currentRevisionId = $song->getLyricsCurrentRevisionId();
 
         return $this->json([
             'revisions' => array_map(
