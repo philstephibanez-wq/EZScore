@@ -6,6 +6,7 @@
 <link rel="stylesheet" href="/assets/css/workflow-tabs-r23-2.css?v=20260926r31">
 <link rel="stylesheet" href="/assets/css/stems.css?v=20260929r39_2a">
 <link rel="stylesheet" href="/assets/css/chordslab.css?v=20260928r35_8a">
+<link rel="stylesheet" href="/assets/css/components/ezscore-live-visual-settings.css?v=20260930r39_2d">
 {% endblock %}
 
 {% block body %}
@@ -22,46 +23,11 @@
 
 {% include 'song/components/_lab_song_card.html.twig' with {song:song, beat_events:beat_events} %}
 
-<section class="panel chordslab-settings">
-    <form method="post" action="{{ path('app_song_chordslab_settings', {'_locale': app.request.locale, id: song.id}) }}" class="chordslab-settings-grid" data-chord-settings-form>
-        <input type="hidden" name="_token" value="{{ csrf_token('song_chordslab_settings_' ~ song.id) }}">
-
-        <label>
-            <span>{{ 'song.capo'|trans }}</span>
-            <select name="capo" data-chordslab-capo>
-                {% for value in 0..11 %}
-                    <option value="{{ value }}" {{ song.capo == value ? 'selected' : '' }}>{{ value }}</option>
-                {% endfor %}
-            </select>
-        </label>
-
-        <label>
-            <span>{{ 'song.time_signature'|trans }}</span>
-            <select name="time_signature" data-chordslab-timesig>
-                {% for signature in time_signatures %}
-                    <option value="{{ signature }}" {{ song.timeSignature == signature ? 'selected' : '' }}>{{ signature }}</option>
-                {% endfor %}
-            </select>
-        </label>
-
-        <label>
-            <span>{{ 'chordslab.analysis_level'|trans({}, 'chordslab') }}</span>
-            <select name="chord_analysis_level" data-chordslab-profile>
-                {% for level in ['beginner','intermediate','expert'] %}
-                    <option value="{{ level }}" {{ song.chordAnalysisLevel == level ? 'selected' : '' }}>{{ ('chordslab.level.' ~ level)|trans({}, 'chordslab') }}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <small data-analysis-level-help></small>
-
-        <label class="chordslab-diagram-toggle">
-            <input type="checkbox" data-chordslab-diagram checked>
-            <span>{{ 'chordslab.guitar_chords'|trans({}, 'chordslab') }}</span>
-        </label>
-        <span class="chordslab-settings-save-state" data-chord-settings-state>Enregistré automatiquement</span>
-    </form>
-    <small>{{ 'chordslab.level_note'|trans({}, 'chordslab') }}</small>
-</section>
+{% include 'song/components/_live_visual_settings.html.twig' with {
+    song:song,
+    time_signatures:time_signatures,
+    context:'chords'
+} %}
 
 <section class="panel chordslab-prompter"
          data-chordslab
@@ -262,6 +228,7 @@
 <script src="/assets/js/audio/ezscore-audio-engine.js?v=20260928r35_8"></script>
 <script src="/assets/js/stems-mixer.js?v=20260929r39_2a"></script>
 <script src="/assets/js/ezscore-timeline-core-r39.js?v=20260929r39_0"></script>
+<script src="/assets/js/components/ezscore-live-visual-settings.js?v=20260930r39_2d"></script>
 <script src="/assets/js/chordslab.js?v=20260929r39_0"></script>
 <script src="/assets/js/chordslab-r33-2.js?v=20260928r35_10"></script>
 <script src="/assets/js/chordslab-r33-1.js?v=20260927r34_6"></script>

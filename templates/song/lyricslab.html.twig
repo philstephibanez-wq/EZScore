@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="/assets/css/lyrics-ovh-r38-16.css?v=20260929r38_16h">
 <link rel="stylesheet" href="/assets/css/lyrics-history-r38-15.css?v=20260929r38_16b">
 <link rel="stylesheet" href="/assets/css/lyrics-dirty-guard-r38-16j.css?v=20260929r38_16j">
+<link rel="stylesheet" href="/assets/css/components/ezscore-live-visual-settings.css?v=20260930r39_2d">
 {% endblock %}
 
 {% block body %}
@@ -25,6 +26,11 @@
 </header>
 
 {% include 'song/components/_lab_song_card.html.twig' with {song:song, beat_events:beat_events} %}
+
+{% include 'song/components/_live_visual_settings.html.twig' with {
+    song:song,
+    context:'lyrics'
+} %}
 
 <section class="panel chordslab-settings lyricslab-source-panel">
     <div class="chordslab-prompter-head">
@@ -193,6 +199,7 @@
 <script src="/assets/js/audio/ezscore-audio-engine.js?v=20260928r35_10"></script>
 <script src="/assets/js/stems-mixer.js?v=20260929r39_2a"></script>
 <script src="/assets/js/ezscore-timeline-core-r39.js?v=20260929r39_0"></script>
+<script src="/assets/js/components/ezscore-live-visual-settings.js?v=20260930r39_2d"></script>
 <script src="/assets/js/lyricslab-timeline-r39.js?v=20260929r39_0_1"></script>
 <script src="/assets/js/lyricslab-r37.js?v=20260929r39_0"></script>
 <script src="/assets/js/lyricslab-r38-6-fix.js?v=20260928r38_6"></script>
