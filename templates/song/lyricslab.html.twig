@@ -27,11 +27,6 @@
 
 {% include 'song/components/_lab_song_card.html.twig' with {song:song, beat_events:beat_events} %}
 
-{% include 'song/components/_live_visual_settings.html.twig' with {
-    song:song,
-    context:'lyrics'
-} %}
-
 <section class="panel chordslab-settings lyricslab-source-panel">
     <div class="chordslab-prompter-head">
         <div>
@@ -144,6 +139,11 @@
         <progress max="100" value="0"></progress>
     </div>
 </section>
+
+{% include 'song/components/_live_visual_settings.html.twig' with {
+    song:song,
+    context:'lyrics'
+} %}
 
 <section class="panel chordslab-prompter"
          data-lyricslab
