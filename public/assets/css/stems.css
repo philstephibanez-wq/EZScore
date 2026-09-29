@@ -244,3 +244,52 @@ body.stem-modal-open{overflow:hidden}
   .stem-time{grid-column:2;justify-self:end}
 }
 
+
+
+/* R39.2A compact readable track state
+   Keep existing R29/R39.2 mixer proportions unchanged. */
+.stem-track-load-status{
+    min-width:34px!important;
+    max-width:52px!important;
+    overflow:visible!important;
+    text-overflow:clip!important;
+    white-space:nowrap!important;
+    padding:2px 5px!important;
+    border:1px solid #36515d;
+    border-radius:999px;
+    background:rgba(27,47,58,.28);
+    color:#9fc5d2!important;
+    font-size:8px!important;
+    font-weight:800!important;
+    line-height:1.15!important;
+    letter-spacing:.02em!important;
+    text-transform:uppercase;
+    text-align:center;
+}
+.stem-track-load-status:empty{
+    padding:0!important;
+    border:0!important;
+    background:transparent!important;
+    min-width:0!important;
+}
+.stem-track-load-status[data-state="ready"]{
+    border-color:#365f6f;
+    color:#9ed7ee!important;
+    background:rgba(31,75,94,.18);
+}
+.stem-track-load-status[data-state="playing"]{
+    border-color:#3e735f;
+    color:#a8e4c1!important;
+    background:rgba(45,111,81,.16);
+}
+.stem-track-load-status[data-state="loading"],
+.stem-track-load-status[data-state="buffering"]{
+    border-color:#75623d;
+    color:#e7cb8a!important;
+    background:rgba(110,82,31,.16);
+}
+.stem-track-load-status[data-state="error"]{
+    border-color:#7d4141;
+    color:#f0aaaa!important;
+    background:rgba(120,48,48,.16);
+}

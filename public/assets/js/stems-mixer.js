@@ -291,6 +291,7 @@
                 state === 'error' ? 'erreur' :
                 state === 'playing' ? 'lecture' :
                 state === 'ready' ? 'prêt' : '';
+            track.status.dataset.state = state || 'idle';
         }
         track.row.classList.toggle('is-loading', busy);
         track.row.classList.toggle('is-error', state === 'error');
