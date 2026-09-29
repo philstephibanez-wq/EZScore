@@ -189,7 +189,14 @@ final class AnalysisDesktopController extends AbstractController
                     }
 
                     $job->getSong()->setLyricsSourceText($text);
+                    if (method_exists($job->getSong(), 'setLyricsCurrentRevisionId')) {
+                        $job->getSong()->setLyricsCurrentRevisionId(null);
+                    }
                     $this->em->flush();
+
+                    if (trim((string) $job->getSong()->getLyricsSourceText()) !== $text) {
+                        throw new \RuntimeException('lyrics_extract_persist_failed');
+                    }
 
                     $summary = [
                         'schema_version' => 'ezscore.lyrics.extract.r37',

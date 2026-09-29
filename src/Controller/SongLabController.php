@@ -509,7 +509,19 @@ public function analyzeLyrics(
         $this->addFlash('error','Collez les paroles avant de lancer l’analyse.');
         return $this->redirectToRoute('app_song_lyricslab',['_locale'=>$request->getLocale(),'id'=>$song->getId()]);
     }
-    $jobs->queue($song,$user,'align');
+    try {
+        $jobs->queue($song, $user, 'align');
+    } catch (\DomainException $error) {
+        if (str_starts_with($error->getMessage(), 'lyrics_job_mode_conflict:')) {
+            $activeMode = substr($error->getMessage(), strlen('lyrics_job_mode_conflict:'));
+            $this->addFlash('error', sprintf(
+                'Une tâche paroles est déjà en cours (%s). Attendez sa fin avant de lancer une autre opération.',
+                $activeMode,
+            ));
+            return $this->redirectToRoute('app_song_lyricslab', ['_locale'=>$request->getLocale(),'id'=>$song->getId()]);
+        }
+        throw $error;
+    }
     return $this->redirectToRoute('app_song_lyricslab',['_locale'=>$request->getLocale(),'id'=>$song->getId()]);
 }
 
@@ -519,7 +531,6 @@ public function extractLyrics(
     Song $song,
     Request $request,
     \App\Service\SongLyricsJobService $jobs,
-    \App\Service\LyricsSourceHistoryService $lyricsHistory,
 ): Response {
     $user = $this->requireEditor($song);
 
@@ -530,14 +541,22 @@ public function extractLyrics(
         throw $this->createAccessDeniedException();
     }
 
-    $lyricsHistory->archiveCurrentIfChanged(
-        $song,
-        $user,
-        'manual',
-        'Sauvegarde automatique avant extraction Whisper.',
-    );
-
-    $jobs->queue($song, $user, 'extract');
+    try {
+        $jobs->queue($song, $user, 'extract');
+    } catch (\DomainException $error) {
+        if (str_starts_with($error->getMessage(), 'lyrics_job_mode_conflict:')) {
+            $activeMode = substr($error->getMessage(), strlen('lyrics_job_mode_conflict:'));
+            $this->addFlash('error', sprintf(
+                'Une tâche paroles est déjà en cours (%s). Attendez sa fin avant de lancer l’extraction.',
+                $activeMode,
+            ));
+            return $this->redirectToRoute('app_song_lyricslab', [
+                '_locale' => $request->getLocale(),
+                'id' => $song->getId(),
+            ]);
+        }
+        throw $error;
+    }
 
     return $this->redirectToRoute('app_song_lyricslab', [
         '_locale' => $request->getLocale(),
@@ -550,7 +569,17 @@ public function lyricsStatus(Song $song,\App\Service\SongLyricsJobService $jobs)
 {
     $this->requireEditor($song);$job=$jobs->latest($song);
     if(!$job)return $this->json(['status'=>'none','progress'=>0]);
-    return $this->json(['job_id'=>$job->getId(),'status'=>$job->getStatus()->value,'progress'=>$job->getProgress(),'error'=>$job->getErrorCode(),'mode'=>(string)($job->getRequestData()['mode']??'align')]);
+    $result = $job->getResultData() ?? [];
+    return $this->json([
+        'job_id' => $job->getId(),
+        'status' => $job->getStatus()->value,
+        'progress' => $job->getProgress(),
+        'error' => $job->getErrorCode(),
+        'mode' => (string) ($job->getRequestData()['mode'] ?? 'align'),
+        'source_characters' => mb_strlen(trim((string) $song->getLyricsSourceText())),
+        'result_characters' => (int) ($result['characters'] ?? 0),
+        'recognized_words' => (int) ($result['recognized_words'] ?? 0),
+    ]);
 }
 
 #[Route('/lyrics/word/{eventId}', name: 'app_song_lyricslab_word', requirements: ['eventId'=>'\\d+'], methods: ['POST'])]

@@ -296,7 +296,16 @@ async function pollLyricsProgress(){
      }else if(status==='completed'){
        if(progressBar)progressBar.value=100;
        if(progressPercent)progressPercent.textContent='100%';
-       if(progressLabel)progressLabel.textContent='Analyse terminée';
+
+       if(String(data.mode||'align')==='extract' && Number(data.source_characters||0)<=0){
+         progress.hidden=false;
+         if(progressLabel)progressLabel.textContent='Extraction terminée mais aucune parole n’a été persistée.';
+         if(progressPercent)progressPercent.textContent='Erreur';
+         return;
+       }
+
+       if(progressLabel)progressLabel.textContent=
+         String(data.mode||'align')==='extract' ? 'Extraction terminée' : 'Analyse terminée';
 
        const key=`ezscore.lyrics.job.reloaded.${data.job_id}`;
        if(data.job_id&&sessionStorage.getItem(key)!=='1'){

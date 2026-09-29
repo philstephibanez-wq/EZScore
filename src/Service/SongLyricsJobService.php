@@ -29,7 +29,12 @@ final class SongLyricsJobService
         }
 
         if ($active = $this->findActive($song)) {
-            return $active;
+            $activeMode = (string) ($active->getRequestData()['mode'] ?? 'align');
+            if ($activeMode === $mode) {
+                return $active;
+            }
+
+            throw new \DomainException('lyrics_job_mode_conflict:'.$activeMode);
         }
 
         $request = [
