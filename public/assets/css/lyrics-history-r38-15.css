@@ -114,3 +114,13 @@
     justify-content: flex-end;
     gap: 10px;
 }
+
+.lyrics-history-savebar {
+    margin-top: 12px;
+}
+.lyrics-history-savebar .lyrics-history-editor {
+    margin: 0;
+}
+.lyrics-history-shell > .lyrics-history {
+    margin-top: 14px;
+}

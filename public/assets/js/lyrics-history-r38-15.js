@@ -161,6 +161,7 @@ form?.addEventListener('submit', async event => {
     });
     if (comment) comment.value = '';
     setFeedback('Version sauvegardée.');
+    document.dispatchEvent(new CustomEvent('ezscore:lyrics-history-saved'));
     await load();
   } catch (error) {
     console.error('Lyrics history save failed', error);
@@ -179,6 +180,7 @@ list?.addEventListener('click', async event => {
       source.value = String(data.text ?? '');
       source.dispatchEvent(new Event('input', {bubbles:true}));
       setFeedback('Version restaurée.');
+      document.dispatchEvent(new CustomEvent('ezscore:lyrics-history-restored'));
       await load();
     } catch (error) {
       console.error('Lyrics history restore failed', error);

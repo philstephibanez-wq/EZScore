@@ -253,16 +253,7 @@ profileSelect?.addEventListener('change',async()=>{
  }
 });
 
-const source=document.querySelector('[data-lyrics-source]'),state=document.querySelector('[data-lyrics-save-state]');let timer=null;
-async function save(){if(!source)return;try{const r=await fetch(source.dataset.saveUrl,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({_token:source.dataset.saveToken,text:source.value})});if(!r.ok)throw 0;if(state)state.textContent='Enregistré'}catch(_){if(state)state.textContent='Échec enregistrement'}}
-source?.addEventListener('input',()=>{
- if(state)state.textContent='Modifié…';
- clearTimeout(timer);
- timer=setTimeout(save,450);
- sections=buildSections();
- renderSectionNav();
- renderAt(lastTime,true);
-});
+
 
 /* R38.2A — restore async Lyrics analysis progress UI */
 const progress=document.querySelector('[data-lyrics-progress]');

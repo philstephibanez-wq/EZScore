@@ -1,0 +1,140 @@
+.lyrics-ovh-search {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,.10);
+}
+.lyrics-ovh-search-head {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+.lyrics-ovh-search-head input {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 40px;
+}
+.lyrics-ovh-status {
+    min-height: 1.3em;
+    margin: 8px 0 0;
+    font-size: .86rem;
+}
+.lyrics-ovh-status.is-error { font-weight: 700; }
+.lyrics-ovh-results {
+    display: grid;
+    gap: 8px;
+    margin-top: 10px;
+}
+.lyrics-ovh-result {
+    display: grid;
+    grid-template-columns: 48px minmax(0,1fr) auto;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 10px;
+    border: 1px solid rgba(255,255,255,.09);
+    border-radius: 8px;
+}
+.lyrics-ovh-result img {
+    width: 48px;
+    height: 48px;
+    object-fit: cover;
+    border-radius: 6px;
+}
+.lyrics-ovh-result-main {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+}
+.lyrics-ovh-result-main strong,
+.lyrics-ovh-result-main span,
+.lyrics-ovh-result-main small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.lyrics-ovh-result-main small { opacity: .7; }
+@media (max-width: 680px) {
+    .lyrics-ovh-search-head {
+        align-items: stretch;
+        flex-direction: column;
+    }
+    .lyrics-ovh-result { grid-template-columns: 1fr auto; }
+    .lyrics-ovh-result img { display: none; }
+}
+
+.lyrics-ovh-toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.lyrics-ovh-toolbar input {
+    width: min(320px, 32vw);
+    min-height: 42px;
+}
+@media (max-width: 980px) {
+    .chordslab-prompter-actions.lyricslab-actions {
+        flex-wrap: wrap;
+    }
+    .lyrics-ovh-toolbar {
+        order: 2;
+        width: 100%;
+    }
+    .lyrics-ovh-toolbar input {
+        flex: 1 1 auto;
+        width: auto;
+        min-width: 180px;
+    }
+}
+
+
+/* R38.16h - Lyrics.ovh live autocomplete */
+.lyrics-ovh-toolbar {
+    position: relative;
+}
+.lyrics-ovh-autocomplete {
+    position: absolute;
+    z-index: 60;
+    top: calc(100% + 6px);
+    left: 0;
+    width: min(540px, 72vw);
+    max-height: 320px;
+    overflow-y: auto;
+    border: 1px solid rgba(255,255,255,.14);
+    border-radius: 10px;
+    background: #111820;
+    box-shadow: 0 18px 46px rgba(0,0,0,.42);
+}
+.lyrics-ovh-autocomplete[hidden] {
+    display: none;
+}
+.lyrics-ovh-autocomplete-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+    width: 100%;
+    padding: 10px 12px;
+    border: 0;
+    border-bottom: 1px solid rgba(255,255,255,.07);
+    border-radius: 0;
+    text-align: left;
+    background: transparent;
+}
+.lyrics-ovh-autocomplete-item:last-child {
+    border-bottom: 0;
+}
+.lyrics-ovh-autocomplete-item:hover,
+.lyrics-ovh-autocomplete-item.is-active {
+    background: rgba(255,255,255,.08);
+}
+.lyrics-ovh-autocomplete-title {
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.lyrics-ovh-autocomplete-artist {
+    opacity: .72;
+    font-size: .86rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}

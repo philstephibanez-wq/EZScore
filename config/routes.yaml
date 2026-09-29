@@ -54,6 +54,13 @@ localized_lyrics_history:
         fr: /fr
         en: /en
 
+localized_lyrics_ovh:
+    resource: ../src/Controller/LyricsOvhController.php
+    type: attribute
+    prefix:
+        fr: /fr
+        en: /en
+
 localized_song_collaboration:
     resource: ../src/Controller/SongCollaborationController.php
     type: attribute

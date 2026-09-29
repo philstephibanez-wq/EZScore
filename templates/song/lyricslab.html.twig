@@ -7,7 +7,9 @@
 <link rel="stylesheet" href="/assets/css/stems.css?v=20260926r29">
 <link rel="stylesheet" href="/assets/css/chordslab.css?v=20260928r35_10">
 <link rel="stylesheet" href="/assets/css/lyricslab-r37.css?v=20260928r38_2">
-<link rel="stylesheet" href="/assets/css/lyrics-history-r38-15.css?v=20260929r38_15d">
+<link rel="stylesheet" href="/assets/css/lyrics-ovh-r38-16.css?v=20260929r38_16h">
+<link rel="stylesheet" href="/assets/css/lyrics-history-r38-15.css?v=20260929r38_16b">
+<link rel="stylesheet" href="/assets/css/lyrics-dirty-guard-r38-16j.css?v=20260929r38_16j">
 {% endblock %}
 
 {% block body %}
@@ -32,6 +34,22 @@
         </div>
 
         <div class="chordslab-prompter-actions lyricslab-actions">
+            <div class="lyrics-ovh-toolbar"
+                 data-lyrics-ovh
+                 data-search-url="{{ path('app_song_lyrics_ovh_search', {'_locale': app.request.locale, id: song.id}) }}"
+                 data-autocomplete-url="{{ path('app_song_lyrics_ovh_autocomplete', {'_locale': app.request.locale, id: song.id}) }}"
+                 data-import-url="{{ path('app_song_lyrics_ovh_import', {'_locale': app.request.locale, id: song.id}) }}"
+                 data-token="{{ csrf_token('song_lyrics_ovh_' ~ song.id) }}">
+                <input type="search"
+                       data-lyrics-ovh-query
+                       value="{{ (song.artist ~ ' ' ~ song.title)|trim }}"
+                       maxlength="180"
+                       autocomplete="off"
+                       placeholder="Titre ou artiste">
+                <div class="lyrics-ovh-autocomplete" data-lyrics-ovh-autocomplete hidden></div>
+                <button type="button" data-lyrics-ovh-search>Chercher les paroles</button>
+            </div>
+
             <form method="post"
                   action="{{ path('app_song_lyricslab_extract', {'_locale': app.request.locale, id: song.id}) }}"
                   {% if song.lyricsSourceText %}
@@ -50,59 +68,64 @@
         </div>
     </div>
 
-    <textarea data-lyrics-source
+        <div class="lyrics-ovh-output" data-lyrics-ovh-output>
+        <div class="lyrics-ovh-status" data-lyrics-ovh-status></div>
+        <div class="lyrics-ovh-results" data-lyrics-ovh-results></div>
+    </div>
+
+<textarea data-lyrics-source
               name="lyrics_source"
               form="lyrics-analyze-form"
-              data-save-url="{{ path('app_song_lyricslab_source', {'_locale': app.request.locale, id: song.id}) }}"
-              data-save-token="{{ csrf_token('song_lyricslab_source_' ~ song.id) }}"
               rows="10"
               spellcheck="true"
               placeholder="Collez ici les paroles exactes, ou utilisez « Extraire les paroles »…">{{ song.lyricsSourceText }}</textarea>
 
-    <div class="lyricslab-source-footer">
+    <div class="lyrics-history-shell" data-lyrics-history
+         data-list-url="{{ path('app_song_lyrics_history', {'_locale': app.request.locale, id: song.id}) }}"
+         data-save-url="{{ path('app_song_lyrics_history_save', {'_locale': app.request.locale, id: song.id}) }}"
+         data-restore-url-template="{{ path('app_song_lyrics_history_restore', {'_locale': app.request.locale, id: song.id, revisionId:999999})|replace({'999999':'__REVISION__'}) }}"
+         data-delete-url-template="{{ path('app_song_lyrics_history_delete', {'_locale': app.request.locale, id: song.id, revisionId:999999})|replace({'999999':'__REVISION__'}) }}"
+         data-token="{{ csrf_token('song_lyrics_history_' ~ song.id) }}">
+
+        <div class="lyrics-history-savebar">
+            <form class="lyrics-history-editor" data-lyrics-history-save>
+                <label>
+                    Source
+                    <select name="lyrics_history_source_type">
+                        <option value="manual">Manuel</option>
+                        <option value="lyrics_ovh">Lyrics.ovh</option>
+                        <option value="whisper">Whisper</option>
+                        <option value="other">Autre</option>
+                    </select>
+                </label>
+                <label>
+                    Commentaire personnel
+                    <input type="text"
+                           name="lyrics_history_comment"
+                           maxlength="1000"
+                           placeholder="Ex. : paroles cherchées avec OVH">
+                </label>
+                <button type="submit">Sauvegarder cette version</button>
+            </form>
+            <div class="lyrics-manual-state" data-lyrics-manual-state>Sauvegardé</div>
+            <div class="lyrics-history-feedback" data-lyrics-history-feedback></div>
+        </div>
+
+        <details class="lyrics-history">
+            <summary>Historique des paroles (<span data-lyrics-history-count>0</span>)</summary>
+            <div class="lyrics-history-list" data-lyrics-history-list>
+                <p class="page-note">Chargement de l’historique…</p>
+            </div>
+        </details>
+    </div>
+<div class="lyricslab-source-footer">
         <p class="page-note">
             Les sauts de ligne restent des métadonnées éditoriales pour l’impression / futur karaoké vertical.
             Ils ne décalent jamais la timeline horizontale.
         </p>
-        <span class="chordslab-settings-save-state" data-lyrics-save-state>Enregistré</span>
-    </div>
+</div>
 
-    <details class="lyrics-history"
-             data-lyrics-history
-             data-list-url="{{ path('app_song_lyrics_history', {'_locale': app.request.locale, id: song.id}) }}"
-             data-save-url="{{ path('app_song_lyrics_history_save', {'_locale': app.request.locale, id: song.id}) }}"
-             data-restore-url-template="{{ path('app_song_lyrics_history_restore', {'_locale': app.request.locale, id: song.id, revisionId:999999})|replace({'999999':'__REVISION__'}) }}"
-             data-delete-url-template="{{ path('app_song_lyrics_history_delete', {'_locale': app.request.locale, id: song.id, revisionId:999999})|replace({'999999':'__REVISION__'}) }}"
-             data-token="{{ csrf_token('song_lyrics_history_' ~ song.id) }}">
-        <summary>Historique des paroles (<span data-lyrics-history-count>0</span>)</summary>
-
-        <form class="lyrics-history-editor" data-lyrics-history-save>
-            <label>
-                Source
-                <select name="lyrics_history_source_type">
-                    <option value="manual">Manuel</option>
-                    <option value="lyrics_ovh">Lyrics.ovh</option>
-                    <option value="whisper">Whisper</option>
-                    <option value="other">Autre</option>
-                </select>
-            </label>
-
-            <label>
-                Commentaire personnel
-                <input type="text"
-                       name="lyrics_history_comment"
-                       maxlength="1000"
-                       placeholder="Ex. : paroles cherchées avec OVH">
-            </label>
-
-            <button type="submit">Sauvegarder cette version</button>
-        </form>
-
-        <div class="lyrics-history-feedback" data-lyrics-history-feedback></div>
-        <div class="lyrics-history-list" data-lyrics-history-list>
-            <p class="page-note">Chargement de l’historique…</p>
-        </div>
-    </details>
+    
 
     <div class="chord-analysis-progress"
          data-lyrics-progress
@@ -169,5 +192,7 @@
 <script src="/assets/js/stems-mixer.js?v=20260928r38_3"></script>
 <script src="/assets/js/lyricslab-r37.js?v=20260928r38_13c"></script>
 <script src="/assets/js/lyricslab-r38-6-fix.js?v=20260928r38_6"></script>
-<script src="/assets/js/lyrics-history-r38-15.js?v=20260929r38_15d"></script>
+<script src="/assets/js/lyrics-history-r38-15.js?v=20260929r38_16j"></script>
+<script src="/assets/js/lyrics-ovh-r38-16.js?v=20260929r38_16i"></script>
+<script src="/assets/js/lyrics-dirty-guard-r38-16j.js?v=20260929r38_16j"></script>
 {% endblock %}
