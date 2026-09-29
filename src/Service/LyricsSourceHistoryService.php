@@ -103,7 +103,11 @@ final class LyricsSourceHistoryService
             throw new \InvalidArgumentException('Revision does not belong to this song.');
         }
 
-        if ($revision->getContent() === $this->normaliseContent((string) $song->getLyricsSourceText())) {
+        $currentRevision = $this->revisions->findCurrentForSong($song);
+        if (
+            $currentRevision instanceof LyricsSourceRevision
+            && $currentRevision->getId() === $revision->getId()
+        ) {
             throw new \LogicException('current_revision');
         }
 

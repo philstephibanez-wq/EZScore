@@ -25,6 +25,27 @@ final class LyricsSourceRevisionRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    public function findCurrentForSong(Song $song): ?LyricsSourceRevision
+    {
+        $current = str_replace(["\r\n", "\r"], "\n", (string) $song->getLyricsSourceText());
+        if ($current === '') {
+            return null;
+        }
+
+        $revision = $this->createQueryBuilder('revision')
+            ->andWhere('revision.song = :song')
+            ->andWhere('revision.content = :content')
+            ->setParameter('song', $song)
+            ->setParameter('content', $current)
+            ->orderBy('revision.createdAt', 'DESC')
+            ->addOrderBy('revision.id', 'DESC')
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        return $revision instanceof LyricsSourceRevision ? $revision : null;
+    }
+
     public function findLatestForSong(Song $song): ?LyricsSourceRevision
     {
         $revision = $this->createQueryBuilder('revision')

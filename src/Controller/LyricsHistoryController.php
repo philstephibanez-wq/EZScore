@@ -26,11 +26,12 @@ final class LyricsHistoryController extends AbstractController
     public function list(Song $song, LyricsSourceRevisionRepository $revisions): JsonResponse
     {
         $this->requireEditor($song);
-        $current = str_replace(["\r\n", "\r"], "\n", (string) $song->getLyricsSourceText());
+        $currentRevision = $revisions->findCurrentForSong($song);
+        $currentRevisionId = $currentRevision?->getId();
 
         return $this->json([
             'revisions' => array_map(
-                fn (LyricsSourceRevision $revision): array => $this->serialise($revision, $current),
+                fn (LyricsSourceRevision $revision): array => $this->serialise($revision, $currentRevisionId),
                 $revisions->findForSong($song),
             ),
         ]);
@@ -144,7 +145,7 @@ final class LyricsHistoryController extends AbstractController
         return $this->json(['ok' => true]);
     }
 
-    private function serialise(LyricsSourceRevision $revision, string $current): array
+    private function serialise(LyricsSourceRevision $revision, ?int $currentRevisionId): array
     {
         $author = $revision->getCreatedBy();
 
@@ -154,7 +155,7 @@ final class LyricsHistoryController extends AbstractController
             'comment' => $revision->getComment(),
             'created_at' => $revision->getCreatedAt()->format(DATE_ATOM),
             'created_by' => $author?->getDisplayName(),
-            'is_current' => $revision->getContent() === $current,
+            'is_current' => $currentRevisionId !== null && $revision->getId() === $currentRevisionId,
         ];
     }
 
