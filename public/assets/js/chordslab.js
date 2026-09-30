@@ -35,16 +35,6 @@ if(!measuresEl||!beats.length)return;
 const NOTE_TO_PC={C:0,'C#':1,Db:1,D:2,'D#':3,Eb:3,E:4,F:5,'F#':6,Gb:6,G:7,'G#':8,Ab:8,A:9,'A#':10,Bb:10,B:11};
 const SHARP=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const FLAT=['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
-const SHAPES={
- C:'x32010',Cm:'x35543',C7:'x32310',Cmaj7:'x32000',Cadd9:'x32030',Cm7:'x35343',Csus2:'x30033',Csus4:'x33011',
- D:'xx0232',Dm:'xx0231',D7:'xx0212',Dmaj7:'xx0222',Dm7:'xx0211',Dadd9:'xx0230',Dsus2:'xx0230',Dsus4:'xx0233',
- E:'022100',Em:'022000',E7:'020100',Emaj7:'021100',Em7:'022030',Esus4:'022200',
- F:'133211',Fm:'133111',F7:'131211',Fmaj7:'xx3210',Fadd9:'103211',Fm7:'131111',Fsus4:'133311',
- G:'320003',Gm:'355333',G7:'320001',Gmaj7:'320002',Gadd9:'320203',Gsus4:'330013',G6:'320000',
- A:'x02220',Am:'x02210',A7:'x02020',Amaj7:'x02120',Am7:'x02010',Aadd9:'x02420',Asus2:'x02200',Asus4:'x02230',
- B:'x24442',Bm:'x24432',B7:'x21202',Bmaj7:'x24342',Bm7:'x20202',Bsus4:'x24452'
-};
-
 const diagramLabel=diagramToggle?.closest('label');
 if(diagramLabel)diagramLabel.classList.add('chordslab-diagram-inline');
 installR342Styles();
@@ -163,6 +153,10 @@ async function autoSaveSettings(){
 
 function render(){
  measuresEl.innerHTML='';
+ const track=document.createElement('div');
+ track.className='chordslab-measures-track';
+ track.dataset.chordslabMeasuresTrack='1';
+ measuresEl.appendChild(track);
  for(const measure of buildProjection()){
   const box=document.createElement('div');box.className='chord-measure';box.dataset.measure=String(measure.index);
   const number=document.createElement('small');number.className='chord-measure-number';number.textContent=String(measure.index+1);box.appendChild(number);
@@ -179,8 +173,28 @@ function render(){
    if(slot.editable){b.classList.add('editable');b.title='Modifier cet accord'}
    notation.appendChild(b);
   }
-  box.appendChild(notation);measuresEl.appendChild(box);
+  box.appendChild(notation);track.appendChild(box);
  }
+}
+
+
+const focusTrack = new window.EZScoreFocusTrack(measuresEl,{
+ track:()=>measuresEl.querySelector('[data-chordslab-measures-track]'),
+ target:()=>diagramEl,
+ fallbackRatio:()=>{
+  if(window.matchMedia('(max-width:640px)').matches)return .38;
+  if(window.matchMedia('(max-width:900px)').matches)return .30;
+  return .25;
+ }
+});
+
+function alignCurrentTime(slot,seq,ms){
+ if(!slot)return;
+ const next=measuresEl.querySelector(`.chord-slot[data-beat-seq="${seq+1}"]`);
+ const t0=Number(slot.dataset.startMs||ms);
+ const t1=next?Number(next.dataset.startMs||t0):t0;
+ const progress=next&&t1>t0?Math.max(0,Math.min(1,(ms-t0)/(t1-t0))):0;
+ focusTrack.alignBetween(slot,next,progress);
 }
 
 function highlightAt(seconds){
@@ -188,18 +202,19 @@ function highlightAt(seconds){
  measuresEl.querySelectorAll('.is-current').forEach(el=>el.classList.remove('is-current'));
  if(seq<0){updateDiagram(null);return}
  const slot=measuresEl.querySelector(`.chord-slot[data-beat-seq="${seq}"]`);
- if(slot){slot.classList.add('is-current');const m=slot.closest('.chord-measure');m?.classList.add('is-current');root.dispatchEvent(new CustomEvent('ezscore:chord-current',{detail:{beatSeq:seq,timeMs:ms}}))}
+ if(slot){slot.classList.add('is-current');const m=slot.closest('.chord-measure');m?.classList.add('is-current');alignCurrentTime(slot,seq,ms);root.dispatchEvent(new CustomEvent('ezscore:chord-current',{detail:{beatSeq:seq,timeMs:ms}}))}
  const active=activeEventAt(ms);updateDiagram(displayChord(active?.effective||active?.original||null));
 }
 
 function updateDiagram(chord){
- if(!diagramEl||!diagramToggle?.checked||!chord||chord==='.'){if(diagramEl)diagramEl.hidden=true;return}
- diagramEl.hidden=false;const simple=chord.replace(/\/.*$/,''),shape=SHAPES[simple];
- if(!shape){diagramEl.innerHTML=`<strong class="chord-diagram-title">${formatChordHtml(chord)}</strong><small>Diagramme non disponible</small>`;return}
- let marks='';
- shape.split('').forEach((fret,i)=>{const x=18+i*18;if(fret==='x')marks+=`<text x="${x}" y="12" text-anchor="middle" font-size="10">×</text>`;else if(fret==='0')marks+=`<circle cx="${x}" cy="10" r="4" fill="none" stroke="currentColor"/>`;else marks+=`<circle cx="${x}" cy="${27+(Number(fret)-1)*18}" r="5" fill="currentColor"/>`});
- diagramEl.innerHTML=`<strong class="chord-diagram-title">${formatChordHtml(chord)}</strong><svg viewBox="0 0 120 105" role="img" aria-label="${escapeHtml(chord)}"><g stroke="currentColor" fill="none"><path d="M18 18V90M36 18V90M54 18V90M72 18V90M90 18V90M108 18V90"/><path d="M18 18H108M18 36H108M18 54H108M18 72H108M18 90H108"/></g>${marks}</svg>`;
+ if(!diagramEl||!diagramToggle?.checked||!chord||chord==='.'){
+  if(diagramEl){diagramEl.hidden=true;diagramEl.innerHTML=''}
+  return;
+ }
+ diagramEl.classList.add('ez-chord-diagram');
+ window.EZScoreChordDiagram.render(diagramEl,chord);
 }
+
 function escapeHtml(v){return String(v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]))}
 
 async function editSlot(button){

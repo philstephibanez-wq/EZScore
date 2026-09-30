@@ -5,7 +5,8 @@
 {% block stylesheets %}
 <link rel="stylesheet" href="/assets/css/workflow-tabs-r23-2.css?v=20260926r31">
 <link rel="stylesheet" href="/assets/css/stems.css?v=20260929r39_2a">
-<link rel="stylesheet" href="/assets/css/chordslab.css?v=20260928r35_8a">
+<link rel="stylesheet" href="/assets/css/chordslab.css?v=20260930r39_3">
+<link rel="stylesheet" href="/assets/css/components/ezscore-chord-diagram.css?v=20260930r39_3">
 <link rel="stylesheet" href="/assets/css/components/ezscore-live-visual-settings.css?v=20260930r39_2d">
 {% endblock %}
 
@@ -47,12 +48,6 @@
         <div>
             <div class="eyebrow">{{ 'chordslab.prompter'|trans({}, 'chordslab') }}</div>
             <h2>{{ 'chordslab.timeline'|trans({}, 'chordslab') }}</h2>
-        </div>
-
-        <div class="chord-profile-status">
-            <span>Profil affiché</span>
-            <strong data-chord-profile-badge>{{ ('chordslab.level.' ~ chord_profile)|trans({}, 'chordslab') }}</strong>
-            <small data-chord-profile-count>{{ chord_events|length }} accords</small>
         </div>
 
         <div class="chordslab-prompter-actions">
@@ -229,7 +224,9 @@
 <script src="/assets/js/stems-mixer.js?v=20260929r39_2a"></script>
 <script src="/assets/js/ezscore-timeline-core-r39.js?v=20260929r39_0"></script>
 <script src="/assets/js/components/ezscore-live-visual-settings.js?v=20260930r39_2d"></script>
-<script src="/assets/js/chordslab.js?v=20260929r39_0"></script>
+<script src="/assets/js/components/ezscore-chord-diagram.js?v=20260930r39_3"></script>
+<script src="/assets/js/components/ezscore-focus-track.js?v=20260930r39_3"></script>
+<script src="/assets/js/chordslab.js?v=20260930r39_3"></script>
 <script src="/assets/js/chordslab-r33-2.js?v=20260928r35_10"></script>
 <script src="/assets/js/chordslab-r33-1.js?v=20260927r34_6"></script>
 {% endblock %}

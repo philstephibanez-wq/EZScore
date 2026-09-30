@@ -374,3 +374,56 @@
 
 /* R35.8a framed cells: no square brackets */
 .chord-measure-notation::before,.chord-measure-notation::after{content:none!important;display:none!important}
+
+
+/* R39.3 — consolidated fixed-focus prompter.
+   Historical architecture: fixed viewport + translate3d track. */
+.chordslab-stage{
+    --chord-focus-x:25%;
+    position:relative!important;
+    display:block!important;
+    overflow:hidden!important;
+    padding-top:164px!important;
+    min-height:220px;
+}
+.chordslab-stage .chord-diagram{
+    position:absolute!important;
+    top:0!important;
+    left:var(--chord-focus-x)!important;
+    transform:translateX(-50%)!important;
+    z-index:5!important;
+}
+.chordslab-stage .chordslab-measures{
+    display:block!important;
+    position:relative!important;
+    width:100%!important;
+    overflow:hidden!important;
+    overflow-x:hidden!important;
+    overflow-y:hidden!important;
+    padding:4px 0 10px!important;
+    margin:0!important;
+    scroll-snap-type:none!important;
+    scroll-behavior:auto!important;
+    scrollbar-width:none!important;
+}
+.chordslab-stage .chordslab-measures::-webkit-scrollbar{display:none!important}
+.chordslab-measures-track{
+    display:flex;
+    gap:8px;
+    width:max-content;
+    padding:0 12px;
+    box-sizing:border-box;
+    will-change:transform;
+    transform:translate3d(0,0,0);
+    transition:none!important;
+}
+@media(max-width:900px){
+    .chordslab-stage{--chord-focus-x:30%}
+}
+@media(max-width:640px){
+    .chordslab-stage{
+        --chord-focus-x:38%;
+        padding-top:152px!important;
+    }
+    .chordslab-measures-track{padding-inline:8px}
+}
