@@ -59,3 +59,28 @@
 [data-lyricslab] .lyrics-ribbon-syllable.collision-row-2{
   z-index:2;
 }
+
+
+/* R39.5 FULL — shared Chords diagram lives inside the Lyrics ribbon stage.
+   The upper band is explicit layout space, not an overlay outside the stage. */
+[data-lyricslab] .r39-shared-timeline{
+    height:392px!important;
+}
+[data-lyricslab] .r39-shared-timeline .lyrics-stage-diagram{
+    position:absolute!important;
+    top:6px!important;
+    transform:translateX(-50%)!important;
+    z-index:45!important;
+}
+[data-lyricslab] .r39-shared-timeline .lyrics-stage-diagram[hidden]{
+    display:none!important;
+}
+[data-lyricslab] .r39-shared-timeline .lyrics-reading-zone{
+    top:174px!important;
+}
+[data-lyricslab] .r39-shared-timeline .lyrics-ribbon-chords{
+    top:174px!important;
+}
+[data-lyricslab] .r39-shared-timeline .lyrics-ribbon-syllables{
+    top:284px!important;
+}

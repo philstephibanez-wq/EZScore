@@ -143,6 +143,9 @@ final class CatalogController extends AbstractController
 
         // R35.5: propriétaire immuable; délégations via SongCollaborator.
 
+        $requestedStatus = SongStatus::tryFrom((string) $request->request->get('status', ''))
+            ?? $song->getStatus();
+
         $wasPublished = $song->isPublished();
         $this->applyStatus($song, $requestedStatus);
 

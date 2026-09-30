@@ -15,8 +15,9 @@ window.EZScoreLyricsTimelineR39={mount(root){
  const shown=v=>{let c=String(v||'.').trim().replace(/^\[([^\]]+)\]$/,'$1').replace(/♭/g,'b');if(!c||c==='.')return'.';const m=/^([A-G](?:#|b)?)(.*)$/.exec(c);if(!m||NOTE[m[1]]===undefined)return c;const names=m[1].includes('b')?FL:SH;return names[(NOTE[m[1]]-capo+120)%12]+m[2]};
  const normaliseLabel=c=>String(c||'').trim().replace(/^\[([^\]]+)\]$/,'$1').replace(/^([A-G](?:#|b)?)maj$/,'$1');
 
- host.innerHTML='<div class="lyrics-ribbon-stage r39-shared-timeline" data-stage><div class="lyrics-reading-zone" data-reading-zone></div><div class="lyrics-ribbon-track" data-track><div class="lyrics-ribbon-chords" data-chords-lane></div><div class="lyrics-ribbon-syllables" data-syllables-lane></div></div></div>';
- const stage=host.querySelector('[data-stage]'),zone=host.querySelector('[data-reading-zone]'),track=host.querySelector('[data-track]'),chordLane=host.querySelector('[data-chords-lane]'),syllableLane=host.querySelector('[data-syllables-lane]');
+ host.innerHTML='<div class="lyrics-ribbon-stage r39-shared-timeline" data-stage><div class="lyrics-stage-diagram ez-chord-diagram" data-lyrics-stage-diagram hidden></div><div class="lyrics-reading-zone" data-reading-zone></div><div class="lyrics-ribbon-track" data-track><div class="lyrics-ribbon-chords" data-chords-lane></div><div class="lyrics-ribbon-syllables" data-syllables-lane></div></div></div>';
+ const stage=host.querySelector('[data-stage]'),diagram=host.querySelector('[data-lyrics-stage-diagram]'),zone=host.querySelector('[data-reading-zone]'),track=host.querySelector('[data-track]'),chordLane=host.querySelector('[data-chords-lane]'),syllableLane=host.querySelector('[data-syllables-lane]');
+ const diagramToggle=document.querySelector('[data-chordslab-diagram]');
  const syllables=Core.flattenSyllables(words),syllableNodes=[];
  const focusX=()=>Math.max(105,stage.clientWidth*.30);
  function activeSyllable(ms){let i=-1;for(let k=0;k<syllables.length;k++){if(syllables[k].nucleusMs<=ms)i=k;else break}return i}
@@ -41,14 +42,22 @@ window.EZScoreLyricsTimelineR39={mount(root){
 
  let lastTime=0,lastBeat=-2,lastSyllable=-2;
  function renderAt(sec,force=false){
-  lastTime=Math.max(0,Number(sec)||0);const x=focusX(),metric=timeline.timeToX(lastTime*1000);zone.style.left=x+'px';track.style.transform=`translate3d(${x-metric}px,0,0)`;
-  const bi=timeline.beatIndexAtMs(lastTime*1000);if(force||bi!==lastBeat){lastBeat=bi;chordLane.querySelectorAll('.current').forEach(e=>e.classList.remove('current'));chordLane.querySelector(`.lyrics-ribbon-beat[data-beat-seq="${bi}"]`)?.classList.add('current')}
-  const si=activeSyllable(lastTime*1000);if(force||si!==lastSyllable){lastSyllable=si;syllableNodes.forEach((e,i)=>{e.classList.toggle('past',si>=0&&i<si);e.classList.toggle('current',i===si)})}
+  lastTime=Math.max(0,Number(sec)||0);const ms=lastTime*1000,x=focusX(),metric=timeline.timeToX(ms);zone.style.left=x+'px';track.style.transform=`translate3d(${x-metric}px,0,0)`;
+  const bi=timeline.beatIndexAtMs(ms);if(force||bi!==lastBeat){lastBeat=bi;chordLane.querySelectorAll('.current').forEach(e=>e.classList.remove('current'));chordLane.querySelector(`.lyrics-ribbon-beat[data-beat-seq="${bi}"]`)?.classList.add('current')}
+  if(diagram){
+   diagram.style.left=x+'px';
+   const active=timeline.activeEventAt(chords,ms);
+   const label=shown(active?.effective||active?.original||'.');
+   if(diagramToggle?.checked&&label&&label!=='.'){diagram.hidden=false;window.EZScoreChordDiagram?.render(diagram,label)}
+   else{diagram.hidden=true;diagram.innerHTML=''}
+  }
+  const si=activeSyllable(ms);if(force||si!==lastSyllable){lastSyllable=si;syllableNodes.forEach((e,i)=>{e.classList.toggle('past',si>=0&&i<si);e.classList.toggle('current',i===si)})}
  }
 
  const profileSelect=root.querySelector('[data-lyrics-profile]'),profileDataUrlTemplate=root.dataset.profileDataUrlTemplate||'',profileSaveUrl=root.dataset.profileSaveUrl||'',profileToken=root.dataset.profileToken||'';
  profileSelect?.addEventListener('change',async()=>{currentProfile=String(profileSelect.value||'intermediate');profileSelect.disabled=true;try{if(profileSaveUrl&&profileToken){const saved=await fetch(profileSaveUrl,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({_token:profileToken,profile:currentProfile})});if(!saved.ok)throw new Error(`profile_save_http_${saved.status}`)}if(profileDataUrlTemplate){const response=await fetch(profileDataUrlTemplate.replace('__PROFILE__',encodeURIComponent(currentProfile)),{headers:{Accept:'application/json'},credentials:'same-origin',cache:'no-store'});if(!response.ok)throw new Error(`profile_http_${response.status}`);const data=await response.json();if(!Array.isArray(data.events))throw new Error('invalid_profile_payload');chords=data.events.slice().sort((a,b)=>Number(a.start_ms)-Number(b.start_ms));buildChords();renderAt(lastTime,true)}}catch(error){console.error('LyricsLab profile switch failed',error);location.reload()}finally{profileSelect.disabled=false}});
  document.querySelector('[data-stem-mixer]')?.addEventListener('ezscore:audio-timeupdate',e=>renderAt(Number(e.detail?.time||0)));
+ diagramToggle?.addEventListener('change',()=>renderAt(lastTime,true));
 
  const progress=document.querySelector('[data-lyrics-progress]'),statusUrl=progress?.dataset.statusUrl||'',progressBar=progress?.querySelector('progress'),progressLabel=progress?.querySelector('[data-lyrics-progress-text]'),progressPercent=progress?.querySelector('[data-lyrics-progress-percent]');
  async function poll(){if(!statusUrl)return;try{const response=await fetch(statusUrl,{headers:{Accept:'application/json'},cache:'no-store',credentials:'same-origin'});if(response.ok){const data=await response.json(),status=String(data.status||''),pct=Math.max(0,Math.min(100,Number(data.progress||0)));if(status==='queued'||status==='running'){progress.hidden=false;if(progressBar)progressBar.value=pct;if(progressPercent)progressPercent.textContent=`${Math.round(pct)}%`;if(progressLabel)progressLabel.textContent=status==='queued'?'En attente du Worker…':(data.mode==='extract'?'Extraction automatique des paroles…':'Analyse / ancrage des paroles sur la timeline…')}else if(status==='failed'){progress.hidden=false;if(progressPercent)progressPercent.textContent='Erreur';if(progressLabel)progressLabel.textContent='Analyse des paroles en échec. Voir le journal du Worker.'}else if(status==='completed'){if(progressBar)progressBar.value=100;if(progressPercent)progressPercent.textContent='100%';if(progressLabel)progressLabel.textContent=String(data.mode||'align')==='extract'?'Extraction terminée':'Analyse terminée';const key=`ezscore.lyrics.job.reloaded.${data.job_id}`;if(data.job_id&&sessionStorage.getItem(key)!=='1'){sessionStorage.setItem(key,'1');setTimeout(()=>location.reload(),180);return}setTimeout(()=>{progress.hidden=true},700)}else progress.hidden=true}}catch(_){}setTimeout(poll,900)}
