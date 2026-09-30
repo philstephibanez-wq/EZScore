@@ -18,9 +18,10 @@ from datetime import datetime
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+from server_control import ServerController
 
 
-APP_VERSION = "R39.4"
+APP_VERSION = "R40.0B"
 HEARTBEAT_SECONDS = 2.0
 CLAIM_SECONDS = 1.5
 RECONNECT_MIN_SECONDS = 1.0
@@ -237,7 +238,8 @@ class WorkerEngine:
 
     def configure(self) -> None:
         env = read_env_local(self.root)
-        base_url = (
+        controller = getattr(self.app, "server_control", None)
+        base_url = controller.worker_url() if controller is not None else (
             os.environ.get("EZSCORE_WORKER_URL")
             or env.get("EZSCORE_WORKER_URL")
             or "http://127.0.0.1:8501"
@@ -878,7 +880,7 @@ class WorkerEngine:
             return None
 
 
-class LocalServerMonitor:
+class ServerStatusMonitor:
     def __init__(self, app: "WorkerWindow"):
         self.app = app
         self.stop_event = threading.Event()
@@ -888,11 +890,7 @@ class LocalServerMonitor:
         if self.thread and self.thread.is_alive():
             return
         self.stop_event.clear()
-        self.thread = threading.Thread(
-            target=self._loop,
-            name="local-server-monitor",
-            daemon=True,
-        )
+        self.thread = threading.Thread(target=self._loop, name="server-status-monitor", daemon=True)
         self.thread.start()
 
     def stop(self) -> None:
@@ -900,12 +898,10 @@ class LocalServerMonitor:
 
     def _loop(self) -> None:
         while not self.stop_event.is_set():
-            alive, pid = local_server_alive()
-            self.app.events.put(("server_status", {
-                "alive": alive,
-                "pid": pid,
-                "url": local_server_url(),
-            }))
+            try:
+                self.app.events.put(("server_snapshot", self.app.server_control.status()))
+            except Exception as exc:
+                self.app.events.put(("log", f"[SERVER] Monitoring impossible: {exc}"))
             self.stop_event.wait(2.0)
 
 
@@ -913,22 +909,36 @@ class WorkerWindow:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("EZScore Analysis Worker")
-        self.root.geometry("1120x760")
-        self.root.minsize(900, 620)
+        self.root.geometry("1180x860")
+        self.root.minsize(980, 720)
         self.events: queue.Queue[tuple[str, object]] = queue.Queue()
+        self.server_control = ServerController(project_root(), self.events.put)
         self.engine = WorkerEngine(self)
 
+        desired = self.server_control.snapshot_desired()
         self.status_var = tk.StringVar(value="ARRÊTÉ")
-        self.url_var = tk.StringVar(value="—")
+        self.url_var = tk.StringVar(value=self.server_control.worker_url())
         self.python_var = tk.StringVar(value="—")
         self.cuda_var = tk.StringVar(value="—")
         self.job_var = tk.StringVar(value="Aucun")
         self.stage_var = tk.StringVar(value="—")
         self.txrx_var = tk.StringVar(value="—")
-        self.server_var = tk.StringVar(value="Vérification…")
         self.progress_var = tk.DoubleVar(value=0)
-        self.server_monitor = LocalServerMonitor(self)
 
+        self.online_summary_var = tk.StringVar(value="Vérification…")
+        self.online_detail_var = tk.StringVar(value=self.server_control.public_url())
+        self.online_env_var = tk.StringVar(value=desired["online"]["env"])
+        self.online_maintenance_var = tk.BooleanVar(value=desired["online"]["maintenance"])
+        self.local_summary_var = tk.StringVar(value="Vérification…")
+        self.local_detail_var = tk.StringVar(value=self.server_control.local_url())
+        self.worker_target_var = tk.StringVar(value=desired["worker"]["target"].upper())
+        self.worker_summary_var = tk.StringVar(value=f"Cible {desired['worker']['target'].upper()} · {self.server_control.worker_url()}")
+        self.gpu_summary_var = tk.StringVar(value="CUDA : vérification…")
+        self.operation_var = tk.StringVar(value="Prêt")
+        self._last_snapshot: dict = {}
+        self._server_action_running = False
+
+        self.server_monitor = ServerStatusMonitor(self)
         self._build()
         self.root.after(100, self._drain_events)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -940,44 +950,100 @@ class WorkerWindow:
             style.theme_use("vista")
         except Exception:
             pass
+        style.configure("Title.TLabel", font=("Segoe UI", 19, "bold"))
+        style.configure("Sub.TLabel", foreground="#687780")
+        style.configure("CardTitle.TLabel", font=("Segoe UI", 11, "bold"))
+        style.configure("State.TLabel", font=("Segoe UI", 12, "bold"))
+        style.configure("Muted.TLabel", foreground="#687780")
+        style.configure("Danger.TButton", foreground="#8b1e1e")
 
-        top = ttk.Frame(self.root, padding=12)
-        top.pack(fill="x")
+        outer = ttk.Frame(self.root, padding=12)
+        outer.pack(fill="both", expand=True)
 
-        ttk.Label(top, text="EZScore Analysis Worker", font=("Segoe UI", 18, "bold")).grid(row=0, column=0, sticky="w")
-        ttk.Label(top, text=f"{APP_VERSION} · STEMS + CHORDS", foreground="#666").grid(row=1, column=0, sticky="w")
+        header = ttk.Frame(outer)
+        header.pack(fill="x", pady=(0, 10))
+        left = ttk.Frame(header)
+        left.pack(side="left", fill="x", expand=True)
+        ttk.Label(left, text="EZScore Analysis Worker", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(left, text=f"{APP_VERSION} · Pilotage ONLINE / LOCAL · STEMS + CHORDS + LYRICS", style="Sub.TLabel").pack(anchor="w")
+        ttk.Label(header, textvariable=self.operation_var, style="Muted.TLabel").pack(side="right", anchor="e")
 
-        buttons = ttk.Frame(top)
-        buttons.grid(row=0, column=1, rowspan=2, sticky="e")
-        self.worker_button = ttk.Button(buttons, text="Démarrer Worker", command=self._worker_action)
-        self.worker_button.pack(side="left", padx=4)
-        self.server_start_button = ttk.Button(buttons, text="Démarrer serveur", command=self._start_server)
-        self.server_start_button.pack(side="left", padx=4)
-        self.server_stop_button = ttk.Button(buttons, text="Arrêter serveur", command=self._stop_server)
-        self.server_stop_button.pack(side="left", padx=4)
-        ttk.Button(buttons, text="Pause / Reprendre", command=self._toggle_pause).pack(side="left", padx=4)
-        ttk.Button(buttons, text="Annuler job", command=self.engine.cancel_current).pack(side="left", padx=4)
-        ttk.Button(buttons, text="Ouvrir EZScore", command=self._open_ezscore).pack(side="left", padx=4)
-        ttk.Button(buttons, text="Ouvrir logs", command=self._open_logs).pack(side="left", padx=4)
-        top.columnconfigure(0, weight=1)
+        summary = ttk.Frame(outer)
+        summary.pack(fill="x", pady=(0, 10))
+        for col in range(4):
+            summary.columnconfigure(col, weight=1)
+        self._summary_card(summary, 0, "ONLINE", self.online_summary_var)
+        self._summary_card(summary, 1, "LOCAL DEV", self.local_summary_var)
+        self._summary_card(summary, 2, "WORKER", self.worker_summary_var)
+        self._summary_card(summary, 3, "GPU", self.gpu_summary_var)
 
-        info = ttk.LabelFrame(self.root, text="Connexion / Runtime", padding=10)
-        info.pack(fill="x", padx=12, pady=(0, 10))
-        rows = [
-            ("État", self.status_var),
-            ("API EZScore", self.url_var),
-            ("Python STEM", self.python_var),
-            ("CUDA / GPU", self.cuda_var),
-            ("Serveur local", self.server_var),
-            ("Canal", self.txrx_var),
-        ]
-        for i, (label, var) in enumerate(rows):
-            ttk.Label(info, text=label, width=14).grid(row=i, column=0, sticky="w", pady=2)
-            ttk.Label(info, textvariable=var).grid(row=i, column=1, sticky="w", pady=2)
-        info.columnconfigure(1, weight=1)
+        servers = ttk.Frame(outer)
+        servers.pack(fill="x", pady=(0, 10))
+        servers.columnconfigure(0, weight=1)
+        servers.columnconfigure(1, weight=1)
 
-        job = ttk.LabelFrame(self.root, text="Job courant", padding=10)
-        job.pack(fill="x", padx=12, pady=(0, 10))
+        online = ttk.LabelFrame(servers, text="Serveur ONLINE", padding=12)
+        online.grid(row=0, column=0, sticky="nsew", padx=(0, 6))
+        ttk.Label(online, textvariable=self.online_summary_var, style="State.TLabel").grid(row=0, column=0, columnspan=4, sticky="w")
+        ttk.Label(online, textvariable=self.online_detail_var, style="Muted.TLabel").grid(row=1, column=0, columnspan=4, sticky="w", pady=(2, 8))
+        ttk.Label(online, text="Environnement").grid(row=2, column=0, sticky="w")
+        self.online_env_combo = ttk.Combobox(online, textvariable=self.online_env_var, values=("prod", "dev"), state="readonly", width=9)
+        self.online_env_combo.grid(row=2, column=1, sticky="w", padx=(6, 14))
+        self.online_env_combo.bind("<<ComboboxSelected>>", self._online_env_changed)
+        self.maintenance_check = ttk.Checkbutton(online, text="Maintenance", variable=self.online_maintenance_var, command=self._maintenance_changed)
+        self.maintenance_check.grid(row=2, column=2, columnspan=2, sticky="w")
+        self.online_start_btn = ttk.Button(online, text="Démarrer", command=lambda: self._server_action("online_start"))
+        self.online_restart_btn = ttk.Button(online, text="Relancer", command=lambda: self._server_action("online_restart"))
+        self.online_stop_btn = ttk.Button(online, text="Arrêter", command=lambda: self._server_action("online_stop"))
+        self.online_open_btn = ttk.Button(online, text="Ouvrir", command=self.server_control.open_online)
+        for i, widget in enumerate((self.online_start_btn, self.online_restart_btn, self.online_stop_btn, self.online_open_btn)):
+            widget.grid(row=3, column=i, sticky="ew", padx=(0 if i == 0 else 4, 0), pady=(10, 0))
+            online.columnconfigure(i, weight=1)
+
+        local = ttk.LabelFrame(servers, text="Serveur LOCAL DEV", padding=12)
+        local.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
+        ttk.Label(local, textvariable=self.local_summary_var, style="State.TLabel").grid(row=0, column=0, columnspan=4, sticky="w")
+        ttk.Label(local, textvariable=self.local_detail_var, style="Muted.TLabel").grid(row=1, column=0, columnspan=4, sticky="w", pady=(2, 8))
+        ttk.Label(local, text="Environnement").grid(row=2, column=0, sticky="w")
+        ttk.Label(local, text="dev", style="State.TLabel").grid(row=2, column=1, sticky="w", padx=(6, 0))
+        ttk.Label(local, text="Port 8502 · privé", style="Muted.TLabel").grid(row=2, column=2, columnspan=2, sticky="e")
+        self.local_start_btn = ttk.Button(local, text="Démarrer", command=lambda: self._server_action("local_start"))
+        self.local_restart_btn = ttk.Button(local, text="Relancer", command=lambda: self._server_action("local_restart"))
+        self.local_stop_btn = ttk.Button(local, text="Arrêter", command=lambda: self._server_action("local_stop"))
+        self.local_open_btn = ttk.Button(local, text="Ouvrir", command=self.server_control.open_local)
+        for i, widget in enumerate((self.local_start_btn, self.local_restart_btn, self.local_stop_btn, self.local_open_btn)):
+            widget.grid(row=3, column=i, sticky="ew", padx=(0 if i == 0 else 4, 0), pady=(10, 0))
+            local.columnconfigure(i, weight=1)
+
+        runtime = ttk.LabelFrame(outer, text="Worker / Runtime", padding=10)
+        runtime.pack(fill="x", pady=(0, 10))
+        ttk.Label(runtime, text="Cible Worker", width=14).grid(row=0, column=0, sticky="w", pady=2)
+        self.worker_target_combo = ttk.Combobox(runtime, textvariable=self.worker_target_var, values=("ONLINE", "LOCAL"), state="readonly", width=10)
+        self.worker_target_combo.grid(row=0, column=1, sticky="w", pady=2)
+        self.worker_target_combo.bind("<<ComboboxSelected>>", self._worker_target_changed)
+        ttk.Label(runtime, text="État", width=12).grid(row=0, column=2, sticky="w", padx=(20, 0))
+        ttk.Label(runtime, textvariable=self.status_var).grid(row=0, column=3, sticky="w")
+        ttk.Label(runtime, text="Canal", width=10).grid(row=0, column=4, sticky="w", padx=(20, 0))
+        ttk.Label(runtime, textvariable=self.txrx_var).grid(row=0, column=5, sticky="w")
+
+        ttk.Label(runtime, text="API effective", width=14).grid(row=1, column=0, sticky="w", pady=2)
+        ttk.Label(runtime, textvariable=self.url_var).grid(row=1, column=1, columnspan=5, sticky="w")
+        ttk.Label(runtime, text="Python STEM", width=14).grid(row=2, column=0, sticky="w", pady=2)
+        ttk.Label(runtime, textvariable=self.python_var).grid(row=2, column=1, columnspan=5, sticky="w")
+        ttk.Label(runtime, text="CUDA / GPU", width=14).grid(row=3, column=0, sticky="w", pady=2)
+        ttk.Label(runtime, textvariable=self.cuda_var).grid(row=3, column=1, columnspan=5, sticky="w")
+        runtime.columnconfigure(5, weight=1)
+
+        actions = ttk.Frame(runtime)
+        actions.grid(row=4, column=0, columnspan=6, sticky="ew", pady=(8, 0))
+        self.worker_button = ttk.Button(actions, text="Démarrer Worker", command=self._worker_action)
+        self.worker_button.pack(side="left", padx=(0, 5))
+        ttk.Button(actions, text="Pause / Reprendre", command=self._toggle_pause).pack(side="left", padx=5)
+        ttk.Button(actions, text="Annuler job", command=self.engine.cancel_current).pack(side="left", padx=5)
+        ttk.Button(actions, text="Ouvrir logs", command=self._open_logs).pack(side="right", padx=(5, 0))
+
+        job = ttk.LabelFrame(outer, text="Job courant", padding=10)
+        job.pack(fill="x", pady=(0, 10))
         ttk.Label(job, text="Chanson", width=14).grid(row=0, column=0, sticky="w")
         ttk.Label(job, textvariable=self.job_var).grid(row=0, column=1, sticky="w")
         ttk.Label(job, text="Étape", width=14).grid(row=1, column=0, sticky="w")
@@ -986,12 +1052,17 @@ class WorkerWindow:
         self.progress.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 2))
         job.columnconfigure(1, weight=1)
 
-        queue_box = ttk.LabelFrame(self.root, text="Traitements en cours / à faire", padding=8)
-        queue_box.pack(fill="x", padx=12, pady=(0, 10))
+        lower = ttk.Panedwindow(outer, orient="vertical")
+        lower.pack(fill="both", expand=True)
+        queue_box = ttk.LabelFrame(lower, text="Traitements en cours / à faire", padding=8)
+        console_box = ttk.LabelFrame(lower, text="Console temps réel", padding=8)
+        lower.add(queue_box, weight=1)
+        lower.add(console_box, weight=2)
+
         columns = ("id", "etat", "type", "chanson", "progression")
-        self.queue_tree = ttk.Treeview(queue_box, columns=columns, show="headings", height=6)
+        self.queue_tree = ttk.Treeview(queue_box, columns=columns, show="headings", height=5)
         headings = {"id": "#", "etat": "État", "type": "Traitement", "chanson": "Chanson", "progression": "Progression"}
-        widths = {"id": 55, "etat": 95, "type": 95, "chanson": 560, "progression": 105}
+        widths = {"id": 55, "etat": 95, "type": 95, "chanson": 650, "progression": 105}
         for name in columns:
             self.queue_tree.heading(name, text=headings[name])
             self.queue_tree.column(name, width=widths[name], anchor="w")
@@ -1000,17 +1071,9 @@ class WorkerWindow:
         self.queue_tree.grid(row=0, column=0, sticky="nsew")
         queue_scroll.grid(row=0, column=1, sticky="ns")
         queue_box.columnconfigure(0, weight=1)
+        queue_box.rowconfigure(0, weight=1)
 
-        console_box = ttk.LabelFrame(self.root, text="Console temps réel", padding=8)
-        console_box.pack(fill="both", expand=True, padx=12, pady=(0, 12))
-        self.console = tk.Text(
-            console_box,
-            wrap="none",
-            bg="#0a0d10",
-            fg="#d1f7d9",
-            insertbackground="white",
-            font=("Consolas", 10),
-        )
+        self.console = tk.Text(console_box, wrap="none", bg="#0a0d10", fg="#d1f7d9", insertbackground="white", font=("Consolas", 10))
         yscroll = ttk.Scrollbar(console_box, orient="vertical", command=self.console.yview)
         xscroll = ttk.Scrollbar(console_box, orient="horizontal", command=self.console.xview)
         self.console.configure(yscrollcommand=yscroll.set, xscrollcommand=xscroll.set)
@@ -1019,6 +1082,109 @@ class WorkerWindow:
         xscroll.grid(row=1, column=0, sticky="ew")
         console_box.rowconfigure(0, weight=1)
         console_box.columnconfigure(0, weight=1)
+
+    def _summary_card(self, parent, column: int, title: str, variable: tk.StringVar) -> None:
+        frame = ttk.LabelFrame(parent, text=title, padding=9)
+        frame.grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else 4, 0 if column == 3 else 4))
+        ttk.Label(frame, textvariable=variable, style="State.TLabel", wraplength=255).pack(anchor="w")
+
+    def _busy_guard(self, operation: str) -> bool:
+        if self.engine.current_job is not None:
+            messagebox.showwarning("EZScore Analysis Worker", f"Un traitement est actif. {operation} interdite jusqu'à la fin du job.")
+            return True
+        if self._server_action_running:
+            return True
+        return False
+
+    def _set_controls_state(self, enabled: bool) -> None:
+        state = "normal" if enabled else "disabled"
+        readonly = "readonly" if enabled else "disabled"
+        for widget in (
+            self.online_start_btn, self.online_restart_btn, self.online_stop_btn,
+            self.local_start_btn, self.local_restart_btn, self.local_stop_btn,
+            self.maintenance_check,
+        ):
+            widget.configure(state=state)
+        self.online_env_combo.configure(state=readonly)
+        self.worker_target_combo.configure(state=readonly)
+
+    def _server_action(self, action: str) -> None:
+        if self._busy_guard("Bascule serveur"):
+            return
+        self._server_action_running = True
+        self._set_controls_state(False)
+        labels = {
+            "online_start": "Démarrage ONLINE…", "online_restart": "Relance ONLINE…", "online_stop": "Arrêt ONLINE…",
+            "local_start": "Démarrage LOCAL…", "local_restart": "Relance LOCAL…", "local_stop": "Arrêt LOCAL…",
+        }
+        self.operation_var.set(labels.get(action, "Opération serveur…"))
+
+        def run():
+            try:
+                if action == "online_start": self.server_control.start_online()
+                elif action == "online_restart": self.server_control.restart_online()
+                elif action == "online_stop": self.server_control.stop_online()
+                elif action == "local_start": self.server_control.start_local()
+                elif action == "local_restart": self.server_control.restart_local()
+                elif action == "local_stop": self.server_control.stop_local()
+                else: raise RuntimeError(f"Action inconnue: {action}")
+                self.events.put(("server_operation_done", action))
+            except Exception as exc:
+                self.events.put(("server_operation_error", str(exc)))
+        threading.Thread(target=run, name=f"server-action-{action}", daemon=True).start()
+
+    def _online_env_changed(self, _event=None) -> None:
+        selected = self.online_env_var.get().lower()
+        desired = self.server_control.snapshot_desired()["online"]["env"]
+        if selected == desired:
+            return
+        if self._busy_guard("Changement d'environnement"):
+            self.online_env_var.set(desired)
+            return
+        self._server_action_running = True
+        self._set_controls_state(False)
+        self.operation_var.set(f"ONLINE : bascule vers {selected} + relance automatique…")
+
+        def run():
+            try:
+                self.server_control.set_online_environment(selected)
+                self.events.put(("server_operation_done", "online_env"))
+            except Exception as exc:
+                self.events.put(("server_operation_error", str(exc)))
+        threading.Thread(target=run, name="online-env-switch", daemon=True).start()
+
+    def _maintenance_changed(self) -> None:
+        selected = bool(self.online_maintenance_var.get())
+        if self._busy_guard("Bascule maintenance"):
+            current = self.server_control.snapshot_desired()["online"]["maintenance"]
+            self.online_maintenance_var.set(current)
+            return
+        try:
+            self.server_control.set_maintenance(selected)
+            self.operation_var.set("Maintenance ONLINE activée" if selected else "Maintenance ONLINE désactivée")
+        except Exception as exc:
+            self.online_maintenance_var.set(not selected)
+            messagebox.showerror("EZScore Analysis Worker", str(exc))
+
+    def _worker_target_changed(self, _event=None) -> None:
+        target = self.worker_target_var.get().lower()
+        current = self.server_control.snapshot_desired()["worker"]["target"]
+        if target == current:
+            return
+        if self.engine.current_job is not None:
+            self.worker_target_var.set(current.upper())
+            messagebox.showwarning("EZScore Analysis Worker", "Un traitement est actif. Changement de cible Worker interdit.")
+            return
+        self.server_control.set_worker_target(target)
+        self.url_var.set(self.server_control.worker_url())
+        self.worker_summary_var.set(f"Cible {target.upper()} · reconnexion…")
+        self._append(f"Cible Worker -> {target.upper()}; redémarrage contrôlé du Worker.")
+        if self.engine.running:
+            if not self.engine.restart():
+                messagebox.showerror("EZScore Analysis Worker", "Le Worker ne s'est pas arrêté proprement. Cible mémorisée, relance manuelle requise.")
+        else:
+            self._start()
+        self._refresh_worker_button()
 
     def _refresh_worker_button(self):
         if self.engine.current_job is not None:
@@ -1044,67 +1210,16 @@ class WorkerWindow:
     def _start(self):
         if self.engine.running:
             return
-        self._append("Démarrage du worker desktop…")
+        self._append(f"Démarrage du Worker desktop · cible {self.server_control.snapshot_desired()['worker']['target'].upper()}…")
         self.engine.start()
         self._refresh_worker_button()
 
-    def _start_server(self):
-        alive, _ = local_server_alive()
-        if alive:
-            return
-        script = project_root() / "scripts" / "start_ezscore_web.ps1"
-        subprocess.Popen(
-            ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(script), "-Port", "8501"],
-            cwd=str(project_root()),
-            creationflags=WINDOWS_NO_WINDOW if os.name == "nt" else 0,
-        )
-        self._append("Démarrage du serveur local demandé.")
-
-    def _stop_server(self):
-        if self.engine.current_job is not None:
-            messagebox.showwarning(
-                "EZScore Analysis Worker",
-                "Un traitement est actif. Arrêt du serveur interdit jusqu'à la fin du job.",
-            )
-            return
-
-        pid = local_server_pid(project_root())
-        if not pid:
-            return
-
-        subprocess.run(
-            ["powershell", "-NoProfile", "-Command", f"Stop-Process -Id {pid} -Force -ErrorAction SilentlyContinue"],
-            cwd=str(project_root()),
-            check=False,
-            creationflags=WINDOWS_NO_WINDOW if os.name == "nt" else 0,
-        )
-
-        for _ in range(40):
-            alive, _ = local_server_alive(timeout=0.35)
-            if not alive:
-                self._append("Serveur local arrêté.")
-                return
-            time.sleep(0.25)
-
-        self._append("Arrêt serveur demandé, mais le processus HTTP répond encore.")
-
-    def _ensure_server_then_start(self):
-        alive, _ = local_server_alive()
-        if not alive:
-            self._start_server()
-            for _ in range(80):
-                alive, _ = local_server_alive(timeout=0.5)
-                if alive:
-                    break
-                time.sleep(0.25)
-
-        if not alive:
-            self._append("Serveur local indisponible après 20 s. Worker non démarré.")
-            self.status_var.set("SERVEUR INDISPONIBLE")
-            self._refresh_worker_button()
-            return
-
-        self._start()
+    def _restore_and_start(self):
+        try:
+            self.server_control.restore_desired()
+            self.events.put(("restore_done", None))
+        except Exception as exc:
+            self.events.put(("restore_error", str(exc)))
 
     def _render_queue(self, jobs):
         for item in self.queue_tree.get_children():
@@ -1126,9 +1241,6 @@ class WorkerWindow:
     def _toggle_pause(self):
         self.engine.pause(not self.engine.paused)
 
-    def _open_ezscore(self):
-        webbrowser.open(browser_url(project_root()) + "/fr/catalog")
-
     def _open_logs(self):
         path = project_root() / "var" / "log"
         path.mkdir(parents=True, exist_ok=True)
@@ -1137,6 +1249,39 @@ class WorkerWindow:
     def _append(self, text: str):
         self.console.insert("end", text.rstrip() + "\n")
         self.console.see("end")
+
+    def _apply_server_snapshot(self, data: dict) -> None:
+        self._last_snapshot = data
+        online = data.get("online") or {}
+        local = data.get("local") or {}
+        worker = data.get("worker") or {}
+        desired = data.get("desired") or self.server_control.snapshot_desired()
+
+        online_ok = bool(online.get("gateway_alive") and online.get("backend_alive"))
+        online_env = str(online.get("env") or desired["online"]["env"])
+        maintenance = bool(online.get("maintenance"))
+        if online_ok:
+            state = "MAINTENANCE" if maintenance else "ONLINE"
+            self.online_summary_var.set(f"● {state} / {online_env}")
+            profiler = "Profiler actif" if online_env == "dev" else "Profiler inactif"
+            self.online_detail_var.set(f"{online.get('public_url') or self.server_control.public_url()} · {profiler} · backend :8511")
+        else:
+            self.online_summary_var.set(f"○ ARRÊTÉ / {online_env}")
+            self.online_detail_var.set(f"{online.get('public_url') or self.server_control.public_url()} · backend arrêté")
+        self.online_env_var.set(online_env)
+        self.online_maintenance_var.set(maintenance)
+
+        if local.get("alive"):
+            self.local_summary_var.set("● ACTIF / dev")
+            self.local_detail_var.set(f"{local.get('url') or self.server_control.local_url()} · PID {local.get('pid') or '—'}")
+        else:
+            self.local_summary_var.set("○ ARRÊTÉ / dev")
+            self.local_detail_var.set(self.server_control.local_url())
+
+        target = str(worker.get("target") or desired["worker"]["target"]).upper()
+        self.worker_target_var.set(target)
+        self.worker_summary_var.set(f"{self.status_var.get()} · {target}")
+        self.url_var.set(str(worker.get("url") or self.server_control.worker_url()))
 
     def _drain_events(self):
         while True:
@@ -1149,35 +1294,52 @@ class WorkerWindow:
                 self._append(str(payload))
             elif kind == "status":
                 self.status_var.set(str(payload))
+                target = self.server_control.snapshot_desired()["worker"]["target"].upper()
+                self.worker_summary_var.set(f"{payload} · {target}")
                 self._refresh_worker_button()
             elif kind == "txrx":
                 self.txrx_var.set(str(payload))
-            elif kind == "server_status":
-                data = payload if isinstance(payload, dict) else {}
-                if data.get("alive"):
-                    pid = data.get("pid")
-                    self.server_var.set(
-                        f"ACTIF · 127.0.0.1:8501" + (f" · PID {pid}" if pid else "")
-                    )
-                else:
-                    self.server_var.set("ARRÊTÉ · 127.0.0.1:8501")
+            elif kind == "server_snapshot":
+                self._apply_server_snapshot(payload if isinstance(payload, dict) else {})
+            elif kind == "server_operation_done":
+                self._server_action_running = False
+                self._set_controls_state(True)
+                self.operation_var.set("Opération serveur terminée")
+                self.events.put(("server_snapshot", self.server_control.status()))
+            elif kind == "server_operation_error":
+                self._server_action_running = False
+                self._set_controls_state(True)
+                desired = self.server_control.snapshot_desired()
+                self.online_env_var.set(desired["online"]["env"])
+                self.online_maintenance_var.set(desired["online"]["maintenance"])
+                self.operation_var.set("ERREUR serveur")
+                messagebox.showerror("EZScore — serveur", str(payload))
+            elif kind == "restore_done":
+                self.operation_var.set("Modes persistés restaurés")
+                self.events.put(("server_snapshot", self.server_control.status()))
+                self._start()
+            elif kind == "restore_error":
+                self.operation_var.set("Restauration incomplète")
+                self.events.put(("server_snapshot", self.server_control.status()))
+                messagebox.showerror("EZScore — restauration serveurs", str(payload))
             elif kind == "connection_config":
                 data = payload if isinstance(payload, dict) else {}
                 self.url_var.set(str(data.get("url", "—")))
                 self.python_var.set(str(data.get("python", "—")))
                 caps = data.get("capabilities") or {}
                 if caps.get("cuda"):
-                    self.cuda_var.set(str(caps.get("gpu") or "CUDA"))
+                    gpu = str(caps.get("gpu") or "CUDA")
+                    self.cuda_var.set(gpu)
+                    self.gpu_summary_var.set(f"● CUDA · {gpu}")
                 else:
                     self.cuda_var.set("CUDA indisponible")
+                    self.gpu_summary_var.set("● CUDA indisponible")
             elif kind == "queue":
                 self._render_queue(payload)
             elif kind == "job":
                 self._refresh_worker_button()
                 if payload:
-                    self.job_var.set(
-                        f"#{payload.get('job_id')} · {payload.get('artist') or ''} — {payload.get('title') or ''}"
-                    )
+                    self.job_var.set(f"#{payload.get('job_id')} · {payload.get('artist') or ''} — {payload.get('title') or ''}")
                 else:
                     self.job_var.set("Aucun")
                     self.stage_var.set("—")
@@ -1185,9 +1347,7 @@ class WorkerWindow:
             elif kind == "progress":
                 data = payload if isinstance(payload, dict) else {}
                 self.progress_var.set(float(data.get("percent", 0)))
-                self.stage_var.set(
-                    f"{data.get('stage') or '—'} · {data.get('message') or ''} · {data.get('percent', 0)} %"
-                )
+                self.stage_var.set(f"{data.get('stage') or '—'} · {data.get('message') or ''} · {data.get('percent', 0)} %")
             elif kind == "error":
                 messagebox.showerror("EZScore Analysis Worker", str(payload))
 
@@ -1195,19 +1355,16 @@ class WorkerWindow:
 
     def _on_close(self):
         if self.engine.current_process and self.engine.current_process.poll() is None:
-            if not messagebox.askyesno(
-                "EZScore Analysis Worker",
-                "Une analyse est en cours. Fermer l'application et demander l'arrêt du processus ?",
-            ):
+            if not messagebox.askyesno("EZScore Analysis Worker", "Une analyse est en cours. Fermer l'application et demander l'arrêt du processus ?"):
                 return
             self.engine.cancel_current()
-
         self.engine.request_stop()
         self.server_monitor.stop()
         self.root.destroy()
 
     def run(self):
-        self.root.after(250, self._ensure_server_then_start)
+        self.operation_var.set("Restauration des modes persistés…")
+        threading.Thread(target=self._restore_and_start, name="restore-server-modes", daemon=True).start()
         self.root.mainloop()
 
 
