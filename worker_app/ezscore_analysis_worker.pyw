@@ -20,9 +20,11 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 
-APP_VERSION = "R35.4"
+APP_VERSION = "R39.4"
 HEARTBEAT_SECONDS = 2.0
 CLAIM_SECONDS = 1.5
+RECONNECT_MIN_SECONDS = 1.0
+RECONNECT_MAX_SECONDS = 15.0
 
 WINDOWS_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -64,6 +66,32 @@ def browser_url(root: Path) -> str:
 
 def local_server_url() -> str:
     return "http://127.0.0.1:8501"
+
+
+def connection_error_summary(exc: Exception) -> tuple[str, str]:
+    text = str(exc)
+    lowered = text.lower()
+
+    if (
+        "getcachewarmerservice.php" in lowered
+        or ("var\\cache\\dev\\container" in lowered and "failed to open stream" in lowered)
+    ):
+        return (
+            "symfony_cache",
+            "Cache Symfony incohérent — redémarrage propre du serveur requis."
+        )
+
+    if "timed out" in lowered or "timeout" in lowered:
+        return ("timeout", "Serveur EZScore temporairement indisponible (timeout).")
+
+    if "connection refused" in lowered or "actively refused" in lowered:
+        return ("offline", "Serveur EZScore arrêté ou en cours de redémarrage.")
+
+    if "http 5" in lowered:
+        return ("http_5xx", "Serveur EZScore en erreur HTTP 5xx.")
+
+    line = " ".join(text.replace("\r", " ").replace("\n", " ").split())
+    return ("network", line[:220] or exc.__class__.__name__)
 
 
 def local_server_pid(root: Path) -> int | None:
@@ -331,35 +359,122 @@ class WorkerEngine:
             self.configure()
             assert self.api is not None
 
-            hello = self.api.post("/internal/analysis/desktop/hello", self._heartbeat_payload("starting"))
-            self.app.events.put(("status", "CONNECTÉ"))
-            self.log(f"Connexion EZScore établie. worker_id={self.worker_id}")
-            for command in (hello or {}).get("commands", []):
-                self._handle_command(command)
-
+            connected = False
+            reconnect_delay = RECONNECT_MIN_SECONDS
+            next_connect_attempt = 0.0
+            last_connection_error_kind = None
+            last_connection_error_log = 0.0
             last_heartbeat = 0.0
             last_claim = 0.0
             last_queue_refresh = 0.0
 
             while not self.stop_event.is_set():
                 now = time.monotonic()
+
+                if not connected:
+                    if now < next_connect_attempt:
+                        time.sleep(0.15)
+                        continue
+
+                    try:
+                        hello = self.api.post(
+                            "/internal/analysis/desktop/hello",
+                            self._heartbeat_payload("starting"),
+                            timeout=6,
+                        )
+                        connected = True
+                        reconnect_delay = RECONNECT_MIN_SECONDS
+                        next_connect_attempt = 0.0
+                        self.app.events.put(("status", "CONNECTÉ"))
+                        self.app.events.put(("txrx", "RX/TX OK"))
+                        self.log(f"Connexion EZScore établie. worker_id={self.worker_id}")
+                        for command in (hello or {}).get("commands", []):
+                            self._handle_command(command)
+                        last_connection_error_kind = None
+                        last_heartbeat = 0.0
+                        last_queue_refresh = 0.0
+                        last_claim = 0.0
+                    except Exception as exc:
+                        kind, summary = connection_error_summary(exc)
+                        self.app.events.put(("status", "RECONNEXION"))
+                        self.app.events.put(("txrx", "HTTP indisponible"))
+                        if (
+                            kind != last_connection_error_kind
+                            or now - last_connection_error_log >= 15.0
+                        ):
+                            self.log(summary)
+                            last_connection_error_kind = kind
+                            last_connection_error_log = now
+                        next_connect_attempt = now + reconnect_delay
+                        reconnect_delay = min(
+                            RECONNECT_MAX_SECONDS,
+                            max(RECONNECT_MIN_SECONDS, reconnect_delay * 1.7),
+                        )
+                        time.sleep(0.15)
+                        continue
+
                 if now - last_heartbeat >= HEARTBEAT_SECONDS:
-                    self._send_heartbeat("paused" if self.paused else ("busy" if self.current_job else "idle"))
-                    last_heartbeat = now
+                    try:
+                        self._send_heartbeat(
+                            "paused" if self.paused else ("busy" if self.current_job else "idle")
+                        )
+                        last_heartbeat = now
+                    except Exception as exc:
+                        kind, summary = connection_error_summary(exc)
+                        self.log(summary)
+                        self.app.events.put(("status", "RECONNEXION"))
+                        self.app.events.put(("txrx", "HTTP indisponible"))
+                        connected = False
+                        last_connection_error_kind = kind
+                        last_connection_error_log = now
+                        next_connect_attempt = now + RECONNECT_MIN_SECONDS
+                        reconnect_delay = RECONNECT_MIN_SECONDS
+                        time.sleep(0.15)
+                        continue
 
                 if now - last_queue_refresh >= 2.0:
                     try:
-                        queue_state = self.api.get("/internal/analysis/desktop/jobs/queue", timeout=10)
+                        queue_state = self.api.get(
+                            "/internal/analysis/desktop/jobs/queue",
+                            timeout=10,
+                        )
                         self.app.events.put(("queue", (queue_state or {}).get("jobs", [])))
                     except Exception as exc:
-                        self.log(f"Lecture file d'attente impossible: {exc}")
+                        kind, summary = connection_error_summary(exc)
+                        if kind == "symfony_cache":
+                            self.log(summary)
+                            connected = False
+                            self.app.events.put(("status", "RECONNEXION"))
+                            self.app.events.put(("txrx", "HTTP indisponible"))
+                            next_connect_attempt = now + RECONNECT_MIN_SECONDS
+                        elif now - last_connection_error_log >= 15.0:
+                            self.log(f"Lecture file d'attente impossible: {summary}")
+                            last_connection_error_log = now
                     last_queue_refresh = now
 
-                if not self.paused and self.current_job is None and now - last_claim >= CLAIM_SECONDS:
-                    job = self.api.post("/internal/analysis/desktop/jobs/claim", {})
-                    last_claim = now
-                    if job:
-                        self._run_job(job)
+                if (
+                    connected
+                    and not self.paused
+                    and self.current_job is None
+                    and now - last_claim >= CLAIM_SECONDS
+                ):
+                    try:
+                        job = self.api.post(
+                            "/internal/analysis/desktop/jobs/claim",
+                            {},
+                            timeout=10,
+                        )
+                        last_claim = now
+                        if job:
+                            self._run_job(job)
+                    except Exception as exc:
+                        kind, summary = connection_error_summary(exc)
+                        self.log(f"Prise de job impossible: {summary}")
+                        connected = False
+                        self.app.events.put(("status", "RECONNEXION"))
+                        self.app.events.put(("txrx", "HTTP indisponible"))
+                        next_connect_attempt = now + RECONNECT_MIN_SECONDS
+                        reconnect_delay = RECONNECT_MIN_SECONDS
 
                 time.sleep(0.15)
 
@@ -946,26 +1061,49 @@ class WorkerWindow:
         self._append("Démarrage du serveur local demandé.")
 
     def _stop_server(self):
+        if self.engine.current_job is not None:
+            messagebox.showwarning(
+                "EZScore Analysis Worker",
+                "Un traitement est actif. Arrêt du serveur interdit jusqu'à la fin du job.",
+            )
+            return
+
         pid = local_server_pid(project_root())
         if not pid:
             return
+
         subprocess.run(
             ["powershell", "-NoProfile", "-Command", f"Stop-Process -Id {pid} -Force -ErrorAction SilentlyContinue"],
             cwd=str(project_root()),
             check=False,
             creationflags=WINDOWS_NO_WINDOW if os.name == "nt" else 0,
         )
-        self._append("Arrêt du serveur local demandé.")
+
+        for _ in range(40):
+            alive, _ = local_server_alive(timeout=0.35)
+            if not alive:
+                self._append("Serveur local arrêté.")
+                return
+            time.sleep(0.25)
+
+        self._append("Arrêt serveur demandé, mais le processus HTTP répond encore.")
 
     def _ensure_server_then_start(self):
         alive, _ = local_server_alive()
         if not alive:
             self._start_server()
-            for _ in range(40):
-                alive, _ = local_server_alive()
+            for _ in range(80):
+                alive, _ = local_server_alive(timeout=0.5)
                 if alive:
                     break
                 time.sleep(0.25)
+
+        if not alive:
+            self._append("Serveur local indisponible après 20 s. Worker non démarré.")
+            self.status_var.set("SERVEUR INDISPONIBLE")
+            self._refresh_worker_button()
+            return
+
         self._start()
 
     def _render_queue(self, jobs):
