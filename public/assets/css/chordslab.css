@@ -427,3 +427,13 @@
     }
     .chordslab-measures-track{padding-inline:8px}
 }
+
+/* R39.3A — closed dialogs must never participate in layout */
+dialog.ez-modal:not([open]),
+dialog[data-chord-analyze-dialog]:not([open]){
+    display:none!important;
+}
+dialog.ez-modal[open],
+dialog[data-chord-analyze-dialog][open]{
+    display:block;
+}
