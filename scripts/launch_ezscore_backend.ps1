@@ -68,21 +68,7 @@ try {
     Set-LauncherStatus "stabilize" "Worker prêt…" 90 "running" "Initialisation stabilisée."
     Start-Sleep -Milliseconds 900
 
-    $BrowserUrl = if ($env:EZSCORE_BROWSER_URL) { $env:EZSCORE_BROWSER_URL.TrimEnd('/') } else { "https://ezscore.logandplay.com" }
-    $ControlFile = Join-Path $RuntimeDir "ezscore-server-control.json"
-    try {
-        if (Test-Path $ControlFile) {
-            $Control = Get-Content $ControlFile -Raw | ConvertFrom-Json
-            if ($Control.worker.target -eq "local") {
-                $BrowserUrl = "http://127.0.0.1:8502"
-            }
-        }
-    } catch {}
-
-    Set-LauncherStatus "browser" "Ouverture de EZScore..." 92 "running" $BrowserUrl
-    Start-Process ($BrowserUrl + "/fr/catalog")
-
-    Set-LauncherStatus "ready" "EZScore est prêt." 100 "ready" "Le Worker gère les serveurs ONLINE et LOCAL ainsi que leurs états persistés."
+    Set-LauncherStatus "ready" "EZScore Worker prêt." 100 "ready" "Aucune page web n'est ouverte automatiquement. Utilisez le bouton Ouvrir du serveur ONLINE ou LOCAL."
 }
 catch {
     Set-LauncherStatus "error" "Échec du démarrage." 100 "error" $_.Exception.Message

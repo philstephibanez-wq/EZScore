@@ -2,6 +2,7 @@
 <html>
 <head>
 <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
 <title>EZScore Launcher</title>
 <HTA:APPLICATION
   ID="ezscoreLauncher"
@@ -47,10 +48,8 @@ function setDetail(text) {
 function startBackend() {
     document.getElementById("status").innerText = "Démarrage…";
     setDetail(
-        "Serveur local :\n" +
-        "php -S 127.0.0.1:8501 -t " + root + "\\public\n\n" +
-        "Site ouvert dans Chrome :\n" +
-        "https://ezscore.logandplay.com/"
+        "Initialisation du Worker et restauration des états ONLINE / LOCAL.\n\n" +
+        "Aucune page web ne sera ouverte automatiquement."
     );
 
     try { if (fso.FileExists(statusFile)) fso.DeleteFile(statusFile, true); } catch(e) {}
@@ -65,9 +64,13 @@ function readStatus() {
     try {
         if (!fso.FileExists(statusFile)) return;
 
-        var file = fso.OpenTextFile(statusFile, 1, false, -1);
-        var text = file.ReadAll();
-        file.Close();
+        var stream = new ActiveXObject("ADODB.Stream");
+        stream.Type = 2;
+        stream.Charset = "utf-8";
+        stream.Open();
+        stream.LoadFromFile(statusFile);
+        var text = stream.ReadText();
+        stream.Close();
 
         var data = JSON.parse(text);
         var pct = Math.max(0, Math.min(100, data.percent || 0));
