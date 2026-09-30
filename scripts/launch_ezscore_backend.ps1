@@ -1,4 +1,4 @@
-param()
+﻿param()
 
 $ErrorActionPreference = "Stop"
 $Project = Split-Path -Parent $PSScriptRoot
