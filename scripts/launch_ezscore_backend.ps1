@@ -45,8 +45,28 @@ try {
     Set-LauncherStatus "worker" "Ouverture de EZScore Analysis Worker..." 58 "running" "Le Worker restaure les modes ONLINE/LOCAL persistés et démarre les serveurs nécessaires."
     & (Join-Path $PSScriptRoot "start_analysis_worker_desktop.ps1") | Out-Null
 
-    Set-LauncherStatus "wait" "Restauration de l'environnement…" 78 "running" "ONLINE et LOCAL sont pilotés indépendamment par le Worker."
-    Start-Sleep -Seconds 2
+    Set-LauncherStatus "wait" "Initialisation du Worker…" 78 "running" "Attente de l'état initial du Worker."
+    $BootstrapFile = Join-Path $RuntimeDir "analysis-worker-bootstrap.json"
+    Remove-Item $BootstrapFile -Force -ErrorAction SilentlyContinue
+    $Deadline = (Get-Date).AddSeconds(60)
+    $WorkerReady = $false
+    while ((Get-Date) -lt $Deadline) {
+        if (Test-Path $BootstrapFile) {
+            try {
+                $Bootstrap = Get-Content $BootstrapFile -Raw | ConvertFrom-Json
+                if ($Bootstrap.ready -eq $true) {
+                    $WorkerReady = $true
+                    break
+                }
+            } catch {}
+        }
+        Start-Sleep -Milliseconds 400
+    }
+    if (-not $WorkerReady) {
+        throw "Le Worker n'a pas publié son état prêt dans les 60 secondes."
+    }
+    Set-LauncherStatus "stabilize" "Worker prêt…" 90 "running" "Initialisation stabilisée."
+    Start-Sleep -Milliseconds 900
 
     $BrowserUrl = if ($env:EZSCORE_BROWSER_URL) { $env:EZSCORE_BROWSER_URL.TrimEnd('/') } else { "https://ezscore.logandplay.com" }
     $ControlFile = Join-Path $RuntimeDir "ezscore-server-control.json"

@@ -56,6 +56,23 @@ class GatewayHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def _proxy(self) -> None:
+        if self.path == "/__ezscore_gateway_status":
+            cfg = load_config(self.config_path)
+            body = json.dumps({
+                "ok": True,
+                "protocol": "ezscore.online-gateway.v3",
+                "maintenance": bool(cfg.get("maintenance", False)),
+                "backend_host": str(cfg.get("backend_host") or "127.0.0.1"),
+                "backend_port": int(cfg.get("backend_port") or 8511),
+            }).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            if self.command != "HEAD":
+                self.wfile.write(body)
+            return
         if self.path == "/__ezscore_gateway_health":
             payload = b"OK"
             self.send_response(200)

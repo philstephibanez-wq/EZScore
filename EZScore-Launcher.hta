@@ -55,7 +55,7 @@ function startBackend() {
 
     try { if (fso.FileExists(statusFile)) fso.DeleteFile(statusFile, true); } catch(e) {}
 
-    var cmd = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + backend + '" -Port 8501';
+    var cmd = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + backend + '"';
     shell.Run(cmd, 0, false);
 
     window.setInterval(readStatus, 250);
@@ -83,7 +83,7 @@ function readStatus() {
         if (data.state === "ready") {
             status.className = "ready";
             document.getElementById("close").style.display = "inline-block";
-            window.setTimeout(function(){ window.close(); }, 2200);
+            window.setTimeout(function(){ window.close(); }, 1800);
         } else if (data.state === "error") {
             status.className = "error";
             document.getElementById("close").style.display = "inline-block";

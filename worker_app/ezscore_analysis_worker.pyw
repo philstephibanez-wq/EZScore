@@ -21,7 +21,7 @@ from tkinter import filedialog, messagebox, ttk
 from server_control import ServerController
 
 
-APP_VERSION = "R40.0B"
+APP_VERSION = "R40.0I"
 HEARTBEAT_SECONDS = 2.0
 CLAIM_SECONDS = 1.5
 RECONNECT_MIN_SECONDS = 1.0
@@ -374,6 +374,13 @@ class WorkerEngine:
                 now = time.monotonic()
 
                 if not connected:
+                    desired = self.app.server_control.snapshot_desired()
+                    target = desired["worker"]["target"]
+                    if not bool(desired[target]["running"]):
+                        self.app.events.put(("status", "ATTENTE SERVEUR"))
+                        self.app.events.put(("txrx", "Serveur cible arrêté"))
+                        time.sleep(0.35)
+                        continue
                     if now < next_connect_attempt:
                         time.sleep(0.15)
                         continue
@@ -937,6 +944,7 @@ class WorkerWindow:
         self.operation_var = tk.StringVar(value="Prêt")
         self._last_snapshot: dict = {}
         self._server_action_running = False
+        self._bootstrap_path = project_root() / "var" / "runtime" / "analysis-worker-bootstrap.json"
 
         self.server_monitor = ServerStatusMonitor(self)
         self._build()
@@ -1257,11 +1265,18 @@ class WorkerWindow:
         worker = data.get("worker") or {}
         desired = data.get("desired") or self.server_control.snapshot_desired()
 
-        online_ok = bool(online.get("gateway_alive") and online.get("backend_alive"))
+        gateway_ok = bool(online.get("gateway_alive"))
+        backend_ok = bool(online.get("backend_alive"))
         online_env = str(online.get("env") or desired["online"]["env"])
         maintenance = bool(online.get("maintenance"))
-        if online_ok:
-            state = "MAINTENANCE" if maintenance else "ONLINE"
+        maintenance_observed = online.get("maintenance_observed")
+        if gateway_ok:
+            if maintenance_observed is True and maintenance:
+                state = "MAINTENANCE"
+            elif backend_ok:
+                state = "ONLINE"
+            else:
+                state = "PROTECTION AUTO"
             self.online_summary_var.set(f"● {state} / {online_env}")
             profiler = "Profiler actif" if online_env == "dev" else "Profiler inactif"
             self.online_detail_var.set(f"{online.get('public_url') or self.server_control.public_url()} · {profiler} · backend :8511")
@@ -1364,7 +1379,19 @@ class WorkerWindow:
 
     def run(self):
         self.operation_var.set("Restauration des modes persistés…")
+        self._bootstrap_path.parent.mkdir(parents=True, exist_ok=True)
+        self._bootstrap_path.write_text(json.dumps({
+            "ready": False,
+            "stage": "starting",
+            "updated_at": datetime.now().isoformat(timespec="seconds"),
+        }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         threading.Thread(target=self._restore_and_start, name="restore-server-modes", daemon=True).start()
+        self.root.after(2500, lambda: self._bootstrap_path.write_text(json.dumps({
+            "ready": True,
+            "stage": "worker_window_ready",
+            "worker_status": self.status_var.get(),
+            "updated_at": datetime.now().isoformat(timespec="seconds"),
+        }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"))
         self.root.mainloop()
 
 

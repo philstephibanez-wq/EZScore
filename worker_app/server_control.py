@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import subprocess
 import sys
 import threading
@@ -18,6 +19,8 @@ ONLINE_GATEWAY_PORT = 8501
 ONLINE_BACKEND_PORT = 8511
 LOCAL_DEV_PORT = 8502
 STATE_SCHEMA = "ezscore.server-control.v1"
+GATEWAY_PROTOCOL = "ezscore.online-gateway.v3"
+WEB_SCRIPT_TIMEOUT_SECONDS = 15.0
 
 
 def _atomic_json(path: Path, payload: dict) -> None:
@@ -117,6 +120,22 @@ def gateway_alive(base_url: str, timeout: float = 1.0) -> bool:
 
 
 
+def gateway_runtime_status(base_url: str, timeout: float = 1.0) -> dict | None:
+    req = urllib.request.Request(
+        base_url.rstrip("/") + "/__ezscore_gateway_status",
+        headers={"User-Agent": "EZScore-Server-Control/1"},
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            if int(response.status) != 200:
+                return None
+            payload = json.loads(response.read().decode("utf-8"))
+            return payload if isinstance(payload, dict) else None
+    except Exception:
+        return None
+
+
 class ServerController:
     DEFAULT_STATE = {
         "schema_version": STATE_SCHEMA,
@@ -134,7 +153,9 @@ class ServerController:
         self.online_gateway_pid = self.runtime / "ezscore-online-gateway.pid"
         self.online_backend_pid = self.runtime / "ezscore-web-online.pid"
         self.local_pid = self.runtime / "ezscore-web-local.pid"
-        self._lock = threading.RLock()
+        self._state_lock = threading.RLock()
+        self._online_lock = threading.RLock()
+        self._local_lock = threading.RLock()
         self._event_sink = event_sink
         self.runtime.mkdir(parents=True, exist_ok=True)
         self.logs.mkdir(parents=True, exist_ok=True)
@@ -169,10 +190,11 @@ class ServerController:
         return state
 
     def save(self) -> None:
-        _atomic_json(self.state_path, self.state)
+        with self._state_lock:
+            _atomic_json(self.state_path, self.state)
 
     def snapshot_desired(self) -> dict:
-        with self._lock:
+        with self._state_lock:
             return json.loads(json.dumps(self.state))
 
     def public_url(self) -> str:
@@ -189,7 +211,8 @@ class ServerController:
         return f"http://127.0.0.1:{LOCAL_DEV_PORT}"
 
     def worker_url(self) -> str:
-        return self.local_url() if self.state["worker"]["target"] == "local" else self.online_url()
+        desired = self.snapshot_desired()
+        return self.local_url() if desired["worker"]["target"] == "local" else self.online_url()
 
     def _read_env_local(self) -> dict[str, str]:
         result: dict[str, str] = {}
@@ -219,27 +242,39 @@ class ServerController:
     def _start_gateway(self) -> None:
         pid = _read_pid(self.online_gateway_pid)
         if pid and _pid_alive(pid) and gateway_alive(self.online_url(), timeout=0.6):
-            return
+            runtime = gateway_runtime_status(self.online_url(), timeout=0.6)
+            if isinstance(runtime, dict) and runtime.get("protocol") == GATEWAY_PROTOCOL:
+                return
+            self.log("Passerelle ONLINE obsolète détectée : relance automatique.")
+            if not _stop_pid(self.online_gateway_pid, timeout=5.0):
+                raise RuntimeError("Impossible d'arrêter l'ancienne passerelle ONLINE.")
+
         self.online_gateway_pid.unlink(missing_ok=True)
         gateway = self.root / "worker_app" / "online_gateway.py"
         out = (self.logs / "online-gateway.out.log").open("ab")
         err = (self.logs / "online-gateway.err.log").open("ab")
-        proc = subprocess.Popen(
-            [sys.executable, str(gateway), "--root", str(self.root), "--port", str(ONLINE_GATEWAY_PORT)],
-            cwd=str(self.root),
-            stdout=out,
-            stderr=err,
-            creationflags=WINDOWS_NO_WINDOW if os.name == "nt" else 0,
-        )
+        try:
+            proc = subprocess.Popen(
+                [sys.executable, str(gateway), "--root", str(self.root), "--port", str(ONLINE_GATEWAY_PORT)],
+                cwd=str(self.root),
+                stdout=out,
+                stderr=err,
+                creationflags=WINDOWS_NO_WINDOW if os.name == "nt" else 0,
+            )
+        finally:
+            out.close()
+            err.close()
+
         self.online_gateway_pid.write_text(str(proc.pid), encoding="ascii")
         deadline = time.monotonic() + 8.0
         while time.monotonic() < deadline:
-            if gateway_alive(self.online_url(), timeout=0.5):
+            runtime = gateway_runtime_status(self.online_url(), timeout=0.5)
+            if isinstance(runtime, dict) and runtime.get("protocol") == GATEWAY_PROTOCOL:
                 return
             if proc.poll() is not None:
                 break
-            time.sleep(0.2)
-        raise RuntimeError("La passerelle ONLINE ne répond pas sur 127.0.0.1:8501.")
+            time.sleep(0.15)
+        raise RuntimeError("La passerelle ONLINE R40.0I ne répond pas sur 127.0.0.1:8501.")
 
     def _instance_meta(self, instance: str) -> dict:
         return _read_json(self.runtime / f"ezscore-web-{instance}.json", {})
@@ -250,7 +285,7 @@ class ServerController:
             "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
             "-File", str(script), "-Instance", instance, "-Environment", env,
         ]
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             cmd,
             cwd=str(self.root),
             stdout=subprocess.PIPE,
@@ -258,12 +293,56 @@ class ServerController:
             text=True,
             encoding="utf-8",
             errors="replace",
+            bufsize=1,
             creationflags=WINDOWS_NO_WINDOW if os.name == "nt" else 0,
-            check=False,
         )
-        if proc.stdout.strip():
-            for line in proc.stdout.splitlines():
+        output: queue.Queue[str | None] = queue.Queue()
+
+        def reader() -> None:
+            try:
+                if proc.stdout is not None:
+                    for line in proc.stdout:
+                        output.put(line.rstrip())
+            finally:
+                output.put(None)
+
+        threading.Thread(target=reader, daemon=True).start()
+        deadline = time.monotonic() + WEB_SCRIPT_TIMEOUT_SECONDS
+        timed_out = False
+
+        while proc.poll() is None:
+            while True:
+                try:
+                    line = output.get_nowait()
+                except queue.Empty:
+                    break
+                if line:
+                    self.log(line)
+            if time.monotonic() >= deadline:
+                timed_out = True
+                proc.kill()
+                break
+            time.sleep(0.05)
+
+        try:
+            proc.wait(timeout=2.0)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=2.0)
+
+        while True:
+            try:
+                line = output.get_nowait()
+            except queue.Empty:
+                break
+            if line:
                 self.log(line)
+
+        if timed_out:
+            raise RuntimeError(
+                f"Démarrage {instance}: script PowerShell bloqué plus de "
+                f"{int(WEB_SCRIPT_TIMEOUT_SECONDS)} s."
+            )
         if proc.returncode != 0:
             raise RuntimeError(f"Démarrage {instance} impossible (code {proc.returncode}).")
 
@@ -276,40 +355,47 @@ class ServerController:
         raise RuntimeError(f"Health check en échec: {url}/fr/login")
 
     def start_online(self) -> None:
-        with self._lock:
+        with self._online_lock:
+            desired = self.snapshot_desired()
+            env = desired["online"]["env"]
+            maintenance = bool(desired["online"]["maintenance"])
             self._write_gateway_config(True)
             self._start_gateway()
             try:
-                self._run_web_script("online", self.state["online"]["env"])
+                self._run_web_script("online", env)
                 self._wait_health(self.online_backend_url())
             except Exception:
                 self._write_gateway_config(True)
                 raise
-            self.state["online"]["running"] = True
-            self.save()
-            self._write_gateway_config(self.state["online"]["maintenance"])
-            self.log(f"ONLINE démarré · env={self.state['online']['env']} · public=:8501 · backend=:{ONLINE_BACKEND_PORT}")
+            with self._state_lock:
+                self.state["online"]["running"] = True
+                self.save()
+            self._write_gateway_config(maintenance)
+            self.log(f"ONLINE démarré · env={env} · public=:8501 · backend=:{ONLINE_BACKEND_PORT}")
 
     def stop_online(self) -> None:
-        with self._lock:
+        with self._online_lock:
             self._write_gateway_config(True)
             if not _stop_pid(self.online_backend_pid):
                 raise RuntimeError("Le backend ONLINE ne s'est pas arrêté.")
             if not _stop_pid(self.online_gateway_pid):
                 raise RuntimeError("La passerelle ONLINE ne s'est pas arrêtée.")
-            self.state["online"]["running"] = False
-            self.save()
+            with self._state_lock:
+                self.state["online"]["running"] = False
+                self.save()
             self.log("ONLINE arrêté.")
 
     def restart_online(self, env: str | None = None) -> None:
-        with self._lock:
-            new_env = (env or self.state["online"]["env"]).lower()
+        with self._online_lock:
+            desired = self.snapshot_desired()
+            new_env = (env or desired["online"]["env"]).lower()
             if new_env not in {"prod", "dev"}:
                 raise ValueError("Environnement ONLINE invalide.")
-            was_running = bool(self.state["online"]["running"])
-            previous_maintenance = bool(self.state["online"]["maintenance"])
-            self.state["online"]["env"] = new_env
-            self.save()
+            was_running = bool(desired["online"]["running"])
+            previous_maintenance = bool(desired["online"]["maintenance"])
+            with self._state_lock:
+                self.state["online"]["env"] = new_env
+                self.save()
             if not was_running:
                 self.log(f"Env ONLINE mémorisé: {new_env} (serveur arrêté).")
                 return
@@ -330,51 +416,70 @@ class ServerController:
         self.restart_online(env=env)
 
     def set_maintenance(self, value: bool) -> None:
-        with self._lock:
-            self.state["online"]["maintenance"] = bool(value)
-            self.save()
-            self._write_gateway_config(bool(value))
-            self.log("Maintenance ONLINE activée." if value else "Maintenance ONLINE désactivée.")
+        with self._online_lock:
+            requested = bool(value)
+            desired = self.snapshot_desired()
+            previous = bool(desired["online"]["maintenance"])
+            self._write_gateway_config(requested)
+            if bool(desired["online"]["running"]):
+                deadline = time.monotonic() + 3.0
+                observed = None
+                while time.monotonic() < deadline:
+                    runtime = gateway_runtime_status(self.online_url(), timeout=0.6)
+                    if runtime is not None:
+                        observed = bool(runtime.get("maintenance", False))
+                        if observed == requested:
+                            break
+                    time.sleep(0.1)
+                if observed != requested:
+                    self._write_gateway_config(previous)
+                    raise RuntimeError("La passerelle ONLINE n'a pas confirmé le nouvel état maintenance.")
+            with self._state_lock:
+                self.state["online"]["maintenance"] = requested
+                self.save()
+            self.log("Maintenance ONLINE activée." if requested else "Maintenance ONLINE désactivée.")
 
     def start_local(self) -> None:
-        with self._lock:
+        with self._local_lock:
             self._run_web_script("local", "dev")
             self._wait_health(self.local_url())
-            self.state["local"]["running"] = True
-            self.state["local"]["env"] = "dev"
-            self.save()
+            with self._state_lock:
+                self.state["local"]["running"] = True
+                self.state["local"]["env"] = "dev"
+                self.save()
             self.log(f"LOCAL DEV démarré · 127.0.0.1:{LOCAL_DEV_PORT}.")
 
     def stop_local(self) -> None:
-        with self._lock:
+        with self._local_lock:
             if not _stop_pid(self.local_pid):
                 raise RuntimeError("Le serveur LOCAL ne s'est pas arrêté.")
-            self.state["local"]["running"] = False
-            self.save()
+            with self._state_lock:
+                self.state["local"]["running"] = False
+                self.save()
             self.log("LOCAL DEV arrêté.")
 
     def restart_local(self) -> None:
-        with self._lock:
-            was_running = bool(self.state["local"]["running"])
-            if not was_running:
-                self.start_local()
-                return
-            if not _stop_pid(self.local_pid):
-                raise RuntimeError("Le serveur LOCAL ne s'est pas arrêté avant relance.")
+        with self._local_lock:
+            desired = self.snapshot_desired()
+            if bool(desired["local"]["running"]):
+                if not _stop_pid(self.local_pid):
+                    raise RuntimeError("Le serveur LOCAL ne s'est pas arrêté avant relance.")
             self._run_web_script("local", "dev")
             self._wait_health(self.local_url())
-            self.state["local"]["running"] = True
-            self.save()
-            self.log("LOCAL DEV relancé.")
+            with self._state_lock:
+                self.state["local"]["running"] = True
+                self.state["local"]["env"] = "dev"
+                self.save()
+            self.log("LOCAL DEV relancé." if desired["local"]["running"] else "LOCAL DEV démarré.")
 
     def set_worker_target(self, target: str) -> None:
         target = target.lower()
         if target not in {"online", "local"}:
             raise ValueError("Cible Worker invalide.")
-        with self._lock:
+        with self._state_lock:
             self.state["worker"]["target"] = target
             self.save()
-            self.log(f"Cible Worker mémorisée: {target.upper()}.")
+        self.log(f"Cible Worker mémorisée: {target.upper()}.")
 
     def restore_desired(self) -> None:
         desired = self.snapshot_desired()
@@ -417,18 +522,21 @@ class ServerController:
         gateway_pid = _read_pid(self.online_gateway_pid)
         backend_pid = _read_pid(self.online_backend_pid)
         local_pid = _read_pid(self.local_pid)
-        gateway_alive = bool(gateway_pid and _pid_alive(gateway_pid) and gateway_alive(self.online_url(), 0.5))
-        backend_alive = bool(backend_pid and _pid_alive(backend_pid) and http_alive(self.online_backend_url(), 0.5))
-        local_alive = bool(local_pid and _pid_alive(local_pid) and http_alive(self.local_url(), 0.5))
+        gateway_is_alive = bool(gateway_pid and _pid_alive(gateway_pid) and gateway_alive(self.online_url(), 0.35))
+        backend_alive = bool(backend_pid and _pid_alive(backend_pid) and http_alive(self.online_backend_url(), 0.35))
+        local_alive = bool(local_pid and _pid_alive(local_pid) and http_alive(self.local_url(), 0.35))
+        runtime = gateway_runtime_status(self.online_url(), 0.35) if gateway_is_alive else None
+        maintenance_observed = bool(runtime.get("maintenance", False)) if isinstance(runtime, dict) else None
         return {
             "desired": desired,
             "online": {
-                "gateway_alive": gateway_alive,
+                "gateway_alive": gateway_is_alive,
                 "backend_alive": backend_alive,
                 "gateway_pid": gateway_pid,
                 "backend_pid": backend_pid,
                 "env": desired["online"]["env"],
                 "maintenance": desired["online"]["maintenance"],
+                "maintenance_observed": maintenance_observed,
                 "public_url": self.public_url(),
             },
             "local": {
