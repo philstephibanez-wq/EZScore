@@ -258,7 +258,56 @@ measuresEl.addEventListener('click',e=>{
  const b=e.target.closest('.chord-slot.editable[data-beat-id]');
  if(b)editSlot(b);
 });
-document.querySelector('[data-stem-mixer]')?.addEventListener('ezscore:audio-timeupdate',e=>highlightAt(Number(e.detail?.time||0)));
+const mixerRoot=document.querySelector('[data-stem-mixer]');
+let manualSeeker=null,manualSeekerOutput=null,manualSeekerDragging=false;
+
+function formatSeekerTime(sec){
+ sec=Math.max(0,Number(sec)||0);
+ const minutes=Math.floor(sec/60),seconds=sec-minutes*60;
+ return `${minutes}:${seconds.toFixed(2).padStart(5,'0')}`;
+}
+
+function installManualSeeker(){
+ if(!mixerRoot)return;
+ const stage=measuresEl.closest('.chordslab-stage');
+ if(!stage||root.querySelector('[data-chordslab-manual-seeker]'))return;
+
+ const shell=document.createElement('div');
+ shell.className='chordslab-manual-seeker';
+ shell.innerHTML='<label><span>Position</span><input type="range" min="0" max="1" step="0.01" value="0" data-chordslab-manual-seeker aria-label="Position dans le morceau"><output data-chordslab-manual-seeker-time>0:00.00</output></label>';
+ stage.insertAdjacentElement('beforebegin',shell);
+
+ manualSeeker=shell.querySelector('[data-chordslab-manual-seeker]');
+ manualSeekerOutput=shell.querySelector('[data-chordslab-manual-seeker-time]');
+ const lastBeatSec=Math.max(0,Number(beats.at(-1)?.start_ms||0)/1000);
+ manualSeeker.max=String(Math.max(1,lastBeatSec+2));
+
+ const requestSeek=()=>{
+  const max=Math.max(0,Number(manualSeeker.max||0));
+  const sec=Math.max(0,Math.min(max,Number(manualSeeker.value)||0));
+  if(manualSeekerOutput)manualSeekerOutput.textContent=formatSeekerTime(sec);
+  mixerRoot.dispatchEvent(new CustomEvent('ezscore:request-seek',{detail:{time:sec}}));
+  highlightAt(sec);
+ };
+
+ manualSeeker.addEventListener('pointerdown',()=>{manualSeekerDragging=true});
+ manualSeeker.addEventListener('pointerup',()=>{manualSeekerDragging=false});
+ manualSeeker.addEventListener('pointercancel',()=>{manualSeekerDragging=false});
+ manualSeeker.addEventListener('input',requestSeek);
+ manualSeeker.addEventListener('change',requestSeek);
+}
+
+installManualSeeker();
+mixerRoot?.addEventListener('ezscore:audio-timeupdate',e=>{
+ const sec=Math.max(0,Number(e.detail?.time||0));
+ const duration=Math.max(0,Number(e.detail?.duration||0));
+ if(manualSeeker){
+  if(duration>0&&Math.abs(Number(manualSeeker.max||0)-duration)>.05)manualSeeker.max=String(duration);
+  if(!manualSeekerDragging)manualSeeker.value=String(Math.min(sec,Number(manualSeeker.max||sec)));
+ }
+ if(manualSeekerOutput)manualSeekerOutput.textContent=formatSeekerTime(sec);
+ highlightAt(sec);
+});
 capoSelect?.addEventListener('change',()=>{capo=Number(capoSelect.value||0);render();autoSaveSettings()});
 timeSigSelect?.addEventListener('change',()=>{signature=timeSigSelect.value||'4/4';render();autoSaveSettings()});
 profileSelect?.addEventListener('change',async()=>{

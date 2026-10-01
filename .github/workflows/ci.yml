@@ -33,6 +33,21 @@ jobs:
       - name: Validate Composer metadata
         run: composer validate --strict
 
+      - name: Prepare CI environment file
+        shell: bash
+        run: |
+          cat > .env <<'EOF'
+          APP_ENV=test
+          APP_DEBUG=0
+          APP_SECRET=ci-only-secret-not-for-production
+          DATABASE_URL="sqlite:///%kernel.project_dir%/data/ci.sqlite"
+          GOOGLE_CLIENT_ID=ci-placeholder
+          GOOGLE_CLIENT_SECRET=ci-placeholder
+          MAILER_DSN=null://null
+          MAILER_FROM=ci@example.test
+          ANALYSIS_WORKER_TOKEN=ci-worker-token
+          EOF
+
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 

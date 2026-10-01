@@ -21,7 +21,7 @@ from tkinter import filedialog, messagebox, ttk
 from server_control import ServerController
 
 
-APP_VERSION = "R41.0D"
+APP_VERSION = "R41.0F"
 HEARTBEAT_SECONDS = 2.0
 CLAIM_SECONDS = 1.5
 RECONNECT_MIN_SECONDS = 1.0
@@ -220,7 +220,7 @@ class WorkerEngine:
                     text=True,
                     encoding="utf-8",
                     errors="replace",
-                    timeout=20,
+                    timeout=60,
                     check=False,
                     creationflags=WINDOWS_NO_WINDOW if os.name == "nt" else 0,
                 )
@@ -262,8 +262,12 @@ class WorkerEngine:
         }))
 
         if not self.engine_python:
+            errors = self.capabilities.get("errors") or []
+            detail = " | ".join(str(item) for item in errors[-5:]) or "aucun détail disponible"
             raise RuntimeError(
-                "Aucun Python compatible trouvé. Il faut bs_roformer + mel_band_roformer + lv-chordia."
+                "Aucun Python compatible trouvé. "
+                "Requis: bs_roformer + mel_band_roformer + lv-chordia + CUDA. "
+                f"Diagnostics: {detail}"
             )
         if not self.capabilities.get("cuda"):
             raise RuntimeError("CUDA n'est pas disponible dans le Python STEM sélectionné.")

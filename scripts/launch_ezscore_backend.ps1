@@ -42,12 +42,14 @@ try {
     Set-LauncherStatus "token" "Vérification du canal Worker…" 32
     & (Join-Path $PSScriptRoot "ensure_analysis_worker_token.ps1") | Out-Null
 
+    # Clear stale bootstrap state before the Worker can publish a fresh one.
+    $BootstrapFile = Join-Path $RuntimeDir "analysis-worker-bootstrap.json"
+    Remove-Item $BootstrapFile -Force -ErrorAction SilentlyContinue
+
     Set-LauncherStatus "worker" "Ouverture de EZScore Analysis Worker..." 58 "running" "Le Worker restaure les modes ONLINE/LOCAL persistés et démarre les serveurs nécessaires."
     & (Join-Path $PSScriptRoot "start_analysis_worker_desktop.ps1") | Out-Null
 
     Set-LauncherStatus "wait" "Initialisation du Worker…" 78 "running" "Attente de l'état initial du Worker."
-    $BootstrapFile = Join-Path $RuntimeDir "analysis-worker-bootstrap.json"
-    Remove-Item $BootstrapFile -Force -ErrorAction SilentlyContinue
     $Deadline = (Get-Date).AddSeconds(60)
     $WorkerReady = $false
     while ((Get-Date) -lt $Deadline) {

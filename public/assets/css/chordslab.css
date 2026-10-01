@@ -437,3 +437,37 @@ dialog.ez-modal[open],
 dialog[data-chord-analyze-dialog][open]{
     display:block;
 }
+
+/* R41.0F — ChordsLab manual seeker on shared audio clock */
+.chordslab-manual-seeker{
+    width:100%;
+    padding:8px 10px;
+    border:1px solid #33424d;
+    border-radius:9px;
+    background:#101920;
+}
+.chordslab-manual-seeker label{
+    display:grid;
+    grid-template-columns:auto minmax(140px,1fr) 72px;
+    align-items:center;
+    gap:10px;
+    margin:0;
+}
+.chordslab-manual-seeker span{
+    color:#9fb1bb;
+    font-size:10px;
+    font-weight:800;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+}
+.chordslab-manual-seeker input[type=range]{width:100%;min-width:0}
+.chordslab-manual-seeker output{
+    min-width:72px;text-align:right;color:#eef5f8;
+    font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
+    font-size:12px;font-weight:700;
+}
+@media(max-width:640px){
+    .chordslab-manual-seeker label{grid-template-columns:auto 1fr}
+    .chordslab-manual-seeker input[type=range]{grid-column:1/-1;grid-row:2}
+    .chordslab-manual-seeker output{grid-column:2;grid-row:1;justify-self:end}
+}

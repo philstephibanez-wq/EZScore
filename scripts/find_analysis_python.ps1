@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
 $Project = Split-Path -Parent $PSScriptRoot
 $Python = Join-Path $Project ".venv-py313\Scripts\python.exe"
@@ -12,6 +12,7 @@ try {
     @'
 import bs_roformer
 import mel_band_roformer
+import lv_chordia
 import torch
 raise SystemExit(0 if torch.cuda.is_available() else 2)
 '@ | Set-Content -Path $Probe -Encoding UTF8
