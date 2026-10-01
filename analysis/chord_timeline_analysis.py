@@ -57,6 +57,125 @@ def detect_key(chroma_mean):
     root,mode,_=best
     return NOTES[root]+("" if mode=="major" else "m"),(root,mode)
 
+NOTE_TO_PC={
+    "C":0,"C#":1,"Db":1,"D":2,"D#":3,"Eb":3,"E":4,"F":5,
+    "F#":6,"Gb":6,"G":7,"G#":8,"Ab":8,"A":9,"A#":10,"Bb":10,"B":11,
+}
+MAJOR_KEY_TRIADS={0:"major",2:"minor",4:"minor",5:"major",7:"major",9:"minor",11:"dim"}
+MINOR_KEY_TRIADS={0:"minor",2:"dim",3:"major",5:"minor",7:"major",8:"major",10:"major"}
+
+def parse_harmonic_chord(label):
+    text=str(label or ".").strip()
+    if not text or text in {".","N"}:return None
+    text=text.split("/",1)[0].strip()
+    root_name=None
+    for candidate in sorted(NOTE_TO_PC,key=len,reverse=True):
+        if text.startswith(candidate):
+            root_name=candidate
+            break
+    if root_name is None:return None
+    suffix=text[len(root_name):]
+    if suffix.startswith("maj"):
+        quality="major"
+    elif suffix.startswith("m") and not suffix.startswith("maj"):
+        quality="minor"
+    elif suffix.startswith("dim") or "m7b5" in suffix:
+        quality="dim"
+    elif suffix.startswith("aug") or suffix.startswith("+"):
+        quality="aug"
+    elif suffix.startswith("sus"):
+        quality="sus"
+    else:
+        quality="major"
+    dominant=(suffix.startswith("7") or suffix.startswith("9") or suffix.startswith("11") or suffix.startswith("13"))
+    return NOTE_TO_PC[root_name],quality,dominant
+
+def chroma_key_score(chroma_mean,root,mode):
+    if chroma_mean is None or float(np.sum(chroma_mean))<=1e-9:return 0.0
+    x=np.asarray(chroma_mean,dtype=float)
+    x=x/max(float(np.linalg.norm(x)),1e-9)
+    profile=np.roll(MAJOR if mode=="major" else MINOR,root)
+    return cosine(x,profile)
+
+def key_score_from_segments(segments,root,mode,chroma_mean=None):
+    degree_map=MAJOR_KEY_TRIADS if mode=="major" else MINOR_KEY_TRIADS
+    total=0.0
+    weighted=0.0
+    tonic_duration=0.0
+    dominant_duration=0.0
+    parsed_segments=[]
+
+    for segment in segments or []:
+        parsed=parse_harmonic_chord(segment.get("chord"))
+        if parsed is None:continue
+        start=float(segment.get("start",0.0) or 0.0)
+        end=float(segment.get("end",start) or start)
+        duration=max(0.0,end-start)
+        if duration<=1e-6:continue
+        chord_root,quality,is_dominant=parsed
+        rel=(chord_root-root)%12
+        expected=degree_map.get(rel)
+
+        value=-0.28
+        if expected is not None:
+            value=0.30
+            if quality==expected:value=1.00
+            elif quality=="sus":value=0.58
+            if mode=="minor" and rel==7 and quality=="major":
+                value=1.22
+            if rel==7 and is_dominant:
+                value+=0.18
+
+        if rel==0:
+            tonic_match=((mode=="major" and quality=="major") or (mode=="minor" and quality=="minor"))
+            if tonic_match:
+                value+=0.60
+                tonic_duration+=duration
+            else:
+                value-=0.20
+
+        if rel==7:
+            dominant_duration+=duration
+
+        total+=duration
+        weighted+=duration*value
+        parsed_segments.append((chord_root,quality,is_dominant,duration))
+
+    if total<=1e-6:return None
+
+    score=weighted/total
+    score+=0.38*(tonic_duration/total)
+    if mode=="minor":
+        score+=0.20*(dominant_duration/total)
+
+    if parsed_segments:
+        last_root,last_quality,_,_=parsed_segments[-1]
+        if last_root==root:
+            if (mode=="major" and last_quality=="major") or (mode=="minor" and last_quality=="minor"):
+                score+=0.16
+
+    score+=0.18*chroma_key_score(chroma_mean,root,mode)
+    return float(score)
+
+def detect_key_from_segments(segments,chroma_mean=None):
+    ranked=[]
+    for root in range(12):
+        for mode in ("major","minor"):
+            score=key_score_from_segments(segments,root,mode,chroma_mean)
+            if score is not None:
+                ranked.append((float(score),root,mode))
+
+    if not ranked:
+        key,info=detect_key(chroma_mean)
+        return key,info,0.0,"chroma_no_parseable_hq_segments"
+
+    ranked.sort(reverse=True)
+    best_score,root,mode=ranked[0]
+    second_score=ranked[1][0] if len(ranked)>1 else best_score
+    confidence=max(0.0,best_score-second_score)
+    key=NOTES[root]+("" if mode=="major" else "m")
+    return key,(root,mode),float(confidence),"lv-chordia-duration+chroma-tiebreak"
+
 def diatonic_roots(info):
     if info is None:return set()
     root,mode=info
@@ -341,13 +460,16 @@ def analyse(source,stems,drums,requested_signature,progress_file=None,filter_noi
     if prepended_count:
         phase=(phase+prepended_count)%max(1,bpm)
 
-    prog(progress_file,30,"key","Estimation de la tonalité")
+    prog(progress_file,30,"key_features","Préparation du signal de tonalité")
     chroma=librosa.feature.chroma_cqt(y=yh,sr=sr,hop_length=hop)
     chroma=np.maximum(chroma,0.0)
-    key,_=detect_key(np.mean(chroma,axis=1))
+    chroma_mean=np.mean(chroma,axis=1)
 
     prog(progress_file,42,"chords_hq","Reconnaissance harmonique continue lv-chordia")
     segments=analyze_chords_absolute(Path(source))
+
+    prog(progress_file,52,"key","Estimation de la tonalité depuis les accords HQ")
+    key,_,key_confidence,key_method=detect_key_from_segments(segments,chroma_mean)
 
     prog(progress_file,58,"beginner","Projection du profil Débutant")
     beginner=project_profile("beginner",segments,beat_times,bpm,phase,tempo)
@@ -369,10 +491,12 @@ def analyse(source,stems,drums,requested_signature,progress_file=None,filter_noi
 
     return {
         "ok":True,
-        "version":"r41.0b-hq-lv-chordia-historical-call",
+        "version":"r41.0j-hq-key-from-chords",
         "tempo_bpm":round(tempo,3),
         "time_signature":signature,
         "key":key,
+        "key_confidence":round(float(key_confidence),4),
+        "key_method":key_method,
         "harmony_source":harmonic_source,
         "rhythm_source":rhythm_source,
         "noise_filter_enabled":bool(filter_noise),
