@@ -1,71 +1,45 @@
-# EZScore_v1 — R36.0a LyricsLab Worker + ChordsLab UI HOTFIX
+# EZScore_v1
 
-Ce hotfix corrige les deux problèmes visibles du premier test R36.0.
+EZScore_v1 est l'application Symfony/jQuery d'édition et de publication de partitions synchronisées, pilotée par un Worker Python local pour les analyses audio.
 
-## 1. Worker
+## Architecture active
 
-Erreur observée :
+- Symfony + jQuery : interface, backoffice, catalogue et workflow.
+- Worker Python local : stems, accords HQ, tonalité, paroles et traitements asynchrones.
+- ONLINE public : façade `8501`, backend Symfony interne `8511`.
+- LOCAL DEV privé : `8502`.
+- Worker : cible ONLINE ou LOCAL indépendamment.
+- Environnement Python projet : `.venv-py313`.
+- Accélération GPU requise pour les traitements prévus en CUDA ; pas de fallback CPU silencieux.
 
-```text
-AttributeError: 'WorkerEngine' object has no attribute '_run_lyrics_job'
-```
+## Workflow fonctionnel
 
-Le dispatch `kind=lyrics` avait bien été ajouté, mais la méthode `_run_lyrics_job()` n’était pas réellement disponible dans `WorkerEngine`.
+`IMPORT -> STEMS -> CHORDS -> LYRICS -> KARAOKE`
 
-R36.0a insère explicitement cette méthode dans `WorkerEngine`, juste avant `_read_progress()`, et le contrat vérifie qu’elle existe une seule fois.
+Les composants de lecture, timeline, seek, vitesse, mixer stems, accords et paroles doivent rester synchronisés sur la timeline canonique.
 
-Après application, **redémarrer le Worker**, puis relancer `Analyser les paroles`. L’ancien job en échec reste historique ; un nouveau job `lyrics` sera créé.
+## Répertoires principaux
 
-## 2. Présentation LyricsLab
+- `analysis/` : traitements audio Python.
+- `worker_app/` : Worker desktop et contrôle des serveurs.
+- `src/` : code Symfony.
+- `templates/` : vues Twig.
+- `public/` : assets et point d'entrée public.
+- `migrations/` : migrations Doctrine.
+- `tests/` : tests permanents du projet.
+- `docs/` : documentation consolidée et contrats.
+- `scripts/` : uniquement scripts encore utiles au projet ; les installateurs de livraison ne doivent plus y être déposés.
 
-LyricsLab réutilise désormais explicitement la présentation ChordsLab :
+## Documentation
 
-- `chordslab.css` chargé directement ;
-- même carte chanson ;
-- même `chordslab-prompter` ;
-- mêmes `chordslab-stage` / `chordslab-measures` ;
-- mêmes `chord-measure`, `chord-measure-number`, `chord-measure-notation`, `chord-slot` ;
-- même player `chordslab-player` / `chordslab-transport` / pistes ;
-- seuls les mots ajoutent une seconde ligne dans chaque cellule beat.
+Voir `docs/README.md`.
 
-Donc le bandeau conserve exactement la géométrie visuelle de ChordsLab ; les paroles apparaissent **sous le beat/accord correspondant**, dans la même cellule.
+## Règle de livraison
 
-## Installation
+Les futurs ZIP, installateurs, tests de livraison et fichiers de travail doivent être extraits/exécutés depuis `H:\temp`, jamais dans `H:\EZScore_v1`.
 
-À appliquer **après R36.0** :
+À chaque livraison, les caches Symfony `dev` et `prod` doivent être vidés explicitement.
 
-```powershell
-cd H:\EZScore_v1
+## Données locales
 
-tar -xf "$env:USERPROFILE\Downloads\EZScore_v1_R36_0a_LYRICSLAB_WORKER_UI_HOTFIX.zip" -C H:\EZScore_v1
-
-python .\EZScore_v1_R36_0a_LYRICSLAB_WORKER_UI_HOTFIX\scripts\apply_r36_0a.py H:\EZScore_v1
-
-php bin\console cache:clear
-php bin\console lint:container
-php bin\console lint:twig templates
-
-python -m py_compile .\worker_app\ezscore_analysis_worker.pyw
-python -m py_compile .\analysis\lyrics_timeline_analysis.py
-
-php .\EZScore_v1_R36_0a_LYRICSLAB_WORKER_UI_HOTFIX\tests\r36_0a_contract.php H:\EZScore_v1
-
-git diff --check
-git status --short
-```
-
-Attendu :
-
-```text
-R36_0A_APPLIED_OK
-R36_0A_CONTRACT_OK
-```
-
-Puis :
-1. fermer/redémarrer `EZScore Analysis Worker` ;
-2. retourner dans LyricsLab ;
-3. cliquer `Analyser les paroles` ;
-4. vérifier le job `lyrics` et la progression ;
-5. à la fin, tester la synchro mot / beat / accord avec le player.
-
-Aucune modification de ChordsLab lui-même ni du workflow stable antérieur.
+Les fichiers de runtime, caches, uploads, bases SQLite locales et environnement Python ne sont pas des sources Git et ne doivent pas être supprimés par un nettoyage documentaire.

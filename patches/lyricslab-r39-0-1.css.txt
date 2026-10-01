@@ -1,7 +1,0 @@
-/* R39.0.1 sections + manual seek */
-[data-lyricslab] .lyrics-manual-seeker{margin:0 0 8px;padding:7px 10px;border:1px solid #33424d;border-radius:9px;background:#111920}
-[data-lyricslab] .lyrics-manual-seeker label{display:grid;grid-template-columns:auto minmax(180px,1fr) 72px;align-items:center;gap:10px}
-[data-lyricslab] .lyrics-manual-seeker span{font-size:11px;font-weight:800;color:#9fb1bb;text-transform:uppercase;letter-spacing:.04em}
-[data-lyricslab] .lyrics-manual-seeker input[type=range]{width:100%}
-[data-lyricslab] .lyrics-manual-seeker output{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;text-align:right;color:#eef5f8;font-size:12px}
-@media(max-width:640px){[data-lyricslab] .lyrics-manual-seeker label{grid-template-columns:1fr auto}[data-lyricslab] .lyrics-manual-seeker span{grid-column:1/-1}}

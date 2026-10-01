@@ -1,2 +1,0 @@
-        'recognized_index': row.get('recognized_index'),
-    } for row in anchored_rows]

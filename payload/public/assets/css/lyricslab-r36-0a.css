@@ -1,9 +1,0 @@
-/* LyricsLab only adds the lyric row. Layout/measure/player comes from chordslab.css. */
-.lyrics-source-panel{display:grid;gap:14px}
-[data-lyrics-source]{width:100%;min-height:220px;resize:vertical;font:15px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace}
-.lyrics-beat-slot{display:grid!important;grid-template-rows:28px minmax(28px,auto);align-items:start!important;gap:2px;height:auto!important;min-height:64px!important;padding:4px!important}
-.lyrics-slot-chord{display:flex;align-items:center;justify-content:center;min-height:24px;font-weight:800}
-.lyrics-slot-words{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:center;gap:2px 4px;font-size:12px;line-height:1.15}
-.lyrics-word{appearance:none;border:0;background:transparent;color:#aab9c2;padding:1px 2px;border-radius:4px;cursor:text;font:inherit}
-.lyrics-word.is-current{background:#b3293f;color:#fff;font-weight:800}
-.lyrics-word-input{width:80px;min-width:0;padding:2px 3px}

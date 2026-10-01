@@ -1,9 +1,0 @@
-        words=re.findall(r'\S+',line)
-        for i,word in enumerate(words):
-            rows.append({
-                'text':word,
-                'norm':normalise_token(word),
-                'line_break_after':i==len(words)-1,
-                'section_label':current_section,
-                'section_type':current_section_type,
-            })
