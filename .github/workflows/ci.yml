@@ -46,6 +46,10 @@ jobs:
           MAILER_DSN=null://null
           MAILER_FROM=ci@example.test
           ANALYSIS_WORKER_TOKEN=ci-worker-token
+          DEFAULT_URI=http://localhost
+          EZ_ANALYSIS_URL=http://127.0.0.1:8502
+          TURNSTILE_SITE_KEY=ci-placeholder
+          TURNSTILE_SECRET_KEY=ci-placeholder
           EOF
 
       - name: Install dependencies

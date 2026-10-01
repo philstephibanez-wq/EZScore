@@ -21,7 +21,7 @@ from tkinter import filedialog, messagebox, ttk
 from server_control import ServerController
 
 
-APP_VERSION = "R41.0F"
+APP_VERSION = "R41.0G"
 HEARTBEAT_SECONDS = 2.0
 CLAIM_SECONDS = 1.5
 RECONNECT_MIN_SECONDS = 1.0
@@ -949,6 +949,15 @@ class WorkerWindow:
         self.operation_var = tk.StringVar(value="Prêt")
         self._last_snapshot: dict = {}
         self._server_action_running = False
+
+        # R41.0G health hysteresis. Process state is authoritative for
+        # ACTIF/ARRÊTÉ; HTTP health only controls secondary/degraded status.
+        self._health_state = {
+            "online_backend": {"bad": 0, "good": 0, "degraded": False},
+            "online_gateway": {"bad": 0, "good": 0, "degraded": False},
+            "local_http": {"bad": 0, "good": 0, "degraded": False},
+        }
+
         self._bootstrap_path = project_root() / "var" / "runtime" / "analysis-worker-bootstrap.json"
 
         self.server_monitor = ServerStatusMonitor(self)
@@ -1325,6 +1334,20 @@ class WorkerWindow:
         self.console.insert("end", text.rstrip() + "\n")
         self.console.see("end")
 
+    def _health_degraded(self, key: str, healthy: bool) -> bool:
+        state = self._health_state[key]
+        if healthy:
+            state["good"] += 1
+            state["bad"] = 0
+            if state["degraded"] and state["good"] >= 2:
+                state["degraded"] = False
+        else:
+            state["bad"] += 1
+            state["good"] = 0
+            if not state["degraded"] and state["bad"] >= 3:
+                state["degraded"] = True
+        return bool(state["degraded"])
+
     def _apply_server_snapshot(self, data: dict) -> None:
         self._last_snapshot = data
         online = data.get("online") or {}
@@ -1332,30 +1355,72 @@ class WorkerWindow:
         worker = data.get("worker") or {}
         desired = data.get("desired") or self.server_control.snapshot_desired()
 
-        gateway_ok = bool(online.get("gateway_alive"))
-        backend_ok = bool(online.get("backend_alive"))
+        gateway_process = bool(
+            online.get("gateway_process_alive", online.get("gateway_alive"))
+        )
+        backend_process = bool(
+            online.get("backend_process_alive", online.get("backend_alive"))
+        )
+        gateway_http = bool(
+            online.get("gateway_http_healthy", online.get("gateway_alive"))
+        )
+        backend_http = bool(
+            online.get("backend_http_healthy", online.get("backend_alive"))
+        )
+
+        gateway_degraded = self._health_degraded("online_gateway", gateway_http)
+        backend_degraded = self._health_degraded("online_backend", backend_http)
+
         online_env = str(online.get("env") or desired["online"]["env"])
         maintenance = bool(online.get("maintenance"))
         maintenance_observed = online.get("maintenance_observed")
-        if gateway_ok:
+
+        # Process liveness is authoritative. HTTP health cannot flip ACTIVE/STOPPED.
+        if gateway_process:
             if maintenance_observed is True and maintenance:
                 state = "MAINTENANCE"
-            elif backend_ok:
-                state = "ONLINE"
-            else:
+            elif not backend_process:
+                state = "PROTÉGÉ · backend arrêté"
+            elif gateway_degraded:
+                state = "ONLINE · passerelle lente"
+            elif backend_degraded:
                 state = "PROTÉGÉ · backend indisponible"
+            else:
+                state = "ONLINE"
+
             self.online_summary_var.set(f"● {state} / {online_env}")
             profiler = "Profiler actif" if online_env == "dev" else "Profiler inactif"
-            self.online_detail_var.set(f"{online.get('public_url') or self.server_control.public_url()} · {profiler} · backend :8511")
+            health_note = ""
+            if backend_process and not backend_http and not backend_degraded:
+                health_note = " · vérification HTTP"
+            self.online_detail_var.set(
+                f"{online.get('public_url') or self.server_control.public_url()} "
+                f"· {profiler} · backend :8511{health_note}"
+            )
         else:
             self.online_summary_var.set(f"○ ARRÊTÉ / {online_env}")
-            self.online_detail_var.set(f"{online.get('public_url') or self.server_control.public_url()} · backend arrêté")
+            self.online_detail_var.set(
+                f"{online.get('public_url') or self.server_control.public_url()} "
+                "· passerelle arrêtée"
+            )
+
         self.online_env_var.set(online_env)
         self.online_maintenance_var.set(maintenance)
 
-        if local.get("alive"):
-            self.local_summary_var.set("● ACTIF / dev")
-            self.local_detail_var.set(f"{local.get('url') or self.server_control.local_url()} · PID {local.get('pid') or '—'}")
+        local_process = bool(local.get("process_alive", local.get("alive")))
+        local_http = bool(local.get("http_healthy", local.get("alive")))
+        local_degraded = self._health_degraded("local_http", local_http)
+
+        if local_process:
+            state = "ACTIF · HTTP lent" if local_degraded else "ACTIF"
+            self.local_summary_var.set(f"● {state} / dev")
+            detail = (
+                f"{local.get('url') or self.server_control.local_url()} "
+                f"· PID {local.get('pid') or '—'}"
+            )
+            if not local_http and not local_degraded:
+                detail += " · vérification HTTP"
+            self.local_detail_var.set(detail)
         else:
             self.local_summary_var.set("○ ARRÊTÉ / dev")
             self.local_detail_var.set(self.server_control.local_url())

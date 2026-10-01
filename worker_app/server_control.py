@@ -522,16 +522,45 @@ class ServerController:
         gateway_pid = _read_pid(self.online_gateway_pid)
         backend_pid = _read_pid(self.online_backend_pid)
         local_pid = _read_pid(self.local_pid)
-        gateway_is_alive = bool(gateway_pid and _pid_alive(gateway_pid) and gateway_alive(self.online_url(), 0.35))
-        backend_alive = bool(backend_pid and _pid_alive(backend_pid) and http_alive(self.online_backend_url(), 0.35))
-        local_alive = bool(local_pid and _pid_alive(local_pid) and http_alive(self.local_url(), 0.35))
-        runtime = gateway_runtime_status(self.online_url(), 0.35) if gateway_is_alive else None
-        maintenance_observed = bool(runtime.get("maintenance", False)) if isinstance(runtime, dict) else None
+
+        # Process state and HTTP health are deliberately separate.
+        # A transient HTTP timeout must never make the UI claim that a process stopped.
+        gateway_process_alive = bool(gateway_pid and _pid_alive(gateway_pid))
+        backend_process_alive = bool(backend_pid and _pid_alive(backend_pid))
+        local_process_alive = bool(local_pid and _pid_alive(local_pid))
+
+        gateway_http_healthy = bool(
+            gateway_process_alive and gateway_alive(self.online_url(), 1.0)
+        )
+        backend_http_healthy = bool(
+            backend_process_alive and http_alive(self.online_backend_url(), 1.0)
+        )
+        local_http_healthy = bool(
+            local_process_alive and http_alive(self.local_url(), 1.0)
+        )
+
+        runtime = (
+            gateway_runtime_status(self.online_url(), 1.0)
+            if gateway_http_healthy
+            else None
+        )
+        maintenance_observed = (
+            bool(runtime.get("maintenance", False))
+            if isinstance(runtime, dict)
+            else None
+        )
+
         return {
             "desired": desired,
             "online": {
-                "gateway_alive": gateway_is_alive,
-                "backend_alive": backend_alive,
+                # Legacy fields kept for compatibility with any existing consumer.
+                "gateway_alive": gateway_http_healthy,
+                "backend_alive": backend_http_healthy,
+                # R41.0G explicit process/health split.
+                "gateway_process_alive": gateway_process_alive,
+                "backend_process_alive": backend_process_alive,
+                "gateway_http_healthy": gateway_http_healthy,
+                "backend_http_healthy": backend_http_healthy,
                 "gateway_pid": gateway_pid,
                 "backend_pid": backend_pid,
                 "env": desired["online"]["env"],
@@ -540,7 +569,11 @@ class ServerController:
                 "public_url": self.public_url(),
             },
             "local": {
-                "alive": local_alive,
+                # Legacy field kept for compatibility.
+                "alive": local_http_healthy,
+                # R41.0G explicit process/health split.
+                "process_alive": local_process_alive,
+                "http_healthy": local_http_healthy,
                 "pid": local_pid,
                 "env": "dev",
                 "url": self.local_url(),
