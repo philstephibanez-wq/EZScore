@@ -21,7 +21,7 @@ from tkinter import filedialog, messagebox, ttk
 from server_control import ServerController
 
 
-APP_VERSION = "R41.0B"
+APP_VERSION = "R41.0D"
 HEARTBEAT_SECONDS = 2.0
 CLAIM_SECONDS = 1.5
 RECONNECT_MIN_SECONDS = 1.0
@@ -1063,18 +1063,16 @@ class WorkerWindow:
         self.progress.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 2))
         job.columnconfigure(1, weight=1)
 
-        lower = ttk.Panedwindow(outer, orient="vertical")
-        lower.pack(fill="both", expand=True)
-        queue_box = ttk.LabelFrame(lower, text="Traitements en cours / à faire", padding=8)
-        console_box = ttk.LabelFrame(lower, text="Console temps réel", padding=8)
-        lower.add(queue_box, weight=2)
-        lower.add(console_box, weight=2)
+        # Operational queue is always visible. The live console is collapsed
+        # by default and uses an explicit pixel height when expanded.
+        queue_box = ttk.LabelFrame(outer, text="Traitements en cours / à faire", padding=8)
+        queue_box.pack(fill="x", pady=(0, 8))
 
         columns = ("id", "etat", "type", "chanson", "progression")
-        self.queue_tree = ttk.Treeview(queue_box, columns=columns, show="headings", height=8)
+        self.queue_tree = ttk.Treeview(queue_box, columns=columns, show="headings", height=6)
         style.configure("Treeview", rowheight=25)
         headings = {"id": "#", "etat": "État", "type": "Traitement", "chanson": "Chanson", "progression": "Progression"}
-        widths = {"id": 55, "etat": 95, "type": 95, "chanson": 650, "progression": 105}
+        widths = {"id": 55, "etat": 105, "type": 105, "chanson": 650, "progression": 110}
         for name in columns:
             self.queue_tree.heading(name, text=headings[name])
             self.queue_tree.column(name, width=widths[name], anchor="w")
@@ -1085,15 +1083,32 @@ class WorkerWindow:
         queue_box.columnconfigure(0, weight=1)
         queue_box.rowconfigure(0, weight=1)
 
-        self.console = tk.Text(console_box, wrap="none", bg="#0a0d10", fg="#d1f7d9", insertbackground="white", font=("Consolas", 10))
-        yscroll = ttk.Scrollbar(console_box, orient="vertical", command=self.console.yview)
-        xscroll = ttk.Scrollbar(console_box, orient="horizontal", command=self.console.xview)
+        log_bar = ttk.Frame(outer)
+        log_bar.pack(fill="x", pady=(0, 4))
+        ttk.Label(log_bar, text="Console temps réel", style="CardTitle.TLabel").pack(side="left")
+        self.logs_toggle_btn = ttk.Button(log_bar, text="Afficher les logs", command=self._toggle_console)
+        self.logs_toggle_btn.pack(side="right", padx=(5, 0))
+        ttk.Button(log_bar, text="Copier les logs", command=self._copy_console_logs).pack(side="right")
+
+        self.console_box = ttk.Frame(outer, height=230)
+        self.console_box.pack_propagate(False)
+        self.console = tk.Text(
+            self.console_box,
+            wrap="none",
+            bg="#0a0d10",
+            fg="#d1f7d9",
+            insertbackground="white",
+            font=("Consolas", 10),
+        )
+        yscroll = ttk.Scrollbar(self.console_box, orient="vertical", command=self.console.yview)
+        xscroll = ttk.Scrollbar(self.console_box, orient="horizontal", command=self.console.xview)
         self.console.configure(yscrollcommand=yscroll.set, xscrollcommand=xscroll.set)
         self.console.grid(row=0, column=0, sticky="nsew")
         yscroll.grid(row=0, column=1, sticky="ns")
         xscroll.grid(row=1, column=0, sticky="ew")
-        console_box.rowconfigure(0, weight=1)
-        console_box.columnconfigure(0, weight=1)
+        self.console_box.rowconfigure(0, weight=1)
+        self.console_box.columnconfigure(0, weight=1)
+        self.console_visible = False
 
     def _summary_card(self, parent, column: int, title: str, variable: tk.StringVar) -> None:
         frame = ttk.LabelFrame(parent, text=title, padding=(6, 4))
@@ -1271,6 +1286,32 @@ class WorkerWindow:
     def _toggle_pause(self):
         self.engine.pause(not self.engine.paused)
 
+    def _toggle_console(self) -> None:
+        if self.console_visible:
+            self.console_box.pack_forget()
+            self.console_visible = False
+            self.logs_toggle_btn.configure(text="Afficher les logs")
+            return
+
+        self.root.update_idletasks()
+        width = max(self.root.winfo_width(), 980)
+        height = max(self.root.winfo_height(), 980)
+        if self.root.winfo_height() < 980:
+            self.root.geometry(f"{width}x{height}")
+
+        self.console_box.pack(fill="x", pady=(0, 4))
+        self.console_visible = True
+        self.logs_toggle_btn.configure(text="Masquer les logs")
+        self.console.see("end")
+        self.root.update_idletasks()
+
+    def _copy_console_logs(self) -> None:
+        text = self.console.get("1.0", "end-1c")
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text)
+        self.root.update_idletasks()
+        self.operation_var.set("Logs copiés dans le presse-papiers")
+
     def _open_logs(self):
         path = project_root() / "var" / "log"
         path.mkdir(parents=True, exist_ok=True)
@@ -1298,7 +1339,7 @@ class WorkerWindow:
             elif backend_ok:
                 state = "ONLINE"
             else:
-                state = "PROTECTION AUTO"
+                state = "PROTÉGÉ · backend indisponible"
             self.online_summary_var.set(f"● {state} / {online_env}")
             profiler = "Profiler actif" if online_env == "dev" else "Profiler inactif"
             self.online_detail_var.set(f"{online.get('public_url') or self.server_control.public_url()} · {profiler} · backend :8511")
