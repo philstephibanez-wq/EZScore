@@ -10,6 +10,7 @@ let capo=Number(root.dataset.capo||0), signature=root.dataset.timeSignature||'4/
 const canonicalSignature=signature;
 const timelineCore=()=>window.EZScoreTimelineCoreR39?.create({beats,timeSignature:signature,spacing:44,preserveSourcePosition:signature===canonicalSignature})||null;
 const measuresEl=root.querySelector('[data-chordslab-measures]');
+const stageEl=measuresEl?.closest('.chordslab-stage');
 const diagramEl=root.querySelector('[data-chord-diagram]');
 const diagramToggle=document.querySelector('[data-chordslab-diagram]');
 const capoSelect=document.querySelector('[data-chordslab-capo]');
@@ -197,8 +198,10 @@ function alignCurrentTime(slot,seq,ms){
  focusTrack.alignBetween(slot,next,progress);
 }
 
+let lastPlaybackSeconds=0;
 function highlightAt(seconds){
- const ms=seconds*1000;const core=timelineCore();let seq=core?core.beatIndexAtMs(ms):-1;
+ lastPlaybackSeconds=Math.max(0,Number(seconds)||0);
+ const ms=lastPlaybackSeconds*1000;const core=timelineCore();let seq=core?core.beatIndexAtMs(ms):-1;
  measuresEl.querySelectorAll('.is-current').forEach(el=>el.classList.remove('is-current'));
  if(seq<0){updateDiagram(null);return}
  const slot=measuresEl.querySelector(`.chord-slot[data-beat-seq="${seq}"]`);
@@ -326,7 +329,17 @@ profileSelect?.addEventListener('change',async()=>{
   profileSelect.disabled=false;
  }
 });
-diagramToggle?.addEventListener('change',()=>{if(!diagramToggle.checked&&diagramEl)diagramEl.hidden=true});
+function syncDiagramLayout(){
+ const expanded=Boolean(diagramToggle?.checked);
+ stageEl?.classList.toggle('is-diagram-collapsed',!expanded);
+ if(!expanded){
+  updateDiagram(null);
+  return;
+ }
+ highlightAt(lastPlaybackSeconds);
+}
+diagramToggle?.addEventListener('change',syncDiagramLayout);
+syncDiagramLayout();
 
 if(analyzeForm&&analyzeDialog){
  analyzeForm.addEventListener('submit',e=>{

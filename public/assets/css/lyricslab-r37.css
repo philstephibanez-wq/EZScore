@@ -84,3 +84,21 @@
 [data-lyricslab] .r39-shared-timeline .lyrics-ribbon-syllables{
     top:284px!important;
 }
+
+/* R41.0I — true compact LyricsLab geometry when the guitar diagram is hidden.
+   Timeline x/time geometry is unchanged; only vertical layout is reclaimed. */
+[data-lyricslab] .chordslab-stage.is-diagram-collapsed{
+    min-height:236px!important;
+}
+[data-lyricslab] .r39-shared-timeline.is-diagram-collapsed{
+    height:236px!important;
+}
+[data-lyricslab] .r39-shared-timeline.is-diagram-collapsed .lyrics-reading-zone{
+    top:18px!important;
+}
+[data-lyricslab] .r39-shared-timeline.is-diagram-collapsed .lyrics-ribbon-chords{
+    top:18px!important;
+}
+[data-lyricslab] .r39-shared-timeline.is-diagram-collapsed .lyrics-ribbon-syllables{
+    top:128px!important;
+}

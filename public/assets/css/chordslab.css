@@ -471,3 +471,16 @@ dialog[data-chord-analyze-dialog][open]{
     .chordslab-manual-seeker input[type=range]{grid-column:1/-1;grid-row:2}
     .chordslab-manual-seeker output{grid-column:2;grid-row:1;justify-self:end}
 }
+
+/* R41.0I — reclaim the complete diagram reservation when guitar chords are hidden.
+   R39.3 remains unchanged when the toggle is enabled. */
+.chordslab-stage.is-diagram-collapsed{
+    padding-top:0!important;
+    min-height:0!important;
+}
+@media(max-width:640px){
+    .chordslab-stage.is-diagram-collapsed{
+        padding-top:0!important;
+        min-height:0!important;
+    }
+}

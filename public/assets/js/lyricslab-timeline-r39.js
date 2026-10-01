@@ -16,7 +16,7 @@ window.EZScoreLyricsTimelineR39={mount(root){
  const normaliseLabel=c=>String(c||'').trim().replace(/^\[([^\]]+)\]$/,'$1').replace(/^([A-G](?:#|b)?)maj$/,'$1');
 
  host.innerHTML='<div class="lyrics-ribbon-stage r39-shared-timeline" data-stage><div class="lyrics-stage-diagram ez-chord-diagram" data-lyrics-stage-diagram hidden></div><div class="lyrics-reading-zone" data-reading-zone></div><div class="lyrics-ribbon-track" data-track><div class="lyrics-ribbon-chords" data-chords-lane></div><div class="lyrics-ribbon-syllables" data-syllables-lane></div></div></div>';
- const stage=host.querySelector('[data-stage]'),diagram=host.querySelector('[data-lyrics-stage-diagram]'),zone=host.querySelector('[data-reading-zone]'),track=host.querySelector('[data-track]'),chordLane=host.querySelector('[data-chords-lane]'),syllableLane=host.querySelector('[data-syllables-lane]');
+ const stage=host.querySelector('[data-stage]'),stageShell=host.closest('.chordslab-stage'),diagram=host.querySelector('[data-lyrics-stage-diagram]'),zone=host.querySelector('[data-reading-zone]'),track=host.querySelector('[data-track]'),chordLane=host.querySelector('[data-chords-lane]'),syllableLane=host.querySelector('[data-syllables-lane]');
  const diagramToggle=document.querySelector('[data-chordslab-diagram]');
  const syllables=Core.flattenSyllables(words),syllableNodes=[];
  const focusX=()=>Math.max(105,stage.clientWidth*.30);
@@ -44,11 +44,14 @@ window.EZScoreLyricsTimelineR39={mount(root){
  function renderAt(sec,force=false){
   lastTime=Math.max(0,Number(sec)||0);const ms=lastTime*1000,x=focusX(),metric=timeline.timeToX(ms);zone.style.left=x+'px';track.style.transform=`translate3d(${x-metric}px,0,0)`;
   const bi=timeline.beatIndexAtMs(ms);if(force||bi!==lastBeat){lastBeat=bi;chordLane.querySelectorAll('.current').forEach(e=>e.classList.remove('current'));chordLane.querySelector(`.lyrics-ribbon-beat[data-beat-seq="${bi}"]`)?.classList.add('current')}
+  const diagramExpanded=Boolean(diagramToggle?.checked);
+  stage.classList.toggle('is-diagram-collapsed',!diagramExpanded);
+  stageShell?.classList.toggle('is-diagram-collapsed',!diagramExpanded);
   if(diagram){
    diagram.style.left=x+'px';
    const active=timeline.activeEventAt(chords,ms);
    const label=shown(active?.effective||active?.original||'.');
-   if(diagramToggle?.checked&&label&&label!=='.'){diagram.hidden=false;window.EZScoreChordDiagram?.render(diagram,label)}
+   if(diagramExpanded&&label&&label!=='.'){diagram.hidden=false;window.EZScoreChordDiagram?.render(diagram,label)}
    else{diagram.hidden=true;diagram.innerHTML=''}
   }
   const si=activeSyllable(ms);if(force||si!==lastSyllable){lastSyllable=si;syllableNodes.forEach((e,i)=>{e.classList.toggle('past',si>=0&&i<si);e.classList.toggle('current',i===si)})}
