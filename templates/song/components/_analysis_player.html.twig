@@ -1,6 +1,7 @@
 {% if playback_ready %}
 <section class="panel stem-mixer-panel chordslab-player"
          data-stem-mixer
+         data-song-id="{{ song.id }}"
          data-mix-save-url="{{ path('app_song_stems_mix', {'_locale': app.request.locale, id: song.id}) }}"
          data-mix-token="{{ csrf_token('song_stems_mix_' ~ song.id) }}"
          data-mix-settings="{{ stem_mix_settings|json_encode|e('html_attr') }}"

@@ -105,6 +105,7 @@
 {% if playback_ready %}
 <section class="panel stem-mixer-panel chordslab-player"
          data-stem-mixer
+         data-song-id="{{ song.id }}"
          data-mix-save-url="{{ path('app_song_stems_mix', {'_locale': app.request.locale, id: song.id}) }}"
          data-mix-token="{{ csrf_token('song_stems_mix_' ~ song.id) }}"
          data-mix-settings="{{ stem_mix_settings|json_encode|e('html_attr') }}"
@@ -220,7 +221,6 @@
 
 {% block javascripts %}
 <script src="/assets/js/lab-song-card.js?v=20260928r38_8"></script>
-<script src="/assets/js/audio/ezscore-audio-engine.js?v=20260928r35_8"></script>
 <script src="/assets/js/stems-mixer.js?v=20260929r39_2a"></script>
 <script src="/assets/js/ezscore-timeline-core-r39.js?v=20260929r39_0"></script>
 <script src="/assets/js/components/ezscore-live-visual-settings.js?v=20260930r39_2d"></script>

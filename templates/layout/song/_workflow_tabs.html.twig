@@ -23,6 +23,7 @@
 
     {% if wf.can_stems %}
         <a class="workflow-tab {{ current == 'stems' ? 'active' : '' }} {{ wf.stems_ready ? 'completed' : '' }}"
+           data-ez-workflow-ajax data-ez-song-id="{{ song.id }}"
            href="{{ path('app_song_stems', {'_locale': app.request.locale, id: song.id}) }}">4 · STEMSLAB</a>
     {% else %}
         <span class="workflow-tab disabled" aria-disabled="true">4 · STEMSLAB</span>
@@ -30,6 +31,7 @@
 
     {% if wf.can_chords %}
         <a class="workflow-tab {{ current == 'chords' ? 'active' : '' }} {{ wf.chords_ready ? 'completed' : '' }}"
+           data-ez-workflow-ajax data-ez-song-id="{{ song.id }}"
            href="{{ path('app_song_chordslab', {'_locale': app.request.locale, id: song.id}) }}">5 · CHORDSLAB</a>
     {% else %}
         <span class="workflow-tab disabled" aria-disabled="true" title="Stems requis">5 · CHORDSLAB</span>
@@ -37,6 +39,7 @@
 
     {% if wf.can_lyrics %}
         <a class="workflow-tab {{ current == 'lyrics' ? 'active' : '' }} {{ wf.lyrics_ready ? 'completed' : '' }}"
+           data-ez-workflow-ajax data-ez-song-id="{{ song.id }}"
            href="{{ path('app_song_lyricslab', {'_locale': app.request.locale, id: song.id}) }}">6 · LYRICSLAB</a>
     {% else %}
         <span class="workflow-tab disabled" aria-disabled="true" title="Accords requis">6 · LYRICSLAB</span>
@@ -44,6 +47,7 @@
 
     {% if wf.can_publish %}
         <a class="workflow-tab {{ current == 'publication' ? 'active' : '' }} {{ wf.published ? 'completed' : '' }}"
+           data-ez-workflow-ajax data-ez-song-id="{{ song.id }}"
            href="{{ path('app_song_publication_lab', {'_locale': app.request.locale, id: song.id}) }}">7 · PUBLICATION</a>
     {% else %}
         <span class="workflow-tab disabled" aria-disabled="true" title="Paroles requises">7 · PUBLICATION</span>

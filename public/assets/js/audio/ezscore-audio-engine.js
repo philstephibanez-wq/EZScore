@@ -617,6 +617,7 @@
 
             const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null;
             if (!anchor) return;
+            if (anchor.hasAttribute('data-ez-workflow-ajax')) return;
 
             const target = anchor.getAttribute('target');
             if (target && target !== '_self') return;
