@@ -27,7 +27,7 @@ final class InternalMediaAuthController extends AbstractController
         $path = (string) parse_url($forwardedUri, PHP_URL_PATH);
 
         if (!preg_match(
-            '#^/media/song-(\d+)/([a-f0-9]{64})/playback/(run-[A-Za-z0-9]+)/([A-Za-z0-9_]+)\.opus$#',
+            '#^/song-(\d+)/([a-f0-9]{64})/playback/(run-[A-Za-z0-9]+)/([A-Za-z0-9_]+)\.opus$#',
             $path,
             $match,
         )) {
@@ -46,7 +46,7 @@ final class InternalMediaAuthController extends AbstractController
         }
 
         $expected = $playback->mediaRelativePath($song, $match[4]);
-        $requested = substr($path, strlen('/media/'));
+        $requested = ltrim($path, '/');
 
         if ($expected === null || !hash_equals($expected, $requested)) {
             return new Response('', Response::HTTP_FORBIDDEN);

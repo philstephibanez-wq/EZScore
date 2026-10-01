@@ -1,45 +1,51 @@
-# EZScore_v1
+# EZScore_v1 R41.0K6E — Media auth fix
 
-EZScore_v1 est l'application Symfony/jQuery d'édition et de publication de partitions synchronisées, pilotée par un Worker Python local pour les analyses audio.
+Base GitHub vérifiée avant génération :
 
-## Architecture active
+- repository : `philstephibanez-wq/EZScore_v1`
+- branch : `master`
+- commit : `c6156dc82222ff5f58f154b9a3ebae6668e37b81`
+- message : `Mise en place de Caddy`
 
-- Symfony + jQuery : interface, backoffice, catalogue et workflow.
-- Worker Python local : stems, accords HQ, tonalité, paroles et traitements asynchrones.
-- ONLINE public : façade `8501`, backend Symfony interne `8511`.
-- LOCAL DEV privé : `8502`.
-- Worker : cible ONLINE ou LOCAL indépendamment.
-- Environnement Python projet : `.venv-py313`.
-- Accélération GPU requise pour les traitements prévus en CUDA ; pas de fallback CPU silencieux.
+## Correction
 
-## Workflow fonctionnel
+Le `forward_auth` Caddy appelle `/internal/media/auth` après normalisation de l'URI.
+Dans la requête Symfony observée, `X-Forwarded-Uri` vaut :
 
-`IMPORT -> STEMS -> CHORDS -> LYRICS -> KARAOKE`
+`/song-<id>/<sha256>/playback/run-.../<track>.opus`
 
-Les composants de lecture, timeline, seek, vitesse, mixer stems, accords et paroles doivent rester synchronisés sur la timeline canonique.
+et non :
 
-## Répertoires principaux
+`/media/song-<id>/<sha256>/playback/run-.../<track>.opus`
 
-- `analysis/` : traitements audio Python.
-- `worker_app/` : Worker desktop et contrôle des serveurs.
-- `src/` : code Symfony.
-- `templates/` : vues Twig.
-- `public/` : assets et point d'entrée public.
-- `migrations/` : migrations Doctrine.
-- `tests/` : tests permanents du projet.
-- `docs/` : documentation consolidée et contrats.
-- `scripts/` : uniquement scripts encore utiles au projet ; les installateurs de livraison ne doivent plus y être déposés.
+Le contrôleur rejetait donc toutes les pistes avec HTTP 403.
 
-## Documentation
+Ce correctif modifie uniquement :
 
-Voir `docs/README.md`.
+`src/Controller/InternalMediaAuthController.php`
 
-## Règle de livraison
+- regex : suppression du préfixe `/media`
+- comparaison du chemin : `ltrim($path, '/')`
 
-Les futurs ZIP, installateurs, tests de livraison et fichiers de travail doivent être extraits/exécutés depuis `H:\temp`, jamais dans `H:\EZScore_v1`.
+`config/routes.yaml` et `config/caddy/Caddyfile` ne sont pas inclus : les corrections précédentes sont déjà présentes dans le commit de base.
 
-À chaque livraison, les caches Symfony `dev` et `prod` doivent être vidés explicitement.
+## Application
 
-## Données locales
+Depuis `H:\EZScore` :
 
-Les fichiers de runtime, caches, uploads, bases SQLite locales et environnement Python ne sont pas des sources Git et ne doivent pas être supprimés par un nettoyage documentaire.
+```powershell
+tar -xf "$env:USERPROFILE\Downloads\EZScore_v1_R41_0K6E_MEDIA_AUTH_FIX.zip" -C H:\EZScore
+```
+
+Puis vérifier :
+
+```powershell
+php -l .\src\Controller\InternalMediaAuthController.php
+php bin\console debug:router | Select-String "app_internal_media_auth|internal/media"
+```
+
+Résultat attendu pour la route :
+
+`app_internal_media_auth  GET  /internal/media/auth`
+
+Ensuite recharger la page Stems en DEV puis ONLINE et vérifier que les `.opus` ne répondent plus `403`.
