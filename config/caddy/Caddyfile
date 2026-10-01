@@ -1,0 +1,54 @@
+{
+	auto_https off
+	admin 127.0.0.1:2019
+}
+
+http://127.0.0.1:8501, http://ezscore.logandplay.com:8501 {
+	@media path /media/*
+	handle @media {
+		forward_auth 127.0.0.1:8510 {
+			uri /internal/media/auth
+		}
+
+		root * {$EZSCORE_MEDIA_ROOT}
+		uri strip_prefix /media
+		header {
+			Cache-Control "private, max-age=3600"
+		}
+		file_server
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:8510
+	}
+}
+
+http://127.0.0.1:8502 {
+	@media path /media/*
+	handle @media {
+		forward_auth 127.0.0.1:8602 {
+			uri /internal/media/auth
+		}
+
+		root * {$EZSCORE_MEDIA_ROOT}
+		uri strip_prefix /media
+		header {
+			Cache-Control "private, max-age=3600"
+		}
+		file_server
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:8602
+	}
+}
+
+# Dedicated local media endpoint for diagnostics / future streaming work.
+# It is deliberately loopback-only. Public media uses :8501/:8502 + forward_auth.
+http://127.0.0.1:8520 {
+	root * {$EZSCORE_MEDIA_ROOT}
+	header {
+		Cache-Control "private, max-age=3600"
+	}
+	file_server
+}

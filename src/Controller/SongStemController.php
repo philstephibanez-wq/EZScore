@@ -252,21 +252,13 @@ final class SongStemController extends AbstractController
     ): Response {
         $this->requireEditor($song);
 
-        $path = $playback->playbackPath($song, $name);
-        if ($path === null) {
+        $mediaPath = $playback->mediaRelativePath($song, $name);
+        if ($mediaPath === null) {
             throw $this->createNotFoundException();
         }
 
-        $response = new BinaryFileResponse($path);
-        $response->headers->set('Content-Type', 'audio/ogg; codecs=opus');
-        $response->headers->set('Cache-Control', 'private, max-age=3600');
-        $response->headers->set('Accept-Ranges', 'bytes');
-        $response->setContentDisposition(
-            ResponseHeaderBag::DISPOSITION_INLINE,
-            $name.'.opus',
-        );
-
-        return $response;
+        // R41.0K6: authorization remains in Symfony; Caddy serves the media bytes.
+        return $this->redirect('/media/'.$mediaPath, Response::HTTP_FOUND);
     }
 
     #[Route('/original', name: 'app_song_stems_original_audio', methods: ['GET'])]

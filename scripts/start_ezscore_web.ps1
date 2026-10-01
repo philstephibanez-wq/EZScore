@@ -13,7 +13,7 @@ if ($Instance -eq "local" -and $Environment -ne "dev") {
     throw "Le serveur LOCAL est réservé à l'environnement dev."
 }
 
-$Port = if ($Instance -eq "online") { 8511 } else { 8502 }
+$Port = if ($Instance -eq "online") { 8511 } else { 8602 }
 $LogDir = Join-Path $Project "var\log"
 $RuntimeDir = Join-Path $Project "var\runtime"
 New-Item -ItemType Directory -Force -Path $LogDir,$RuntimeDir | Out-Null

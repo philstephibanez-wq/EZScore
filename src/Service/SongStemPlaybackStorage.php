@@ -42,6 +42,29 @@ final class SongStemPlaybackStorage
         return is_file($path) && filesize($path) > 0 ? $path : null;
     }
 
+    public function mediaRelativePath(Song $song, string $track): ?string
+    {
+        if (!in_array($track, self::TRACKS, true)) {
+            return null;
+        }
+
+        $run = $this->currentRunName($song);
+        $hash = $song->getAudioSha256();
+        if ($run === null || !is_string($hash) || !preg_match('/^[a-f0-9]{64}$/', $hash)) {
+            return null;
+        }
+
+        $path = sprintf(
+            'song-%d/%s/playback/%s/%s.opus',
+            (int) $song->getId(),
+            $hash,
+            $run,
+            $track,
+        );
+
+        return $this->playbackPath($song, $track) !== null ? $path : null;
+    }
+
     public function manifest(Song $song): ?array
     {
         $run = $this->currentRunName($song);

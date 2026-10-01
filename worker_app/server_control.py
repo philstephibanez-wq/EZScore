@@ -15,9 +15,12 @@ from pathlib import Path
 from typing import Callable
 
 WINDOWS_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-ONLINE_GATEWAY_PORT = 8501
+ONLINE_PUBLIC_PORT = 8501
+ONLINE_GATEWAY_PORT = 8510
 ONLINE_BACKEND_PORT = 8511
 LOCAL_DEV_PORT = 8502
+LOCAL_BACKEND_PORT = 8602
+MEDIA_PORT = 8520
 STATE_SCHEMA = "ezscore.server-control.v1"
 GATEWAY_PROTOCOL = "ezscore.online-gateway.v3"
 WEB_SCRIPT_TIMEOUT_SECONDS = 15.0
@@ -150,6 +153,7 @@ class ServerController:
         self.logs = self.root / "var" / "log"
         self.state_path = self.runtime / "ezscore-server-control.json"
         self.gateway_config_path = self.runtime / "online-gateway.json"
+        self.caddy_pid = self.runtime / "ezscore-caddy.pid"
         self.online_gateway_pid = self.runtime / "ezscore-online-gateway.pid"
         self.online_backend_pid = self.runtime / "ezscore-web-online.pid"
         self.local_pid = self.runtime / "ezscore-web-local.pid"
@@ -202,6 +206,9 @@ class ServerController:
         return (os.environ.get("EZSCORE_BROWSER_URL") or env.get("EZSCORE_BROWSER_URL") or "https://ezscore.logandplay.com").rstrip("/")
 
     def online_url(self) -> str:
+        return f"http://127.0.0.1:{ONLINE_PUBLIC_PORT}"
+
+    def online_gateway_url(self) -> str:
         return f"http://127.0.0.1:{ONLINE_GATEWAY_PORT}"
 
     def online_backend_url(self) -> str:
@@ -209,6 +216,9 @@ class ServerController:
 
     def local_url(self) -> str:
         return f"http://127.0.0.1:{LOCAL_DEV_PORT}"
+
+    def local_backend_url(self) -> str:
+        return f"http://127.0.0.1:{LOCAL_BACKEND_PORT}"
 
     def worker_url(self) -> str:
         desired = self.snapshot_desired()
@@ -239,10 +249,37 @@ class ServerController:
             "public_url": self.public_url(),
         })
 
+    def _start_caddy(self) -> None:
+        pid = _read_pid(self.caddy_pid)
+        if pid and _pid_alive(pid):
+            return
+
+        script = self.root / "scripts" / "start_caddy.ps1"
+        proc = subprocess.run(
+            [
+                "powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", str(script),
+            ],
+            cwd=str(self.root),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+            creationflags=WINDOWS_NO_WINDOW if os.name == "nt" else 0,
+            check=False,
+        )
+        for line in proc.stdout.splitlines():
+            if line.strip():
+                self.log(line.strip())
+        if proc.returncode != 0:
+            raise RuntimeError("Démarrage Caddy impossible.")
+
     def _start_gateway(self) -> None:
         pid = _read_pid(self.online_gateway_pid)
-        if pid and _pid_alive(pid) and gateway_alive(self.online_url(), timeout=0.6):
-            runtime = gateway_runtime_status(self.online_url(), timeout=0.6)
+        if pid and _pid_alive(pid) and gateway_alive(self.online_gateway_url(), timeout=0.6):
+            runtime = gateway_runtime_status(self.online_gateway_url(), timeout=0.6)
             if isinstance(runtime, dict) and runtime.get("protocol") == GATEWAY_PROTOCOL:
                 return
             self.log("Passerelle ONLINE obsolète détectée : relance automatique.")
@@ -268,13 +305,13 @@ class ServerController:
         self.online_gateway_pid.write_text(str(proc.pid), encoding="ascii")
         deadline = time.monotonic() + 8.0
         while time.monotonic() < deadline:
-            runtime = gateway_runtime_status(self.online_url(), timeout=0.5)
+            runtime = gateway_runtime_status(self.online_gateway_url(), timeout=0.5)
             if isinstance(runtime, dict) and runtime.get("protocol") == GATEWAY_PROTOCOL:
                 return
             if proc.poll() is not None:
                 break
             time.sleep(0.15)
-        raise RuntimeError("La passerelle ONLINE R40.0I ne répond pas sur 127.0.0.1:8501.")
+        raise RuntimeError(f"La passerelle ONLINE ne répond pas sur 127.0.0.1:{ONLINE_GATEWAY_PORT}.")
 
     def _instance_meta(self, instance: str) -> dict:
         return _read_json(self.runtime / f"ezscore-web-{instance}.json", {})
@@ -360,6 +397,7 @@ class ServerController:
             env = desired["online"]["env"]
             maintenance = bool(desired["online"]["maintenance"])
             self._write_gateway_config(True)
+            self._start_caddy()
             self._start_gateway()
             try:
                 self._run_web_script("online", env)
@@ -400,6 +438,7 @@ class ServerController:
                 self.log(f"Env ONLINE mémorisé: {new_env} (serveur arrêté).")
                 return
             self._write_gateway_config(True)
+            self._start_caddy()
             self._start_gateway()
             if not _stop_pid(self.online_backend_pid):
                 raise RuntimeError("Le backend ONLINE ne s'est pas arrêté avant relance.")
@@ -425,7 +464,7 @@ class ServerController:
                 deadline = time.monotonic() + 3.0
                 observed = None
                 while time.monotonic() < deadline:
-                    runtime = gateway_runtime_status(self.online_url(), timeout=0.6)
+                    runtime = gateway_runtime_status(self.online_gateway_url(), timeout=0.6)
                     if runtime is not None:
                         observed = bool(runtime.get("maintenance", False))
                         if observed == requested:
@@ -441,6 +480,7 @@ class ServerController:
 
     def start_local(self) -> None:
         with self._local_lock:
+            self._start_caddy()
             self._run_web_script("local", "dev")
             self._wait_health(self.local_url())
             with self._state_lock:
@@ -464,6 +504,7 @@ class ServerController:
             if bool(desired["local"]["running"]):
                 if not _stop_pid(self.local_pid):
                     raise RuntimeError("Le serveur LOCAL ne s'est pas arrêté avant relance.")
+            self._start_caddy()
             self._run_web_script("local", "dev")
             self._wait_health(self.local_url())
             with self._state_lock:
@@ -484,6 +525,8 @@ class ServerController:
     def restore_desired(self) -> None:
         desired = self.snapshot_desired()
         self.log("Restauration des modes persistés…")
+        if desired["online"]["running"] or desired["local"]["running"]:
+            self._start_caddy()
         legacy_pid_file = self.runtime / "ezscore-web.pid"
         if legacy_pid_file.is_file():
             legacy_pid = _read_pid(legacy_pid_file)
@@ -494,6 +537,7 @@ class ServerController:
             legacy_pid_file.unlink(missing_ok=True)
         if desired["online"]["running"]:
             self._write_gateway_config(True)
+            self._start_caddy()
             self._start_gateway()
             backend_ok = http_alive(self.online_backend_url(), timeout=0.7)
             backend_meta = self._instance_meta("online")
@@ -509,7 +553,7 @@ class ServerController:
         if desired["local"]["running"]:
             local_meta = self._instance_meta("local")
             local_env_ok = str(local_meta.get("environment") or "") == "dev"
-            if not http_alive(self.local_url(), timeout=0.7) or not local_env_ok:
+            if not http_alive(self.local_backend_url(), timeout=0.7) or not local_env_ok:
                 _stop_pid(self.local_pid, timeout=2.0)
                 self._run_web_script("local", "dev")
                 self._wait_health(self.local_url())
@@ -530,7 +574,7 @@ class ServerController:
         local_process_alive = bool(local_pid and _pid_alive(local_pid))
 
         gateway_http_healthy = bool(
-            gateway_process_alive and gateway_alive(self.online_url(), 1.0)
+            gateway_process_alive and gateway_alive(self.online_gateway_url(), 1.0)
         )
         backend_http_healthy = bool(
             backend_process_alive and http_alive(self.online_backend_url(), 1.0)
@@ -540,7 +584,7 @@ class ServerController:
         )
 
         runtime = (
-            gateway_runtime_status(self.online_url(), 1.0)
+            gateway_runtime_status(self.online_gateway_url(), 1.0)
             if gateway_http_healthy
             else None
         )
