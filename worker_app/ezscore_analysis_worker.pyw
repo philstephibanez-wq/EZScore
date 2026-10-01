@@ -21,7 +21,7 @@ from tkinter import filedialog, messagebox, ttk
 from server_control import ServerController
 
 
-APP_VERSION = "R40.0I"
+APP_VERSION = "R41.0B"
 HEARTBEAT_SECONDS = 2.0
 CLAIM_SECONDS = 1.5
 RECONNECT_MIN_SECONDS = 1.0
@@ -201,7 +201,7 @@ class WorkerEngine:
                 candidates.append(candidate)
 
         probe = (
-            "import json,torch,bs_roformer,mel_band_roformer;"
+            "import json,torch,bs_roformer,mel_band_roformer,lv_chordia;"
             "print(json.dumps({"
             "'python':__import__('sys').executable,"
             "'torch':torch.__version__,"
@@ -230,6 +230,7 @@ class WorkerEngine:
                 data = json.loads(proc.stdout.strip().splitlines()[-1])
                 data["bs_roformer"] = True
                 data["mel_band_roformer"] = True
+                data["lv_chordia"] = True
                 return str(data["python"]), data
             except Exception as exc:
                 failures.append(f"{candidate}: {exc}")
@@ -262,7 +263,7 @@ class WorkerEngine:
 
         if not self.engine_python:
             raise RuntimeError(
-                "Aucun Python compatible trouvé. Il faut bs_roformer + mel_band_roformer."
+                "Aucun Python compatible trouvé. Il faut bs_roformer + mel_band_roformer + lv-chordia."
             )
         if not self.capabilities.get("cuda"):
             raise RuntimeError("CUDA n'est pas disponible dans le Python STEM sélectionné.")
@@ -961,7 +962,10 @@ class WorkerWindow:
         style.configure("Title.TLabel", font=("Segoe UI", 19, "bold"))
         style.configure("Sub.TLabel", foreground="#687780")
         style.configure("CardTitle.TLabel", font=("Segoe UI", 11, "bold"))
-        style.configure("State.TLabel", font=("Segoe UI", 12, "bold"))
+        style.configure("State.TLabel", font=("Segoe UI", 11, "bold"))
+        style.configure("StateGood.TLabel", font=("Segoe UI", 11, "bold"), foreground="#188038")
+        style.configure("StateBad.TLabel", font=("Segoe UI", 11, "bold"), foreground="#c62828")
+        style.configure("StateWarn.TLabel", font=("Segoe UI", 11, "bold"), foreground="#b06000")
         style.configure("Muted.TLabel", foreground="#687780")
         style.configure("Danger.TButton", foreground="#8b1e1e")
 
@@ -978,12 +982,11 @@ class WorkerWindow:
 
         summary = ttk.Frame(outer)
         summary.pack(fill="x", pady=(0, 10))
-        for col in range(4):
+        for col in range(3):
             summary.columnconfigure(col, weight=1)
         self._summary_card(summary, 0, "ONLINE", self.online_summary_var)
         self._summary_card(summary, 1, "LOCAL DEV", self.local_summary_var)
         self._summary_card(summary, 2, "WORKER", self.worker_summary_var)
-        self._summary_card(summary, 3, "GPU", self.gpu_summary_var)
 
         servers = ttk.Frame(outer)
         servers.pack(fill="x", pady=(0, 10))
@@ -1064,11 +1067,12 @@ class WorkerWindow:
         lower.pack(fill="both", expand=True)
         queue_box = ttk.LabelFrame(lower, text="Traitements en cours / à faire", padding=8)
         console_box = ttk.LabelFrame(lower, text="Console temps réel", padding=8)
-        lower.add(queue_box, weight=1)
+        lower.add(queue_box, weight=2)
         lower.add(console_box, weight=2)
 
         columns = ("id", "etat", "type", "chanson", "progression")
-        self.queue_tree = ttk.Treeview(queue_box, columns=columns, show="headings", height=5)
+        self.queue_tree = ttk.Treeview(queue_box, columns=columns, show="headings", height=8)
+        style.configure("Treeview", rowheight=25)
         headings = {"id": "#", "etat": "État", "type": "Traitement", "chanson": "Chanson", "progression": "Progression"}
         widths = {"id": 55, "etat": 95, "type": 95, "chanson": 650, "progression": 105}
         for name in columns:
@@ -1092,9 +1096,24 @@ class WorkerWindow:
         console_box.columnconfigure(0, weight=1)
 
     def _summary_card(self, parent, column: int, title: str, variable: tk.StringVar) -> None:
-        frame = ttk.LabelFrame(parent, text=title, padding=9)
-        frame.grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else 4, 0 if column == 3 else 4))
-        ttk.Label(frame, textvariable=variable, style="State.TLabel", wraplength=255).pack(anchor="w")
+        frame = ttk.LabelFrame(parent, text=title, padding=(6, 4))
+        frame.grid(row=0, column=column, sticky="nsew", padx=(0 if column == 0 else 3, 0 if column == 2 else 3), pady=(0, 2))
+        label = ttk.Label(frame, textvariable=variable, style="State.TLabel", wraplength=300)
+        label.pack(anchor="w")
+
+        def refresh_style(*_args):
+            value = str(variable.get() or "").upper()
+            if any(token in value for token in ("ARRÊTÉ", "DÉCONNECTÉ", "ERREUR", "INDISPONIBLE")):
+                label.configure(style="StateBad.TLabel")
+            elif any(token in value for token in ("MAINTENANCE", "RECONNEXION", "ATTENTE", "PAUSE", "PROTECTION")):
+                label.configure(style="StateWarn.TLabel")
+            elif any(token in value for token in ("CONNECTÉ", "ONLINE", "ACTIF", "RUNNING")):
+                label.configure(style="StateGood.TLabel")
+            else:
+                label.configure(style="State.TLabel")
+
+        variable.trace_add("write", refresh_style)
+        refresh_style()
 
     def _busy_guard(self, operation: str) -> bool:
         if self.engine.current_job is not None:
@@ -1244,7 +1263,10 @@ class WorkerWindow:
             if locally_running and self.engine.current_job:
                 progress_value = int(self.engine.current_job.get("progress") or progress_value)
             progress = f"{progress_value} %" if status == "running" or locally_running else "—"
-            self.queue_tree.insert("", "end", values=(job.get("job_id"), state, kind, song, progress))
+            tag = "running" if state == "EN COURS" else "pending"
+            self.queue_tree.tag_configure("running", foreground="#188038")
+            self.queue_tree.tag_configure("pending", foreground="#b06000")
+            self.queue_tree.insert("", "end", values=(job.get("job_id"), state, kind, song, progress), tags=(tag,))
 
     def _toggle_pause(self):
         self.engine.pause(not self.engine.paused)
@@ -1334,9 +1356,12 @@ class WorkerWindow:
                 self.events.put(("server_snapshot", self.server_control.status()))
                 self._start()
             elif kind == "restore_error":
-                self.operation_var.set("Restauration incomplète")
+                self.operation_var.set("Restauration incomplète · Worker actif")
                 self.events.put(("server_snapshot", self.server_control.status()))
-                messagebox.showerror("EZScore — restauration serveurs", str(payload))
+                self._append(f"[SERVER] Restauration incomplète: {payload}")
+                self._append("[SERVER] Le Worker démarre quand même et gère lui-même la reconnexion à sa cible.")
+                self._start()
+                messagebox.showwarning("EZScore — restauration serveurs", str(payload))
             elif kind == "connection_config":
                 data = payload if isinstance(payload, dict) else {}
                 self.url_var.set(str(data.get("url", "—")))

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse, json, time
+import argparse, importlib.util, json, time
 from pathlib import Path
 import numpy as np
 import librosa
@@ -165,78 +165,129 @@ def load_mix(paths,sr=11025):
     mix/=max(1,len(signals))
     return librosa.util.normalize(mix),sr
 
-def decode_profile(level,beat_vectors,silent,in_key,beat_times,bpm,phase):
-    cs=candidates(level)
-    n=len(beat_vectors)
-    if n==0:raise RuntimeError("no beats detected")
 
-    scores=[]
-    for i,vec in enumerate(beat_vectors):
-        if silent[i]:
-            scores.append(np.full(len(cs),-9.0))
-            continue
-        row=[]
-        for c in cs:
-            s=float(np.dot(vec,c["template"]))-c["complexity"]
-            if c["root"] in in_key:s+=.035
-            row.append(s)
-        scores.append(np.array(row,float))
+CHORD_ENGINE="lv-chordia"
+CHORD_DICTIONARY="submission"
 
-    transition={"beginner":.155,"intermediate":.105,"expert":.055}[level]
-    dp=np.full((n,len(cs)),-1e9,float)
-    prev=np.full((n,len(cs)),-1,int)
-    dp[0]=scores[0]
-    for t in range(1,n):
-        if silent[t]:
-            dp[t]=dp[t-1];prev[t]=np.arange(len(cs));continue
-        for s,c in enumerate(cs):
-            best=-1e9;bestp=0
-            for p,pc in enumerate(cs):
-                penalty=0.0 if p==s else transition
-                if pc["root"]==c["root"] and pc["quality"]!=c["quality"]:penalty*=.60
-                value=dp[t-1,p]+scores[t][s]-penalty
-                if value>best:best=value;bestp=p
-            dp[t,s]=best;prev[t,s]=bestp
+def quality_chord_engine_available():
+    try:
+        return importlib.util.find_spec("lv_chordia") is not None
+    except Exception:
+        return False
 
-    states=[0]*n;states[-1]=int(np.argmax(dp[-1]))
-    for t in range(n-1,0,-1):states[t-1]=int(prev[t,states[t]])
+def ezscore_chord_label(raw):
+    label=str(raw or "N").strip()
+    if not label or label=="N":return "."
+    bass=""
+    if "/" in label:
+        label,bass_part=label.split("/",1)
+        bass_part=bass_part.strip()
+        if bass_part:bass="/"+bass_part
+    if ":" not in label:return label+bass
+    root,quality=label.split(":",1)
+    root=root.strip();quality=quality.strip()
+    quality_map={
+        "maj":"","min":"m","7":"7","maj7":"maj7","min7":"m7",
+        "dim":"dim","dim7":"dim7","hdim7":"m7b5","aug":"aug",
+        "sus2":"sus2","sus4":"sus4","min6":"m6","maj6":"6",
+        "min9":"m9","maj9":"maj9","9":"9","11":"11","13":"13",
+    }
+    return f"{root}{quality_map.get(quality,quality)}{bass}"
 
-    labels=[];confs=[];last="."
-    for i,state in enumerate(states):
-        if silent[i]:
-            labels.append(".");confs.append(0.0);last=".";continue
-        c=cs[state];ordered=np.sort(scores[i]);margin=float(ordered[-1]-ordered[-2]) if len(ordered)>1 else 0.0
-        label=c["label"]
+def analyze_chords_absolute(audio_path):
+    if not quality_chord_engine_available():
+        raise RuntimeError(
+            "Moteur d'accords haute qualité absent : installez `lv-chordia==1.1.0`. "
+            "EZScore refuse tout fallback chroma silencieux."
+        )
+    from lv_chordia.chord_recognition import chord_recognition
 
-        # Beginner is strictly simple major/minor.
-        if level=="beginner":
-            label=NOTES[c["root"]]+("m" if c["quality"]=="minor" else "")
+    # Exact historical EZScore contract: no device argument here.
+    # The Worker environment itself remains CUDA-only for EZScore processing.
+    raw_segments=chord_recognition(
+        audio_path=str(audio_path),
+        chord_dict_name=CHORD_DICTIONARY,
+    )
 
-        # Intermediate keeps extensions only when the evidence is clear.
-        if level=="intermediate" and c["quality"] not in TRIADS and margin<.105:
-            label=NOTES[c["root"]]+("m" if c["quality"]=="min7" else "")
+    segments=[]
+    for item in raw_segments or []:
+        start=float(item.get("start_time",0.0) or 0.0)
+        end=float(item.get("end_time",start) or start)
+        raw=str(item.get("chord","N") or "N").strip()
+        if end<=start:continue
+        segments.append({
+            "start":start,
+            "end":end,
+            "chord":ezscore_chord_label(raw),
+            "raw_chord":raw,
+        })
+    if not segments:
+        raise RuntimeError("lv-chordia n'a retourné aucun segment harmonique exploitable.")
+    return segments
 
-        # Standard guitar spelling: plain major triad is always "C", never "Cmaj".
-        if label.endswith("maj") and not label.endswith("maj7"):
-            label=label[:-3]
+def chord_for_interval(segments,start,end):
+    t0=float(start);t1=max(t0+1e-6,float(end))
+    best=None;best_overlap=0.0
+    for segment in segments or []:
+        s0=float(segment.get("start",0.0) or 0.0)
+        s1=float(segment.get("end",s0) or s0)
+        overlap=max(0.0,min(t1,s1)-max(t0,s0))
+        if overlap>best_overlap:
+            best_overlap=overlap;best=segment
+    if best is None:
+        midpoint=(t0+t1)*0.5
+        best=min(
+            segments or [],
+            key=lambda segment:abs(
+                ((float(segment.get("start",0.0))+float(segment.get("end",0.0)))*0.5)-midpoint
+            ),
+            default=None,
+        )
+        if best is None:return ".",0.0
+    ratio=best_overlap/max(1e-6,t1-t0)
+    return str(best.get("chord",".") or "."),float(max(0.0,min(1.0,ratio)))
 
-        labels.append(label);last=label
-        confs.append(max(0.0,min(1.0,.55+margin*2.5)))
+def simplify_chord(label,level):
+    text=str(label or ".").strip()
+    if not text or text in {"N","."}:return "."
+    bass=""
+    if "/" in text:
+        text,bass_part=text.split("/",1);bass="/"+bass_part
+    root=text
+    suffix=""
+    for i,ch in enumerate(text):
+        if i>0 and (ch=="m" or ch.isdigit() or ch in {"+","s"}):
+            root=text[:i];suffix=text[i:];break
+    if level=="expert":return text+bass
+    is_minor=suffix.startswith("m") and not suffix.startswith("maj")
+    if level=="beginner":
+        return root+("m" if is_minor else "")
+    if suffix in {"","m","7","m7","sus2","sus4","dim"}:
+        return text
+    if is_minor:return root+"m"
+    return root
 
+def project_profile(level,segments,beat_times,bpm,phase,tempo):
     chords=[];previous=None
-    for i,(label,conf) in enumerate(zip(labels,confs)):
+    fallback_step=60.0/tempo if tempo>20 else .5
+    for i,start in enumerate(beat_times):
+        end=beat_times[i+1] if i+1<len(beat_times) else float(start)+fallback_step
+        label,overlap=chord_for_interval(segments,float(start),float(end))
+        label=simplify_chord(label,level)
         if label==previous:continue
         mi,bi=position(i,phase,bpm)
         chords.append({
-            "start_ms":int(round(float(beat_times[i])*1000)),
+            "start_ms":int(round(float(start)*1000)),
             "measure_index":mi,
             "beat_index":bi,
             "subdivision_index":None,
             "chord":label,
-            "confidence":round(float(conf),4),
+            "confidence":round(float(overlap),4),
         })
         previous=label
     return chords
+def decode_profile(*args,**kwargs):
+    raise RuntimeError("Legacy chroma chord decoder disabled: lv-chordia HQ is mandatory.")
 
 def analyse(source,stems,drums,requested_signature,progress_file=None,filter_noise=False):
     prog(progress_file,5,"load","Chargement des sources audio")
@@ -246,9 +297,8 @@ def analyse(source,stems,drums,requested_signature,progress_file=None,filter_noi
     else:
         yh,sr=load_mix([source]);harmonic_source="original"
 
-    noise_mask=None
     if filter_noise:
-        yh,noise_mask=suppress_crowd_noise(yh,sr)
+        yh,_=suppress_crowd_noise(yh,sr)
     if drums and Path(drums).is_file():
         yr,_=librosa.load(str(drums),sr=sr,mono=True);yr=librosa.util.normalize(yr);rhythm_source="drums"
         if filter_noise:yr,_=suppress_crowd_noise(yr,sr)
@@ -273,6 +323,7 @@ def analyse(source,stems,drums,requested_signature,progress_file=None,filter_noi
     if bass_path:
         bass_y,_=librosa.load(str(bass_path),sr=sr,mono=True)
         bass_y=librosa.util.normalize(bass_y)
+
     if requested_signature=="auto":
         metric=detect_meter(harmonic_y=yh,bass_y=bass_y,onset=onset,beat_frames=beat_frames,sr=sr,hop=hop)
         signature=metric.signature
@@ -286,65 +337,49 @@ def analyse(source,stems,drums,requested_signature,progress_file=None,filter_noi
         metric_scores={signature:1.0}
     bpm=numerator(signature)
 
-    # R35.8a: timeline prompteur depuis t=0 du MP3.
     beat_times,prepended_count=extend_beats_to_zero(beat_times,duration,tempo)
     if prepended_count:
         phase=(phase+prepended_count)%max(1,bpm)
 
-    prog(progress_file,32,"chroma","Extraction de l’harmonie")
+    prog(progress_file,30,"key","Estimation de la tonalité")
     chroma=librosa.feature.chroma_cqt(y=yh,sr=sr,hop_length=hop)
     chroma=np.maximum(chroma,0.0)
-    key,key_info=detect_key(np.mean(chroma,axis=1));in_key=diatonic_roots(key_info)
-    rms=librosa.feature.rms(y=yh,hop_length=hop)[0]
-    floor=float(np.percentile(rms,12)) if rms.size else 0.0
-    spectral_flatness=librosa.feature.spectral_flatness(y=yh,hop_length=hop)[0]
+    key,_=detect_key(np.mean(chroma,axis=1))
 
-    beat_vectors=[];silent=[]
-    for i,start in enumerate(beat_times):
-        end=beat_times[i+1] if i+1<len(beat_times) else min(duration,start+max(.25,60.0/max(tempo,60.0)))
-        f0=max(0,int(librosa.time_to_frames(start,sr=sr,hop_length=hop)))
-        f1=min(chroma.shape[1],max(f0+1,int(librosa.time_to_frames(end,sr=sr,hop_length=hop))))
-        if f0>=chroma.shape[1]:
-            beat_vectors.append(np.zeros(12));silent.append(True);continue
-        segment=np.mean(chroma[:,f0:f1],axis=1)
-        rr=rms[min(f0,len(rms)-1):min(max(f1,f0+1),len(rms))] if rms.size else np.array([1.0])
-        local=float(np.mean(rr))
-        energy_silent=local<=max(.0025,floor*.50) or float(np.sum(segment))<=1e-6
-        total=float(np.sum(segment))
-        if total>1e-9:
-            ordered=np.sort(segment);top3_ratio=float(np.sum(ordered[-3:])/total);peak_ratio=float(ordered[-1]/total)
-        else:
-            top3_ratio=0.0;peak_ratio=0.0
-        ff=spectral_flatness[min(f0,len(spectral_flatness)-1):min(max(f1,f0+1),len(spectral_flatness))] if spectral_flatness.size else np.array([0.0])
-        local_flatness=float(np.mean(ff))
-        has_harmony=(not energy_silent and top3_ratio>=0.36 and peak_ratio>=0.105 and local_flatness<=0.42)
-        no_harmony=not has_harmony
-        silent.append(no_harmony)
-        beat_vectors.append(segment/max(float(np.linalg.norm(segment)),1e-9) if has_harmony else np.zeros(12))
+    prog(progress_file,42,"chords_hq","Reconnaissance harmonique continue lv-chordia")
+    segments=analyze_chords_absolute(Path(source))
 
-    prog(progress_file,50,"beginner","Construction du profil Débutant")
-    beginner=decode_profile("beginner",beat_vectors,silent,in_key,beat_times,bpm,phase)
-    prog(progress_file,63,"intermediate","Construction du profil Intermédiaire")
-    intermediate=decode_profile("intermediate",beat_vectors,silent,in_key,beat_times,bpm,phase)
-    prog(progress_file,76,"expert","Construction du profil Expert")
-    expert=decode_profile("expert",beat_vectors,silent,in_key,beat_times,bpm,phase)
+    prog(progress_file,58,"beginner","Projection du profil Débutant")
+    beginner=project_profile("beginner",segments,beat_times,bpm,phase,tempo)
+    prog(progress_file,68,"intermediate","Projection du profil Intermédiaire")
+    intermediate=project_profile("intermediate",segments,beat_times,bpm,phase,tempo)
+    prog(progress_file,78,"expert","Projection du profil Expert")
+    expert=project_profile("expert",segments,beat_times,bpm,phase,tempo)
 
     prog(progress_file,88,"timeline","Construction de la timeline commune")
     beats=[]
     for i,t in enumerate(beat_times):
         mi,bi=position(i,phase,bpm)
-        beats.append({"start_ms":int(round(float(t)*1000)),"measure_index":mi,"beat_index":bi,"subdivision_index":None})
+        beats.append({
+            "start_ms":int(round(float(t)*1000)),
+            "measure_index":mi,
+            "beat_index":bi,
+            "subdivision_index":None,
+        })
 
     return {
         "ok":True,
-        "version":"r35.10-absolute-full-measures",
+        "version":"r41.0b-hq-lv-chordia-historical-call",
         "tempo_bpm":round(tempo,3),
         "time_signature":signature,
         "key":key,
         "harmony_source":harmonic_source,
         "rhythm_source":rhythm_source,
         "noise_filter_enabled":bool(filter_noise),
-        "harmonic_goal":"guitar_accompaniment_from_full_harmony",
+        "harmonic_goal":"continuous_hq_then_project_to_canonical_beats",
+        "chord_engine":CHORD_ENGINE,
+        "chord_dictionary":CHORD_DICTIONARY,
+        "chord_source":"original_audio",
         "downbeat_phase":phase,
         "downbeat_confidence":round(float(phase_conf),4),
         "meter_candidates":metric_scores,

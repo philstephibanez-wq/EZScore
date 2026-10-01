@@ -1,0 +1,3 @@
+# EZScore_v1 - moteur accords HQ historique
+# Python Worker 3.13 / environnement CUDA
+lv-chordia==1.1.0
