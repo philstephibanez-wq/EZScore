@@ -30,10 +30,10 @@
     <input type="hidden" name="_token" value="{{ csrf_token('event_create') }}">
     <label>{{ 'event.fields.title'|trans({}, 'event') }}<input name="title" required></label>
     <label>{{ 'event.fields.group'|trans({}, 'event') }}
-      <select name="group_id" required><option value="">â€”</option>{% for group in creation_groups %}<option value="{{ group.id }}">{{ group.name }}</option>{% endfor %}</select>
+      <select name="group_id" required><option value="">&mdash;</option>{% for group in creation_groups %}<option value="{{ group.id }}">{{ group.name }}</option>{% endfor %}</select>
     </label>
     <label>{{ 'event.fields.playlist'|trans({}, 'event') }}
-      <select name="playlist_id" required><option value="">â€”</option>{% for playlist in creation_playlists %}<option value="{{ playlist.id }}">{{ playlist.name }}</option>{% endfor %}</select>
+      <select name="playlist_id" required><option value="">&mdash;</option>{% for playlist in creation_playlists %}<option value="{{ playlist.id }}">{{ playlist.name }}</option>{% endfor %}</select>
     </label>
     <label>{{ 'event.fields.starts_at'|trans({}, 'event') }}<input type="datetime-local" name="starts_at" required></label>
     <label>{{ 'event.fields.ends_at'|trans({}, 'event') }}<input type="datetime-local" name="ends_at"></label>
@@ -52,13 +52,13 @@
     <label class="list-filter-field"><span>{{ 'list_filters.search'|trans({}, 'list_filters') }}</span><input type="search" name="q" value="{{ filters.q }}" placeholder="{{ 'list_filters.session_search'|trans({}, 'list_filters') }}"></label>
     <label class="list-filter-field"><span>{{ 'event.fields.status'|trans({}, 'event') }}</span>
       <select name="status">
-        <option value="">{{ 'list_filters.all'|trans({}, 'list_filters') }}</option>
+        <option value="">&mdash;</option>
         {% for status in ['draft','validated','scheduled','cancelled','completed'] %}<option value="{{ status }}" {{ filters.status == status ? 'selected' : '' }}>{{ ('event.status.' ~ status)|trans({}, 'event') }}</option>{% endfor %}
       </select>
     </label>
     <label class="list-filter-field"><span>{{ 'event.fields.mode'|trans({}, 'event') }}</span>
       <select name="mode">
-        <option value="">{{ 'list_filters.all'|trans({}, 'list_filters') }}</option>
+        <option value="">&mdash;</option>
         {% for mode in ['onsite','remote','hybrid'] %}<option value="{{ mode }}" {{ filters.mode == mode ? 'selected' : '' }}>{{ ('event.mode.' ~ mode)|trans({}, 'event') }}</option>{% endfor %}
       </select>
     </label>
