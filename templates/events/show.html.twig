@@ -23,7 +23,6 @@
     <div><span>{{ 'event.fields.group'|trans({}, 'event') }}</span><strong>{{ event.group ? event.group.name : '—' }}</strong></div>
     <div><span>{{ 'event.fields.playlist'|trans({}, 'event') }}</span><strong>{{ event.playlist ? event.playlist.name : '—' }}</strong></div>
     <div><span>{{ 'event.fields.location'|trans({}, 'event') }}</span><strong>{{ event.location ?: '—' }}</strong></div>
-    <div><span>{{ 'event.fields.remote_url'|trans({}, 'event') }}</span>{% if event.remoteUrl %}<a href="{{ event.remoteUrl }}" target="_blank" rel="noopener">{{ event.remoteUrl }}</a>{% else %}<strong>—</strong>{% endif %}</div>
     <div><span>{{ 'event.fields.status'|trans({}, 'event') }}</span><strong>{{ ('event.status.' ~ event.status.value)|trans({}, 'event') }}</strong></div>
     <div><span>{{ 'event.fields.creator'|trans({}, 'event') }}</span><strong>{{ event.createdBy.displayName }}</strong></div>
   </div>
@@ -62,7 +61,6 @@
       </select>
     </label>
     <label>{{ 'event.fields.location'|trans({}, 'event') }}<input name="location" value="{{ event.location }}"></label>
-    <label>{{ 'event.fields.remote_url'|trans({}, 'event') }}<input type="url" name="remote_url" value="{{ event.remoteUrl }}"></label>
     <label>{{ 'event.fields.status'|trans({}, 'event') }}
       <select name="status">
         {% for status in ['draft','validated','scheduled','cancelled','completed'] %}<option value="{{ status }}" {{ event.status.value == status ? 'selected' : '' }}>{{ ('event.status.' ~ status)|trans({}, 'event') }}</option>{% endfor %}

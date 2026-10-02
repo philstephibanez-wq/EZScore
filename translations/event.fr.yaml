@@ -34,7 +34,6 @@ event:
     ends_at: Fin
     mode: Mode
     location: Lieu
-    remote_url: Lien distant
     status: Statut
     group: Groupe
     playlist: Playlist

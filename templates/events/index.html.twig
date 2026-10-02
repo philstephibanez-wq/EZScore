@@ -41,7 +41,6 @@
       <select name="mode"><option value="onsite">{{ 'event.mode.onsite'|trans({}, 'event') }}</option><option value="remote">{{ 'event.mode.remote'|trans({}, 'event') }}</option><option value="hybrid">{{ 'event.mode.hybrid'|trans({}, 'event') }}</option></select>
     </label>
     <label>{{ 'event.fields.location'|trans({}, 'event') }}<input name="location"></label>
-    <label>{{ 'event.fields.remote_url'|trans({}, 'event') }}<input type="url" name="remote_url"></label>
     <label class="event-description">{{ 'event.fields.description'|trans({}, 'event') }}<textarea name="description" rows="3"></textarea></label>
     <button class="primary" type="submit">{{ 'event.create_button'|trans({}, 'event') }}</button>
   </form>

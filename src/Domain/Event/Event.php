@@ -41,11 +41,7 @@ final class Event
 
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $location = null;
-
-    #[ORM\Column(length: 800, nullable: true)]
-    private ?string $remoteUrl = null;
-
-    #[ORM\Column(length: 16, enumType: EventStatus::class)]
+#[ORM\Column(length: 16, enumType: EventStatus::class)]
     private EventStatus $status = EventStatus::Draft;
 
     #[ORM\ManyToOne(targetEntity: User::class)]
@@ -93,8 +89,6 @@ final class Event
     public function setMode(EventMode $mode): self { $this->mode = $mode; return $this->touch(); }
     public function getLocation(): ?string { return $this->location; }
     public function setLocation(?string $location): self { $this->location = $location !== null ? trim($location) : null; return $this->touch(); }
-    public function getRemoteUrl(): ?string { return $this->remoteUrl; }
-    public function setRemoteUrl(?string $url): self { $this->remoteUrl = $url !== null ? trim($url) : null; return $this->touch(); }
     public function getStatus(): EventStatus { return $this->status; }
     public function setStatus(EventStatus $status): self { $this->status = $status; return $this->touch(); }
     public function getCreatedBy(): User { return $this->createdBy; }

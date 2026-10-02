@@ -62,7 +62,6 @@ final class EventController extends AbstractController
                 ->setEndsAt($this->parseDateTime((string) $request->request->get('ends_at')))
                 ->setMode(EventMode::tryFrom((string) $request->request->get('mode')) ?? EventMode::Onsite)
                 ->setLocation((string) $request->request->get('location'))
-                ->setRemoteUrl((string) $request->request->get('remote_url'))
                 ->setGroup($group)
                 ->setPlaylist($playlist)
                 ->setStatus(EventStatus::Draft);
@@ -280,7 +279,6 @@ final class EventController extends AbstractController
             ->setEndsAt($this->parseDateTime((string) $request->request->get('ends_at')))
             ->setMode(EventMode::tryFrom((string) $request->request->get('mode')) ?? EventMode::Onsite)
             ->setLocation((string) $request->request->get('location'))
-            ->setRemoteUrl((string) $request->request->get('remote_url'))
             ->setStatus(EventStatus::tryFrom((string) $request->request->get('status')) ?? EventStatus::Scheduled);
 
         $em->flush();
