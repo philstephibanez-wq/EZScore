@@ -13,22 +13,58 @@ if ([System.IO.Path]::GetFullPath($Python) -ne [System.IO.Path]::GetFullPath($Ex
     throw "Unexpected Worker Python: $Python (expected $ExpectedPython)"
 }
 
-# Child Worker inherits this explicit interpreter path. No .pyw association or global Python.
 $env:EZSCORE_STEM_PYTHON = $ExpectedPython
-
-$Pythonw = Join-Path (Split-Path -Parent $ExpectedPython) "pythonw.exe"
-if (-not (Test-Path $Pythonw)) {
-    throw "pythonw.exe missing in Worker venv: $Pythonw"
-}
 
 $App = Join-Path $Project "worker_app\ezscore_analysis_worker.pyw"
 if (-not (Test-Path $App)) {
     throw "Desktop worker app missing: $App"
 }
 
-Start-Process `
-    -FilePath $Pythonw `
-    -ArgumentList @("`"$App`"") `
-    -WorkingDirectory $Project
+$LogDir = Join-Path $Project "var\log"
+$RuntimeDir = Join-Path $Project "var\runtime"
+New-Item -ItemType Directory -Force -Path $LogDir,$RuntimeDir | Out-Null
 
-Write-Host "[OK] EZScore Analysis Worker launched."
+$StdoutLog = Join-Path $LogDir "analysis-worker-bootstrap.stdout.log"
+$StderrLog = Join-Path $LogDir "analysis-worker-bootstrap.stderr.log"
+$PidFile = Join-Path $RuntimeDir "analysis-worker.pid"
+$BootstrapFile = Join-Path $RuntimeDir "analysis-worker-bootstrap.json"
+
+Remove-Item $StdoutLog,$StderrLog,$PidFile -Force -ErrorAction SilentlyContinue
+
+$WorkerProcess = Start-Process `
+    -FilePath $ExpectedPython `
+    -ArgumentList @("`"$App`"") `
+    -WorkingDirectory $Project `
+    -WindowStyle Hidden `
+    -RedirectStandardOutput $StdoutLog `
+    -RedirectStandardError $StderrLog `
+    -PassThru
+
+$WorkerProcess.Id | Set-Content -Path $PidFile -Encoding ascii
+
+$Deadline = (Get-Date).AddSeconds(8)
+while ((Get-Date) -lt $Deadline) {
+    if (Test-Path $BootstrapFile) {
+        Write-Host "[OK] EZScore Analysis Worker launched. PID=$($WorkerProcess.Id)"
+        exit 0
+    }
+
+    if ($WorkerProcess.HasExited) {
+        $stderr = ""
+        if (Test-Path $StderrLog) {
+            $stderr = (Get-Content $StderrLog -Raw -ErrorAction SilentlyContinue).Trim()
+        }
+        if ([string]::IsNullOrWhiteSpace($stderr)) {
+            $stderr = "aucune sortie stderr"
+        }
+        throw "Worker exited during bootstrap (exit=$($WorkerProcess.ExitCode)). $stderr"
+    }
+
+    Start-Sleep -Milliseconds 200
+}
+
+if ($WorkerProcess.HasExited) {
+    throw "Worker exited during bootstrap (exit=$($WorkerProcess.ExitCode))."
+}
+
+Write-Host "[OK] EZScore Analysis Worker launched. PID=$($WorkerProcess.Id); bootstrap encore en cours."

@@ -123,9 +123,24 @@
             gain.gain.value = track.enabled ? track.volume : 0;
             media.playbackRate = this.playbackRate;
 
-            const onWaiting = () => this._setTrackState(track, 'buffering');
+            const onWaiting = () => {
+
+                if (media.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+
+                    track.lastError = null;
+
+                    if (!this.playing) this._setTrackState(track, 'ready');
+
+                    return;
+
+                }
+
+                this._setTrackState(track, 'buffering');
+
+            };
             const onPlaying = () => this._setTrackState(track, 'playing');
             const onCanPlay = () => {
+                track.lastError = null;
                 if (!this.playing) this._setTrackState(track, 'ready');
             };
             const onError = () => {
@@ -144,7 +159,9 @@
             media.addEventListener('waiting', onWaiting);
             media.addEventListener('stalled', onWaiting);
             media.addEventListener('playing', onPlaying);
+            media.addEventListener('loadeddata', onCanPlay);
             media.addEventListener('canplay', onCanPlay);
+            media.addEventListener('canplaythrough', onCanPlay);
             media.addEventListener('error', onError);
             media.addEventListener('ended', onEnded);
 
@@ -152,7 +169,9 @@
                 media.removeEventListener('waiting', onWaiting);
                 media.removeEventListener('stalled', onWaiting);
                 media.removeEventListener('playing', onPlaying);
+                media.removeEventListener('loadeddata', onCanPlay);
                 media.removeEventListener('canplay', onCanPlay);
+                media.removeEventListener('canplaythrough', onCanPlay);
                 media.removeEventListener('error', onError);
                 media.removeEventListener('ended', onEnded);
             };
@@ -479,7 +498,10 @@
                 return Promise.reject(new Error('ENGINE_DISPOSED'));
             }
 
-            if (track.media.src && track.media.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+            const media = track.media;
+
+            if (media.src && media.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+                track.lastError = null;
                 this._setTrackState(track, 'ready');
                 return Promise.resolve(track);
             }
@@ -492,10 +514,11 @@
 
             track.loadPromise = new Promise((resolve, reject) => {
                 let settled = false;
-                const media = track.media;
 
                 const cleanup = () => {
-                    media.removeEventListener('canplay', onCanPlay);
+                    media.removeEventListener('loadeddata', onReady);
+                    media.removeEventListener('canplay', onReady);
+                    media.removeEventListener('canplaythrough', onReady);
                     media.removeEventListener('loadedmetadata', onMetadata);
                     media.removeEventListener('error', onError);
                     clearTimeout(timeout);
@@ -505,23 +528,25 @@
                     if (settled) return;
                     settled = true;
                     cleanup();
+                    track.lastError = null;
                     this._setTrackState(track, 'ready');
                     resolve(track);
                 };
 
-                const onCanPlay = () => succeed();
+                const onReady = () => {
+                    if (media.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) succeed();
+                };
 
                 const onMetadata = () => {
-                    // Some browsers report HAVE_CURRENT_DATA before firing
-                    // canplay for local MP3/M4A. Allow start as soon as a frame
-                    // beyond the current position is available.
-                    if (media.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-                        succeed();
-                    }
+                    if (media.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) succeed();
                 };
 
                 const onError = () => {
                     if (settled) return;
+                    if (media.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+                        succeed();
+                        return;
+                    }
                     settled = true;
                     cleanup();
                     const code = media.error?.code || 0;
@@ -530,12 +555,18 @@
 
                 const timeout = window.setTimeout(() => {
                     if (settled) return;
+                    if (media.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+                        succeed();
+                        return;
+                    }
                     settled = true;
                     cleanup();
                     reject(new Error(`${track.key}: LOAD_TIMEOUT`));
-                }, 15000);
+                }, 45000);
 
-                media.addEventListener('canplay', onCanPlay);
+                media.addEventListener('loadeddata', onReady);
+                media.addEventListener('canplay', onReady);
+                media.addEventListener('canplaythrough', onReady);
                 media.addEventListener('loadedmetadata', onMetadata);
                 media.addEventListener('error', onError);
 
@@ -544,8 +575,12 @@
                     media.preload = 'auto';
                     media.playbackRate = this.playbackRate;
                     media.load();
-                } else {
+                } else if (media.networkState === HTMLMediaElement.NETWORK_EMPTY) {
                     media.load();
+                }
+
+                if (media.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+                    succeed();
                 }
             }).catch((error) => {
                 this._trackFailure(track, error);
@@ -595,8 +630,27 @@
         }
 
         _startTimelineLoop() {
+            let lastReconcile = 0;
+
             const tick = () => {
                 if (this.disposed) return;
+
+                const now = performance.now();
+                if (now - lastReconcile >= 500) {
+                    this.tracks.forEach((track) => {
+                        const media = track.media;
+                        if (
+                            media.src
+                            && !media.error
+                            && media.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA
+                            && (track.state === 'loading' || track.state === 'buffering' || track.state === 'error')
+                        ) {
+                            track.lastError = null;
+                            this._setTrackState(track, this.playing && track.enabled ? 'playing' : 'ready');
+                        }
+                    });
+                    lastReconcile = now;
+                }
 
                 const time = this.currentTime();
                 const duration = this.duration();
