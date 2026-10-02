@@ -1,0 +1,58 @@
+.ez-cast-control {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+.ez-cast-button,
+.ez-cast-device,
+.ez-cast-stop {
+    min-height: 38px;
+    border: 1px solid rgba(127, 127, 127, .35);
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+}
+.ez-cast-button {
+    padding: 0 12px;
+    white-space: nowrap;
+}
+.ez-cast-button.is-connected {
+    font-weight: 700;
+}
+.ez-cast-menu {
+    position: absolute;
+    z-index: 1200;
+    top: calc(100% + 8px);
+    right: 0;
+    width: min(340px, calc(100vw - 24px));
+    padding: 12px;
+    border: 1px solid rgba(127, 127, 127, .35);
+    border-radius: 10px;
+    background: Canvas;
+    color: CanvasText;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .18);
+}
+.ez-cast-status {
+    margin: 0 0 10px;
+    font-size: .92rem;
+}
+.ez-cast-devices {
+    display: grid;
+    gap: 8px;
+}
+.ez-cast-device,
+.ez-cast-stop {
+    width: 100%;
+    padding: 8px 10px;
+    text-align: left;
+}
+.ez-cast-stop {
+    margin-top: 8px;
+}
+.ez-cast-device:disabled,
+.ez-cast-stop:disabled {
+    opacity: .6;
+    cursor: wait;
+}
