@@ -34,16 +34,11 @@ event:
     description: Description
     starts_at: Starts
     ends_at: Ends
-    mode: Mode
     location: Location
     status: Status
     group: Group
     playlist: Playlist
     creator: Creator
-  mode:
-    onsite: On site
-    remote: Remote
-    hybrid: Hybrid
   status:
     draft: Draft
     validated: Validated
@@ -63,3 +58,4 @@ event:
     heading: 'Invitation: %title%'
     hello: 'Hello %name%,'
     open: Open session and respond
+

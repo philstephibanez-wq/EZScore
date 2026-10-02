@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="{{ app.request.locale }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>EZSCORE — {{ event.title }}</title>
+    <link rel="stylesheet" href="/assets/css/live/display-gate-r1c2.css?v=20261002r1c2">
+</head>
+<body class="display-gate-page">
+<main class="display-stage">
+    <header class="display-stage-head">
+        <div class="display-live-badge">{{ live_run.testMode ? 'TEST' : 'LIVE' }}</div>
+        <div>
+            <h1>{{ event.title }}</h1>
+            <p>Chef d'orchestre : <strong>{{ live_run.conductor.displayName }}</strong></p>
+        </div>
+    </header>
+
+    <section class="display-audio-choice">
+        <h2>Son du rétro</h2>
+        <label><input type="radio" name="display_audio" value="none" checked> Sans son</label>
+        <label><input type="radio" name="display_audio" value="local_display"> Son local du rétro</label>
+    </section>
+
+    <section class="display-follow-placeholder">
+        <strong>Connecté à la Session.</strong>
+        <span>Le Chef d'orchestre pilotera les chansons, la lecture et la position.</span>
+        <span>Le rétro reproduira Lyrics passivement, avec ou sans son local.</span>
+    </section>
+</main>
+</body>
+</html>

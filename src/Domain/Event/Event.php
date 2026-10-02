@@ -36,8 +36,6 @@ final class Event
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $endsAt = null;
 
-    #[ORM\Column(length: 16, enumType: EventMode::class)]
-    private EventMode $mode = EventMode::Onsite;
 
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $location = null;
@@ -85,8 +83,7 @@ final class Event
     public function setStartsAt(\DateTimeImmutable $value): self { $this->startsAt = $value; return $this->touch(); }
     public function getEndsAt(): ?\DateTimeImmutable { return $this->endsAt; }
     public function setEndsAt(?\DateTimeImmutable $value): self { $this->endsAt = $value; return $this->touch(); }
-    public function getMode(): EventMode { return $this->mode; }
-    public function setMode(EventMode $mode): self { $this->mode = $mode; return $this->touch(); }
+
     public function getLocation(): ?string { return $this->location; }
     public function setLocation(?string $location): self { $this->location = $location !== null ? trim($location) : null; return $this->touch(); }
     public function getStatus(): EventStatus { return $this->status; }
@@ -116,3 +113,4 @@ final class Event
         return $this;
     }
 }
+

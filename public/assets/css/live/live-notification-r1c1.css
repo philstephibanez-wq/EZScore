@@ -1,0 +1,13 @@
+[data-live-notification]{
+    position:sticky;top:0;z-index:1000;
+    margin:0;padding:.65rem 1rem;
+    background:#163c31;border-bottom:1px solid #2d806a;
+}
+.live-notification-inner{
+    display:flex;align-items:center;gap:1rem;flex-wrap:wrap;
+}
+.live-notification-inner strong{font-weight:800}
+.live-notification-inner a{
+    margin-left:auto;padding:.45rem .8rem;border:1px solid #55b89e;border-radius:.45rem;
+    text-decoration:none;font-weight:700;
+}

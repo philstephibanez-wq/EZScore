@@ -175,3 +175,7 @@ internal_media_auth_controller:
 concert_session_controller:
     resource: ../src/Controller/ConcertSessionController.php
     type: attribute
+
+live_run_controller:
+    resource: ../src/Controller/LiveRunController.php
+    type: attribute

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="{{ app.request.locale }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>EZSCORE — Display</title>
+    <link rel="stylesheet" href="/assets/css/live/display-gate-r1c2.css?v=20261002r1c2">
+</head>
+<body class="display-gate-page">
+<main class="display-gate" data-display-gate data-status-url="{{ path('app_live_open') }}">
+    <div class="display-brand">EZSCORE</div>
+
+    <section class="display-waiting" data-display-waiting>
+        <div class="display-pulse" aria-hidden="true"></div>
+        <h1>Aucune session ouverte</h1>
+        <p>En attente du Chef d'orchestre…</p>
+    </section>
+
+    <section class="display-session" data-display-session hidden>
+        <div class="display-live-badge" data-display-badge>TEST</div>
+        <h1 data-display-title>Session ouverte</h1>
+        <p data-display-conductor></p>
+        <a class="display-join" data-display-join href="#">Rejoindre</a>
+    </section>
+
+    <footer>
+        <span>{{ app.user.displayName }}</span>
+        <a href="{{ path('app_logout', {'_locale': app.request.locale}) }}">Déconnexion</a>
+    </footer>
+</main>
+<script src="/assets/js/live/display-gate-r1c2.js?v=20261002r1c2"></script>
+</body>
+</html>

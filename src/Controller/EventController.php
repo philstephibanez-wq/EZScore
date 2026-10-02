@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Domain\Event\Event;
-use App\Domain\Event\EventMode;
 use App\Domain\Event\EventParticipant;
 use App\Domain\Event\EventParticipantStatus;
 use App\Domain\Event\EventStatus;
@@ -60,7 +59,7 @@ final class EventController extends AbstractController
                 ->setDescription((string) $request->request->get('description'))
                 ->setStartsAt($startsAt)
                 ->setEndsAt($this->parseDateTime((string) $request->request->get('ends_at')))
-                ->setMode(EventMode::tryFrom((string) $request->request->get('mode')) ?? EventMode::Onsite)
+
                 ->setLocation((string) $request->request->get('location'))
                 ->setGroup($group)
                 ->setPlaylist($playlist)
@@ -82,7 +81,7 @@ final class EventController extends AbstractController
         $query = $pagination->query($request);
         $letter = $pagination->letter($request);
         $status = (string) $request->query->get('status', '');
-        $mode = (string) $request->query->get('mode', '');
+
         $period = (string) $request->query->get('period', 'all');
 
         $qb = $em->getRepository(Event::class)->createQueryBuilder('e')
@@ -121,11 +120,7 @@ final class EventController extends AbstractController
             $status = '';
         }
 
-        if (in_array($mode, array_map(static fn(EventMode $case): string => $case->value, EventMode::cases()), true)) {
-            $qb->andWhere('e.mode = :mode')->setParameter('mode', $mode);
-        } else {
-            $mode = '';
-        }
+
 
         $now = new \DateTimeImmutable();
         if ($period === 'past') {
@@ -176,7 +171,6 @@ final class EventController extends AbstractController
                 'q' => $query,
                 'letter' => $letter,
                 'status' => $status,
-                'mode' => $mode,
                 'period' => $period,
             ],
         ]);
@@ -277,7 +271,6 @@ final class EventController extends AbstractController
             ->setDescription((string) $request->request->get('description'))
             ->setStartsAt($startsAt)
             ->setEndsAt($this->parseDateTime((string) $request->request->get('ends_at')))
-            ->setMode(EventMode::tryFrom((string) $request->request->get('mode')) ?? EventMode::Onsite)
             ->setLocation((string) $request->request->get('location'))
             ->setStatus(EventStatus::tryFrom((string) $request->request->get('status')) ?? EventStatus::Scheduled);
 
@@ -557,3 +550,4 @@ final class EventController extends AbstractController
         return $user;
     }
 }
+

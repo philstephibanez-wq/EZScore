@@ -14,7 +14,7 @@
   <div>
     <div class="eyebrow">{{ 'event.eyebrow'|trans({}, 'event') }}</div>
     <h1>{{ event.title }}</h1>
-    <p class="page-note">{{ event.startsAt|date('d/m/Y H:i') }} · {{ ('event.mode.' ~ event.mode.value)|trans({}, 'event') }}</p>
+    <p class="page-note">{{ event.startsAt|date('d/m/Y H:i') }}</p>
   </div>
 </header>
 
@@ -36,6 +36,23 @@
   </div>
 </section>
 
+{% if event.createdBy.id == app.user.id %}
+<section class="panel">
+  <h2>Test projection</h2>
+  <p class="page-note">Ouvre un LiveRun de test sans envoyer d'invitation.</p>
+  <div class="collection-actions">
+    <form method="post" action="{{ path('app_live_test_start', {id: event.id}) }}">
+      <input type="hidden" name="_token" value="{{ csrf_token('live_test_start_' ~ event.id) }}">
+      <button class="primary" type="submit">Tester la session</button>
+    </form>
+    <form method="post" action="{{ path('app_live_test_stop', {id: event.id}) }}">
+      <input type="hidden" name="_token" value="{{ csrf_token('live_test_stop_' ~ event.id) }}">
+      <button type="submit">Arrêter le test</button>
+    </form>
+  </div>
+</section>
+{% endif %}
+
 {% if event.createdBy.id == app.user.id and event.status.value == 'draft' %}
 <section class="panel">
   <h2>{{ 'event.validate_title'|trans({}, 'event') }}</h2>
@@ -55,11 +72,6 @@
     <label>{{ 'event.fields.title'|trans({}, 'event') }}<input name="title" value="{{ event.title }}" required></label>
     <label>{{ 'event.fields.starts_at'|trans({}, 'event') }}<input type="datetime-local" name="starts_at" value="{{ event.startsAt|date('Y-m-d\\TH:i') }}" required></label>
     <label>{{ 'event.fields.ends_at'|trans({}, 'event') }}<input type="datetime-local" name="ends_at" value="{{ event.endsAt ? event.endsAt|date('Y-m-d\\TH:i') : '' }}"></label>
-    <label>{{ 'event.fields.mode'|trans({}, 'event') }}
-      <select name="mode">
-        {% for mode in ['onsite','remote','hybrid'] %}<option value="{{ mode }}" {{ event.mode.value == mode ? 'selected' : '' }}>{{ ('event.mode.' ~ mode)|trans({}, 'event') }}</option>{% endfor %}
-      </select>
-    </label>
     <label>{{ 'event.fields.location'|trans({}, 'event') }}<input name="location" value="{{ event.location }}"></label>
     <label>{{ 'event.fields.status'|trans({}, 'event') }}
       <select name="status">

@@ -32,16 +32,11 @@ event:
     description: Description
     starts_at: Début
     ends_at: Fin
-    mode: Mode
     location: Lieu
     status: Statut
     group: Groupe
     playlist: Playlist
     creator: Créateur
-  mode:
-    onsite: Présentiel
-    remote: À distance
-    hybrid: Hybride
   status:
     draft: Brouillon
     validated: Validée
@@ -60,3 +55,4 @@ event:
     heading: 'Invitation : %title%'
     hello: 'Bonjour %name%,'
     open: Ouvrir la session et répondre
+
