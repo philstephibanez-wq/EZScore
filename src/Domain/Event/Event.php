@@ -46,7 +46,7 @@ final class Event
     private ?string $remoteUrl = null;
 
     #[ORM\Column(length: 16, enumType: EventStatus::class)]
-    private EventStatus $status = EventStatus::Scheduled;
+    private EventStatus $status = EventStatus::Draft;
 
     #[ORM\ManyToOne(targetEntity: User::class)]
     #[ORM\JoinColumn(name: 'created_by', nullable: false, onDelete: 'CASCADE')]
@@ -65,6 +65,9 @@ final class Event
 
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $validatedAt = null;
 
     public function __construct(User $createdBy)
     {
@@ -101,6 +104,17 @@ final class Event
     public function setPlaylist(?Playlist $playlist): self { $this->playlist = $playlist; return $this->touch(); }
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }
     public function getUpdatedAt(): \DateTimeImmutable { return $this->updatedAt; }
+    public function getValidatedAt(): ?\DateTimeImmutable { return $this->validatedAt; }
+
+    public function validate(): self
+    {
+        if ($this->group === null || $this->playlist === null) {
+            throw new \LogicException('A session requires exactly one group and one playlist.');
+        }
+        $this->status = EventStatus::Validated;
+        $this->validatedAt = new \DateTimeImmutable();
+        return $this->touch();
+    }
 
     private function touch(): self
     {

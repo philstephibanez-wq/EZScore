@@ -1,0 +1,41 @@
+.session-delete-actions {
+  margin-top: 1rem;
+}
+
+.session-delete-dialog {
+  width: min(92vw, 520px);
+  border: 1px solid rgba(148, 163, 184, .35);
+  border-radius: 14px;
+  padding: 0;
+  background: #111923;
+  color: inherit;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .48);
+}
+
+.session-delete-dialog::backdrop {
+  background: rgba(0, 0, 0, .62);
+}
+
+.session-delete-dialog__body {
+  padding: 1.35rem;
+}
+
+.session-delete-dialog__body h2 {
+  margin: 0 0 .6rem;
+}
+
+.session-delete-dialog__body p {
+  margin: 0 0 1.1rem;
+  opacity: .82;
+}
+
+.session-delete-dialog__buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: .65rem;
+  flex-wrap: wrap;
+}
+
+.session-delete-danger {
+  border-color: #b91c1c;
+}

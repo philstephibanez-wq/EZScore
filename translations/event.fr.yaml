@@ -13,6 +13,10 @@ event:
   my_invitations: Invitations à confirmer
   edit: Modifier la session
   save: Enregistrer
+  validate_title: Validation
+  validate_note: La validation rend la session officielle et envoie les invitations aux membres du groupe.
+  validate_button: Valider la session et envoyer les invitations
+  validated: Session validée. Invitations envoyées.
   delete: Supprimer la session
   delete_confirm: Supprimer définitivement cette session ?
   assign_group: Associer un groupe
@@ -41,6 +45,7 @@ event:
     hybrid: Hybride
   status:
     draft: Brouillon
+    validated: Validée
     scheduled: Planifié
     cancelled: Annulé
     completed: Terminé

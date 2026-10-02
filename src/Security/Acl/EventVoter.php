@@ -5,6 +5,7 @@ namespace App\Security\Acl;
 
 use App\Domain\Event\Event;
 use App\Domain\Event\EventParticipant;
+use App\Domain\Event\EventStatus;
 use App\Domain\Group\GroupMember;
 use App\Domain\User\User;
 use Doctrine\ORM\EntityManagerInterface;
@@ -38,6 +39,10 @@ final class EventVoter extends Voter
         if ($this->accessDecisionManager->decide($token, ['ROLE_ADMIN'])) return true;
 
         $creator = $subject->getCreatedBy()->getId() === $user->getId();
+
+        if ($subject->getStatus() === EventStatus::Draft && !$creator) {
+            return false;
+        }
 
         if ($attribute === AclPrivilege::EVENT_VIEW) {
             if ($creator) return true;

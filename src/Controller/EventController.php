@@ -43,9 +43,15 @@ final class EventController extends AbstractController
 
             $title = trim((string) $request->request->get('title'));
             $startsAt = $this->parseDateTime((string) $request->request->get('starts_at'));
+            $group = $em->getRepository(UserGroup::class)->find((int) $request->request->get('group_id'));
+            $playlist = $em->getRepository(Playlist::class)->find((int) $request->request->get('playlist_id'));
 
-            if ($title === '' || $startsAt === null) {
-                $this->addFlash('error', 'event.validation.required');
+            if ($title === '' || $startsAt === null
+                || !$group instanceof UserGroup
+                || !$playlist instanceof Playlist
+                || !$this->isGranted(AclPrivilege::GROUP_EDIT, $group)
+                || !$this->isGranted(AclPrivilege::PLAYLIST_EDIT, $playlist)) {
+                $this->addFlash('error', 'event.validation.required_group_playlist');
                 return $this->redirectToRoute('app_events', ['_locale' => $request->getLocale()]);
             }
 
@@ -57,7 +63,9 @@ final class EventController extends AbstractController
                 ->setMode(EventMode::tryFrom((string) $request->request->get('mode')) ?? EventMode::Onsite)
                 ->setLocation((string) $request->request->get('location'))
                 ->setRemoteUrl((string) $request->request->get('remote_url'))
-                ->setStatus(EventStatus::Scheduled);
+                ->setGroup($group)
+                ->setPlaylist($playlist)
+                ->setStatus(EventStatus::Draft);
 
             $em->persist($event);
             $em->flush();
@@ -76,7 +84,7 @@ final class EventController extends AbstractController
         $letter = $pagination->letter($request);
         $status = (string) $request->query->get('status', '');
         $mode = (string) $request->query->get('mode', '');
-        $period = (string) $request->query->get('period', 'upcoming');
+        $period = (string) $request->query->get('period', 'all');
 
         $qb = $em->getRepository(Event::class)->createQueryBuilder('e')
             ->leftJoin('e.createdBy', 'creator')
@@ -89,7 +97,8 @@ final class EventController extends AbstractController
             ->orderBy('e.startsAt', 'ASC');
 
         if (!$this->isGranted('ROLE_ADMIN')) {
-            $qb->andWhere('(e.createdBy = :currentUser OR myParticipation.id IS NOT NULL OR myGroup.id IS NOT NULL)');
+            $qb->andWhere('(e.createdBy = :currentUser OR ((e.status <> :draftStatus) AND (myParticipation.id IS NOT NULL OR myGroup.id IS NOT NULL)))')
+                ->setParameter('draftStatus', EventStatus::Draft);
         }
 
         if ($query !== '') {
@@ -147,8 +156,19 @@ final class EventController extends AbstractController
             ->getQuery()
             ->getResult();
 
+        $creationGroups = array_values(array_filter(
+            $em->getRepository(UserGroup::class)->findAll(),
+            fn(UserGroup $group): bool => $this->isGranted(AclPrivilege::GROUP_EDIT, $group),
+        ));
+        $creationPlaylists = array_values(array_filter(
+            $em->getRepository(Playlist::class)->findAll(),
+            fn(Playlist $playlist): bool => $this->isGranted(AclPrivilege::PLAYLIST_EDIT, $playlist),
+        ));
+
         return $this->render('events/index.html.twig', [
             'events' => $pager['rows'],
+            'creation_groups' => $creationGroups,
+            'creation_playlists' => $creationPlaylists,
             'my_invitations' => $myInvitations,
             'my_invitation_count' => $myInvitationCount,
             'pager' => $pager,
@@ -274,7 +294,6 @@ final class EventController extends AbstractController
         Event $event,
         Request $request,
         EntityManagerInterface $em,
-        EventMailer $mailer,
     ): JsonResponse {
         $this->denyAccessUnlessGranted(AclPrivilege::EVENT_MANAGE, $event);
         $this->validateAjaxCsrf('event_group_'.$event->getId(), $request);
@@ -298,35 +317,8 @@ final class EventController extends AbstractController
             $em->persist(new PlaylistGroup($event->getPlaylist(), $group, $this->requireUser()));
         }
 
-        $newParticipants = [];
-        foreach ($em->getRepository(GroupMember::class)->findBy(['group' => $group]) as $membership) {
-            $member = $membership->getUser();
-            if (!$member->isActive()) continue;
-
-            if (!$em->getRepository(EventParticipant::class)->findOneBy(['event' => $event, 'user' => $member]) instanceof EventParticipant) {
-                $participant = new EventParticipant(
-                    $event,
-                    $member,
-                    $member->getId() === $event->getCreatedBy()->getId()
-                        ? EventParticipantStatus::Accepted
-                        : EventParticipantStatus::Invited,
-                );
-                $em->persist($participant);
-                $newParticipants[] = $participant;
-            }
-        }
-
         $em->flush();
-
-        foreach ($newParticipants as $participant) {
-            if ($participant->getUser()->getId() !== $event->getCreatedBy()->getId()
-                && $mailer->sendInvitation($event, $participant->getUser())) {
-                $participant->markEmailNotified();
-            }
-        }
-        $em->flush();
-
-        return $this->json(['ok' => true, 'changed' => count($newParticipants)]);
+        return $this->json(['ok' => true, 'changed' => 1]);
     }
 
     #[Route('/{id}/playlist', name: 'app_event_set_playlist', requirements: ['id' => '\\d+'], methods: ['POST'])]
@@ -362,10 +354,13 @@ final class EventController extends AbstractController
         Event $event,
         Request $request,
         EntityManagerInterface $em,
-        EventMailer $mailer,
     ): JsonResponse {
         $this->denyAccessUnlessGranted(AclPrivilege::EVENT_INVITE, $event);
         $this->validateAjaxCsrf('event_participants_'.$event->getId(), $request);
+
+        if ($event->getStatus() !== EventStatus::Validated) {
+            return $this->json(['ok' => false, 'message' => 'session_not_validated'], 409);
+        }
 
         $changed = 0;
         foreach ($this->ids($request) as $id) {
@@ -398,6 +393,10 @@ final class EventController extends AbstractController
         $this->denyAccessUnlessGranted(AclPrivilege::EVENT_INVITE, $event);
         $this->validateAjaxCsrf('event_participants_'.$event->getId(), $request);
 
+        if ($event->getStatus() !== EventStatus::Validated) {
+            return $this->json(['ok' => false, 'message' => 'session_not_validated'], 409);
+        }
+
         $changed = 0;
         foreach ($this->ids($request) as $id) {
             $user = $em->getRepository(User::class)->find($id);
@@ -414,6 +413,46 @@ final class EventController extends AbstractController
         return $this->json(['ok' => true, 'changed' => $changed]);
     }
 
+    #[Route('/{id}/validate', name: 'app_event_validate', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function validateSession(Event $event, Request $request, EntityManagerInterface $em, EventMailer $mailer): Response
+    {
+        $user = $this->requireUser();
+        if ($event->getCreatedBy()->getId() !== $user->getId()) throw $this->createAccessDeniedException();
+        if (!$this->isCsrfTokenValid('event_validate_'.$event->getId(), (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+        if ($event->getGroup() === null || $event->getPlaylist() === null) {
+            $this->addFlash('error', 'event.validation.required_group_playlist');
+            return $this->redirectToRoute('app_event_show', ['_locale' => $request->getLocale(), 'id' => $event->getId()]);
+        }
+
+        foreach ($em->getRepository(GroupMember::class)->findBy(['group' => $event->getGroup()]) as $membership) {
+            $member = $membership->getUser();
+            if (!$member->isActive()) continue;
+            $participant = $em->getRepository(EventParticipant::class)->findOneBy(['event' => $event, 'user' => $member]);
+            if (!$participant instanceof EventParticipant) {
+                $participant = new EventParticipant(
+                    $event,
+                    $member,
+                    $member->getId() === $event->getCreatedBy()->getId() ? EventParticipantStatus::Accepted : EventParticipantStatus::Invited,
+                );
+                $em->persist($participant);
+            }
+        }
+
+        $event->validate();
+        $em->flush();
+
+        foreach ($em->getRepository(EventParticipant::class)->findBy(['event' => $event]) as $participant) {
+            if ($participant->getUser()->getId() === $event->getCreatedBy()->getId()) continue;
+            if ($participant->getEmailNotifiedAt() !== null) continue;
+            if ($mailer->sendInvitation($event, $participant->getUser())) $participant->markEmailNotified();
+        }
+        $em->flush();
+
+        $this->addFlash('success', 'event.validated');
+        return $this->redirectToRoute('app_event_show', ['_locale' => $request->getLocale(), 'id' => $event->getId()]);
+    }
     #[Route('/{id}/rsvp', name: 'app_event_rsvp', requirements: ['id' => '\\d+'], methods: ['POST'])]
     public function rsvp(Event $event, Request $request, EntityManagerInterface $em): Response
     {

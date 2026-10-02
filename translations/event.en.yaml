@@ -13,8 +13,14 @@ event:
   my_invitations: Invitations to answer
   edit: Edit session
   save: Save
+  validate_title: Validation
+  validate_note: Validation makes the session official and sends invitations to group members.
+  validate_button: Validate session and send invitations
+  validated: Session validated. Invitations sent.
   delete: Delete session
   delete_confirm: Permanently delete this session?
+  delete_cancel: Cancel
+  delete_confirm_button: Delete permanently
   assign_group: Assign a group
   assign_playlist: Assign a playlist
   participants: Participants
@@ -41,6 +47,7 @@ event:
     hybrid: Hybrid
   status:
     draft: Draft
+    validated: Validated
     scheduled: Scheduled
     cancelled: Cancelled
     completed: Completed
@@ -51,6 +58,7 @@ event:
     maybe: Maybe
   validation:
     required: Title and start date are required.
+    required_group_playlist: Title, date, one group and one playlist are required.
   email:
     subject: 'EZScore invitation: %title%'
     heading: 'Invitation: %title%'

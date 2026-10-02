@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>EZScore — Follower</title>
+    <link rel="stylesheet" href="/assets/css/concert-sync-r1.css?v=20261002r1">
+</head>
+<body class="concert-follower-body">
+<main class="concert-follower"
+      data-concert-follower
+      data-session-id="{{ session_id }}"
+      data-invite-token="{{ invite_token }}">
+    <header><strong>EZSCORE</strong><span>Follower R1</span></header>
+    <section class="concert-follower-screen">
+        <div class="concert-connection" data-follower-connection>Connexion…</div>
+        <h1 data-follower-song>Aucun morceau</h1>
+        <div class="concert-follower-position" data-follower-position>00:00.0</div>
+        <div class="concert-follower-play" data-follower-play>PAUSE</div>
+        <dl class="concert-status">
+            <div><dt>Master</dt><dd data-follower-master>—</dd></div>
+            <div><dt>Tempo</dt><dd data-follower-tempo>1.00×</dd></div>
+            <div><dt>Révision</dt><dd data-follower-revision>—</dd></div>
+            <div><dt>Participants</dt><dd data-follower-participants>—</dd></div>
+        </dl>
+    </section>
+</main>
+<script src="/assets/js/concert/concert-follower-r1.js?v=20261002r1"></script>
+</body>
+</html>

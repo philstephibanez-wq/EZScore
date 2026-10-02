@@ -4,6 +4,7 @@
 <link rel="stylesheet" href="/assets/css/events.css?v=20260925r20">
 <link rel="stylesheet" href="/assets/css/entity-picker.css?v=20260925r20">
 <link rel="stylesheet" href="/assets/css/collection-filters.css?v=20260925r20">
+<link rel="stylesheet" href="/assets/css/events/session-delete-confirm-r1.css?v=20261002r1">
 {% endblock %}
 {% block body %}
 {% set share_url = url('app_event_show', {'_locale': app.request.locale, id: event.id}) %}
@@ -36,6 +37,17 @@
   </div>
 </section>
 
+{% if event.createdBy.id == app.user.id and event.status.value == 'draft' %}
+<section class="panel">
+  <h2>{{ 'event.validate_title'|trans({}, 'event') }}</h2>
+  <p class="page-note">{{ 'event.validate_note'|trans({}, 'event') }}</p>
+  <form method="post" action="{{ path('app_event_validate', {'_locale': app.request.locale, id: event.id}) }}">
+    <input type="hidden" name="_token" value="{{ csrf_token('event_validate_' ~ event.id) }}">
+    <button class="primary" type="submit">{{ 'event.validate_button'|trans({}, 'event') }}</button>
+  </form>
+</section>
+{% endif %}
+
 {% if is_granted('EVENT_MANAGE', event) %}
 <section class="panel">
   <h2>{{ 'event.edit'|trans({}, 'event') }}</h2>
@@ -53,7 +65,7 @@
     <label>{{ 'event.fields.remote_url'|trans({}, 'event') }}<input type="url" name="remote_url" value="{{ event.remoteUrl }}"></label>
     <label>{{ 'event.fields.status'|trans({}, 'event') }}
       <select name="status">
-        {% for status in ['draft','scheduled','cancelled','completed'] %}<option value="{{ status }}" {{ event.status.value == status ? 'selected' : '' }}>{{ ('event.status.' ~ status)|trans({}, 'event') }}</option>{% endfor %}
+        {% for status in ['draft','validated','scheduled','cancelled','completed'] %}<option value="{{ status }}" {{ event.status.value == status ? 'selected' : '' }}>{{ ('event.status.' ~ status)|trans({}, 'event') }}</option>{% endfor %}
       </select>
     </label>
     <label class="event-description">{{ 'event.fields.description'|trans({}, 'event') }}<textarea name="description" rows="3">{{ event.description }}</textarea></label>
@@ -169,12 +181,27 @@
 {% endif %}
 
 {% if is_granted('EVENT_MANAGE', event) %}
-<form method="post" action="{{ path('app_event_delete', {'_locale': app.request.locale, id: event.id}) }}" onsubmit="return confirm('{{ 'event.delete_confirm'|trans({}, 'event')|e('js') }}');">
-  <input type="hidden" name="_token" value="{{ csrf_token('event_delete_' ~ event.id) }}">
-  <button type="submit">{{ 'event.delete'|trans({}, 'event') }}</button>
-</form>
+<div class="session-delete-actions">
+  <button type="button" class="session-delete-danger" data-session-delete-open>
+    {{ 'event.delete'|trans({}, 'event') }}
+  </button>
+</div>
+
+<dialog class="session-delete-dialog" data-session-delete-dialog>
+  <div class="session-delete-dialog__body">
+    <h2>{{ 'event.delete'|trans({}, 'event') }}</h2>
+    <p>{{ 'event.delete_confirm'|trans({}, 'event') }}</p>
+    <div class="session-delete-dialog__buttons">
+      <button type="button" data-session-delete-cancel>{{ 'event.delete_cancel'|trans({}, 'event') }}</button>
+      <form method="post" action="{{ path('app_event_delete', {'_locale': app.request.locale, id: event.id}) }}">
+        <input type="hidden" name="_token" value="{{ csrf_token('event_delete_' ~ event.id) }}">
+        <button class="primary session-delete-danger" type="submit">{{ 'event.delete_confirm_button'|trans({}, 'event') }}</button>
+      </form>
+    </div>
+  </div>
+</dialog>
 {% endif %}
 
 {% include 'components/_entity_picker_modal.html.twig' %}
 {% endblock %}
-{% block javascripts %}<script src="/assets/js/entity-picker.js?v=20260925r20"></script>{% endblock %}
+{% block javascripts %}<script src="/assets/js/entity-picker.js?v=20260925r20"></script><script src="/assets/js/events/session-delete-confirm-r1.js?v=20261002r1"></script>{% endblock %}

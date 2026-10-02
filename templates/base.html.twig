@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="/assets/css/workflow-tabs-r23-2.css?v=20260926r32_3">
     {% block stylesheets %}{% endblock %}
     <link rel="stylesheet" href="/assets/css/cast/ezscore-cast.css?v=20261002r1">
+    <link rel="stylesheet" href="/assets/css/concert-sync-r1.css?v=20261002r1">
     <link rel="stylesheet" href="/assets/css/interactions.css?v=20260924f">
     <link rel="stylesheet" href="/assets/css/ez-modal.css?v=20260928r35_7">
     <link rel="stylesheet" href="/assets/css/r21-admin.css?v=20260925r21">
@@ -68,6 +69,10 @@
             </form>
         </div>
         <div class="ez-topbar-right">
+            <a class="ez-concert-link"
+               href="{{ path('app_concert_control') }}"
+               title="Session concert"
+               aria-label="Session concert">Session</a>
             {{ ui.language_select() }}
             <a class="ez-contact-admin-link" href="{{ path('app_contact_admin', {'_locale': app.request.locale}) }}" title="Contacter l’administrateur" aria-label="Contacter l’administrateur">✉ <span>Contacter l’admin</span></a>
             <a class="ez-user-badge" href="{{ path('app_profile', {'_locale': app.request.locale}) }}" title="{{ app.user.email }}">

@@ -1,0 +1,62 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Session concert — EZScore{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+    <link rel="stylesheet" href="/assets/css/concert-sync-r1.css?v=20261002r1">
+{% endblock %}
+
+{% block body %}
+<section class="concert-panel"
+         data-concert-master
+         data-csrf="{{ csrf_token_value }}">
+    <div class="concert-heading">
+        <div>
+            <div class="eyebrow">Concert Sync R1</div>
+            <h1>Session concert</h1>
+            <p>Ce premier POC valide le contrat Master → Follower sans modifier l’AudioEngine ni la timeline musicale.</p>
+        </div>
+        <button type="button" class="concert-primary" data-concert-create>Créer une session</button>
+    </div>
+
+    <div class="concert-grid" data-concert-controls hidden>
+        <section class="concert-card">
+            <h2>Master</h2>
+            <label>Morceau / ID<input type="number" min="1" step="1" data-concert-song-id placeholder="123"></label>
+            <label>Titre<input type="text" maxlength="120" data-concert-song-title placeholder="Titre de test"></label>
+            <label>Position (secondes)<input type="number" min="0" step="0.1" value="0" data-concert-position></label>
+            <label>Tempo<input type="number" min="0.25" max="2" step="0.05" value="1" data-concert-tempo></label>
+
+            <div class="concert-actions">
+                <button type="button" class="concert-primary" data-concert-play>Play</button>
+                <button type="button" data-concert-send>Publier l’état</button>
+            </div>
+
+            <dl class="concert-status">
+                <div><dt>Session</dt><dd data-concert-session>—</dd></div>
+                <div><dt>État</dt><dd data-concert-state>Arrêt</dd></div>
+                <div><dt>Révision</dt><dd data-concert-revision>—</dd></div>
+                <div><dt>Participants</dt><dd data-concert-participants>1</dd></div>
+            </dl>
+        </section>
+
+        <section class="concert-card">
+            <h2>Invitation Follower</h2>
+            <p>Ouvrir ce lien dans un second navigateur, une tablette ou un téléphone.</p>
+            <div class="concert-invite">
+                <input type="text" readonly data-concert-follow-url>
+                <button type="button" data-concert-copy>Copier</button>
+            </div>
+            <p class="concert-note">R1 synchronise uniquement l’état de transport de démonstration. Le branchement au vrai karaoké/audio vient après validation de ce socle.</p>
+        </section>
+    </div>
+
+    <div class="concert-error" data-concert-error hidden></div>
+</section>
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    <script src="/assets/js/concert/concert-master-r1.js?v=20261002r1"></script>
+{% endblock %}

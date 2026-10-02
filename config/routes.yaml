@@ -172,3 +172,6 @@ google_oauth_controller:
 internal_media_auth_controller:
     resource: ../src/Controller/InternalMediaAuthController.php
     type: attribute
+concert_session_controller:
+    resource: ../src/Controller/ConcertSessionController.php
+    type: attribute
