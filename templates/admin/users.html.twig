@@ -21,7 +21,7 @@
 <label><span>{{ 'users.display_name'|trans }}</span><input name="display_name" required></label>
 <label><span>{{ 'users.email_login'|trans }}</span><input type="email" name="email" required></label>
 <label><span>{{ 'users.local_password'|trans }}</span><input type="password" name="password" minlength="10" placeholder="{{ 'users.password_optional'|trans }}"></label>
-<label><span>{{ 'users.role'|trans }}</span><select name="role"><option value="ROLE_READER">{{ 'role.ROLE_READER'|trans }}</option><option value="ROLE_EDITOR">{{ 'role.ROLE_EDITOR'|trans }}</option><option value="ROLE_ADMIN">{{ 'role.ROLE_ADMIN'|trans }}</option></select></label>
+<label><span>{{ 'users.role'|trans }}</span><select name="role"><option value="ROLE_READER">{{ 'role.ROLE_READER'|trans }}</option><option value="ROLE_EDITOR">{{ 'role.ROLE_EDITOR'|trans }}</option><option value="ROLE_ADMIN">{{ 'role.ROLE_ADMIN'|trans }}</option><option value="ROLE_DISPLAY">{{ 'role.ROLE_DISPLAY'|trans }}</option></select></label>
 <label><span>{{ 'locale.label'|trans }}</span><select name="locale">{% for locale in supported_locales %}<option value="{{ locale }}" {{ locale == 'fr' ? 'selected' : '' }}>{{ ('locale.' ~ locale)|trans }}</option>{% endfor %}</select></label>
 <button class="primary" type="submit">{{ 'common.create'|trans }}</button>
 </form>
@@ -33,7 +33,7 @@
     <label class="list-filter-field"><span>{{ 'users.role'|trans }}</span>
       <select name="role">
         <option value="">{{ 'list_filters.all'|trans({}, 'list_filters') }}</option>
-        {% for role in ['ROLE_READER','ROLE_EDITOR','ROLE_ADMIN'] %}<option value="{{ role }}" {{ filters.role == role ? 'selected' : '' }}>{{ ('role.' ~ role)|trans }}</option>{% endfor %}
+        {% for role in ['ROLE_READER','ROLE_EDITOR','ROLE_ADMIN','ROLE_DISPLAY'] %}<option value="{{ role }}" {{ filters.role == role ? 'selected' : '' }}>{{ ('role.' ~ role)|trans }}</option>{% endfor %}
       </select>
     </label>
     <label class="list-filter-field"><span>{{ 'users.active'|trans }}</span>
@@ -86,7 +86,7 @@
 {% for key,value in filters %}{% if value is not null and value != '' %}<input type="hidden" name="filter_{{ key }}" value="{{ value }}">{% endif %}{% endfor %}
 <input type="hidden" name="filter_page" value="{{ pager.page }}">
 <div class="identity-fields"><input name="display_name" value="{{ user.displayName }}" required><input type="email" name="email" value="{{ user.email }}" required></div>
-<select name="role"><option value="ROLE_READER" {{ user.primaryRole == 'ROLE_READER' ? 'selected' : '' }}>{{ 'role.ROLE_READER'|trans }}</option><option value="ROLE_EDITOR" {{ user.primaryRole == 'ROLE_EDITOR' ? 'selected' : '' }}>{{ 'role.ROLE_EDITOR'|trans }}</option><option value="ROLE_ADMIN" {{ user.primaryRole == 'ROLE_ADMIN' ? 'selected' : '' }}>{{ 'role.ROLE_ADMIN'|trans }}</option></select>
+<select name="role"><option value="ROLE_READER" {{ user.primaryRole == 'ROLE_READER' ? 'selected' : '' }}>{{ 'role.ROLE_READER'|trans }}</option><option value="ROLE_EDITOR" {{ user.primaryRole == 'ROLE_EDITOR' ? 'selected' : '' }}>{{ 'role.ROLE_EDITOR'|trans }}</option><option value="ROLE_ADMIN" {{ user.primaryRole == 'ROLE_ADMIN' ? 'selected' : '' }}>{{ 'role.ROLE_ADMIN'|trans }}</option><option value="ROLE_DISPLAY" {{ user.primaryRole == 'ROLE_DISPLAY' ? 'selected' : '' }}>{{ 'role.ROLE_DISPLAY'|trans }}</option></select>
 <select name="locale">{% for locale in supported_locales %}<option value="{{ locale }}" {{ user.locale == locale ? 'selected' : '' }}>{{ ('locale.' ~ locale)|trans }}</option>{% endfor %}</select>
 <label class="check active-check"><input type="checkbox" name="active" value="1" {{ user.active ? 'checked' : '' }}>{{ user.active ? ('admin_users.account.active'|trans({}, 'admin_users')) : ('admin_users.account.inactive'|trans({}, 'admin_users')) }}</label>
 <span class="provider-state">{{ user.googleSub ? ('users.google_linked'|trans) : '—' }}</span>

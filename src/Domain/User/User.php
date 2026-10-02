@@ -154,7 +154,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function setRoles(array $roles): self
     {
-        $allowed = ['ROLE_ADMIN', 'ROLE_EDITOR', 'ROLE_READER'];
+        $allowed = ['ROLE_ADMIN', 'ROLE_EDITOR', 'ROLE_READER', 'ROLE_DISPLAY'];
         $filtered = array_values(array_intersect($allowed, $roles));
         $this->roles = $filtered ?: ['ROLE_READER'];
 
@@ -163,7 +163,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     public function getPrimaryRole(): string
     {
-        foreach (['ROLE_ADMIN', 'ROLE_EDITOR', 'ROLE_READER'] as $role) {
+        foreach (['ROLE_ADMIN', 'ROLE_EDITOR', 'ROLE_READER', 'ROLE_DISPLAY'] as $role) {
             if (in_array($role, $this->roles, true)) {
                 return $role;
             }

@@ -75,7 +75,7 @@ final class AdminUserController extends AbstractController
                 ->setParameter('letter', $letter);
         }
 
-        if (in_array($role, ['ROLE_READER', 'ROLE_EDITOR', 'ROLE_ADMIN'], true)) {
+        if (in_array($role, ['ROLE_READER', 'ROLE_EDITOR', 'ROLE_ADMIN', 'ROLE_DISPLAY'], true)) {
             $qb->andWhere('u.roles LIKE :role')->setParameter('role', '%'.$role.'%');
         }
 

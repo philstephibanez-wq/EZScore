@@ -30,6 +30,7 @@ role:
   ROLE_ADMIN: Admin
   ROLE_EDITOR: Editor
   ROLE_READER: Reader
+  ROLE_DISPLAY: Passive display
 group_role:
   owner: Owner
   manager: Manager

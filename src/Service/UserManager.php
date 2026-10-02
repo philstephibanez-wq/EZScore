@@ -10,7 +10,7 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 final class UserManager
 {
-    public const ROLES = ['ROLE_ADMIN', 'ROLE_EDITOR', 'ROLE_READER'];
+    public const ROLES = ['ROLE_ADMIN', 'ROLE_EDITOR', 'ROLE_READER', 'ROLE_DISPLAY'];
 
     public function __construct(
         private readonly EntityManagerInterface $em,
