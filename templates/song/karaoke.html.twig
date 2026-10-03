@@ -1,0 +1,138 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Karaoké — {{ song.title }} — EZScore{% endblock %}
+
+{% block stylesheets %}
+<link rel="stylesheet" href="/assets/css/workflow-tabs-r23-2.css?v=20260926r31">
+<link rel="stylesheet" href="/assets/css/stems.css?v=20260929r39_2a">
+<link rel="stylesheet" href="/assets/css/chordslab.css?v=20261001r41_0i">
+<link rel="stylesheet" href="/assets/css/lyricslab-r37.css?v=20261001r41_0i">
+<link rel="stylesheet" href="/assets/css/components/ezscore-live-visual-settings.css?v=20260930r39_2d">
+<link rel="stylesheet" href="/assets/css/components/ezscore-chord-diagram.css?v=20260930r39_3">
+<link rel="stylesheet" href="/assets/css/karaoke/karaoke-conductor-r1c7.css?v=20261002r1c7">
+<link rel="stylesheet" href="/assets/css/karaoke/karaoke-lyricslab-clone-r1c11.css?v=20261003r1c11">
+{% endblock %}
+
+{% block body %}
+{% if session_event is null %}
+    {% include 'layout/song/_workflow_tabs.html.twig' with {current:'karaoke', song:song} %}
+{% endif %}
+
+<header class="page-head chordslab-head karaoke-head">
+    <div>
+        <div class="eyebrow">{{ session_event ? 'Session · Karaoké' : 'Karaoké' }}</div>
+        <h1>{{ song.title }}</h1>
+        <p class="page-note">
+            {% if song.artist %}{{ song.artist }} · {% endif %}
+            Vue de conduite basée sur LyricsLab.
+        </p>
+    </div>
+
+    {% if session_event %}
+        <div class="karaoke-session-nav">
+            {% if session_navigation.previous %}
+                <a href="{{ path('app_event_karaoke', {'_locale': app.request.locale, eventId: session_event.id, songId: session_navigation.previous}) }}">⏮ Précédent</a>
+            {% else %}
+                <span class="is-disabled">⏮ Précédent</span>
+            {% endif %}
+            <span class="karaoke-nav-index">{{ session_navigation.index }}/{{ session_navigation.count }}</span>
+            {% if session_navigation.next %}
+                <a href="{{ path('app_event_karaoke', {'_locale': app.request.locale, eventId: session_event.id, songId: session_navigation.next}) }}">Suivant ⏭</a>
+            {% else %}
+                <span class="is-disabled">Suivant ⏭</span>
+            {% endif %}
+            <a href="{{ path('app_event_session_playlist', {'_locale': app.request.locale, id: session_event.id}) }}">Playlist</a>
+        </div>
+    {% endif %}
+</header>
+
+{% include 'song/components/_lab_song_card.html.twig' with {song:song, beat_events:beat_events} %}
+
+{% include 'song/components/_karaoke_visual_settings.html.twig' with {
+    song:song,
+    time_signatures:time_signatures,
+    can_conduct:can_conduct,
+    settings_action:settings_action,
+    settings_token:settings_token
+} %}
+
+<textarea data-lyrics-source hidden>{{ song.lyricsSourceText }}</textarea>
+
+{% if session_event and can_conduct %}
+<div data-karaoke-live-sync
+     data-song-id="{{ song.id }}"
+     data-sync-url="{{ path('app_live_karaoke_state_update', {eventId: session_event.id}) }}"
+     data-sync-token="{{ csrf_token('live_karaoke_state_' ~ session_event.id) }}"></div>
+{% endif %}
+
+<section class="panel chordslab-prompter karaoke-prompter karaoke-clone"
+         data-lyricslab
+         data-karaoke
+         data-karaoke-readonly="1"
+         data-song-id="{{ song.id }}"
+         data-beats="{{ beat_events|json_encode|e('html_attr') }}"
+         data-chords="{{ chord_events|json_encode|e('html_attr') }}"
+         data-lyrics="{{ lyric_events|json_encode|e('html_attr') }}"
+         data-capo="{{ song.capo }}"
+         data-time-signature="{{ song.timeSignature }}"
+         data-profile-data-url-template="{{ profile_data_url_template }}"
+         data-profile-save-url="{{ profile_save_url }}"
+         data-profile-token="{{ profile_token }}"
+         data-edit-url-template=""
+         data-edit-token=""
+         data-chord-beat-edit-url-template=""
+         data-chord-edit-token="">
+    <div class="chordslab-prompter-head">
+        <div>
+            <div class="eyebrow">Prompteur</div>
+            <h2>Timeline harmonique + paroles</h2>
+        </div>
+        <div class="chord-profile-status">
+            <span>Profil affiché</span>
+            <strong>{{ ('chordslab.level.' ~ song.chordAnalysisLevel)|trans({}, 'chordslab') }}</strong>
+            <select class="lyrics-profile-select" data-lyrics-profile aria-label="Profil d’accords" {{ can_conduct ? '' : 'disabled' }}>
+                <option value="beginner" {% if song.chordAnalysisLevel == 'beginner' %}selected{% endif %}>Débutant</option>
+                <option value="intermediate" {% if song.chordAnalysisLevel == 'intermediate' %}selected{% endif %}>Intermédiaire</option>
+                <option value="expert" {% if song.chordAnalysisLevel == 'expert' %}selected{% endif %}>Expert</option>
+            </select>
+            <small>{{ lyric_events|length }} mots · rendu syllabique</small>
+        </div>
+    </div>
+
+    {% include 'song/components/_timeline_stage.html.twig' with {
+        mode: 'lyrics',
+        show_diagram: false
+    } %}
+
+    <p class="page-note chordslab-edit-help">
+        Timeline musicale commune : accords et syllabes partagent exactement le même axe temporel.
+    </p>
+</section>
+
+{% include 'song/components/_karaoke_player.html.twig' with {
+    song: song,
+    stem_mix_settings: stem_mix_settings,
+    playback_ready: playback_ready,
+    mix_save_url: mix_save_url,
+    mix_token: mix_token,
+    audio_url_template: audio_url_template,
+    can_conduct: can_conduct
+} %}
+{% endblock %}
+
+{% block javascripts %}
+<script src="/assets/js/lab-song-card.js?v=20260928r38_8"></script>
+<script src="/assets/js/stems-mixer.js?v=20260929r39_2a"></script>
+<script src="/assets/js/ezscore-timeline-core-r39.js?v=20260929r39_0"></script>
+<script src="/assets/js/components/ezscore-live-visual-settings.js?v=20260930r39_2d"></script>
+<script src="/assets/js/components/ezscore-chord-diagram.js?v=20260930r39_3"></script>
+<script src="/assets/js/lyricslab-timeline-r39.js?v=20261001r41_0i"></script>
+<script src="/assets/js/lyricslab-r37.js?v=20260929r39_0"></script>
+<script src="/assets/js/lyricslab-r38-6-fix.js?v=20260928r38_6"></script>
+<script src="/assets/js/lyricslab-collision-r39-2.js?v=20260929r39_2"></script>
+<script src="/assets/js/karaoke/karaoke-readonly-guard-r1c11.js?v=20261003r1c11"></script>
+<script src="/assets/js/karaoke/karaoke-preroll-r1c7.js?v=20261002r1c7"></script>
+{% if session_event and can_conduct %}
+<script src="/assets/js/live/karaoke-live-sync-r1c6.js?v=20261003r1c11"></script>
+{% endif %}
+{% endblock %}

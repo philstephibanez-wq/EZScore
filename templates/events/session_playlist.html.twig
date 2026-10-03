@@ -1,0 +1,59 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ event.title }} — Session — EZScore{% endblock %}
+
+{% block stylesheets %}
+<link rel="stylesheet" href="/assets/css/events.css?v=20260925r20">
+<link rel="stylesheet" href="/assets/css/events/session-playlist-r1c4.css?v=20261002r1c4">
+{% endblock %}
+
+{% block body %}
+<header class="page-head session-playlist-head">
+    <div>
+        <div class="eyebrow">Conduite de Session</div>
+        <h1>{{ event.title }}</h1>
+        <p class="page-note">
+            Playlist : <strong>{{ event.playlist.name }}</strong>
+            · {{ session_playlist_items|length }} chanson{{ session_playlist_items|length > 1 ? 's' : '' }}
+        </p>
+    </div>
+    <a href="{{ path('app_event_show', {'_locale': app.request.locale, id: event.id}) }}">← Fiche Session</a>
+</header>
+
+<section class="panel session-playlist-panel">
+    <div class="session-playlist-intro">
+        <div>
+            <h2>{{ event.playlist.name }}</h2>
+            <p class="page-note">
+                Choisissez la chanson à conduire. POC provisoire : le statut « publié » n'est pas filtrant.
+            </p>
+        </div>
+        {% if active_live_run %}
+            <span class="session-live-pill {{ active_live_run.testMode ? 'is-test' : '' }}">
+                {{ active_live_run.testMode ? 'TEST OUVERT' : 'LIVE OUVERT' }}
+            </span>
+        {% endif %}
+    </div>
+
+    <div class="session-song-list">
+        {% for item in session_playlist_items %}
+            {% set song = item.song %}
+            <article class="session-song-row">
+                <div class="session-song-position">{{ loop.index }}</div>
+                <div class="session-song-main">
+                    <strong>{{ song.title }}</strong>
+                    {% if song.artist %}<span>{{ song.artist }}</span>{% endif %}
+                </div>
+                <div class="session-song-actions">
+                    <a href="{{ path('app_event_karaoke', {'_locale': app.request.locale, eventId: event.id, songId: song.id}) }}"
+                       class="primary">
+                        ▶ Karaoké
+                    </a>
+                </div>
+            </article>
+        {% else %}
+            <div class="empty">La Playlist de cette Session ne contient aucune chanson.</div>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% set signatures = time_signatures|default(['2/4','3/4','4/4','6/8']) %}
+<section class="panel ez-live-settings" data-ez-live-settings data-ez-live-settings-context="karaoke">
+    <form method="post" action="{{ settings_action }}" class="ez-live-settings-grid" data-chord-settings-form>
+        <input type="hidden" name="_token" value="{{ settings_token }}">
+
+        <label class="ez-live-setting ez-live-setting-capo">
+            <span>Capo</span>
+            <select name="capo" data-chordslab-capo {{ can_conduct ? '' : 'disabled' }}>
+                {% for value in 0..11 %}
+                    <option value="{{ value }}" {{ song.capo == value ? 'selected' : '' }}>{{ value }}</option>
+                {% endfor %}
+            </select>
+        </label>
+
+        <label class="ez-live-setting ez-live-setting-signature">
+            <span>Signature</span>
+            <select name="time_signature" data-chordslab-timesig {{ can_conduct ? '' : 'disabled' }}>
+                {% for signature in signatures %}
+                    <option value="{{ signature }}" {{ song.timeSignature == signature ? 'selected' : '' }}>{{ signature }}</option>
+                {% endfor %}
+            </select>
+        </label>
+
+        <label class="ez-live-setting ez-live-setting-profile">
+            <span>Niveau d’analyse</span>
+            <select name="chord_analysis_level" data-chordslab-profile {{ can_conduct ? '' : 'disabled' }}>
+                {% for level in ['beginner','intermediate','expert'] %}
+                    <option value="{{ level }}" {{ song.chordAnalysisLevel == level ? 'selected' : '' }}>
+                        {{ ('chordslab.level.' ~ level)|trans({}, 'chordslab') }}
+                    </option>
+                {% endfor %}
+            </select>
+        </label>
+
+        <label class="ez-live-setting-toggle">
+            <input type="checkbox" data-chordslab-diagram checked>
+            <span>{{ 'chordslab.guitar_chords'|trans({}, 'chordslab') }}</span>
+        </label>
+
+        {% if can_conduct %}
+            <label class="karaoke-preroll-setting">
+                <span>Décompte</span>
+                <input type="number" min="1" max="30" step="1" value="5" data-karaoke-preroll-seconds aria-label="Durée du décompte en secondes">
+                <span>s</span>
+            </label>
+        {% endif %}
+
+        <small class="ez-live-settings-help" data-analysis-level-help></small>
+
+        <div class="ez-live-settings-state">
+            <span data-chord-settings-state>{{ can_conduct ? 'Enregistré automatiquement' : 'Lecture seule — Chef d’orchestre' }}</span>
+            <small>{{ 'chordslab.level_note'|trans({}, 'chordslab') }}</small>
+        </div>
+    </form>
+</section>

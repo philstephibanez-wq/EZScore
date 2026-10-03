@@ -1,0 +1,40 @@
+.display-follow-placeholder[data-live-karaoke-display]{display:block}
+.display-karaoke-song[hidden],.display-karaoke-waiting[hidden]{display:none!important}
+.display-karaoke-song-head{text-align:center;margin:1rem 0}
+.display-karaoke-song-head h2{font-size:clamp(28px,4vw,58px);margin:.2rem 0}
+.display-karaoke-song-head p{opacity:.7}
+.display-karaoke-stage{position:relative;overflow:hidden;min-height:360px;border:1px solid #23443f;border-radius:18px;background:#07100f}
+.display-karaoke-zone{position:absolute;top:0;bottom:0;width:3px;background:#5ab4ff;z-index:5}
+.display-karaoke-track{position:absolute;left:0;top:0;height:100%;will-change:transform}
+.display-karaoke-chords,.display-karaoke-lyrics{position:absolute;left:0;right:0;height:120px}
+.display-karaoke-chords{top:30%}
+.display-karaoke-lyrics{top:55%}
+.display-karaoke-beat{position:absolute;height:100px;border-right:1px solid #183a46;display:flex;align-items:center;justify-content:center;font-size:clamp(28px,3.8vw,58px);font-weight:800;color:#78bdff}
+.display-karaoke-beat.current{background:#112c37;box-shadow:inset 0 0 0 2px #5ab4ff}
+.display-karaoke-syllable{position:absolute;white-space:pre;font-size:clamp(26px,3.3vw,52px);font-weight:700;transform:translateX(-50%);opacity:.68}
+.display-karaoke-syllable.past{opacity:.36}
+.display-karaoke-syllable.current{opacity:1;text-shadow:0 0 18px rgba(90,180,255,.45)}
+
+/* R1.C6A LEGACY PLACEHOLDER */
+.display-stage:has([data-live-karaoke-display]) .display-follow-placeholder:not([data-live-karaoke-display]){display:none!important}
+.display-karaoke-sync-panel{margin-top:1.25rem}
+
+
+/* R1.C7 synchronized transparent pre-roll */
+.display-karaoke-sync-panel{position:relative}
+.display-karaoke-countdown{
+  position:absolute;
+  inset:0;
+  z-index:30;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  pointer-events:none;
+  background:transparent;
+  font-size:clamp(140px,26vw,420px);
+  font-weight:900;
+  line-height:1;
+  color:#ff6578;
+  text-shadow:0 5px 28px rgba(0,0,0,.95),0 0 3px #fff;
+}
+.display-karaoke-countdown[hidden]{display:none!important}

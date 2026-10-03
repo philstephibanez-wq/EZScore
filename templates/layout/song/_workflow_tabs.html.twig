@@ -52,5 +52,9 @@
     {% else %}
         <span class="workflow-tab disabled" aria-disabled="true" title="Paroles requises">7 · PUBLICATION</span>
     {% endif %}
+
+    {# POC R1.C5D: Karaoké accessible pour toute chanson. #}
+    <a class="workflow-tab {{ current == 'karaoke' ? 'active' : '' }}"
+       href="{{ path('app_song_karaoke', {'_locale': app.request.locale, id: song.id}) }}">8 · KARAOKÉ</a>
 {% endif %}
 </nav>

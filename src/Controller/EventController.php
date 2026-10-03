@@ -7,12 +7,14 @@ use App\Domain\Event\Event;
 use App\Domain\Event\EventParticipant;
 use App\Domain\Event\EventParticipantStatus;
 use App\Domain\Event\EventStatus;
+use App\Domain\Event\LiveRun;
 use App\Domain\Group\GroupMember;
 use App\Domain\Group\UserGroup;
 use App\Domain\Playlist\Playlist;
 use App\Domain\Playlist\PlaylistGroup;
 use App\Domain\Playlist\PlaylistInvitation;
 use App\Domain\Playlist\PlaylistInvitationStatus;
+use App\Domain\Playlist\PlaylistItem;
 use App\Domain\User\User;
 use App\Security\Acl\AclPrivilege;
 use App\Service\EventMailer;
@@ -251,6 +253,34 @@ final class EventController extends AbstractController
         ]);
     }
 
+    #[Route('/{id}/session-playlist', name: 'app_event_session_playlist', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function sessionPlaylist(
+        Event $event,
+        EntityManagerInterface $em,
+    ): Response {
+        $this->denyAccessUnlessGranted(AclPrivilege::EVENT_VIEW, $event);
+
+        $playlist = $event->getPlaylist();
+        if (!$playlist instanceof Playlist) {
+            throw $this->createNotFoundException('Session playlist not assigned.');
+        }
+
+        $items = $em->getRepository(PlaylistItem::class)->findBy(
+            ['playlist' => $playlist],
+            ['position' => 'ASC', 'id' => 'ASC'],
+        );
+
+        $activeLiveRun = $em->getRepository(LiveRun::class)->findOneBy(
+            ['event' => $event, 'status' => 'live'],
+            ['startedAt' => 'DESC'],
+        );
+
+        return $this->render('events/session_playlist.html.twig', [
+            'event' => $event,
+            'session_playlist_items' => $items,
+            'active_live_run' => $activeLiveRun,
+        ]);
+    }
     #[Route('/{id}/update', name: 'app_event_update', requirements: ['id' => '\\d+'], methods: ['POST'])]
     public function update(Event $event, Request $request, EntityManagerInterface $em): Response
     {

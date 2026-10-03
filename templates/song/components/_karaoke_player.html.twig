@@ -1,0 +1,103 @@
+{% if playback_ready %}
+<section class="panel stem-mixer-panel chordslab-player"
+         data-stem-mixer
+         data-song-id="{{ song.id }}"
+         data-mix-save-url="{{ mix_save_url }}"
+         data-mix-token="{{ mix_token }}"
+         data-mix-settings="{{ stem_mix_settings|json_encode|e('html_attr') }}"
+         data-i18n-saved="{{ 'stems.mixer.saved'|trans({}, 'stems') }}"
+         data-i18n-modified="{{ 'stems.mixer.modified'|trans({}, 'stems') }}"
+         data-i18n-saving="{{ 'stems.mixer.saving'|trans({}, 'stems') }}"
+         data-i18n-save-failed="{{ 'stems.mixer.save_failed'|trans({}, 'stems') }}"
+         data-i18n-ready="{{ 'stems.mixer.ready'|trans({}, 'stems') }}"
+         data-i18n-playing="{{ 'stems.mixer.playing'|trans({}, 'stems') }}"
+         data-i18n-paused="{{ 'stems.mixer.paused'|trans({}, 'stems') }}"
+         data-i18n-finished="{{ 'stems.mixer.finished'|trans({}, 'stems') }}"
+         data-i18n-audio-error-template="{{ 'stems.mixer.audio_error'|trans({'%error%':'__ERROR__'}, 'stems') }}">
+
+    <div class="chordslab-transport">
+        <button type="button" data-mixer-play {{ can_conduct ? '' : 'disabled' }}>{{ 'stems.mixer.play'|trans({}, 'stems') }}</button>
+        <button type="button" data-mixer-pause {{ can_conduct ? '' : 'disabled' }}>{{ 'stems.mixer.pause'|trans({}, 'stems') }}</button>
+        <button type="button" data-mixer-stop {{ can_conduct ? '' : 'disabled' }}>{{ 'stems.mixer.stop'|trans({}, 'stems') }}</button>
+
+        <label class="chordslab-quick-volume">
+            <span>Volume</span>
+            <input type="range" min="0" max="1.25" step="0.01" value="1" data-chordslab-quick-volume {{ can_conduct ? '' : 'disabled' }}>
+            <output data-chordslab-quick-volume-output>100%</output>
+        </label>
+
+        <input type="range" min="0" max="1000" value="0" data-mixer-seek aria-label="Seek" {{ can_conduct ? '' : 'disabled' }}>
+        <span data-mixer-time>0:00 / 0:00</span>
+
+        <select data-mixer-rate aria-label="{{ 'stems.mixer.speed'|trans({}, 'stems') }}" {{ can_conduct ? '' : 'disabled' }}>
+            {% for rate in [0.75, 0.9, 1, 1.1, 1.25] %}
+                <option value="{{ rate }}" {{ rate == 1 ? 'selected' : '' }}>{{ rate }}×</option>
+            {% endfor %}
+        </select>
+
+        <span class="stem-mixer-state" data-mixer-state>{{ 'stems.mixer.ready'|trans({}, 'stems') }}</span>
+
+        <label class="chordslab-wakelock">
+            <input type="checkbox" data-chordslab-wakelock checked {{ can_conduct ? '' : 'disabled' }}>
+            <span>{{ 'chordslab.keep_awake'|trans({}, 'chordslab') }}</span>
+        </label>
+    </div>
+
+    <details class="chordslab-collapse">
+        <summary>{{ 'chordslab.tracks'|trans({}, 'chordslab') }}</summary>
+        <div class="stem-mixer-tracks">
+            {% set mix_tracks = [
+                {'key':'original', 'label':('stems.mixer.original'|trans({}, 'stems')), 'enabled':1, 'volume':1.00},
+                {'key':'lead_vocals', 'label':('stems.name.lead_vocals'|trans({}, 'stems')), 'enabled':0, 'volume':0.82},
+                {'key':'backing_vocals', 'label':('stems.name.backing_vocals'|trans({}, 'stems')), 'enabled':0, 'volume':0.72},
+                {'key':'drums', 'label':('stems.name.drums'|trans({}, 'stems')), 'enabled':0, 'volume':0.72},
+                {'key':'bass', 'label':('stems.name.bass'|trans({}, 'stems')), 'enabled':0, 'volume':0.72},
+                {'key':'guitar', 'label':('stems.name.guitar'|trans({}, 'stems')), 'enabled':0, 'volume':0.72},
+                {'key':'piano', 'label':('stems.name.piano'|trans({}, 'stems')), 'enabled':0, 'volume':0.72},
+                {'key':'other', 'label':('stems.name.other'|trans({}, 'stems')), 'enabled':0, 'volume':0.72}
+            ] %}
+
+            {% for track in mix_tracks %}
+                <div class="stem-mixer-grid stem-mixer-row"
+                     data-mixer-track
+                     data-track-key="{{ track.key }}"
+                     data-track-url="{{ audio_url_template|replace({'__TRACK__':track.key}) }}">
+                    <div class="stem-track-title">
+                        <strong>{{ track.label }}</strong>
+                        <span class="stem-track-loader" data-track-loader hidden></span>
+                        <small class="stem-track-load-status" data-track-load-status></small>
+                    </div>
+                    <label class="stem-mixer-toggle">
+                        <input type="checkbox" data-track-enabled {{ track.enabled ? 'checked' : '' }} {{ can_conduct ? '' : 'disabled' }}>
+                        <span>{{ 'stems.mixer.active'|trans({}, 'stems') }}</span>
+                    </label>
+                    <label class="stem-mixer-slider">
+                        <input type="range" min="0" max="1.25" step="0.01" value="{{ track.volume }}" data-track-volume {{ can_conduct ? '' : 'disabled' }}>
+                        <output data-track-volume-output>{{ (track.volume * 100)|round }}%</output>
+                    </label>
+                </div>
+            {% endfor %}
+        </div>
+    </details>
+
+    <details class="chordslab-collapse">
+        <summary>{{ 'chordslab.master_fx'|trans({}, 'chordslab') }}</summary>
+        <div class="stem-master-fx chordslab-master-fx">
+            <div class="stem-master-fx-grid">
+                <label class="stem-master-control"><span>{{ 'stems.mixer.low'|trans({}, 'stems') }}</span><input type="range" min="-12" max="12" step="0.5" value="0" data-master-low {{ can_conduct ? '' : 'disabled' }}><output data-master-low-output>0 dB</output></label>
+                <label class="stem-master-control"><span>{{ 'stems.mixer.mid'|trans({}, 'stems') }}</span><input type="range" min="-12" max="12" step="0.5" value="0" data-master-mid {{ can_conduct ? '' : 'disabled' }}><output data-master-mid-output>0 dB</output></label>
+                <label class="stem-master-control"><span>{{ 'stems.mixer.high'|trans({}, 'stems') }}</span><input type="range" min="-12" max="12" step="0.5" value="0" data-master-high {{ can_conduct ? '' : 'disabled' }}><output data-master-high-output>0 dB</output></label>
+                <label class="stem-master-control"><span>{{ 'stems.mixer.compression'|trans({}, 'stems') }}</span><input type="range" min="0" max="100" step="1" value="0" data-master-compression {{ can_conduct ? '' : 'disabled' }}><output data-master-compression-output>0%</output></label>
+                <label class="stem-master-control"><span>{{ 'stems.mixer.master'|trans({}, 'stems') }}</span><input type="range" min="0" max="1.25" step="0.01" value="1" data-master-volume {{ can_conduct ? '' : 'disabled' }}><output data-master-volume-output>100%</output></label>
+                <button type="button" data-master-fx-reset {{ can_conduct ? '' : 'disabled' }}>{{ 'stems.mixer.reset'|trans({}, 'stems') }}</button>
+            </div>
+            <span class="stem-mix-save-state" data-mix-save-state>{{ 'stems.mixer.saved'|trans({}, 'stems') }}</span>
+        </div>
+    </details>
+</section>
+{% else %}
+<section class="panel chordslab-player-missing">
+    <strong>{{ 'chordslab.player_unavailable'|trans({}, 'chordslab') }}</strong>
+    <p>{{ 'chordslab.player_unavailable_body'|trans({}, 'chordslab') }}</p>
+</section>
+{% endif %}

@@ -1,0 +1,6 @@
+/* R1.C11 — LyricsLab visual parity for Karaoke. */
+.karaoke-clone .lyrics-ribbon-beat{cursor:default}
+.karaoke-clone .lyrics-ribbon-beat.editable{cursor:default}
+.karaoke-head .karaoke-session-nav{margin-left:auto}
+.karaoke-preroll-setting{align-self:center}
+.karaoke-clone .chordslab-edit-help{opacity:.72}

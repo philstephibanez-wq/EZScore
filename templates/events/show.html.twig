@@ -21,7 +21,16 @@
 <section class="panel">
   <div class="event-summary-grid">
     <div><span>{{ 'event.fields.group'|trans({}, 'event') }}</span><strong>{{ event.group ? event.group.name : '—' }}</strong></div>
-    <div><span>{{ 'event.fields.playlist'|trans({}, 'event') }}</span><strong>{{ event.playlist ? event.playlist.name : '—' }}</strong></div>
+    <div>
+      <span>{{ 'event.fields.playlist'|trans({}, 'event') }}</span>
+      <strong>
+        {% if event.playlist %}
+          <a href="{{ path('app_event_session_playlist', {'_locale': app.request.locale, id: event.id}) }}">{{ event.playlist.name }}</a>
+        {% else %}
+          —
+        {% endif %}
+      </strong>
+    </div>
     <div><span>{{ 'event.fields.location'|trans({}, 'event') }}</span><strong>{{ event.location ?: '—' }}</strong></div>
     <div><span>{{ 'event.fields.status'|trans({}, 'event') }}</span><strong>{{ ('event.status.' ~ event.status.value)|trans({}, 'event') }}</strong></div>
     <div><span>{{ 'event.fields.creator'|trans({}, 'event') }}</span><strong>{{ event.createdBy.displayName }}</strong></div>
@@ -41,6 +50,11 @@
   <h2>Test projection</h2>
   <p class="page-note">Ouvre un LiveRun de test sans envoyer d'invitation.</p>
   <div class="collection-actions">
+    {% if event.playlist %}
+      <a class="primary" href="{{ path('app_event_session_playlist', {'_locale': app.request.locale, id: event.id}) }}">
+        Ouvrir la session
+      </a>
+    {% endif %}
     <form method="post" action="{{ path('app_live_test_start', {id: event.id}) }}">
       <input type="hidden" name="_token" value="{{ csrf_token('live_test_start_' ~ event.id) }}">
       <button class="primary" type="submit">Tester la session</button>

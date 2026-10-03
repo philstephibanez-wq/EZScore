@@ -1,0 +1,11 @@
+.karaoke-head{align-items:flex-start}
+.karaoke-prompter{overflow:hidden}
+.karaoke-readonly-state{display:grid;text-align:right;gap:.15rem}
+.karaoke-readonly-state small{opacity:.65}
+.karaoke-prompter .chordslab-edit-help{display:none}
+.karaoke-ribbon-stage{min-height:390px}
+.karaoke-ribbon-stage .lyrics-ribbon-chords{top:34%}
+.karaoke-ribbon-stage .lyrics-ribbon-syllables{top:54%}
+.karaoke-ribbon-stage .lyrics-ribbon-chord{font-size:clamp(24px,2.3vw,42px)}
+.karaoke-ribbon-stage .lyrics-ribbon-syllable{font-size:clamp(24px,2.5vw,46px)}
+.karaoke-player{margin-top:1rem}

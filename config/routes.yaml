@@ -47,6 +47,13 @@ localized_song_labs:
         fr: /fr
         en: /en
 
+localized_karaoke:
+    resource: ../src/Controller/KaraokeController.php
+    type: attribute
+    prefix:
+        fr: /fr
+        en: /en
+
 localized_lyrics_history:
     resource: ../src/Controller/LyricsHistoryController.php
     type: attribute
@@ -178,4 +185,8 @@ concert_session_controller:
 
 live_run_controller:
     resource: ../src/Controller/LiveRunController.php
+    type: attribute
+
+live_run_karaoke_sync_controller:
+    resource: ../src/Controller/LiveRunKaraokeSyncController.php
     type: attribute

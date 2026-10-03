@@ -1,0 +1,25 @@
+
+/* R1.C7 conductor navigation + transparent pre-roll overlay */
+.karaoke-session-nav{display:flex;align-items:center;gap:.65rem;flex-wrap:wrap;justify-content:flex-end}
+.karaoke-session-nav a,.karaoke-session-nav span{min-height:42px;display:inline-flex;align-items:center;padding:.45rem .75rem;border-radius:10px;border:1px solid #33434d;text-decoration:none}
+.karaoke-session-nav .is-disabled{opacity:.28;pointer-events:none}
+.karaoke-session-nav .karaoke-nav-index{border:0;opacity:.7;padding-inline:.3rem}
+.karaoke-preroll-setting{display:inline-flex;align-items:center;gap:.45rem;font-size:.9rem}
+.karaoke-preroll-setting input{width:4.3rem;min-height:38px}
+.karaoke-prompter{position:relative}
+.karaoke-preroll-overlay{
+  position:absolute;
+  inset:0;
+  z-index:20;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  pointer-events:none;
+  background:transparent;
+  font-size:clamp(120px,24vw,360px);
+  font-weight:900;
+  line-height:1;
+  color:var(--ez-accent,#ff6578);
+  text-shadow:0 4px 24px rgba(0,0,0,.9),0 0 3px #fff;
+}
+.karaoke-preroll-overlay[hidden]{display:none!important}

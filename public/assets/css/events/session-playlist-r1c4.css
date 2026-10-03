@@ -1,0 +1,18 @@
+.session-playlist-head{align-items:flex-start}
+.session-playlist-panel{display:grid;gap:1.1rem}
+.session-playlist-intro{display:flex;justify-content:space-between;gap:1rem;align-items:flex-start}
+.session-playlist-intro h2{margin:0 0 .35rem}
+.session-live-pill{display:inline-flex;align-items:center;padding:.35rem .7rem;border-radius:999px;border:1px solid currentColor;font-weight:800;font-size:.82rem;white-space:nowrap}
+.session-live-pill.is-test{letter-spacing:.05em}
+.session-song-list{display:grid;gap:.55rem}
+.session-song-row{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:.9rem;align-items:center;padding:.8rem .9rem;border:1px solid rgba(128,128,128,.28);border-radius:12px}
+.session-song-position{font-variant-numeric:tabular-nums;opacity:.58;font-weight:800;text-align:center}
+.session-song-main{display:grid;gap:.15rem;min-width:0}
+.session-song-main strong{font-size:1.05rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.session-song-main span{opacity:.68;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.session-song-actions{display:flex;gap:.55rem;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:760px){
+  .session-playlist-intro{display:grid}
+  .session-song-row{grid-template-columns:40px minmax(0,1fr)}
+  .session-song-actions{grid-column:1 / -1;justify-content:flex-start;padding-left:48px}
+}

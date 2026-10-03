@@ -33,11 +33,33 @@ final class LiveRun
     #[ORM\Column(options: ['default' => 0])]
     private int $revision = 0;
 
+    #[ORM\Column(nullable: true)]
+    private ?int $currentSongId = null;
+
+    #[ORM\Column(options: ['default' => false])]
+    private bool $playing = false;
+
+    #[ORM\Column(options: ['default' => 0])]
+    private int $positionMs = 0;
+
+    #[ORM\Column(options: ['default' => 1.0])]
+    private float $playbackRate = 1.0;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $stateUpdatedAt = null;
+
     #[ORM\Column]
     private \DateTimeImmutable $startedAt;
 
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $endedAt = null;
+
+
+    #[ORM\Column(name: 'countdown_ends_at', nullable: true)]
+    private ?\DateTimeImmutable $countdownEndsAt = null;
+
+    #[ORM\Column(name: 'countdown_total_seconds', options: ['default' => 0])]
+    private int $countdownTotalSeconds = 0;
 
     public function __construct(Event $event, User $conductor, bool $testMode = true)
     {
@@ -54,14 +76,86 @@ final class LiveRun
     public function isLive(): bool { return $this->status === 'live'; }
     public function isTestMode(): bool { return $this->testMode; }
     public function getRevision(): int { return $this->revision; }
+    public function getCurrentSongId(): ?int { return $this->currentSongId; }
+    public function isPlaying(): bool { return $this->playing; }
+    public function getPositionMs(): int { return $this->positionMs; }
+    public function getPlaybackRate(): float { return $this->playbackRate; }
+    public function getStateUpdatedAt(): ?\DateTimeImmutable { return $this->stateUpdatedAt; }
     public function getStartedAt(): \DateTimeImmutable { return $this->startedAt; }
     public function getEndedAt(): ?\DateTimeImmutable { return $this->endedAt; }
 
+    public function updateTransport(int $songId, bool $playing, int $positionMs, float $playbackRate): self
+    {
+        $this->currentSongId = max(1, $songId);
+        $this->playing = $playing;
+        $this->positionMs = max(0, $positionMs);
+        $this->playbackRate = max(0.5, min(2.0, $playbackRate));
+        $this->stateUpdatedAt = new \DateTimeImmutable();
+        ++$this->revision;
+
+        return $this;
+    }
+
+
+    public function getKaraokeCurrentSongId(): ?int { return $this->currentSongId; }
+    public function isKaraokePlaying(): bool { return $this->playing; }
+    public function getKaraokePositionMs(): int { return $this->positionMs; }
+    public function getKaraokePlaybackRate(): float { return $this->playbackRate; }
+    public function getKaraokeStateUpdatedAt(): ?\DateTimeImmutable { return $this->stateUpdatedAt; }
+
+
+    public function getKaraokeCountdownEndsAt(): ?\DateTimeImmutable { return $this->countdownEndsAt; }
+    public function getKaraokeCountdownTotalSeconds(): int { return $this->countdownTotalSeconds; }
+
+    public function startKaraokeCountdown(int $songId, int $seconds, float $playbackRate): self
+    {
+        $seconds = max(1, min(30, $seconds));
+        $this->currentSongId = $songId;
+        $this->playing = false;
+        $this->positionMs = 0;
+        $this->playbackRate = max(0.50, min(2.00, $playbackRate));
+        $this->countdownTotalSeconds = $seconds;
+        $this->countdownEndsAt = (new \DateTimeImmutable())->modify('+'.$seconds.' seconds');
+        $this->stateUpdatedAt = new \DateTimeImmutable();
+        ++$this->revision;
+
+        return $this;
+    }
+
+    public function clearKaraokeCountdown(): self
+    {
+        $this->countdownEndsAt = null;
+        $this->countdownTotalSeconds = 0;
+
+        return $this;
+    }
+    public function updateKaraokeTransport(
+        int $songId,
+        bool $playing,
+        int $positionMs,
+        float $playbackRate,
+    ): self {
+        $this->currentSongId = $songId;
+        $this->playing = $playing;
+        // R1.C7 real transport clears pre-roll.
+        if ($playing) {
+            $this->countdownEndsAt = null;
+            $this->countdownTotalSeconds = 0;
+        }
+        $this->positionMs = max(0, $positionMs);
+        $this->playbackRate = max(0.50, min(2.00, $playbackRate));
+        $this->stateUpdatedAt = new \DateTimeImmutable();
+        ++$this->revision;
+
+        return $this;
+    }
     public function end(): self
     {
         if ($this->status !== 'ended') {
             $this->status = 'ended';
+            $this->playing = false;
             $this->endedAt = new \DateTimeImmutable();
+            $this->stateUpdatedAt = $this->endedAt;
             ++$this->revision;
         }
 

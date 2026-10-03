@@ -17,6 +17,10 @@ final class DisplayUserGateSubscriber implements EventSubscriberInterface
         'app_live_display_home',
         'app_live_open',
         'app_live_display',
+        'app_live_karaoke_song_data',
+        'app_live_karaoke_state_read',
+        'app_live_state',
+        'app_live_song_data',
         'app_logout',
         'app_locale',
     ];

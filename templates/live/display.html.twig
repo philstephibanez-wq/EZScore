@@ -4,29 +4,68 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>EZSCORE — {{ event.title }}</title>
+    <link rel="stylesheet" href="/assets/css/chordslab.css?v=20260928r35_10">
+    <link rel="stylesheet" href="/assets/css/lyricslab-r37.css?v=20261001r41_0i">
     <link rel="stylesheet" href="/assets/css/live/display-gate-r1c2.css?v=20261002r1c2">
+<link rel="stylesheet" href="/assets/css/live/display-karaoke-sync-r1c6.css?v=20261002r1c6a">
 </head>
 <body class="display-gate-page">
-<main class="display-stage">
+<main class="display-stage"
+      data-live-display
+      data-live-run-id="{{ live_run.id }}"
+      data-state-url="{{ state_url }}"
+      data-song-url-template="{{ song_url_template|replace({'999999':'__SONG__'}) }}">
     <header class="display-stage-head">
         <div class="display-live-badge">{{ live_run.testMode ? 'TEST' : 'LIVE' }}</div>
         <div>
-            <h1>{{ event.title }}</h1>
+            <h1 data-display-session-title>{{ event.title }}</h1>
             <p>Chef d'orchestre : <strong>{{ live_run.conductor.displayName }}</strong></p>
+        </div>
+        <div class="display-audio-inline">
+            <label><input type="radio" name="display_audio" value="none" checked> Sans son</label>
+            <label><input type="radio" name="display_audio" value="local_display"> Son local du rétro</label>
         </div>
     </header>
 
-    <section class="display-audio-choice">
-        <h2>Son du rétro</h2>
-        <label><input type="radio" name="display_audio" value="none" checked> Sans son</label>
-        <label><input type="radio" name="display_audio" value="local_display"> Son local du rétro</label>
+    <section class="display-song-wait" data-display-song-wait>
+        <strong>Session connectée.</strong>
+        <span>En attente d'une chanson lancée par le Chef d'orchestre…</span>
     </section>
 
-    <section class="display-follow-placeholder">
-        <strong>Connecté à la Session.</strong>
-        <span>Le Chef d'orchestre pilotera les chansons, la lecture et la position.</span>
-        <span>Le rétro reproduira Lyrics passivement, avec ou sans son local.</span>
+    <section class="display-lyrics-shell" data-display-lyrics hidden>
+        <div class="display-song-title">
+            <h2 data-display-song-title></h2>
+            <span data-display-song-artist></span>
+            <span class="display-transport-state" data-display-transport-state>Pause</span>
+        </div>
+
+        <div class="chordslab-stage display-canonical-stage">
+            <div class="chordslab-measures" data-display-measures></div>
+        </div>
+    </section>
+
+    {# R1.C6A — passive Karaoke renderer; legacy waiting UI is left in place but hidden by CSS. #}
+    <section class="display-karaoke-sync-panel"
+             data-live-karaoke-display
+             data-state-url="{{ path('app_live_karaoke_state_read', {id: live_run.id}) }}"
+             data-song-url-template="{{ path('app_live_karaoke_song_data', {id: live_run.id, songId: 999999999})|replace({'999999999':'__SONG__'}) }}">
+        <div class="display-karaoke-waiting" data-display-waiting>
+            <strong>Session connectée.</strong>
+            <span>En attente d'une chanson lancée par le Chef d'orchestre…</span>
+        </div>
+
+        <div class="display-karaoke-song" data-display-song hidden>
+            <div class="display-karaoke-song-head">
+                <h2 data-display-song-title>—</h2>
+                <p data-display-song-meta></p>
+            </div>
+            <div data-display-prompter></div>
+        </div>
     </section>
 </main>
+
+<script src="/assets/js/ezscore-timeline-core-r39.js?v=20260929r39_0"></script>
+<script src="/assets/js/ezscore-timeline-core-r39.js?v=20260929r39_0"></script>
+    <script src="/assets/js/live/display-karaoke-sync-r1c7.js?v=20261002r1c7"></script>
 </body>
 </html>
