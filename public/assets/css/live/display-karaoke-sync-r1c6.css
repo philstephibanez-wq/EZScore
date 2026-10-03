@@ -38,3 +38,23 @@
   text-shadow:0 5px 28px rgba(0,0,0,.95),0 0 3px #fff;
 }
 .display-karaoke-countdown[hidden]{display:none!important}
+
+
+/* R1.C14B — low latency / collision-safe projector */
+.display-karaoke-stage{isolation:isolate}
+.display-current-chord-diagram{
+  position:absolute;
+  top:14px;
+  right:18px;
+  z-index:20;
+  transform:scale(.9);
+  transform-origin:top right;
+}
+.display-current-chord-diagram[hidden]{display:none!important}
+.display-karaoke-lyrics{height:150px}
+.display-karaoke-syllable{
+  --ez-display-font-scale:1;
+  --ez-display-y-offset:0px;
+  transform:translateX(-50%) translateY(var(--ez-display-y-offset)) scale(var(--ez-display-font-scale));
+  transform-origin:center center;
+}

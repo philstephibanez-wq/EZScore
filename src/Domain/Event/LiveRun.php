@@ -48,6 +48,12 @@ final class LiveRun
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $stateUpdatedAt = null;
 
+    #[ORM\Column(name: 'state_updated_at_ms', nullable: true)]
+    private ?int $stateUpdatedAtMs = null;
+
+    #[ORM\Column(name: 'diagram_enabled', options: ['default' => false])]
+    private bool $diagramEnabled = false;
+
     #[ORM\Column]
     private \DateTimeImmutable $startedAt;
 
@@ -81,6 +87,8 @@ final class LiveRun
     public function getPositionMs(): int { return $this->positionMs; }
     public function getPlaybackRate(): float { return $this->playbackRate; }
     public function getStateUpdatedAt(): ?\DateTimeImmutable { return $this->stateUpdatedAt; }
+    public function getStateUpdatedAtMs(): ?int { return $this->stateUpdatedAtMs; }
+    public function isDiagramEnabled(): bool { return $this->diagramEnabled; }
     public function getStartedAt(): \DateTimeImmutable { return $this->startedAt; }
     public function getEndedAt(): ?\DateTimeImmutable { return $this->endedAt; }
 
@@ -91,6 +99,7 @@ final class LiveRun
         $this->positionMs = max(0, $positionMs);
         $this->playbackRate = max(0.5, min(2.0, $playbackRate));
         $this->stateUpdatedAt = new \DateTimeImmutable();
+        $this->stateUpdatedAtMs = (int) round(microtime(true) * 1000);
         ++$this->revision;
 
         return $this;
@@ -102,21 +111,25 @@ final class LiveRun
     public function getKaraokePositionMs(): int { return $this->positionMs; }
     public function getKaraokePlaybackRate(): float { return $this->playbackRate; }
     public function getKaraokeStateUpdatedAt(): ?\DateTimeImmutable { return $this->stateUpdatedAt; }
+    public function getKaraokeStateUpdatedAtMs(): ?int { return $this->stateUpdatedAtMs; }
+    public function isKaraokeDiagramEnabled(): bool { return $this->diagramEnabled; }
 
 
     public function getKaraokeCountdownEndsAt(): ?\DateTimeImmutable { return $this->countdownEndsAt; }
     public function getKaraokeCountdownTotalSeconds(): int { return $this->countdownTotalSeconds; }
 
-    public function startKaraokeCountdown(int $songId, int $seconds, float $playbackRate): self
+    public function startKaraokeCountdown(int $songId, int $seconds, float $playbackRate, bool $diagramEnabled = false): self
     {
         $seconds = max(1, min(30, $seconds));
         $this->currentSongId = $songId;
         $this->playing = false;
         $this->positionMs = 0;
         $this->playbackRate = max(0.50, min(2.00, $playbackRate));
+        $this->diagramEnabled = $diagramEnabled;
         $this->countdownTotalSeconds = $seconds;
         $this->countdownEndsAt = (new \DateTimeImmutable())->modify('+'.$seconds.' seconds');
         $this->stateUpdatedAt = new \DateTimeImmutable();
+        $this->stateUpdatedAtMs = (int) round(microtime(true) * 1000);
         ++$this->revision;
 
         return $this;
@@ -134,6 +147,7 @@ final class LiveRun
         bool $playing,
         int $positionMs,
         float $playbackRate,
+        bool $diagramEnabled = false,
     ): self {
         $this->currentSongId = $songId;
         $this->playing = $playing;
@@ -144,7 +158,9 @@ final class LiveRun
         }
         $this->positionMs = max(0, $positionMs);
         $this->playbackRate = max(0.50, min(2.00, $playbackRate));
+        $this->diagramEnabled = $diagramEnabled;
         $this->stateUpdatedAt = new \DateTimeImmutable();
+        $this->stateUpdatedAtMs = (int) round(microtime(true) * 1000);
         ++$this->revision;
 
         return $this;
@@ -156,6 +172,7 @@ final class LiveRun
             $this->playing = false;
             $this->endedAt = new \DateTimeImmutable();
             $this->stateUpdatedAt = $this->endedAt;
+            $this->stateUpdatedAtMs = (int) round(microtime(true) * 1000);
             ++$this->revision;
         }
 

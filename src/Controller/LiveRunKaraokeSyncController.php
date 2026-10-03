@@ -62,11 +62,12 @@ final class LiveRunKaraokeSyncController extends AbstractController
         $positionMs = max(0, (int) ($payload['position_ms'] ?? 0));
         $playbackRate = max(0.50, min(2.00, (float) ($payload['playback_rate'] ?? 1.0)));
         $countdownSeconds = max(0, min(30, (int) ($payload['countdown_seconds'] ?? 0)));
+        $diagramEnabled = (bool) ($payload['diagram_enabled'] ?? false);
 
         if ($countdownSeconds > 0) {
-            $liveRun->startKaraokeCountdown($songId, $countdownSeconds, $playbackRate);
+            $liveRun->startKaraokeCountdown($songId, $countdownSeconds, $playbackRate, $diagramEnabled);
         } else {
-            $liveRun->updateKaraokeTransport($songId, $playing, $positionMs, $playbackRate);
+            $liveRun->updateKaraokeTransport($songId, $playing, $positionMs, $playbackRate, $diagramEnabled);
         }
         $em->flush();
 
@@ -92,6 +93,9 @@ final class LiveRunKaraokeSyncController extends AbstractController
             'position_ms' => $liveRun->getKaraokePositionMs(),
             'playback_rate' => $liveRun->getKaraokePlaybackRate(),
             'updated_at' => $liveRun->getKaraokeStateUpdatedAt()?->format(DATE_ATOM),
+            'state_updated_at_ms' => $liveRun->getKaraokeStateUpdatedAtMs(),
+            'server_now_ms' => (int) round(microtime(true) * 1000),
+            'diagram_enabled' => $liveRun->isKaraokeDiagramEnabled(),
             'countdown_ends_at' => $liveRun->getKaraokeCountdownEndsAt()?->format(DATE_ATOM),
             'countdown_total_seconds' => $liveRun->getKaraokeCountdownTotalSeconds(),
         ]);
