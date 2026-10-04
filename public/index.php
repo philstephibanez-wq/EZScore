@@ -5,15 +5,19 @@ declare(strict_types=1);
 use App\Kernel;
 
 /*
- * EZSCORE_R41_0H_ONLINE_PROD_GUARD
+ * EZSCORE_R41_0I_PROD_INSTANCE_GUARD
  *
  * Invariant d'infrastructure:
- *   EZSCORE_INSTANCE=online => APP_ENV=prod + APP_DEBUG=0
+ *   EZSCORE_INSTANCE in {online, prod} => APP_ENV=prod + APP_DEBUG=0
+ *
+ * "online" est conservé pour compatibilité legacy.
+ * "prod" est la cible physique utilisée par EZS_orchestrator R3.
  *
  * Cette garde est exécutée avant Symfony Runtime.
  */
 $ezscoreInstance = (string) ($_SERVER['EZSCORE_INSTANCE'] ?? $_ENV['EZSCORE_INSTANCE'] ?? getenv('EZSCORE_INSTANCE') ?: '');
-if ($ezscoreInstance === 'online') {
+
+if (in_array($ezscoreInstance, ['online', 'prod'], true)) {
     putenv('APP_ENV=prod');
     putenv('APP_DEBUG=0');
     $_SERVER['APP_ENV'] = 'prod';
