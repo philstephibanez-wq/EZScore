@@ -9,7 +9,7 @@ use App\Domain\Song\Song;
 use App\Domain\Song\UserSongStemMix;
 use App\Domain\Song\UserSongStemMixRepository;
 use App\Domain\User\User;
-use App\Service\AnalysisDesktopStateStore;
+use App\Service\AnalysisCapabilityState;
 use App\Service\SongStemJobService;
 use App\Service\SongStemStorage;
 use App\Service\SongStemPlaybackStorage;
@@ -34,7 +34,7 @@ final class SongStemController extends AbstractController
         Song $song,
         SongStemJobService $jobs,
         SongStemStorage $storage,
-        AnalysisDesktopStateStore $workerState,
+        AnalysisCapabilityState $workerState,
         UserSongStemMixRepository $mixes,
         SongStemPlaybackStorage $playback,
     ): Response {
@@ -60,7 +60,7 @@ final class SongStemController extends AbstractController
             'stems_complete' => $complete,
             'stem_names' => SongStemStorage::STEMS,
             'job_active' => $isActive,
-            'analysis_worker_online' => $workerState->isOnline(),
+            'analysis_worker_online' => $workerState->isAvailable(),
             'stem_mix_settings' => $mix?->getSettings() ?? [],
             'playback_ready' => $playback->isReady($song),
             'playback_manifest' => $playback->manifest($song),
@@ -72,7 +72,7 @@ final class SongStemController extends AbstractController
         Song $song,
         Request $request,
         SongStemJobService $jobs,
-        AnalysisDesktopStateStore $workerState,
+        AnalysisCapabilityState $workerState,
     ): Response {
         $user = $this->requireEditor($song);
 
@@ -83,7 +83,7 @@ final class SongStemController extends AbstractController
             throw $this->createAccessDeniedException();
         }
 
-        if (!$workerState->isOnline()) {
+        if (!$workerState->isAvailable()) {
             $this->addFlash('error', 'stems.error.worker_offline');
 
             return $this->redirectToRoute('app_song_stems', [
@@ -104,12 +104,9 @@ final class SongStemController extends AbstractController
         $force = $request->request->getBoolean('force');
         $job = $jobs->queue($song, $user, $force);
 
-        $this->addFlash(
-            'success',
-            $job->getStatus() === AnalysisJobStatus::Queued
-                ? 'stems.queued'
-                : 'stems.already_running',
-        );
+        if ($job->getStatus() !== AnalysisJobStatus::Queued) {
+            $this->addFlash('success', 'stems.already_running');
+        }
 
         return $this->redirectToRoute('app_song_stems', [
             '_locale' => $request->getLocale(),
@@ -159,7 +156,7 @@ final class SongStemController extends AbstractController
         Song $song,
         Request $request,
         SongStemJobService $jobs,
-        AnalysisDesktopStateStore $workerState,
+        AnalysisCapabilityState $workerState,
         SongStemStorage $storage,
         TranslatorInterface $translator,
     ): Response {
@@ -172,7 +169,7 @@ final class SongStemController extends AbstractController
             throw $this->createAccessDeniedException();
         }
 
-        if (!$workerState->isOnline()) {
+        if (!$workerState->isAvailable()) {
             $this->addFlash('error', 'stems.error.worker_offline');
 
             return $this->redirectToRoute('app_song_stems', [

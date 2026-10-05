@@ -22,6 +22,7 @@ import threading
 import sys
 import tempfile
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -42,9 +43,31 @@ FINAL_STEMS = (
 
 def _write_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.{uuid.uuid4().hex}.tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(path)
+    delay = 0.02
+    try:
+        for attempt in range(8):
+            try:
+                os.replace(tmp, path)
+                return
+            except (PermissionError, OSError):
+                if attempt >= 7:
+                    raise
+                time.sleep(delay)
+                delay = min(delay * 2.0, 0.25)
+    finally:
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def _log_perf(log_path: Path, phase: str, seconds: float, **extra: object) -> None:
+    details = " ".join(f"{key}={value}" for key, value in extra.items())
+    suffix = f" {details}" if details else ""
+    with log_path.open("a", encoding="utf-8", errors="replace") as log:
+        log.write(f"\n[PERF] phase={phase} duration_seconds={seconds:.3f}{suffix}\n")
 
 
 def _progress(
@@ -141,13 +164,28 @@ def _run_tracked(
         )
 
         def _reader() -> None:
+            # PROGRESS_STREAM_R15_1
+            # tqdm/roformer frequently redraws one terminal line with "\r"
+            # rather than emitting a real "\n". readline() therefore delays
+            # intermediate percentages until the subprocess flushes/closes.
+            # Read continuously and emit on either CR or LF.
             assert proc.stdout is not None
+            pending = ""
             try:
                 while True:
-                    chunk = proc.stdout.readline()
+                    chunk = proc.stdout.read(1)
                     if chunk == "":
+                        if pending:
+                            output_queue.put(pending)
                         break
-                    output_queue.put(chunk)
+
+                    if chunk in {"\r", "\n"}:
+                        if pending:
+                            output_queue.put(pending + chunk)
+                            pending = ""
+                        continue
+
+                    pending += chunk
             finally:
                 output_queue.put(None)
 
@@ -185,13 +223,14 @@ def _run_tracked(
                     span = max(0, int(overall_end) - int(overall_start))
                     mapped = int(overall_start) + round(span * engine_percent / 100)
                     last_overall = max(last_overall, min(int(overall_end), mapped))
+                    sample_now = time.monotonic()
                     _progress(
                         progress_path,
                         last_overall,
                         stage,
                         message,
                         engine_percent=engine_percent,
-                        elapsed_seconds=now - started,
+                        elapsed_seconds=sample_now - started,
                     )
 
             if proc.poll() is not None and reader_done:
@@ -426,6 +465,7 @@ def main() -> int:
     staging = Path(tempfile.mkdtemp(prefix="ezscore-stems-", dir=str(runtime_tmp)))
 
     started = time.monotonic()
+    phase_durations: dict[str, float] = {}
 
     try:
         _progress(progress_file, 3, "prepare", "Preparing audio source.")
@@ -440,6 +480,7 @@ def main() -> int:
             directory.mkdir(parents=True, exist_ok=True)
 
         source_wav = input_dir / "source.wav"
+        phase_started = time.monotonic()
         _run(
             [
                 _which_ffmpeg(),
@@ -453,11 +494,17 @@ def main() -> int:
             timeout=min(timeout, 900),
             log_path=log_path,
         )
+        phase_durations["normalize"] = time.monotonic() - phase_started
+        _log_perf(log_path, "normalize", phase_durations["normalize"])
 
         _progress(progress_file, 10, "models", "Checking separation models.")
+        phase_started = time.monotonic()
         bs_slug, bs_config, bs_checkpoint = _prepare_bs_model(bs_root, timeout, log_path)
+        phase_durations["bs_model_prepare"] = time.monotonic() - phase_started
+        _log_perf(log_path, "bs_model_prepare", phase_durations["bs_model_prepare"])
 
         _progress(progress_file, 18, "separation", "Separating instrumental stems.")
+        phase_started = time.monotonic()
         _run_tracked(
             [
                 sys.executable, "-m", "bs_roformer.inference",
@@ -476,6 +523,8 @@ def main() -> int:
             overall_start=18,
             overall_end=70,
         )
+        phase_durations["bs_separation"] = time.monotonic() - phase_started
+        _log_perf(log_path, "bs_separation", phase_durations["bs_separation"], device=device, model=bs_slug)
 
         located: dict[str, Path] = {
             name: _pick_wav(bs_output, name, source_wav.stem)
@@ -484,9 +533,13 @@ def main() -> int:
 
         _progress(progress_file, 72, "vocals", "Separating lead vocal and backing vocals.")
 
+        phase_started = time.monotonic()
         karaoke_slug = _prepare_karaoke_model(karaoke_root, timeout, log_path)
+        phase_durations["karaoke_model_prepare"] = time.monotonic() - phase_started
+        _log_perf(log_path, "karaoke_model_prepare", phase_durations["karaoke_model_prepare"])
         shutil.copy2(located["vocals"], karaoke_input / "vocals.wav")
 
+        phase_started = time.monotonic()
         _run_tracked(
             [
                 sys.executable, "-m", "mel_band_roformer.inference",
@@ -505,11 +558,14 @@ def main() -> int:
             overall_start=72,
             overall_end=89,
         )
+        phase_durations["vocal_separation"] = time.monotonic() - phase_started
+        _log_perf(log_path, "vocal_separation", phase_durations["vocal_separation"], device=device, model=karaoke_slug)
 
         lead = _pick_karaoke_output(karaoke_output, "vocals")
         backing = _pick_karaoke_output(karaoke_output, "instrumental")
 
         _progress(progress_file, 90, "persist", "Persisting stems.")
+        phase_started = time.monotonic()
 
         # Persist exhaustive stems. "vocals" is retained as the unsplit vocal stem.
         for name in RAW_STEMS:
@@ -532,6 +588,7 @@ def main() -> int:
             "timebase": "original_audio_seconds",
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "duration_seconds": round(time.monotonic() - started, 3),
+            "phase_durations_seconds": {name: round(seconds, 3) for name, seconds in phase_durations.items()},
             "device": device,
             "engines": {
                 "instrumental": {
@@ -561,8 +618,11 @@ def main() -> int:
         payload.replace(final_run)
         _write_json(current_pointer, {"run": run_name})
         _cleanup_old_runs(runs_dir, keep=2)
+        phase_durations["persist_publish"] = time.monotonic() - phase_started
+        _log_perf(log_path, "persist_publish", phase_durations["persist_publish"])
+        _log_perf(log_path, "stems_total", time.monotonic() - started)
 
-        _progress(progress_file, 100, "complete", "Stem separation completed.")
+        _progress(progress_file, 91, "stems_complete", "Stem separation completed; optimizing playback.")
         return 0
 
     except Exception as exc:

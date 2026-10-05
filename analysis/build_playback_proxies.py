@@ -13,6 +13,9 @@ import os
 import shutil
 import subprocess
 import tempfile
+import threading
+import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -33,25 +36,45 @@ OPUS_BITRATE = "192k"
 
 def _write_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    tmp.replace(path)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.{uuid.uuid4().hex}.tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    delay = 0.02
+    try:
+        for attempt in range(8):
+            try:
+                os.replace(tmp, path)
+                return
+            except (PermissionError, OSError):
+                if attempt >= 7:
+                    raise
+                time.sleep(delay)
+                delay = min(delay * 2.0, 0.25)
+    finally:
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _progress(path: Path | None, track: str, index: int, total: int) -> None:
     if path is None:
         return
-
+    engine_percent = round((index / max(1, total)) * 100)
+    overall_percent = 92 + round((7 * index) / max(1, total))
     _write_json(path, {
-        "percent": 100,
+        "percent": min(99, overall_percent),
         "stage": "playback",
         "message": f"Optimizing playback audio: {track}.",
-        "engine_percent": round((index / max(1, total)) * 100),
+        "engine_percent": engine_percent,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     })
+
+
+def _log_perf(log_path: Path, phase: str, seconds: float, **extra: object) -> None:
+    details = " ".join(f"{key}={value}" for key, value in extra.items())
+    suffix = f" {details}" if details else ""
+    with log_path.open("a", encoding="utf-8", errors="replace") as log:
+        log.write(f"\n[PERF] phase={phase} duration_seconds={seconds:.3f}{suffix}\n")
 
 
 def _ffmpeg() -> str:
@@ -182,6 +205,7 @@ def main() -> int:
         )
     )
 
+    playback_started = time.monotonic()
     try:
         sources: dict[str, Path] = {"original": source}
         for stem in STEMS:
@@ -197,7 +221,9 @@ def main() -> int:
             source_path = sources[track]
             target = staging / f"{track}.opus"
 
+            track_started = time.monotonic()
             _encode(source_path, target, log_path=log_path)
+            _log_perf(log_path, "opus_track", time.monotonic() - track_started, track=track, bytes=target.stat().st_size)
 
             artifacts[track] = {
                 "file": f"{track}.opus",
@@ -229,7 +255,9 @@ def main() -> int:
         staging.replace(target_dir)
         staging = None
 
-        _progress(progress_file, "complete", len(TRACKS), len(TRACKS))
+        _log_perf(log_path, "playback_total", time.monotonic() - playback_started)
+        if progress_file is not None:
+            _write_json(progress_file, {"percent": 100, "stage": "complete", "message": "STEMS and playback audio ready.", "engine_percent": 100, "updated_at": datetime.now(timezone.utc).isoformat()})
         return 0
     finally:
         if staging is not None and staging.exists():

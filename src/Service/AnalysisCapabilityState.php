@@ -17,6 +17,11 @@ final class AnalysisCapabilityState
     ) {
     }
 
+    public function isAvailable(): bool
+    {
+        return ($this->publicStatus()['available'] ?? false) === true;
+    }
+
     /**
      * @return array{
      *   online:bool,
