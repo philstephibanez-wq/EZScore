@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="application-name" content="EZScore V1.0">
     <title>{% block title %}EZScore V1.0{% endblock %}</title>
     <link rel="stylesheet" href="/assets/css/base.css?v=20260924">
     <link rel="stylesheet" href="/assets/css/layout.css?v=20260925r13">
@@ -43,7 +44,7 @@
             <button type="button" class="ez-language-trigger" aria-haspopup="listbox" aria-expanded="false" data-language-trigger>
                 {{ self.flag(app.request.locale) }}
                 <span>{{ app.request.locale == 'fr' ? ('locale.fr_name'|trans) : ('locale.en_name'|trans) }}</span>
-                <span class="ez-language-chevron" aria-hidden="true">⌄</span>
+                <span class="ez-language-chevron" aria-hidden="true">âŒ„</span>
             </button>
             <div class="ez-language-menu" role="listbox" aria-label="{{ 'locale.label'|trans }}" data-language-menu hidden>
                 <button type="button" class="ez-language-option {{ app.request.locale == 'fr' ? 'active' : '' }}" role="option" aria-selected="{{ app.request.locale == 'fr' ? 'true' : 'false' }}" data-language-option="fr">{{ self.flag('fr') }}<span>{{ 'locale.fr_name'|trans }}</span></button>
@@ -72,7 +73,7 @@
         <div class="ez-topbar-right">
             <a class="ez-concert-link" href="{{ path('app_events', {'_locale': app.request.locale}) }}" title="Sessions" aria-label="Sessions">Session</a>
             {{ ui.language_select() }}
-            <a class="ez-contact-admin-link" href="{{ path('app_contact_admin', {'_locale': app.request.locale}) }}" title="Contacter l’administrateur" aria-label="Contacter l’administrateur">✉ <span>Contacter l’admin</span></a>
+            <a class="ez-contact-admin-link" href="{{ path('app_contact_admin', {'_locale': app.request.locale}) }}" title="Contacter lâ€™administrateur" aria-label="Contacter lâ€™administrateur">âœ‰ <span>Contacter lâ€™admin</span></a>
             <a class="ez-user-badge" href="{{ path('app_profile', {'_locale': app.request.locale}) }}" title="{{ app.user.email }}">
                 {% if app.user.avatarUrl %}<img src="{{ app.user.avatarUrl }}" alt="">{% else %}<span class="ez-user-avatar">{{ app.user.displayName|slice(0, 1)|upper }}</span>{% endif %}
                 <span class="ez-user-copy"><strong>{{ app.user.displayName }}</strong><small>{{ ('role.' ~ app.user.primaryRole)|trans }}</small></span>
@@ -127,7 +128,7 @@
 
     <main class="ez-main" id="main-content">
         {% if app.request.attributes.get('_route') not in ['app_catalog', 'app_dashboard'] %}
-            <a class="ez-back-link" href="{{ path('app_catalog', {'_locale': app.request.locale}) }}">← {{ 'nav.catalog'|trans }}</a>
+            <a class="ez-back-link" href="{{ path('app_catalog', {'_locale': app.request.locale}) }}">â† {{ 'nav.catalog'|trans }}</a>
         {% endif %}
 {% else %}
 <main class="{{ public_catalog ? 'public-shell' : 'auth-shell' }}">
@@ -162,7 +163,7 @@
 <div class="ez-modal-backdrop" data-ez-confirm-modal hidden>
 <section class="ez-modal" role="dialog" aria-modal="true" aria-labelledby="ez-confirm-title">
 <div class="ez-modal-icon" aria-hidden="true">!</div>
-<div class="ez-modal-copy"><div class="eyebrow">Confirmation</div><h2 id="ez-confirm-title">Confirmer l’action</h2><p data-ez-confirm-message></p></div>
+<div class="ez-modal-copy"><div class="eyebrow">Confirmation</div><h2 id="ez-confirm-title">Confirmer lâ€™action</h2><p data-ez-confirm-message></p></div>
 <div class="ez-modal-actions"><button type="button" data-ez-confirm-cancel>Annuler</button><button type="button" class="danger-soft" data-ez-confirm-ok>Confirmer</button></div>
 </section></div>
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
