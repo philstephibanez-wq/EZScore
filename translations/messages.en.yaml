@@ -362,5 +362,5 @@ profile:
 
 analysis_worker:
   offline:
-    title: Analysis engine offline
-    body: Analyses are unavailable until EZScore Analysis Worker is started.
+    title: Analysis engine unavailable
+    body: The EZScore analysis service is unavailable for this environment.
