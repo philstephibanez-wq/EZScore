@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>{% block title %}EZSCORE v1{% endblock %}</title>
+    <title>{% block title %}EZScore V1.0{% endblock %}</title>
     <link rel="stylesheet" href="/assets/css/base.css?v=20260924">
     <link rel="stylesheet" href="/assets/css/layout.css?v=20260925r13">
     <link rel="stylesheet" href="/assets/css/workflow-tabs-r23-2.css?v=20260926r32_3">
@@ -60,7 +60,7 @@
     <header class="ez-topbar">
         <div class="ez-topbar-left">
             <button type="button" class="ez-menu-button" data-ez-menu-button aria-controls="ez-drawer" aria-expanded="false" aria-label="{{ 'layout.sidebar.toggle'|trans }}" title="{{ 'layout.sidebar.toggle'|trans }}"><span aria-hidden="true"></span></button>
-            <a class="ez-brand" href="{{ path('app_catalog', {'_locale': app.request.locale}) }}" aria-label="EZSCORE v1"><strong>EZSCORE</strong><small>v1</small></a>
+            <a class="ez-brand" href="{{ path('app_catalog', {'_locale': app.request.locale}) }}" aria-label="EZScore V1.0"><strong>EZScore</strong><small>V1.0</small></a>
         </div>
         <div class="ez-search-slot">
             <form class="ez-search-form" method="get" action="{{ path('app_catalog', {'_locale': app.request.locale}) }}" role="search">
@@ -132,7 +132,7 @@
 {% else %}
 <main class="{{ public_catalog ? 'public-shell' : 'auth-shell' }}">
     <div class="auth-topbar">
-        <a class="ez-brand" href="{{ path('app_home') }}"><strong>EZSCORE</strong><small>v1</small></a>
+        <a class="ez-brand" href="{{ path('app_home') }}" aria-label="EZScore V1.0"><strong>EZScore</strong><small>V1.0</small></a>
         <div class="public-topbar-actions">
             {% if public_catalog %}
                 {# R38.14a public contact header #}
