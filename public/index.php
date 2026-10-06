@@ -17,6 +17,13 @@ use App\Kernel;
  */
 $ezscoreInstance = (string) ($_SERVER['EZSCORE_INSTANCE'] ?? $_ENV['EZSCORE_INSTANCE'] ?? getenv('EZSCORE_INSTANCE') ?: '');
 
+// Normalize the physical instance marker into PHP superglobals so Symfony/Twig
+// can reliably distinguish DEV from PROD independently of APP_ENV.
+if ($ezscoreInstance !== '') {
+    $_SERVER['EZSCORE_INSTANCE'] = $ezscoreInstance;
+    $_ENV['EZSCORE_INSTANCE'] = $ezscoreInstance;
+}
+
 if (in_array($ezscoreInstance, ['online', 'prod'], true)) {
     putenv('APP_ENV=prod');
     putenv('APP_DEBUG=0');

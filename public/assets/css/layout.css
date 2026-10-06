@@ -62,3 +62,64 @@
     .ez-language-trigger>span:not(.ez-language-chevron){display:none}
     .ez-language-menu{min-width:150px}
 }
+
+/* EZScore DEV instance badge */
+.ez-dev-badge{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    min-width:64px;
+    height:34px;
+    padding:0 12px;
+    border:2px solid #fff;
+    border-radius:8px;
+    background:#d7263d;
+    color:#fff;
+    font-size:18px;
+    font-weight:950;
+    line-height:1;
+    letter-spacing:.08em;
+    box-shadow:0 0 0 3px rgba(215,38,61,.28),0 4px 12px rgba(0,0,0,.35);
+}
+.ez-public-brand-wrap{
+    display:flex;
+    align-items:center;
+    gap:10px;
+}
+@media(max-width:720px){
+    .ez-dev-badge{
+        min-width:52px;
+        height:30px;
+        padding:0 9px;
+        font-size:15px;
+    }
+}
+
+/* EZScore DEV badge R1a */
+.ez-dev-badge{
+    min-width:78px!important;
+    height:40px!important;
+    padding:0 14px!important;
+    border:3px solid #fff!important;
+    border-radius:8px!important;
+    background:#ff2038!important;
+    color:#fff!important;
+    font-size:22px!important;
+    font-weight:1000!important;
+    letter-spacing:.10em!important;
+    box-shadow:0 0 0 4px rgba(255,32,56,.30),0 4px 14px rgba(0,0,0,.45)!important;
+}
+
+/* EZScore brand icon FINAL */
+.ez-brand{align-items:center}
+.ez-brand-icon{
+    display:block;
+    width:34px;
+    height:34px;
+    flex:0 0 34px;
+    border-radius:8px;
+    object-fit:contain;
+}
+@media(max-width:720px){
+    .ez-brand-icon{width:30px;height:30px;flex-basis:30px;border-radius:7px}
+}
