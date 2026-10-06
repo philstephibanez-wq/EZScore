@@ -484,3 +484,52 @@ dialog[data-chord-analyze-dialog][open]{
         min-height:0!important;
     }
 }
+
+/* ChordsLab progress UI R1 */
+.chordslab-prompter-head{
+    align-items:flex-start;
+}
+.chordslab-prompter-title{
+    flex:1 1 auto;
+    min-width:0;
+    display:grid;
+    gap:6px;
+}
+.chord-analysis-progress{
+    width:min(680px,100%);
+    margin:8px 0 0;
+    padding:14px 16px;
+    border:1px solid #35515f;
+    border-radius:10px;
+    background:#101a20;
+}
+.chord-analysis-progress[hidden]{display:none}
+.chord-analysis-progress-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:16px;
+    margin-bottom:8px;
+    font-size:14px;
+    font-weight:800;
+    color:#eaf2f6;
+}
+.chord-analysis-progress-head strong{
+    min-width:52px;
+    text-align:right;
+    font-size:15px;
+    color:#f5fbff;
+}
+.chord-analysis-progress progress{
+    display:block;
+    width:100%;
+    height:20px;
+    margin:0;
+    accent-color:#4aa3df;
+}
+@media(max-width:760px){
+    .chordslab-prompter-head{flex-direction:column}
+    .chordslab-prompter-title,.chord-analysis-progress{width:100%;max-width:none}
+    .chord-analysis-progress{padding:12px 13px}
+    .chord-analysis-progress progress{height:18px}
+}

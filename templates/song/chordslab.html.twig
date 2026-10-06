@@ -45,9 +45,19 @@
          data-beat-edit-url-template="{{ path('app_song_chordslab_beat_override', {'_locale': app.request.locale, id: song.id, beatId: 999999})|replace({'999999':'__BEAT__'}) }}"
          data-edit-token="{{ csrf_token('song_chordslab_edit_' ~ song.id) }}">
     <div class="chordslab-prompter-head">
-        <div>
+        <div class="chordslab-prompter-title">
             <div class="eyebrow">{{ 'chordslab.prompter'|trans({}, 'chordslab') }}</div>
             <h2>{{ 'chordslab.timeline'|trans({}, 'chordslab') }}</h2>
+    <div class="chord-analysis-progress"
+         data-chord-analysis-progress
+         data-status-url="{{ path('app_song_chordslab_status', {'_locale': app.request.locale, id: song.id}) }}"
+         hidden>
+        <div class="chord-analysis-progress-head">
+            <span data-chord-analysis-text>Analyse harmonique…</span>
+            <strong data-chord-analysis-percent>0%</strong>
+        </div>
+        <progress max="100" value="0"></progress>
+    </div>
         </div>
 
         <div class="chordslab-prompter-actions">
@@ -65,16 +75,6 @@
                 <button type="submit" class="primary">{{ (chord_events ? 'chordslab.analyze.again' : 'chordslab.analyze.button')|trans({}, 'chordslab') }}</button>
             </form>
             
-    <div class="chord-analysis-progress"
-         data-chord-analysis-progress
-         data-status-url="{{ path('app_song_chordslab_status', {'_locale': app.request.locale, id: song.id}) }}"
-         hidden>
-        <div class="chord-analysis-progress-head">
-            <span data-chord-analysis-text>Analyse harmonique…</span>
-            <strong data-chord-analysis-percent>0%</strong>
-        </div>
-        <progress max="100" value="0"></progress>
-    </div>
 
     {% if has_chord_overrides %}
             <form method="post"
