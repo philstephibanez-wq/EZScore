@@ -233,9 +233,13 @@ def detect_downbeat_phase(onset,beat_frames,bpm):
     return (0,conf) if conf<.12 else (int(phase),conf)
 
 def position(i,phase,bpm):
-    # R35.10: absolute prompter grid. Measure 1 always contains exactly bpm beats
-    # from MP3 t=0. Downbeat phase is preserved as analysis metadata only.
-    return i//bpm,i%bpm
+    # Canonical musical grid: keep audio timestamps unchanged, but number beats
+    # from the detected musical downbeat. Beats before the first downbeat belong
+    # to pickup/pre-roll measure -1; the first real downbeat is measure 0 beat 0.
+    bpm=max(1,int(bpm))
+    phase=int(phase)%bpm
+    relative=int(i)-phase
+    return relative//bpm,relative%bpm
 
 def suppress_crowd_noise(y,sr,hop=512):
     if y is None or len(y)<hop*4:return y,None
@@ -386,6 +390,240 @@ def simplify_chord(label,level):
     if is_minor:return root+"m"
     return root
 
+def metric_projection_diagnostics(segments,beat_times,bpm,phase):
+    bt=np.asarray(beat_times,dtype=float)
+    if bt.size==0:
+        return {"raw_transitions":[]}
+    rows=[]
+    downbeats=[i for i in range(len(bt)) if position(i,phase,bpm)[1]==0]
+    for segment in segments or []:
+        t=float(segment.get("start",0.0) or 0.0)
+        nearest=int(np.argmin(np.abs(bt-t)))
+        nearest_ms=float(bt[nearest]*1000.0)
+        mi,bi=position(nearest,phase,bpm)
+        nearest_down=min(downbeats,key=lambda i:abs(float(bt[i])-t)) if downbeats else nearest
+        dmi,dbi=position(nearest_down,phase,bpm)
+        rows.append({
+            "raw_start_ms":int(round(t*1000.0)),
+            "raw_end_ms":int(round(float(segment.get("end",t) or t)*1000.0)),
+            "chord":str(segment.get("chord",".") or "."),
+            "raw_chord":str(segment.get("raw_chord","") or ""),
+            "nearest_beat_seq":nearest,
+            "nearest_beat_start_ms":int(round(nearest_ms)),
+            "nearest_beat_delta_ms":int(round(t*1000.0-nearest_ms)),
+            "nearest_measure_index":mi,
+            "nearest_beat_index":bi,
+            "nearest_downbeat_seq":nearest_down,
+            "nearest_downbeat_start_ms":int(round(float(bt[nearest_down])*1000.0)),
+            "nearest_downbeat_delta_ms":int(round(t*1000.0-float(bt[nearest_down])*1000.0)),
+            "nearest_downbeat_measure_index":dmi,
+            "nearest_downbeat_beat_index":dbi,
+        })
+    return {"raw_transitions":rows}
+
+def _metric_z(values):
+    x=np.asarray(values,dtype=float)
+    if x.size==0:return x
+    return (x-np.mean(x))/(np.std(x)+1e-9)
+
+def _compound_signature_model(signature,bpm):
+    sig=str(signature or "").strip()
+    if sig=="6/8":
+        return {"compound":True,"subdivisions":6,"group":3,"pulses":2,"reference":"2/4"}
+    if sig=="9/8":
+        return {"compound":True,"subdivisions":9,"group":3,"pulses":3,"reference":"3/4"}
+    if sig=="12/8":
+        return {"compound":True,"subdivisions":12,"group":3,"pulses":4,"reference":"4/4"}
+    return {
+        "compound":False,
+        "subdivisions":max(1,int(bpm)),
+        "group":1,
+        "pulses":max(1,int(bpm)),
+        "reference":sig or f"{bpm}/4",
+    }
+
+def _transition_evidence(segments,beat_times,tolerance):
+    bt=np.asarray(beat_times,dtype=float)
+    out=[]
+    previous=None
+    for segment in segments or []:
+        chord=str(segment.get("chord",".") or ".")
+        start=float(segment.get("start",0.0) or 0.0)
+        if previous is None:
+            previous=chord
+            continue
+        if chord==previous:
+            continue
+        nearest=int(np.argmin(np.abs(bt-start)))
+        delta=abs(float(bt[nearest])-start)
+        closeness=float(np.exp(-0.5*(delta/tolerance)**2))
+        out.append((nearest,closeness))
+        previous=chord
+    return out
+
+def _phase_mean(feature,indices):
+    x=np.asarray(feature,dtype=float)
+    idx=np.asarray(indices,dtype=int)
+    if x.size==0 or idx.size==0:return 0.0
+    idx=idx[(idx>=0)&(idx<len(x))]
+    return float(np.mean(x[idx])) if idx.size else 0.0
+
+def select_musical_downbeat_phase(onset,beat_times,segments,bpm,sr,hop,bass_y=None,prior_phase=None,signature=None):
+    """Strict compound -> n/4 metric model.
+
+    Compound signatures are solved in two independent stages:
+      A) find the ternary grouping offset (which eighth-note begins each dotted beat),
+      B) run the equivalent n/4 bar-phase choice on those dotted beats only.
+    """
+    bt=np.asarray(beat_times,dtype=float)
+    model=_compound_signature_model(signature,bpm)
+    period=int(model["subdivisions"])
+    if bt.size<max(period*3,8):
+        phase=int(prior_phase or 0)%max(1,period)
+        return phase,0.0,[],[]
+
+    beat_frames=np.clip(
+        librosa.time_to_frames(bt,sr=sr,hop_length=hop),
+        0,max(0,len(onset)-1),
+    )
+    rhythm=_metric_z(np.asarray(onset,dtype=float)[beat_frames]) if len(onset) else np.zeros(len(bt),float)
+
+    if bass_y is not None and len(bass_y):
+        bass_onset=librosa.onset.onset_strength(y=bass_y,sr=sr,hop_length=hop)
+        bass_frames=np.clip(
+            librosa.time_to_frames(bt,sr=sr,hop_length=hop),
+            0,max(0,len(bass_onset)-1),
+        )
+        bass=_metric_z(np.asarray(bass_onset,dtype=float)[bass_frames]) if len(bass_onset) else np.zeros(len(bt),float)
+    else:
+        bass=np.zeros(len(bt),float)
+
+    step=float(np.median(np.diff(bt))) if len(bt)>1 else .5
+    tolerance=max(.08,min(.45,step*.42))
+    transitions=_transition_evidence(segments,bt,tolerance)
+    n=len(bt)
+
+    if bool(model["compound"]):
+        group=int(model["group"])
+        pulses=int(model["pulses"])
+
+        # A — choose which subdivision starts each compound pulse.
+        grouping_rows=[]
+        for offset in range(group):
+            pulse_starts=np.arange(offset,n,group,dtype=int)
+            nonstarts=np.asarray(
+                [i for i in range(n) if (i-offset)%group!=0],
+                dtype=int,
+            )
+            rhythm_score=_phase_mean(rhythm,pulse_starts)-_phase_mean(rhythm,nonstarts)
+            bass_score=_phase_mean(bass,pulse_starts)-_phase_mean(bass,nonstarts)
+
+            chord_values=[]
+            for nearest,closeness in transitions:
+                aligned=((nearest-offset)%group)==0
+                chord_values.append(closeness*(1.0 if aligned else -0.35))
+            chord_score=float(np.mean(chord_values)) if chord_values else 0.0
+
+            score=(
+                .30*float(np.clip(rhythm_score,-2.0,2.0))
+                +.20*float(np.clip(bass_score,-2.0,2.0))
+                +.50*chord_score
+            )
+            grouping_rows.append({
+                "group_offset":int(offset),
+                "score":round(float(score),6),
+                "rhythm":round(float(rhythm_score),6),
+                "bass":round(float(bass_score),6),
+                "chords":round(float(chord_score),6),
+                "transition_count":len(transitions),
+                "reference":model["reference"],
+            })
+
+        grouping_ranked=sorted(grouping_rows,key=lambda row:row["score"],reverse=True)
+        winning_offset=int(grouping_ranked[0]["group_offset"])
+        pulse_starts=np.arange(winning_offset,n,group,dtype=int)
+
+        # B — now treat these compound pulses exactly like the equivalent n/4.
+        bar_rows=[]
+        pulse_ord=np.arange(len(pulse_starts),dtype=int)
+        for pulse_phase in range(pulses):
+            bar_starts=pulse_starts[(pulse_ord-pulse_phase)%pulses==0]
+            other_pulses=pulse_starts[(pulse_ord-pulse_phase)%pulses!=0]
+
+            rhythm_bar=_phase_mean(rhythm,bar_starts)-_phase_mean(rhythm,other_pulses)
+            bass_bar=_phase_mean(bass,bar_starts)-_phase_mean(bass,other_pulses)
+
+            chord_values=[]
+            for nearest,closeness in transitions:
+                if (nearest-winning_offset)%group!=0:
+                    continue
+                ordinal=(nearest-winning_offset)//group
+                rel=(ordinal-pulse_phase)%pulses
+                chord_values.append(closeness*(1.0 if rel==0 else 0.15))
+            chord_score=float(np.mean(chord_values)) if chord_values else 0.0
+
+            score=(
+                .62*chord_score
+                +.25*float(np.clip(rhythm_bar,-2.0,2.0))
+                +.13*float(np.clip(bass_bar,-2.0,2.0))
+            )
+            subdivision_phase=(winning_offset+group*pulse_phase)%period
+            bar_rows.append({
+                "phase":int(subdivision_phase),
+                "pulse_phase":int(pulse_phase),
+                "score":round(float(score),6),
+                "rhythm":round(float(rhythm_bar),6),
+                "bass":round(float(bass_bar),6),
+                "chords":round(float(chord_score),6),
+                "group_offset":winning_offset,
+                "reference":model["reference"],
+            })
+
+        ranked=sorted(bar_rows,key=lambda row:row["score"],reverse=True)
+        winner=int(ranked[0]["phase"])
+        top=float(ranked[0]["score"])
+        second=float(ranked[1]["score"]) if len(ranked)>1 else top
+        confidence=float(np.clip(top-second,0.0,1.0))
+        return winner,confidence,grouping_rows,bar_rows
+
+    # Simple n/4 meters: direct bar phase on the beat grid.
+    indices=np.arange(n,dtype=int)
+    rows=[]
+    period=max(1,period)
+    for phase in range(period):
+        pos=(indices-phase)%period
+        down=indices[pos==0]
+        rest=indices[pos!=0]
+        rhythm_bar=_phase_mean(rhythm,down)-_phase_mean(rhythm,rest)
+        bass_bar=_phase_mean(bass,down)-_phase_mean(bass,rest)
+
+        chord_values=[]
+        for nearest,closeness in transitions:
+            rel=int(pos[nearest])
+            chord_values.append(closeness*(1.0 if rel==0 else -0.18))
+        chord_score=float(np.mean(chord_values)) if chord_values else 0.0
+
+        score=(
+            .46*float(np.clip(rhythm_bar,-2.0,2.0))
+            +.18*float(np.clip(bass_bar,-2.0,2.0))
+            +.36*chord_score
+        )
+        rows.append({
+            "phase":int(phase),
+            "score":round(float(score),6),
+            "rhythm":round(float(rhythm_bar),6),
+            "bass":round(float(bass_bar),6),
+            "chords":round(float(chord_score),6),
+            "reference":model["reference"],
+        })
+
+    ranked=sorted(rows,key=lambda row:row["score"],reverse=True)
+    winner=int(ranked[0]["phase"])
+    top=float(ranked[0]["score"])
+    second=float(ranked[1]["score"]) if len(ranked)>1 else top
+    confidence=float(np.clip(top-second,0.0,1.0))
+    return winner,confidence,[],rows
+
 def project_profile(level,segments,beat_times,bpm,phase,tempo):
     chords=[];previous=None
     fallback_step=60.0/tempo if tempo>20 else .5
@@ -447,12 +685,14 @@ def analyse(source,stems,drums,requested_signature,progress_file=None,filter_noi
         metric=detect_meter(harmonic_y=yh,bass_y=bass_y,onset=onset,beat_frames=beat_frames,sr=sr,hop=hop)
         signature=metric.signature
         phase=metric.phase
-        phase_conf=metric.confidence
+        meter_confidence=metric.confidence
+        preliminary_phase_confidence=None
         metric_scores=metric.scores
     else:
         signature=requested_signature
         bpm_manual=numerator(signature)
-        phase,phase_conf=detect_downbeat_phase(onset,beat_frames,bpm_manual)
+        phase,preliminary_phase_confidence=detect_downbeat_phase(onset,beat_frames,bpm_manual)
+        meter_confidence=1.0
         metric_scores={signature:1.0}
     bpm=numerator(signature)
 
@@ -468,6 +708,15 @@ def analyse(source,stems,drums,requested_signature,progress_file=None,filter_noi
     prog(progress_file,42,"chords_hq","Reconnaissance harmonique continue lv-chordia")
     segments=analyze_chords_absolute(Path(source))
 
+    prog(progress_file,50,"metric_phase","Calage du vrai premier temps")
+    preliminary_phase=int(phase)
+    phase,phase_confidence,compound_group_candidates,bar_phase_candidates=select_musical_downbeat_phase(
+        onset,beat_times,segments,bpm,sr,hop,
+        bass_y=bass_y,
+        prior_phase=preliminary_phase,
+        signature=signature,
+    )
+
     prog(progress_file,52,"key","Estimation de la tonalité depuis les accords HQ")
     key,_,key_confidence,key_method=detect_key_from_segments(segments,chroma_mean)
 
@@ -479,6 +728,7 @@ def analyse(source,stems,drums,requested_signature,progress_file=None,filter_noi
     expert=project_profile("expert",segments,beat_times,bpm,phase,tempo)
 
     prog(progress_file,88,"timeline","Construction de la timeline commune")
+    diagnostics=metric_projection_diagnostics(segments,beat_times,bpm,phase)
     beats=[]
     for i,t in enumerate(beat_times):
         mi,bi=position(i,phase,bpm)
@@ -491,7 +741,7 @@ def analyse(source,stems,drums,requested_signature,progress_file=None,filter_noi
 
     return {
         "ok":True,
-        "version":"r41.0j-hq-key-from-chords",
+        "version":"r41.0o-compound-reference-meter",
         "tempo_bpm":round(tempo,3),
         "time_signature":signature,
         "key":key,
@@ -505,8 +755,17 @@ def analyse(source,stems,drums,requested_signature,progress_file=None,filter_noi
         "chord_dictionary":CHORD_DICTIONARY,
         "chord_source":"original_audio",
         "downbeat_phase":phase,
-        "downbeat_confidence":round(float(phase_conf),4),
+        "metric_phase_offset":phase,
+        "grid_positioning":"musical_downbeat_phase",
+        "meter_confidence":round(float(meter_confidence),4),
+        "phase_confidence":round(float(phase_confidence),4),
+        "phase_preliminary":preliminary_phase,
+        "phase_reference":_compound_signature_model(signature,bpm)["reference"],
+        "compound_group_candidates":compound_group_candidates,
+        "bar_phase_candidates":bar_phase_candidates,
+        "phase_candidates":bar_phase_candidates,
         "meter_candidates":metric_scores,
+        "diagnostics":diagnostics,
         "beats":beats,
         "profiles":{
             "beginner":{"chords":beginner},
