@@ -3,9 +3,9 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="application-name" content="EZScore V1.0">
+    <meta name="application-name" content="EZScore V1.0a">
     <link rel="icon" type="image/svg+xml" href="/assets/img/favicon-ezscore.svg?v=20261006final">
-    <title>{% block title %}EZScore V1.0{% endblock %}</title>
+    <title>{% block title %}EZScore V1.0a{% endblock %}</title>
     <link rel="stylesheet" href="/assets/css/base.css?v=20260924">
     <link rel="stylesheet" href="/assets/css/layout.css?v=20261006final">
     <link rel="stylesheet" href="/assets/css/workflow-tabs-r23-2.css?v=20260926r32_3">
@@ -62,12 +62,12 @@
     <header class="ez-topbar">
         <div class="ez-topbar-left">
             <button type="button" class="ez-menu-button" data-ez-menu-button aria-controls="ez-drawer" aria-expanded="false" aria-label="{{ 'layout.sidebar.toggle'|trans }}" title="{{ 'layout.sidebar.toggle'|trans }}"><span aria-hidden="true"></span></button>
-            <a class="ez-brand" href="{{ path('app_catalog', {'_locale': app.request.locale}) }}" aria-label="EZScore V1.0">
+            <a class="ez-brand" href="{{ path('app_catalog', {'_locale': app.request.locale}) }}" aria-label="EZScore V1.0a">
                 <img class="ez-brand-icon" src="/assets/img/favicon-ezscore.svg?v=20261006final" alt="" aria-hidden="true">
                 <strong>EZScore</strong><small>V1.0</small>
             </a>
             {% if app.request.server.get('EZSCORE_INSTANCE') == 'dev' %}
-                <span class="ez-dev-badge" role="status" aria-label="Environnement de développement">DEV</span>
+                <span class="ez-dev-badge" role="status" aria-label="Environnement de développement">DEV · V1.0a</span>
             {% endif %}
         </div>
         <div class="ez-search-slot">
@@ -141,12 +141,12 @@
 <main class="{{ public_catalog ? 'public-shell' : 'auth-shell' }}">
     <div class="auth-topbar">
         <div class="ez-public-brand-wrap">
-            <a class="ez-brand" href="{{ path('app_home') }}" aria-label="EZScore V1.0">
+            <a class="ez-brand" href="{{ path('app_home') }}" aria-label="EZScore V1.0a">
                 <img class="ez-brand-icon" src="/assets/img/favicon-ezscore.svg?v=20261006final" alt="" aria-hidden="true">
                 <strong>EZScore</strong><small>V1.0</small>
             </a>
             {% if app.request.server.get('EZSCORE_INSTANCE') == 'dev' %}
-                <span class="ez-dev-badge" role="status" aria-label="Environnement de développement">DEV</span>
+                <span class="ez-dev-badge" role="status" aria-label="Environnement de développement">DEV · V1.0a</span>
             {% endif %}
         </div>
         <div class="public-topbar-actions">
