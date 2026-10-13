@@ -23,3 +23,23 @@ __pycache__/
 /var/
 /vendor/
 ###< symfony/framework-bundle ###
+# Legacy / intervention debris forbidden by repository contract
+/EZScore-Launcher*
+/README_*.md
+/payload/
+/worker_app/
+/docs/history/
+/scripts/fix_*
+/scripts/install_*
+/scripts/test_*
+/scripts/launch_ezscore*.ps1
+/scripts/cleanup_*
+/scripts/uninstall_*
+/scripts/start_analysis_worker_desktop.ps1
+/scripts/prepare_analysis_runtime.ps1
+/scripts/ensure_analysis_worker_token.ps1
+/scripts/find_analysis_python.ps1
+/scripts/start_ezscore_web.ps1
+/scripts/start_caddy.ps1
+/scripts/status_caddy.ps1
+/scripts/stop_caddy.ps1
