@@ -5,6 +5,7 @@ when@dev:
     framework:
         profiler:
             collect_serializer_data: true
+            collect_parameter: '_ezs_profile'
 
 when@test:
     framework:
