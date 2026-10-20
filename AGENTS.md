@@ -25,3 +25,18 @@ Voir aussi `REPOSITORY_HYGIENE.md`.
 - Conserver les fins de ligne conformément à `.gitattributes` ; **CRLF/LF n'est pas un diagnostic d'UTF-8**.
 - Avant validation : décodage UTF-8 strict sans BOM, contrôle de mojibake, `php -l`, `lint:twig` et tests contractuels pertinents, puis vérification visuelle des libellés français. Aucun simple lint de syntaxe ne vaut validation d'encodage ou de présentation.
 - Ce contrat s'applique à tous les dépôts EZScore, EZStudio_lab, EZStudioLab_assistant et EZS_orchestrator, y compris aux contributions des assistants et automatisations.
+
+
+## CONTRAT DES MESSAGES DE COMMIT — OBLIGATOIRE
+
+Chaque commit publié doit être intelligible sans ouvrir le diff. Rédiger **en français**, avec :
+
+- Un titre précis au format `type(périmètre): résultat obtenu — version` (par exemple `fix(profile): rejeter les preuves CLAP non indépendantes — 1.4n`). Types usuels : `fix`, `feat`, `refactor`, `test`, `docs`, `chore`.
+- Un **corps de message multiligne** expliquant `Contexte`, `Modifications`, `Validation`, `Impact` et, si nécessaire, `Limites / risques`.
+- Dans `Validation`, distinguer explicitement les tests exécutés des tests seulement ajoutés ou non exécutés. Ne jamais affirmer une réussite non constatée.
+- Dans `Impact`, indiquer les dépôts ou composants touchés, les éventuels redémarrages/déploiements, et si les modèles, presets scientifiques, données et interfaces sont inchangés.
+- Ne pas masquer plusieurs changements fonctionnels indépendants sous un intitulé générique (`fix`, `update`, `VERSION`, `cleanup`).
+- **Un commit de livraison cohérent par version**, réunissant code durable, tests et `VERSION`, autant que les outils de publication le permettent. Les commits intermédiaires éventuels doivent eux aussi être descriptifs. Aucun réécriture forcée de l'historique déjà publié.
+- Si une contrainte du dépôt exige de modifier `VERSION`, la respecter, y compris pour les livraisons documentaires.
+
+Cette règle s'applique aux contributions humaines, assistants et automatisations sur tous les dépôts du projet.
