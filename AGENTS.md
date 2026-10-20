@@ -1,5 +1,22 @@
 # AGENTS.md
 
+## SOURCE DE VÉRITÉ GITHUB — PRÉFLIGHT OBLIGATOIRE
+
+- GitHub est la source de contexte persistante, **avant** toute réponse opérationnelle ou modification : consulter les dépôts concernés, `AGENTS.md`, contrats, README, issues/handoffs, décisions, historique Git et changements récents. Ne jamais remplacer une vérification possible par une supposition ou par le souvenir d'un ancien chat.
+- Consulter également le dépôt privé `philstephibanez-wq/EZStudio_Run_Reports` pour les rapports existants. Les rapports sont des copies expurgées ; la base MAIN reste autorité pour les résultats métier. Ne jamais prétendre disposer d'un log non publié ni d'une observation temps réel.
+- L'accès GitHub direct à l'assistant est autorisé dans ce chantier lorsqu'il est demandé par le mainteneur. Les handoffs plus anciens qui interdisaient une écriture directe sont historiques ; signaler les contradictions et préférer les consignes explicites actuelles du mainteneur sans effacer l'historique.
+- Pour chaque chantier, mettre à jour l'issue/handoff concerné : état prouvé, versions et SHA, décisions, limites, risques, tests **exécutés** versus à exécuter, action suivante et conditions de reprise. Ne jamais présenter un test ajouté mais non exécuté comme validé.
+- Pour les machines MAIN/XPS, ne demander une commande locale que lorsque les données nécessaires ne sont réellement pas accessibles par GitHub ou les rapports existants. Ne publier aucun secret, jeton, trace HTTP brute, audio ou donnée privée.
+- Avant publication, contrôler l'intégralité des contrats applicables et les écarts avec les handoffs ; toute non-conformité est bloquante, pas une remarque facultative.
+
+## PRÉFIXE DE COMMIT ET CONFORMITÉ DE LIVRAISON — OBLIGATOIRE
+
+- Tout **nouveau** message de commit commence exactement par `[v] `, suivi de `type(périmètre): résultat obtenu — VERSION`, en français. Exemple : `[v] fix(profile): préserver les preuves MusicBrainz — 1.0e`.
+- Corps de message multiligne : `Contexte`, `Modifications`, `Validation`, `Impact`, et `Limites / risques` si nécessaire.
+- Un changement livré comprend le code durable, ses tests et l'incrément de `VERSION` dans **un commit cohérent**, sauf impossibilité technique explicitée avant écriture. Ne jamais créer une succession de commits incomplets en prétendant que chacun satisfait au contrat.
+- Avant toute publication : confirmer fichiers concernés, absence de fichiers temporaires, version, préfixe, messages, vérifications statiques et tests pertinents. Aucun historique partagé n'est réécrit de force.
+- Un test CI qui échoue ne bloque pas à lui seul un push direct tant qu'une protection de branche n'impose pas le statut. Ne jamais annoncer un blocage effectif avant sa configuration et sa vérification.
+
 ## ⛔ RÈGLE ABSOLUE — FICHIERS TEMPORAIRES
 
 - **Aucun fichier temporaire, test ponctuel, installateur ponctuel, script apply/migrate/preflight/hotfix/rollback, backup, ZIP de livraison, log, dump, cache, export de diagnostic, artefact généré ou fichier de migration intermédiaire ne doit être créé dans ce dépôt.**
@@ -31,7 +48,7 @@ Voir aussi `REPOSITORY_HYGIENE.md`.
 
 Chaque commit publié doit être intelligible sans ouvrir le diff. Rédiger **en français**, avec :
 
-- Un titre précis au format `type(périmètre): résultat obtenu — version` (par exemple `fix(profile): rejeter les preuves CLAP non indépendantes — 1.4n`). Types usuels : `fix`, `feat`, `refactor`, `test`, `docs`, `chore`.
+- Un titre précis au format `[v] type(périmètre): résultat obtenu — version` (par exemple `fix(profile): rejeter les preuves CLAP non indépendantes — 1.4n`). Types usuels : `fix`, `feat`, `refactor`, `test`, `docs`, `chore`.
 - Un **corps de message multiligne** expliquant `Contexte`, `Modifications`, `Validation`, `Impact` et, si nécessaire, `Limites / risques`.
 - Dans `Validation`, distinguer explicitement les tests exécutés des tests seulement ajoutés ou non exécutés. Ne jamais affirmer une réussite non constatée.
 - Dans `Impact`, indiquer les dépôts ou composants touchés, les éventuels redémarrages/déploiements, et si les modèles, presets scientifiques, données et interfaces sont inchangés.
