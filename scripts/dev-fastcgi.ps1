@@ -20,25 +20,25 @@ try {
  }
  $state=$null
  if(Test-Path -LiteralPath $Meta){try{$state=Get-Content -LiteralPath $Meta -Raw -Encoding UTF8 | ConvertFrom-Json}catch{throw 'DEV_FASTCGI_METADATA_INVALID'}}
- $pid=if($state){[int]$state.pid}else{0}
+ $storedPid=if($state){[int]$state.pid}else{0}
  $actual=Listener
- $owned=($pid -gt 0 -and $actual -eq $pid -and (Identity $pid))
+ $owned=($storedPid -gt 0 -and $actual -eq $storedPid -and (Identity $storedPid))
  if($Action -eq 'status'){
-  if($owned){Write-Host "DEV_FASTCGI_OWNED PID=$pid";return}
+  if($owned){Write-Host "DEV_FASTCGI_OWNED PID=$storedPid";return}
   if($actual){Write-Host "DEV_FASTCGI_UNOWNED LISTENER_PID=$actual";return}
   if($state){Write-Host 'DEV_FASTCGI_STALE_METADATA';return}
   Write-Host 'DEV_FASTCGI_STOPPED';return
  }
  if($Action -eq 'stop'){
   if($actual -and -not $owned){throw "DEV_FASTCGI_STOP_REFUSED PID=$actual"}
-  if($pid -gt 0 -and -not $owned -and (Get-Process -Id $pid -ErrorAction SilentlyContinue)){throw "DEV_FASTCGI_PID_REUSED=$pid"}
-  if($owned){Stop-Process -Id $pid -Force -ErrorAction Stop}
+  if($storedPid -gt 0 -and -not $owned -and (Get-Process -Id $storedPid -ErrorAction SilentlyContinue)){throw "DEV_FASTCGI_PID_REUSED=$storedPid"}
+  if($owned){Stop-Process -Id $storedPid -Force -ErrorAction Stop}
   for($i=0;$i -lt 40;$i++){if(!(Listener)){break};Start-Sleep -Milliseconds 250}
   if(Listener){throw 'DEV_FASTCGI_STILL_LISTENING_METADATA_PRESERVED'}
   if(Test-Path -LiteralPath $Meta){Remove-Item -LiteralPath $Meta -Force}
   Write-Host 'DEV_FASTCGI_STOPPED';return
  }
- if($owned){Write-Host "DEV_FASTCGI_ALREADY_RUNNING PID=$pid";return}
+ if($owned){Write-Host "DEV_FASTCGI_ALREADY_RUNNING PID=$storedPid";return}
  if($actual -or $state){throw 'DEV_FASTCGI_START_REFUSED_UNOWNED_OR_STALE'}
  foreach($f in @($Exe,(Join-Path $Root 'public\index.php'),(Join-Path $Root 'vendor\autoload_runtime.php'))){if(!(Test-Path -LiteralPath $f -PathType Leaf)){throw "DEV_FASTCGI_MISSING $f"}}
  $env:APP_ENV='dev';$env:APP_DEBUG='1';$env:EZSCORE_INSTANCE='dev'
