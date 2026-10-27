@@ -1,0 +1,5 @@
+# 1.0f — singleton FastCGI EZScore DEV autonome
+
+Gestionnaire indépendant du Web Orchestrator : `scripts/dev-fastcgi.cmd start|status|stop`. Backend DEV 8602 uniquement, sans Caddy. Verrou local au dépôt et métadonnées persistantes dans var/runtime/dev-fastcgi (ignoré par Git). Contrôle exécutable et ligne de commande exacts, PID propriétaire du listener, démarrage idempotent, arrêt vérifié, refus des PID étrangers et métadonnées périmées. Ne touche jamais à PROD 8501 ni à Caddy DEV. Aucun code scientifique ou moteur modifié.
+
+**État de migration** : `scripts/start.cmd` historique conserve son comportement actuel (serveur Python/gestionnaire `php -S` et son Caddy), en attendant la séparation validée des Caddyfiles et de la route publique 8502 / médias forward_auth. **Ne pas lancer les deux mécanismes sur 8602 simultanément.** Préflight sur MAIN sans toucher aux services : `php tests/dev_fastcgi_singleton_contract.php`, parser PowerShell sur `scripts/dev-fastcgi.ps1`, `scripts/dev-fastcgi.cmd status`. Aucun démarrage/arrêt demandé avant inventaire des ports.
