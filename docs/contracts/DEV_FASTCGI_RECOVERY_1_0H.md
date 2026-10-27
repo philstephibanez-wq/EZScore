@@ -1,0 +1,5 @@
+# 1.0h — diagnostic et reprise de propriété explicite
+
+Après un start 8602 ayant échoué, un processus FastCGI est resté en écoute (MAIN : PID 28720), sans métadonnées. Son origine exacte n'est pas prouvée ; ne jamais le tuer ou l'adopter automatiquement. `scripts/dev-fastcgi.ps1` expose une action `recover` par PID explicitement fourni par l'opérateur, avec identité exacte de l'exécutable et de la commande et vérification du port juste avant la sauvegarde, verrou commun. Aucun arrêt/démarrage dans cette action. `scripts/recover-dev-fastcgi.cmd PID` est le raccourci canonique. Le start affiche maintenant les PID du lanceur et de l'écouteur avec identité observée lorsqu'il échoue.
+
+Séquence non destructive : parser PowerShell, contrat PHP, `dev-fastcgi.cmd status` puis contrôle CIM du propriétaire de 8602. Ne récupérer que si identité et commande correspondent, et après accord explicite ; ne pas toucher Caddy DEV, PROD ou backend 8791. L'ancien `scripts/start.cmd` et les routes Caddy 8502 restent inchangés. Les tests Windows sont à exécuter sur MAIN.

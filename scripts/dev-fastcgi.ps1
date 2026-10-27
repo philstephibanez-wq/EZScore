@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][ValidateSet('start','stop','status')][string]$Action)
+param([Parameter(Mandatory=$true)][ValidateSet('start','stop','status','recover')][string]$Action,[int]$ExpectedPid=0,[switch]$ConfirmRecovery)
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 $Runtime = Join-Path $Root 'var\runtime\dev-fastcgi'
@@ -23,6 +23,16 @@ try {
  $storedPid=if($state){[int]$state.pid}else{0}
  $actual=Listener
  $owned=($storedPid -gt 0 -and $actual -eq $storedPid -and (Identity $storedPid))
+ if($Action -eq 'recover'){
+  if(-not $ConfirmRecovery -or $ExpectedPid -le 0){throw 'DEV_FASTCGI_RECOVERY_REQUIRES_CONFIRMATION'}
+  if($state){throw 'DEV_FASTCGI_RECOVERY_METADATA_EXISTS'}
+  if($actual -ne $ExpectedPid -or -not (Identity $ExpectedPid)){throw 'DEV_FASTCGI_RECOVERY_IDENTITY_MISMATCH'}
+  $again=Listener
+  if($again -ne $ExpectedPid -or -not (Identity $ExpectedPid)){throw 'DEV_FASTCGI_RECOVERY_PID_CHANGED'}
+  $json=@{schema='ezscore.dev-fastcgi.v1';pid=$ExpectedPid;recovery_mode='operator_explicit_pid';recovered_utc=[DateTime]::UtcNow.ToString('o')}|ConvertTo-Json
+  [IO.File]::WriteAllText($Meta,$json+"`n",[Text.UTF8Encoding]::new($false))
+  Write-Host "DEV_FASTCGI_RECOVERED PID=$ExpectedPid";return
+ }
  if($Action -eq 'status'){
   if($owned){Write-Host "DEV_FASTCGI_OWNED PID=$storedPid";return}
   if($actual){Write-Host "DEV_FASTCGI_UNOWNED LISTENER_PID=$actual";return}
@@ -46,7 +56,13 @@ try {
  try {
   $ready=$false
   for($i=0;$i -lt 40;$i++){Start-Sleep -Milliseconds 250;if((Listener) -eq $p.Id -and (Identity $p.Id)){$ready=$true;break};if($p.HasExited){break}}
-  if(!$ready){throw 'DEV_FASTCGI_START_FAILED_OR_DIFFERENT_LISTENER'}
+  if(!$ready){
+   $unexpected=Listener
+   $observed=if($unexpected){Get-CimInstance Win32_Process -Filter "ProcessId = $unexpected" -ErrorAction SilentlyContinue}else{$null}
+   $started=Get-CimInstance Win32_Process -Filter "ProcessId = $($p.Id)" -ErrorAction SilentlyContinue
+   $detail=if($observed){"LISTENER_PID=$unexpected PARENT_PID=$($observed.ParentProcessId) EXECUTABLE=$($observed.ExecutablePath) COMMAND=$($observed.CommandLine)"}else{'LISTENER_PID=0'}
+   throw "DEV_FASTCGI_START_FAILED_OR_DIFFERENT_LISTENER STARTED_PID=$($p.Id) STARTED_ALIVE=$([bool]$started) $detail"
+  }
   $json=@{schema='ezscore.dev-fastcgi.v1';pid=$p.Id;started_utc=[DateTime]::UtcNow.ToString('o')} | ConvertTo-Json
   [IO.File]::WriteAllText($Meta,$json+"`n",[Text.UTF8Encoding]::new($false))
   Write-Host "DEV_FASTCGI_STARTED PID=$($p.Id) PORT=8602"
