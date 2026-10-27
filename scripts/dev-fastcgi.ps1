@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][ValidateSet('start','stop','status','recover')][string]$Action,[int]$ExpectedPid=0,[switch]$ConfirmRecovery)
+param([Parameter(Mandatory=$true)][ValidateSet('start','stop','status','recover','diagnose')][string]$Action,[int]$ExpectedPid=0,[switch]$ConfirmRecovery)
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 $Runtime = Join-Path $Root 'var\runtime\dev-fastcgi'
@@ -23,6 +23,26 @@ try {
  $storedPid=if($state){[int]$state.pid}else{0}
  $actual=Listener
  $owned=($storedPid -gt 0 -and $actual -eq $storedPid -and (Identity $storedPid))
+ if($Action -eq 'diagnose'){
+  $connections=@(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
+  Write-Host "DEV_FASTCGI_DIAG_LISTENER_COUNT=$($connections.Count)"
+  foreach($connection in $connections){
+   $candidate=[int]$connection.OwningProcess
+   $proc=Get-CimInstance Win32_Process -Filter "ProcessId = $candidate" -ErrorAction SilentlyContinue
+   $exeMatches=($null -ne $proc -and [string]::Equals([string]$proc.ExecutablePath,$Exe,[StringComparison]::OrdinalIgnoreCase))
+   $cmd=[string]$proc.CommandLine
+   $expectedQuoted='"'+$Exe+'" -b 127.0.0.1:8602'
+   $expectedPlain=$Exe+' -b 127.0.0.1:8602'
+   $commandMatches=($cmd -ceq $expectedQuoted -or $cmd -ceq $expectedPlain)
+   $matched=(Identity $candidate)
+   Write-Host "DEV_FASTCGI_DIAG PID=$candidate ADDRESS=$($connection.LocalAddress) EXE_MATCH=$exeMatches CMD_MATCH=$commandMatches IDENTITY=$matched"
+   if(-not $exeMatches){Write-Host "DEV_FASTCGI_DIAG_EXECUTABLE=$([string]$proc.ExecutablePath)"}
+   if(-not $commandMatches){Write-Host "DEV_FASTCGI_DIAG_COMMAND=$cmd"}
+  }
+  Write-Host "DEV_FASTCGI_DIAG_FILTERED_LISTENER=$actual"
+  Write-Host "DEV_FASTCGI_DIAG_STORED_PID=$storedPid"
+  return
+ }
  if($Action -eq 'recover'){
   if(-not $ConfirmRecovery -or $ExpectedPid -le 0){throw 'DEV_FASTCGI_RECOVERY_REQUIRES_CONFIRMATION'}
   if($state){throw 'DEV_FASTCGI_RECOVERY_METADATA_EXISTS'}
