@@ -1,0 +1,3 @@
+# 1.0k — reconnaissance de la commande PHP-CGI
+
+MAIN : sur 8602, PID 28720, `EXE_MATCH=True`, `CMD_MATCH=False`, `IDENTITY=False`. Le diagnostic a isolé la comparaison de commande sans expliquer le caractère exact de la différence. Normaliser les espaces de début/fin et accepter l'espacement entre tokens, tout en exigeant une ligne **complète** : chemin exact `php-cgi.exe` (guillemets optionnels), `-b`, puis `127.0.0.1:8602`, sans autres arguments. Comparaison du chemin du processus à l'exécutable attendu conservée. Aucun changement de Caddy, PROD ni du lanceur public. Vérification Windows (parser + contrat + diagnose) nécessaire avant récupération explicite du PID ; le présent commit ne modifie aucun processus.
