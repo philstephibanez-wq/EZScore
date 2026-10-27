@@ -17,7 +17,8 @@ try {
   if(![string]::Equals([string]$p.ExecutablePath,$Exe,[StringComparison]::OrdinalIgnoreCase)){return $false}
   $c=[string]$p.CommandLine
   $normalized = $c.Trim()
-  $pattern = '^(?:"' + [regex]::Escape($Exe) + '"|' + [regex]::Escape($Exe) + ')\\s+-b\\s+127\\.0\\.0\\.1:8602
+  $escapedExe = [regex]::Escape($Exe)
+  $pattern = '^(?:"' + $escapedExe + '"|' + $escapedExe + ')\s+-b\s+127\.0\.0\.1:8602
  }
  $state=$null
  if(Test-Path -LiteralPath $Meta){try{$state=Get-Content -LiteralPath $Meta -Raw -Encoding UTF8 | ConvertFrom-Json}catch{throw 'DEV_FASTCGI_METADATA_INVALID'}}
