@@ -11,7 +11,7 @@
 
 ## PRÉFIXE DE COMMIT ET CONFORMITÉ DE LIVRAISON — OBLIGATOIRE
 
-- Tout **nouveau** message de commit commence exactement par `[v] `, suivi de `type(périmètre): résultat obtenu — VERSION`, en français. Exemple : `[v] fix(profile): préserver les preuves MusicBrainz — 1.0e`.
+- Tout **nouveau** message de commit commence exactement par `[vVERSION] `, où `VERSION` est la valeur exacte du fichier `VERSION` dans ce même commit, suivi de `type(périmètre): résultat obtenu`, en français. Exemple : `[v1.0i] fix(dev): imposer la version réelle dans le préfixe de commit`. Le préfixe littéral `[v]` est interdit.
 - Corps de message multiligne : `Contexte`, `Modifications`, `Validation`, `Impact`, et `Limites / risques` si nécessaire.
 - Un changement livré comprend le code durable, ses tests et l'incrément de `VERSION` dans **un commit cohérent**, sauf impossibilité technique explicitée avant écriture. Ne jamais créer une succession de commits incomplets en prétendant que chacun satisfait au contrat.
 - Avant toute publication : confirmer fichiers concernés, absence de fichiers temporaires, version, préfixe, messages, vérifications statiques et tests pertinents. Aucun historique partagé n'est réécrit de force.
@@ -48,7 +48,7 @@ Voir aussi `REPOSITORY_HYGIENE.md`.
 
 Chaque commit publié doit être intelligible sans ouvrir le diff. Rédiger **en français**, avec :
 
-- Un titre précis au format `[v] type(périmètre): résultat obtenu — version` (par exemple `fix(profile): rejeter les preuves CLAP non indépendantes — 1.4n`). Types usuels : `fix`, `feat`, `refactor`, `test`, `docs`, `chore`.
+- Un titre précis au format `[vVERSION] type(périmètre): résultat obtenu` (par exemple `[v1.4n] fix(profile): rejeter les preuves CLAP non indépendantes`). La valeur `VERSION` doit être identique au fichier `VERSION` inclus dans le commit ; ne jamais écrire le préfixe littéral `[v]`. Types usuels : `fix`, `feat`, `refactor`, `test`, `docs`, `chore`.
 - Un **corps de message multiligne** expliquant `Contexte`, `Modifications`, `Validation`, `Impact` et, si nécessaire, `Limites / risques`.
 - Dans `Validation`, distinguer explicitement les tests exécutés des tests seulement ajoutés ou non exécutés. Ne jamais affirmer une réussite non constatée.
 - Dans `Impact`, indiquer les dépôts ou composants touchés, les éventuels redémarrages/déploiements, et si les modèles, presets scientifiques, données et interfaces sont inchangés.
