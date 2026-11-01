@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="{{ app.request.locale }}">
 <head>
     <meta charset="utf-8">
@@ -66,7 +66,7 @@
                 <img class="ez-brand-icon" src="/assets/img/favicon-ezscore.svg?v=20261006final" alt="" aria-hidden="true">
                 <strong>EZScore</strong><small>v1.0a</small>
             </a>
-            {% if app.request.server.get('EZSCORE_INSTANCE') == 'dev' %}
+            {% if app.environment == 'dev' %}
                 <span class="ez-dev-badge" role="status" aria-label="Environnement de dÃ©veloppement">DEV</span>
             {% endif %}
         </div>
@@ -145,7 +145,7 @@
                 <img class="ez-brand-icon" src="/assets/img/favicon-ezscore.svg?v=20261006final" alt="" aria-hidden="true">
                 <strong>EZScore</strong><small>v1.0a</small>
             </a>
-            {% if app.request.server.get('EZSCORE_INSTANCE') == 'dev' %}
+            {% if app.environment == 'dev' %}
                 <span class="ez-dev-badge" role="status" aria-label="Environnement de dÃ©veloppement">DEV</span>
             {% endif %}
         </div>
