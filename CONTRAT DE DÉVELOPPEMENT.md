@@ -439,4 +439,3 @@ La **Plateforme EZS** regroupe exactement quatre dépôts de développement : `E
 ### Gouvernance des changements
 
 Le présent chapitre définit la **norme cible**, sans prétendre que chaque application y est déjà conforme. Les écarts constatés sont tracés dans des issues, traités par livraisons ciblées avec tests et sans réécriture simultanée des moteurs métier. Chaque dépôt conserve sa version canonique et ses conventions de commit ; tout correctif transversal est audité sur les quatre dépôts avant publication. Ordre de chantier en cours : restaurer ROOT par son watchdog et démontrer la disponibilité HTTP, puis implémenter progressivement les endpoints et tableaux de supervision des autres applications.
-
