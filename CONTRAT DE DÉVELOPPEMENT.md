@@ -439,3 +439,76 @@ La **Plateforme EZS** regroupe exactement quatre dépôts de développement : `E
 ### Gouvernance des changements
 
 Le présent chapitre définit la **norme cible**, sans prétendre que chaque application y est déjà conforme. Les écarts constatés sont tracés dans des issues, traités par livraisons ciblées avec tests et sans réécriture simultanée des moteurs métier. Chaque dépôt conserve sa version canonique et ses conventions de commit ; tout correctif transversal est audité sur les quatre dépôts avant publication. Ordre de chantier en cours : restaurer ROOT par son watchdog et démontrer la disponibilité HTTP, puis implémenter progressivement les endpoints et tableaux de supervision des autres applications.
+
+## CONTRAT EZS — EXPLOITATION FÉDÉRÉE V1
+
+### Autorité et périmètre
+
+Ce chapitre est **normatif et identique dans les quatre dépôts** `EZS_orchestrator`, `EZScore`, `EZStudio_lab` et `EZStudioLab_assistant`. Il actualise les dispositions plus anciennes qui lui seraient contraires, sans réduire les protections de sécurité, de propriété native, de PROD, d'authentification ni d'isolation.
+
+L'Orchestrator a exactement trois responsabilités à ce stade : **démarrage et arrêt des services**, **supervision** et **gestion de la queue de jobs de plateforme** (ordonnancement, distribution, suivi). Les opérations autorisées s'appliquent aux applications comme des unités, pas à leurs composants internes.
+
+- **EZScore DEV et PROD** sont propriétaires de leurs données, chemins et droits d'accès médias, configuration métier, modèles IA, moteurs et workers internes. PROD est un déploiement contrôlé du code EZScore DEV, avec sa propre configuration.
+- **EZStudio_lab** est propriétaire de ses pipelines, presets, modèles IA, moteurs scientifiques, ressources et workers internes.
+- **EZStudioLab_assistant** est propriétaire de Llama, de ses modèles IA, ressources et processus internes. L'Orchestrator pilote l'Assistant uniquement à travers son point d'entrée de cycle de vie canonique ; il ne lance ni ne répare directement Llama.
+- L'Orchestrator ne choisit ni n'invente de chemin média, modèle, paramètre scientifique ou moteur. Il peut acheminer une configuration validée par le service propriétaire ; il n'en devient pas l'autorité. Ses jobs de plateforme ne remplacent pas les queues et workers internes des applications.
+
+### Démarrage manuel, supervision et récupération
+
+- **Tous les services applicatifs DEV et PROD ont un démarrage initial exclusivement manuel et une intention persistée**. Aucun service arrêté volontairement ne redémarre du seul fait d'une sonde, d'un reboot ou de la réouverture de l'interface. ROOT conserve son watchdog de disponibilité propre et indépendant.
+- **DEV (EZScore DEV, LAB, Assistant)** : démarrage et arrêt explicites, supervision continue, **aucune tentative de redémarrage automatique après une panne** par l'Orchestrator. Le diagnostic et l'alerte sont maintenus.
+- **PROD (EZScore PROD)** : démarrage initial manuel, supervision continue et **récupération automatique contrôlée seulement après une panne attestée**, si une intention persistée autorise encore `RUNNING` et qu'aucun arrêt volontaire n'a eu lieu. Préflight, attribution univoque des processus, exclusion des PID réutilisés/étrangers, ports libres, temporisation et limite de tentatives sont obligatoires. Un état ambigu entraîne un refus et une alerte, jamais une destruction ou adoption forcée.
+- L'interface PROD expose seulement **Normal** et **Maintenance** ; aucun bouton `Démarrer`, `Arrêter` ou `Redémarrer` PROD dans l'interface. L'action initiale manuelle autorisée est une procédure d'exploitation explicite hors de ces boutons. **Maintenance n'est pas STOPPED** : les composants nécessaires restent actifs et supervisés ; le trafic public est traité par le mécanisme de maintenance existant.
+- **Un seul Orchestrator** contrôle les modes Normal/Maintenance et la supervision. **Pas de second orchestrateur ni de second service de supervision PROD.** L'instance FrankenPHP native PROD **déjà dédiée** (Caddyfile spécifique, ports 8501/8510/8511) est conservée ; aucun nouveau service Windows ou binaire FrankenPHP spécial PROD n'est requis à ce stade. Une évolution future de l'hébergement nécessitera une étude d'impact et une décision distinctes.
+- Toute action suit les mécanismes canoniques et les protections PROD. Les chemins historiques concurrents de démarrage PHP-CGI/Caddy doivent être audités puis retirés par livraison technique distincte ; le présent texte n'autorise pas à les utiliser, ni à les supprimer sans recette.
+
+### Pings hard et soft : preuves indépendantes
+
+- L'Orchestrator sonde séparément **l'identité native et la propriété du processus** et la **connectivité TCP** de chaque port attendu (ping hard). Un port ouvert n'atteste pas la santé métier ni la propriété du processus.
+- **Chaque application doit implémenter** un endpoint REST de supervision détaillée, `GET /api/status` ou chemin équivalent documenté, renvoyant son **état global et l'état de tous les composants internes pertinents**, définis par l'application elle-même : frontend, backend, stockage, workers, queues internes, moteurs, modèles et, pour l'Assistant, Llama. Une sonde `GET /health` légère peut être distincte.
+- **Avant la livraison de l'endpoint REST**, l'Orchestrator prévoit la requête et affiche `NOT_IMPLEMENTED` si sa non-implémentation est déclarée, ou `NOT_CONFIGURED` si le chemin n'est pas configuré. Ce n'est **ni OK ni KO** et cela **ne bloque ni démarrage, ni supervision TCP, ni récupération PROD sur preuve native admissible**. Une fois l'endpoint déclaré disponible, erreur HTTP, timeout, JSON invalide ou indisponibilité sont des `COLLECTION_ERROR` distinctes du `KO` applicatif. Aucune récupération automatique sur la seule absence de ping soft.
+- Les requêtes sont bornées, en lecture seule et sécurisées ; aucun contrôle de santé ne démarre une analyse lourde, un modèle, une migration ou un processus interne.
+
+### Réponse REST applicative cible
+
+Exemple de **schéma**, valeurs illustratives et non observations :
+
+```json
+{
+  "schema": "ezs.service-status.v1",
+  "service": "exemple_service",
+  "environment": "dev",
+  "version": "VERSION_CANONIQUE",
+  "timestamp_utc": "2026-11-03T17:00:00Z",
+  "state": "OK",
+  "message": "Service opérationnel",
+  "components": [
+    {
+      "id": "composant_stable",
+      "state": "OK",
+      "message": "Composant disponible",
+      "error_code": null
+    }
+  ]
+}
+```
+
+- **État global** : `OK` ou `KO`, avec un message clair. Chaque composant possède un identifiant stable, un état `OK`, `KO` ou `UNKNOWN` lorsqu'il n'est pas attestable, un message compréhensible et un code d'erreur optionnel. L'activité (par exemple `BUSY`) est une dimension indépendante et ne vaut pas panne.
+- **L'application propriétaire** décide quels éléments sont critiques et agrège leur état global ; l'Orchestrator n'invente ni état interne ni cause racine. Les composants en cascade restent visibles, avec `caused_by` seulement si la relation est attestée par l'application.
+- Le JSON source, l'horodatage UTC réel, l'environnement et la version sont distincts des preuves TCP/processus. Les diagnostics exposés sont expurgés de secrets, données personnelles et chemins sensibles.
+
+### Anti-spam et erreurs en cascade : registre de checksums
+
+- La supervision continue à sa fréquence normale même lorsque l'état reste `KO`. **Chaque message nouveau est affiché immédiatement et ajouté au diagnostic ; un message identique déjà signalé pour l'occurrence active n'est jamais répété.**
+- Calculer un checksum déterministe (par exemple SHA-256) sur la combinaison canonique **service + environnement + composant + état + code stable + message normalisé**. **Exclure** timestamp, durée, PID volatil, identifiants de requête, compteurs de sondes et autres champs variables sans valeur diagnostique. Ne pas normaliser au point de fusionner deux informations significativement différentes.
+- Conserver **un ensemble persistant de checksums par incident et composant**, pas seulement le dernier checksum : les séquences `A,A,A` et `A,B,A,B` n'affichent chacune que les messages `A` et `B` tant qu'ils n'ont pas été résolus. Un nouveau message `C` est ajouté sans effacer `A` ni `B`, même si le service reste globalement `KO`.
+- Une **résolution attestée** est affichée une fois et clôt l'occurrence du composant. Si la même erreur revient après résolution, elle est une **nouvelle occurrence** et doit être affichée de nouveau. La résolution d'un composant ne masque pas les erreurs toujours actives des autres. L'incident global est clos lorsque tous les problèmes actifs sont résolus.
+- Conserver séparément première et dernière observations UTC, journal des mesures et journal des événements/notifications. Ne pas notifier de nouveau à chaque polling et ne pas inférer de causalité non fournie. Les rappels/escalades périodiques sont désactivés par défaut.
+
+### Standard technique, contrôles et ordre du chantier
+
+- **Étape 1 :** publier le présent contrat dans les quatre dépôts et vérifier le texte identique, avec leur `VERSION` canonique propre.
+- **Étape 2 :** finaliser sur l'Orchestrator le démarrage manuel, les intentions persistées, la supervision hard processus/TCP des DEV et PROD, le client REST soft même avant disponibilité des endpoints, les modes Normal/Maintenance PROD et la récupération contrôlée **réservée à PROD**. Ne déclarer opérationnel que ce qui est prouvé sur MAIN.
+- **Étape 3 :** aligner les applications **une par une**, chacune propriétaire de son endpoint et de ses composants, puis réaliser leur homogénéisation progressive : PHP 8.5/Symfony, Twig, jQuery, Bootstrap, PHPUnit et contrats de tests selon pertinence ; Python reste interne aux moteurs IA et scientifiques propriétaires. Aucune modification scientifique ni transfert de responsabilité implicite.
+- Recettes obligatoires : intention STOPPED, démarrage manuel, état natif ambigu, TCP seul, endpoint REST non implémenté, `OK` et `KO` multi-composants, erreurs de collecte, 100 sondes répétées sans doublon, `A/B/A/B`, résolution partielle, rechute, persistance après relance de ROOT, modes PROD et absence d'effet croisé DEV/LAB/Assistant/PROD.
+- **Ce contrat ne déploie aucun composant** et ne prouve aucune fonctionnalité : les changements de code, le retrait des anciennes voies de cycle de vie et toute activation PROD nécessitent des livraisons et recettes séparées, avec sauvegarde, retour arrière et traçabilité.
